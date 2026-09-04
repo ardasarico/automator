@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/.turbo/**",
+    "**/dist/**",
+    "**/next-env.d.ts",
+    "**/README.md",
+    "**/LICENSE*",
+    ".agents/**",
+    ".codex/**",
+    "AGENTS.override.md",
+    "bun.lock",
+    "skills-lock.json"
+  ]
+}

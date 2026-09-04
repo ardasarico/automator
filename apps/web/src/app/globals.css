@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+@theme {
+  --color-*: initial;
+  --text-*: initial;
+}
+
+@theme inline {
+  --font-sans: var(--font-inter);
+}

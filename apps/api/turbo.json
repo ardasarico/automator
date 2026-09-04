@@ -1,0 +1,7 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "dev": { "passThroughEnv": ["PORT", "DATABASE_URL"] },
+    "start": { "passThroughEnv": ["PORT", "DATABASE_URL"] }
+  }
+}

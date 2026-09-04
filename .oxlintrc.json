@@ -1,0 +1,49 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": { "correctness": "error" },
+  "ignorePatterns": ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/next-env.d.ts"],
+  "overrides": [
+    {
+      "files": ["apps/web/**/*.{ts,tsx}"],
+      "plugins": ["typescript", "unicorn", "oxc", "react", "nextjs", "jsx-a11y"]
+    },
+    {
+      "files": ["apps/web/**/*.{ts,tsx}", "packages/contracts/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@automator/db",
+                  "@automator/db/**",
+                  "**/packages/db",
+                  "**/packages/db/**",
+                  "pg",
+                  "pg/**",
+                  "postgres",
+                  "postgres/**",
+                  "drizzle-orm",
+                  "drizzle-orm/**",
+                  "@prisma/client",
+                  "@prisma/client/**",
+                  "bun:sqlite"
+                ],
+                "message": "Web and contracts must stay independent of database implementation. Access data through the API."
+              }
+            ],
+            "paths": [
+              {
+                "name": "bun",
+                "importNames": ["SQL", "sql", "default", "*"],
+                "message": "Keep Bun SQL access in the API and database package."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

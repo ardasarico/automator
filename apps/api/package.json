@@ -1,0 +1,23 @@
+{
+  "name": "@automator/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint --deny-warnings .",
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --target=bun --packages=external --outdir=dist",
+    "start": "bun dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@automator/contracts": "workspace:*",
+    "@automator/db": "workspace:*",
+    "elysia": "1.4.30"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.1",
+    "typescript": "7.0.2"
+  }
+}

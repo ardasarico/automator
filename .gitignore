@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+node_modules/
+.turbo/
+.next/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Installed skills are restored from skills-lock.json.
+/.agents/skills/*
+# Keep project-owned and customized skills in version control.
+!/.agents/skills/committing/
