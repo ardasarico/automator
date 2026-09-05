@@ -11,6 +11,8 @@
 
 ## Conventions
 
+- **Icons:** use Remix Icons (`@remixicon/react`) exclusively for UI icons, including imported Coss components. Prefer line variants by default. Do not add other icon libraries.
+
 - **Language:** use English for all internal work, planning, working notes, subagent instructions and communication, and repository content (code, comments, docs, commit messages). Only user-facing communication follows the language of the user's prompt.
 - **Keep it lean:** favor simple code and short, useful docs. Add structure when the current work needs it.
 - **Grounded documentation:** document implemented behaviour and agreed decisions; never fill gaps with assumed stack choices, commands, or architecture.

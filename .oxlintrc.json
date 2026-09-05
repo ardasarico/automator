@@ -7,7 +7,11 @@
   "ignorePatterns": ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/next-env.d.ts"],
   "overrides": [
     {
-      "files": ["apps/web/**/*.{ts,tsx}", "apps/runtime/**/*.{ts,tsx}"],
+      "files": [
+        "apps/web/**/*.{ts,tsx}",
+        "apps/runtime/**/*.{ts,tsx}",
+        "apps/ui-lab/**/*.{ts,tsx}"
+      ],
       "plugins": ["typescript", "unicorn", "oxc", "react", "nextjs", "jsx-a11y"]
     },
     {
@@ -20,7 +24,8 @@
         "packages/contracts/**/*.{ts,tsx}",
         "apps/runtime/**/*.{ts,tsx}",
         "packages/ui/**/*.{ts,tsx}",
-        "packages/api-client/**/*.{ts,tsx}"
+        "packages/api-client/**/*.{ts,tsx}",
+        "apps/ui-lab/**/*.{ts,tsx}"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -63,7 +68,8 @@
         "apps/runtime/**/*.{ts,tsx}",
         "packages/ui/**/*.{ts,tsx}",
         "packages/api-client/**/*.{ts,tsx}",
-        "packages/contracts/**/*.{ts,tsx}"
+        "packages/contracts/**/*.{ts,tsx}",
+        "apps/ui-lab/**/*.{ts,tsx}"
       ],
       "rules": {
         "no-restricted-properties": [

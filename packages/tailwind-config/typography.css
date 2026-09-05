@@ -1,6 +1,4 @@
 @theme {
-  --text-*: initial;
-
   --text-page: 1.875rem;
   --text-page--line-height: 2.0625rem;
   --text-page--font-weight: 500;

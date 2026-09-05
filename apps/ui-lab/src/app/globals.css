@@ -1,0 +1,4 @@
+@import "@automator/tailwind-config/styles.css";
+@import "@automator/ui/styles.css";
+
+@source "..";

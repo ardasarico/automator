@@ -1,0 +1,31 @@
+{
+  "name": "@automator/ui-lab",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "lint": "oxlint --deny-warnings .",
+    "dev": "next dev --port 3003",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3003",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@automator/ui": "workspace:*",
+    "@remixicon/react": "4.9.0",
+    "next": "16.3.4",
+    "next-themes": "0.4.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@automator/tailwind-config": "workspace:*",
+    "@automator/typescript-config": "workspace:*",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.4.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "agentation": "3.0.2",
+    "postcss": "8.5.28",
+    "typescript": "7.0.2"
+  }
+}

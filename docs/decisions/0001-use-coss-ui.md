@@ -10,6 +10,8 @@ Automator needs a polished shared component library with its own visual identity
 
 Use Coss UI as the starting point for shared components, styled with Automator's own color and typography tokens.
 
+Keep the Coss foundation with a flatter Button finish and targeted interaction adjustments. Use Remix Icons (`@remixicon/react`) exclusively for UI icons, including imported Coss components.
+
 ## Consequences
 
-Component work will live in `packages/ui`. Coss components have not been integrated yet; that is the next phase after the visual foundations.
+Components live in `packages/ui` and use Base UI for behavior and accessibility. Preserve the upstream license and document local adaptations in `packages/ui/COSS.md` when refreshing registry sources.

@@ -42,14 +42,14 @@
   --popover-foreground: var(--neutral-800);
   --primary: var(--blue-300);
   --primary-foreground: var(--blue-500);
-  --secondary: var(--neutral-200);
+  --secondary: color-mix(in srgb, var(--neutral-900) 4%, transparent);
   --secondary-foreground: var(--neutral-800);
   --muted: var(--neutral-200);
   --muted-foreground: var(--neutral-600);
   --accent: var(--neutral-200);
   --accent-foreground: var(--neutral-800);
-  --border: var(--neutral-300);
-  --input: var(--neutral-500);
+  --border: color-mix(in srgb, var(--neutral-900) 8%, transparent);
+  --input: color-mix(in srgb, var(--neutral-900) 10%, transparent);
   --ring: var(--blue-400);
   --link: var(--blue-400);
   --sidebar: var(--neutral-100);
@@ -69,7 +69,7 @@
   --warning: var(--amber-300);
   --warning-foreground: var(--amber-400);
   --warning-surface: var(--amber-100);
-  --destructive: var(--red-300);
+  --destructive: var(--red-400);
   --destructive-foreground: var(--red-400);
   --destructive-surface: var(--red-100);
 }
@@ -85,6 +85,9 @@
   --neutral-700: oklch(0.865 0.005 220);
   --neutral-800: oklch(0.925 0.004 220);
   --neutral-900: oklch(0.955 0.003 220);
+  --secondary: color-mix(in srgb, var(--neutral-900) 8%, transparent);
+  --border: color-mix(in srgb, var(--neutral-900) 6%, transparent);
+  --input: color-mix(in srgb, var(--neutral-900) 8%, transparent);
   --ring: var(--blue-300);
   --sidebar-ring: var(--blue-300);
   --link: var(--blue-300);
