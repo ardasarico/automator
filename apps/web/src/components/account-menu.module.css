@@ -1,0 +1,84 @@
+.trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px;
+  gap: 12px;
+  overflow: hidden;
+  border-radius: 8px;
+  color: var(--foreground);
+  cursor: pointer;
+  text-align: start;
+  transition: background-color 150ms;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+.identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.wallet {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.details {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  width: 184px;
+  font-size: 14px;
+}
+.details svg {
+  color: var(--muted-foreground);
+}
+.trigger[data-popup-open] {
+  background: var(--accent);
+}
+@media (hover: hover) {
+  .trigger:hover {
+    background: var(--accent);
+  }
+}
+.trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.settingsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-block: 16px 32px;
+}
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 14px;
+}
+.hint {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+@media (prefers-reduced-motion: reduce) {
+  .trigger {
+    transition: none;
+  }
+}

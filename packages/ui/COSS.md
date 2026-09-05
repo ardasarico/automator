@@ -38,8 +38,8 @@ from `@remixicon/react` instead of the registry's icon sources.
 Automator's palette is mapped through the semantic CSS variables in
 `packages/tailwind-config/colors.css`. Neutral border/input/secondary tokens use
 Coss's opacity levels with our palette, except dark secondary uses 8% instead of
-4% to separate buttons from the canvas. No component-specific color overrides are
-needed. Inter and Geist Mono match the Coss starter fonts. Standard Tailwind text
+4% to separate buttons from the canvas. Menu popups use neutral-300 for
+their accent so highlighted items remain visible against the neutral-200 surface. Inter and Geist Mono match the Coss starter fonts. Standard Tailwind text
 sizes remain available alongside app typography roles. `styles.css` supplies the
 Coss radius scale and base styles, plus a reduced-motion accessibility rule.
 

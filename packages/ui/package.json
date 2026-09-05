@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./logo": "./src/logo.tsx",
+    "./assets/logo.svg": "./assets/logo.svg",
+    "./assets/logo-mark.svg": "./assets/logo-mark.svg",
     "./button": "./src/button.tsx",
     "./styles.css": "./styles.css",
     "./theme-provider": "./src/theme-provider.tsx",
@@ -23,7 +26,8 @@
     "./spinner": "./src/spinner.tsx",
     "./select": "./src/select.tsx",
     "./textarea": "./src/textarea.tsx",
-    "./input": "./src/input.tsx"
+    "./input": "./src/input.tsx",
+    "./dither-avatar": "./src/dither-kit/avatar.tsx"
   },
   "scripts": {
     "lint": "oxlint --deny-warnings .",

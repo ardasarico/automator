@@ -34,6 +34,10 @@
 }
 
 @layer components {
+  [data-slot="menu-popup"] {
+    --accent: var(--neutral-300);
+  }
+
   [data-slot="button-label"],
   [data-slot="button-loading-indicator"] {
     transition: opacity 200ms cubic-bezier(0.2, 0, 0, 1);

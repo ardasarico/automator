@@ -1,0 +1,184 @@
+"use client";
+import { Button } from "@automator/ui/button";
+import { Logo, LogoMark } from "@automator/ui/logo";
+import {
+  RiHome5Line,
+  RiFlowChart,
+  RiPlayCircleLine,
+  RiCompass3Line,
+  RiSideBarLine,
+} from "@remixicon/react";
+import { motion, MotionConfig, useReducedMotion } from "motion/react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useRef, type ReactNode } from "react";
+import { SidebarProvider, useSidebar, type SidebarState } from "./sidebar-context";
+import styles from "./workspace-shell.module.css";
+import { AccountMenu } from "./account-menu";
+const pages = [
+  { href: "/", label: "Home", icon: RiHome5Line },
+  { href: "/flows", label: "Flows", icon: RiFlowChart },
+  { href: "/runs", label: "Runs", icon: RiPlayCircleLine },
+  { href: "/marketplace", label: "Marketplace", icon: RiCompass3Line },
+];
+function SidebarHeader() {
+  const { state, setState } = useSidebar();
+  const isOpen = state === "open";
+  const expandRef = useRef<HTMLButtonElement>(null);
+  const collapseRef = useRef<HTMLButtonElement>(null);
+  function toggle() {
+    setState(isOpen ? "collapsed" : "open");
+    requestAnimationFrame(() =>
+      (isOpen ? expandRef : collapseRef).current?.focus({ preventScroll: true }),
+    );
+  }
+  return (
+    <header className={styles.header}>
+      <div className={styles.markSlot}>
+        {isOpen ? (
+          <Link href="/" aria-label="Automator home" className={styles.markLink}>
+            <LogoMark markColor="var(--primary)" aria-hidden="true" />
+          </Link>
+        ) : (
+          <Button
+            ref={expandRef}
+            variant="ghost"
+            size="icon-xl"
+            className={`size-10 sm:size-10 ${styles.expandButton}`}
+            aria-label="Expand sidebar"
+            aria-expanded={false}
+            aria-controls="workspace-sidebar"
+            onClick={toggle}
+          >
+            <span className={styles.iconStack}>
+              <span className={styles.mark}>
+                <LogoMark
+                  className="size-7 opacity-100"
+                  markColor="var(--primary)"
+                  aria-hidden="true"
+                />
+              </span>
+              <span className={styles.openIcon}>
+                <RiSideBarLine className="size-6 opacity-100" aria-hidden="true" />
+              </span>
+            </span>
+          </Button>
+        )}
+      </div>
+      <motion.div
+        initial={false}
+        animate={{ opacity: isOpen ? 1 : 0 }}
+        className={styles.label}
+        inert={!isOpen}
+      >
+        <Link href="/" aria-label="Automator home">
+          <Logo markColor="transparent" aria-hidden="true" />
+        </Link>
+      </motion.div>
+      <Button
+        ref={collapseRef}
+        variant="ghost"
+        size="icon-xl"
+        className={`size-10 sm:size-10 ${styles.collapseButton}`}
+        aria-label="Collapse sidebar"
+        aria-expanded={isOpen}
+        aria-controls="workspace-sidebar"
+        tabIndex={isOpen ? undefined : -1}
+        inert={!isOpen}
+        onClick={toggle}
+      >
+        <RiSideBarLine className="size-6" aria-hidden="true" />
+      </Button>
+    </header>
+  );
+}
+function SidebarLink({ href, label, icon: Icon }: (typeof pages)[number]) {
+  const { state } = useSidebar();
+  const pathname = usePathname();
+  const active =
+    href === "/" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  return (
+    <Link
+      href={href}
+      className={styles.navLink}
+      aria-label={label}
+      aria-current={active ? "page" : undefined}
+      title={state === "collapsed" ? label : undefined}
+    >
+      <Icon className={styles.navIcon} aria-hidden="true" />
+      <motion.span
+        initial={false}
+        animate={{ opacity: state === "open" ? 1 : 0 }}
+        aria-hidden="true"
+      >
+        {label}
+      </motion.span>
+    </Link>
+  );
+}
+function WorkspaceFrame({ children }: { children: ReactNode }) {
+  const { state } = useSidebar();
+  const isOpen = state === "open";
+  const reducedMotion = useReducedMotion();
+  const transition = reducedMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, bounce: 0.1, duration: 0.5 };
+  return (
+    <MotionConfig reducedMotion="user" transition={transition}>
+      <div className={styles.shell} data-state={state}>
+        <motion.aside
+          id="workspace-sidebar"
+          aria-label="Sidebar"
+          initial={false}
+          animate={{ width: isOpen ? 260 : 64 }}
+          className={styles.sidebar}
+        >
+          <div className={styles.sidebarTop}>
+            <SidebarHeader />
+            <nav aria-label="Main navigation" className={styles.navigation}>
+              {pages.map((page) => (
+                <SidebarLink key={page.href} {...page} />
+              ))}
+            </nav>
+          </div>
+          <div className={styles.footer}>
+            <AccountMenu />
+          </div>
+        </motion.aside>
+        <motion.div
+          initial={false}
+          className={styles.contentArea}
+          animate={{ paddingTop: isOpen ? 8 : 0, paddingRight: isOpen ? 8 : 0 }}
+        >
+          <motion.main
+            id="workspace-content"
+            tabIndex={-1}
+            initial={false}
+            className={styles.content}
+            animate={{
+              padding: isOpen ? 0 : 8,
+              paddingBottom: 0,
+              borderTopLeftRadius: isOpen ? 16 : 0,
+              borderTopRightRadius: isOpen ? 16 : 0,
+            }}
+          >
+            {children}
+          </motion.main>
+        </motion.div>
+      </div>
+    </MotionConfig>
+  );
+}
+export function WorkspaceShell({
+  children,
+  defaultState = "open",
+}: {
+  children: ReactNode;
+  defaultState?: SidebarState;
+}) {
+  return (
+    <SidebarProvider defaultState={defaultState}>
+      <WorkspaceFrame>{children}</WorkspaceFrame>
+    </SidebarProvider>
+  );
+}
