@@ -64,8 +64,34 @@ export default defineRailway(() => {
     },
     replicas: { sfo: 1 },
   });
+  const runtime = service("runtime", {
+    source: github("ardasarico/automator", { branch: "main" }),
+    build: {
+      builder: "RAILPACK",
+      buildCommand: "bun run build --filter=@automator/runtime",
+      watchPatterns: [
+        "/apps/runtime/**",
+        "/packages/**",
+        "/package.json",
+        "/bun.lock",
+        "/turbo.json",
+        "/.railway/**",
+      ],
+    },
+    start: "bun run --filter @automator/runtime start",
+    healthcheck: "/health",
+    healthcheckTimeout: 60,
+    deploy: { restartPolicyMaxRetries: 3 },
+    env: {
+      API_URL: "http://${{api.RAILWAY_PRIVATE_DOMAIN}}:3001",
+      NODE_ENV: "production",
+      PORT: "3002",
+      RAILPACK_NODE_VERSION: "22",
+    },
+    replicas: { sfo: 1 },
+  });
 
   return project("automator", {
-    resources: [Postgres, api, web, postgresVolume],
+    resources: [Postgres, api, web, runtime, postgresVolume],
   });
 });

@@ -1,0 +1,20 @@
+{
+  "name": "@automator/tailwind-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./styles.css": "./styles.css",
+    "./postcss": "./postcss.mjs"
+  },
+  "scripts": {
+    "lint": "oxlint --deny-warnings ."
+  },
+  "dependencies": {
+    "tailwindcss": "4.3.3"
+  },
+  "peerDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "postcss": "^8.5.0"
+  }
+}

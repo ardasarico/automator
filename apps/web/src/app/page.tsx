@@ -1,4 +1,5 @@
-import { getHealth } from "@/lib/health";
+import { getHealth } from "@automator/api-client/server";
+import { Button } from "@automator/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +32,7 @@ export default async function Home() {
       </dl>
 
       <form action="/" method="get">
-        <button
-          className="cursor-pointer border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-4"
-          type="submit"
-        >
-          Check again
-        </button>
+        <Button type="submit">Check again</Button>
       </form>
     </main>
   );

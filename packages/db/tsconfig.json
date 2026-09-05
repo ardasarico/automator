@@ -1,14 +1,7 @@
 {
+  "extends": "@automator/typescript-config/base.json",
   "compilerOptions": {
-    "target": "ESNext",
-    "lib": ["ESNext"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "types": ["bun"],
-    "strict": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "verbatimModuleSyntax": true
+    "types": ["bun"]
   },
   "include": ["src/**/*.ts"]
 }

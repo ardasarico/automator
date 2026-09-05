@@ -1,15 +1,27 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc"],
-  "categories": { "correctness": "error" },
+  "categories": {
+    "correctness": "error"
+  },
   "ignorePatterns": ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/next-env.d.ts"],
   "overrides": [
     {
-      "files": ["apps/web/**/*.{ts,tsx}"],
+      "files": ["apps/web/**/*.{ts,tsx}", "apps/runtime/**/*.{ts,tsx}"],
       "plugins": ["typescript", "unicorn", "oxc", "react", "nextjs", "jsx-a11y"]
     },
     {
-      "files": ["apps/web/**/*.{ts,tsx}", "packages/contracts/**/*.{ts,tsx}"],
+      "files": ["packages/ui/**/*.{ts,tsx}"],
+      "plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y"]
+    },
+    {
+      "files": [
+        "apps/web/**/*.{ts,tsx}",
+        "packages/contracts/**/*.{ts,tsx}",
+        "apps/runtime/**/*.{ts,tsx}",
+        "packages/ui/**/*.{ts,tsx}",
+        "packages/api-client/**/*.{ts,tsx}"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -31,7 +43,7 @@
                   "@prisma/client/**",
                   "bun:sqlite"
                 ],
-                "message": "Web and contracts must stay independent of database implementation. Access data through the API."
+                "message": "Frontend apps and shared frontend packages must access data through the API."
               }
             ],
             "paths": [
@@ -41,6 +53,24 @@
                 "message": "Keep Bun SQL access in the API and database package."
               }
             ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "apps/web/**/*.{ts,tsx}",
+        "apps/runtime/**/*.{ts,tsx}",
+        "packages/ui/**/*.{ts,tsx}",
+        "packages/api-client/**/*.{ts,tsx}",
+        "packages/contracts/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "no-restricted-properties": [
+          "error",
+          {
+            "property": "DATABASE_URL",
+            "message": "Database credentials belong only in the API and database package."
           }
         ]
       }

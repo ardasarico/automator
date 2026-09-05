@@ -1,17 +1,19 @@
 {
-  "name": "@automator/db",
+  "name": "@automator/api-client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    "./server": "./src/server.ts"
   },
   "scripts": {
+    "lint": "oxlint --deny-warnings .",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint --deny-warnings ."
+    "test": "bun test"
   },
   "dependencies": {
-    "@automator/contracts": "workspace:*"
+    "@automator/contracts": "workspace:*",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@automator/typescript-config": "workspace:*",

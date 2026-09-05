@@ -1,0 +1,10 @@
+{
+  "extends": "./react.json",
+  "compilerOptions": {
+    "target": "ES2017",
+    "types": ["node", "react", "react-dom"],
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "allowJs": false
+  }
+}

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Automator",
+  title: "Automator Apps",
   manifest: "/meta/site.webmanifest",
   icons: {
     icon: [

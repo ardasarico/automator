@@ -1,7 +1,5 @@
 {
   "extends": "@automator/typescript-config/base.json",
-  "compilerOptions": {
-    "types": ["bun"]
-  },
+  "compilerOptions": { "types": ["bun"] },
   "include": ["src/**/*.ts"]
 }
