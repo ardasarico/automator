@@ -5,11 +5,16 @@
   "type": "module",
   "exports": {
     "./button": "./src/button.tsx",
-    "./styles.css": "./styles.css"
+    "./styles.css": "./styles.css",
+    "./theme-provider": "./src/theme-provider.tsx",
+    "./theme-select": "./src/theme-select.tsx"
   },
   "scripts": {
     "lint": "oxlint --deny-warnings .",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next-themes": "0.4.6"
   },
   "devDependencies": {
     "@automator/typescript-config": "workspace:*",

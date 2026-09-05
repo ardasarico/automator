@@ -1,0 +1,39 @@
+@theme {
+  --text-*: initial;
+
+  --text-page: 1.875rem;
+  --text-page--line-height: 2.0625rem;
+  --text-page--font-weight: 500;
+  --text-page--letter-spacing: -0.02em;
+
+  --text-panel: 1.5rem;
+  --text-panel--line-height: 1.8125rem;
+  --text-panel--font-weight: 500;
+  --text-panel--letter-spacing: -0.015em;
+
+  --text-section: 1.125rem;
+  --text-section--line-height: 1.5rem;
+  --text-section--font-weight: 500;
+
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.4375rem;
+  --text-body--font-weight: 400;
+
+  --text-label: 0.9375rem;
+  --text-label--line-height: 1.3125rem;
+  --text-label--font-weight: 500;
+
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.25rem;
+  --text-caption--font-weight: 400;
+
+  --text-code: 0.8125rem;
+  --text-code--line-height: 1.25rem;
+  --text-code--font-weight: 400;
+}
+
+@layer base {
+  body {
+    @apply text-body;
+  }
+}
