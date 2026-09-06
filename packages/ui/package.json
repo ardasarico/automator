@@ -24,6 +24,7 @@
     "./separator": "./src/separator.tsx",
     "./checkbox": "./src/checkbox.tsx",
     "./spinner": "./src/spinner.tsx",
+    "./empty-state-illustration": "./src/empty-state-illustration.tsx",
     "./select": "./src/select.tsx",
     "./textarea": "./src/textarea.tsx",
     "./input": "./src/input.tsx",

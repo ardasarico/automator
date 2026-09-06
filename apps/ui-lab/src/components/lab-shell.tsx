@@ -30,6 +30,7 @@ const pages = [
   { href: "/components/separator", label: "Separator" },
   { href: "/components/scroll-area", label: "Scroll Area" },
   { href: "/components/spinner", label: "Spinner" },
+  { href: "/components/empty-state-illustration", label: "Empty State Illustration" },
 ];
 
 export function LabShell({ children }: { children: ReactNode }) {

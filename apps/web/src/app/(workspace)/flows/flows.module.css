@@ -1,0 +1,286 @@
+.page {
+  container: flows / inline-size;
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding: 32px;
+  padding-bottom: 48px;
+}
+.header,
+.headerActions,
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.headerActions {
+  justify-content: flex-end;
+  gap: 12px;
+}
+.viewControl {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-block: 52px 60px;
+}
+.emptyHero {
+  position: relative;
+  isolation: isolate;
+  justify-content: center;
+  min-height: 420px;
+  margin-block: 20px 48px;
+  padding-block: 64px;
+}
+.emptyHero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: center;
+  mask-image: radial-gradient(ellipse at center, #000 12%, transparent 72%);
+  opacity: 0.8;
+}
+.exampleGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.exampleCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+.exampleDescription {
+  margin-top: 8px;
+  margin-bottom: 24px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+.exampleLink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+}
+.exampleLink:focus-visible {
+  outline: none;
+}
+.exampleLink:focus-visible::after {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.exampleCard:has(.exampleLink:hover) {
+  border-color: var(--neutral-400);
+}
+.templateActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: auto;
+}
+.collection {
+  margin-top: 32px;
+}
+.toolbar {
+  margin-bottom: 24px;
+}
+.search {
+  position: relative;
+  width: min(100%, 320px);
+}
+.search > svg {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  inset-inline-start: 12px;
+  top: 50%;
+  translate: 0 -50%;
+  z-index: 1;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+.flowGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+.flowGrid > li {
+  min-width: 0;
+}
+.flowCard {
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  transition: border-color 150ms;
+}
+.flowPreview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 136px;
+  padding: 20px;
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+.previewStep {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  border: 1px solid var(--border);
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--card);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  overflow-wrap: anywhere;
+}
+.previewStep + .previewStep::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 1px;
+  inset-inline-end: 100%;
+  top: 50%;
+  background: var(--border);
+}
+.flowMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+  font-size: var(--text-caption);
+  color: var(--muted-foreground);
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: var(--text-caption);
+  color: var(--muted-foreground);
+}
+.status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--neutral-500);
+}
+.status[data-published="true"]::before {
+  background: var(--success);
+}
+.tableWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  text-align: start;
+  border-collapse: collapse;
+  font-size: var(--text-caption);
+}
+.table th,
+.table td {
+  text-align: start;
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.table thead th {
+  font-weight: 400;
+  color: var(--muted-foreground);
+  padding-block: 10px;
+  white-space: nowrap;
+}
+.table tbody th {
+  min-width: 220px;
+  width: 60%;
+}
+.table td {
+  white-space: nowrap;
+}
+.flowName {
+  font-size: var(--text-label);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.flowName:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.flowCard:focus-visible,
+.flowName:focus-visible,
+.tableWrap:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+@media (hover: hover) {
+  .flowCard:hover {
+    border-color: var(--neutral-400);
+  }
+}
+@container flows (max-width: 680px) {
+  .exampleGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .flowGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container flows (max-width: 420px) {
+  .exampleGrid,
+  .flowGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .empty {
+    padding-block: 40px;
+  }
+  .emptyHero {
+    min-height: 360px;
+    margin-block: 16px 32px;
+    padding-block: 48px;
+  }
+  .headerActions {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 600px) {
+  .page {
+    padding: 24px 16px 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flowCard {
+    transition: none;
+  }
+}
