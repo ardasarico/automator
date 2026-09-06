@@ -20,7 +20,8 @@ export function createUserStore(sql: SQL | undefined) {
       const db = connection();
       const rows = await db<AuthUser[]>`
         INSERT INTO automator_users (id, wallet_address) VALUES (${id}, ${walletAddress})
-        ON CONFLICT (id) DO UPDATE SET wallet_address = EXCLUDED.wallet_address
+        ON CONFLICT (id) DO UPDATE SET
+          wallet_address = COALESCE(EXCLUDED.wallet_address, automator_users.wallet_address)
         RETURNING id, name, username, wallet_address AS "walletAddress"`;
       if (!rows[0]) throw new Error("User synchronization failed");
       return rows[0];
@@ -43,17 +44,3 @@ export function createUserStore(sql: SQL | undefined) {
   };
 }
 export type UserStore = ReturnType<typeof createUserStore>;
-
-export async function migrateUsers(sql: SQL) {
-  await sql.begin(async (tx) => {
-    // Serialize concurrent API starts before installing the initial, additive schema.
-    await tx`SELECT pg_advisory_xact_lock(716301, 1)`;
-    await tx`CREATE TABLE IF NOT EXISTS automator_users (
-      id TEXT PRIMARY KEY,
-      name TEXT CHECK (name IS NULL OR (char_length(btrim(name)) BETWEEN 1 AND 60)),
-      username TEXT UNIQUE CHECK (username IS NULL OR (username ~ '^[a-z][a-z0-9_]{2,23}$')),
-      wallet_address TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )`;
-  });
-}

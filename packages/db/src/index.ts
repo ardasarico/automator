@@ -1,6 +1,8 @@
 import type { DatabaseStatus } from "@automator/contracts";
 import { SQL } from "bun";
-import { createUserStore, migrateUsers } from "./users";
+import { migrate } from "./migrations";
+import { createUserStore } from "./users";
+export { migrate, migrations, type Migration } from "./migrations";
 export { UsernameTakenError, type UserStore } from "./users";
 
 export function createDatabase(url: string | undefined) {
@@ -9,7 +11,7 @@ export function createDatabase(url: string | undefined) {
   return {
     users: createUserStore(sql),
     async migrate() {
-      if (sql) await migrateUsers(sql);
+      if (sql) await migrate(sql);
     },
     async check(): Promise<DatabaseStatus> {
       if (!sql) return "not_configured";

@@ -23,3 +23,20 @@ test("other database failures are not reported as username conflicts", async () 
     createUserStore(sql).saveProfile("did:privy:test", { name: "Test", username: "valid_name" }),
   ).rejects.toBe(failure);
 });
+
+test("re-syncing without a wallet keeps the address already stored", async () => {
+  let statement = "";
+  const sql = ((strings: TemplateStringsArray) => {
+    statement = strings.join("?");
+    return Promise.resolve([
+      { id: "did:privy:test", name: null, username: null, walletAddress: "0xkept" },
+    ]);
+  }) as unknown as SQL;
+
+  expect(await createUserStore(sql).sync("did:privy:test", null)).toMatchObject({
+    walletAddress: "0xkept",
+  });
+  expect(statement.replace(/\s+/g, " ")).toContain(
+    "wallet_address = COALESCE(EXCLUDED.wallet_address, automator_users.wallet_address)",
+  );
+});

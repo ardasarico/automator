@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, test } from "bun:test";
-import { parseHealthResponse, type DatabaseStatus, type HealthResponse } from ".";
+import { parseResponse } from "./contract";
+import { healthContract, type DatabaseStatus, type HealthResponse } from "./health";
 
 const checkedAt = "2026-09-05T00:00:00.000Z";
 
@@ -10,7 +11,7 @@ describe("health response contract", () => {
       checks: { api: "up", database: "up" },
       checkedAt,
     } satisfies HealthResponse;
-    expect(parseHealthResponse(200, body)).toEqual(body);
+    expect(parseResponse(healthContract, 200, body)).toEqual({ status: 200, data: body });
   });
 
   test.each(["down", "not_configured"] as const)(
@@ -21,7 +22,7 @@ describe("health response contract", () => {
         checks: { api: "up", database },
         checkedAt,
       } satisfies HealthResponse;
-      expect(parseHealthResponse(503, body)).toEqual(body);
+      expect(parseResponse(healthContract, 503, body)).toEqual({ status: 503, data: body });
     },
   );
 
@@ -34,7 +35,7 @@ describe("health response contract", () => {
     [503, { status: "ok", checks: { api: "up", database: "up" }, checkedAt }],
     [500, { status: "ok", checks: { api: "up", database: "up" }, checkedAt }],
   ] as const)("rejects a mismatched HTTP status or payload (%s)", (status, body) => {
-    expect(() => parseHealthResponse(status, body)).toThrow();
+    expect(() => parseResponse(healthContract, status, body)).toThrow();
   });
 
   test("derives correlated TypeScript types from the schemas", () => {

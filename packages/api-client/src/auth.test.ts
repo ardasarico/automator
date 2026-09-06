@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { meContract, sessionContract } from "@automator/contracts";
+import { meContract, profileContract, sessionContract } from "@automator/contracts";
 import { AuthApiError, requestAuth } from "./auth";
 
 describe("auth API client", () => {
   test("forwards the token privately and never caches authenticated data", async () => {
-    let sent: RequestInit | undefined;
+    let sent: Parameters<Parameters<typeof requestAuth>[4] & object>[1] | undefined;
     const result = await requestAuth(
       "http://api.internal:3001",
       "test-token",
@@ -20,25 +20,59 @@ describe("auth API client", () => {
     expect(sent?.headers).toMatchObject({ Authorization: "Bearer test-token" });
     expect(sent?.cache).toBe("no-store");
   });
+
   test("missing authentication never calls the API", async () => {
     await expect(
       requestAuth("http://api", undefined, meContract, undefined, async () => {
         throw new Error("Must not fetch");
       }),
-    ).rejects.toMatchObject({ status: 401 });
+    ).rejects.toMatchObject({ status: 401, code: "unauthorized" });
   });
+
+  test("missing configuration never calls the API", async () => {
+    await expect(
+      requestAuth(undefined, "token", meContract, undefined, async () => {
+        throw new Error("Must not fetch");
+      }),
+    ).rejects.toMatchObject({ status: 503, code: "unavailable" });
+  });
+
   test.each([
-    Response.json({ user: { id: "incomplete" } }),
-    Response.json({ error: "database credentials" }, { status: 500 }),
-  ])("hides malformed backend responses", async (response) => {
+    ["an incomplete success payload", Response.json({ user: { id: "incomplete" } })],
+    ["a leaking error body", Response.json({ error: "database credentials" }, { status: 500 })],
+    ["an undeclared status", Response.json({ error: "unavailable" }, { status: 418 })],
+  ])("hides %s behind an unavailable API", async (_label, response) => {
     await expect(
       requestAuth("http://api", "token", sessionContract, undefined, async () => response),
     ).rejects.toMatchObject({ status: 503, code: "unavailable" });
   });
-  test("preserves expected username conflict for the form", async () => {
+
+  test("preserves the username conflict the onboarding form acts on", async () => {
     const response = Response.json({ error: "username_taken" }, { status: 409 });
-    await expect(
-      requestAuth("http://api", "token", meContract, undefined, async () => response),
-    ).rejects.toBeInstanceOf(AuthApiError);
+    const failure = requestAuth(
+      "http://api",
+      "token",
+      profileContract,
+      { name: "Alice", username: "alice" },
+      async () => response,
+    );
+    await expect(failure).rejects.toBeInstanceOf(AuthApiError);
+    await expect(failure).rejects.toMatchObject({ status: 409, code: "username_taken" });
+  });
+
+  test("sends the profile body as JSON", async () => {
+    let body: unknown;
+    const user = { id: "u", name: "Alice", username: "alice", walletAddress: "0x1" };
+    await requestAuth(
+      "http://api",
+      "token",
+      profileContract,
+      { name: "Alice", username: "alice" },
+      async (_url, init) => {
+        body = init.body;
+        return Response.json({ user });
+      },
+    );
+    expect(body).toBe(JSON.stringify({ name: "Alice", username: "alice" }));
   });
 });

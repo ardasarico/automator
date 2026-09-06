@@ -1,16 +1,22 @@
 import { createDatabase } from "@automator/db";
 import { createApp } from "./app";
 import { createPrivyIdentity } from "./auth/privy";
+import { readConfig } from "./config";
 
-const database = createDatabase(process.env.DATABASE_URL);
+const config = readConfig();
+const database = createDatabase(config.databaseUrl);
 await database.migrate();
-const app = createApp(database, {
+
+const app = createApp({
+  database,
   users: database.users,
-  identity: createPrivyIdentity(process.env.PRIVY_APP_ID, process.env.PRIVY_APP_SECRET),
-}).listen({
-  hostname: "::",
-  port: Number(process.env.PORT ?? 3001),
-});
+  identity: createPrivyIdentity(
+    config.privyAppId,
+    config.privyAppSecret,
+    config.privyVerificationKey,
+  ),
+  log: true,
+}).listen({ hostname: "::", port: config.port });
 
 console.log(`API listening on ${app.server?.url}`);
 

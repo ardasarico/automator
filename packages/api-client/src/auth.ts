@@ -1,43 +1,48 @@
 import {
-  parseAuthError,
-  parseAuthResponse,
+  type ApiError,
+  type ApiErrorCode,
   type AuthContract,
-  type AuthError,
   type AuthResponse,
   type ProfileInput,
 } from "@automator/contracts";
+import { request, type Fetcher } from "./request";
 
 export class AuthApiError extends Error {
   constructor(
     public readonly status: number,
-    public readonly code: AuthError["error"],
+    public readonly code: ApiErrorCode,
   ) {
     super(code);
+    this.name = "AuthApiError";
   }
 }
 
+/**
+ * Server-side view of the auth endpoints: success is returned, every other
+ * outcome becomes an `AuthApiError` carrying a code the web layer can act on.
+ */
 export async function requestAuth<C extends AuthContract>(
   apiUrl: string | undefined,
   token: string | undefined,
   contract: C,
   body?: ProfileInput,
-  fetcher: (url: URL, init: RequestInit) => Promise<Response> = fetch,
+  fetcher: Fetcher = fetch,
 ): Promise<AuthResponse<C>> {
   if (!token) throw new AuthApiError(401, "unauthorized");
   if (!apiUrl) throw new AuthApiError(503, "unavailable");
+  // The contract union hides the per-status payload behind a generic, so the
+  // result is narrowed here rather than by the compiler.
+  let result: { status: 200; data: AuthResponse<C> } | { status: number; data: ApiError };
   try {
-    const response = await fetcher(new URL(contract.path, apiUrl), {
-      method: contract.method,
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
-      cache: "no-store",
-      signal: AbortSignal.timeout(15_000),
-    });
-    const data: unknown = await response.json();
-    if (!response.ok) throw new AuthApiError(response.status, parseAuthError(data).error);
-    return parseAuthResponse(contract, data);
-  } catch (error) {
-    if (error instanceof AuthApiError) throw error;
+    result = (await request(apiUrl, contract, {
+      token,
+      body: body as never,
+      timeoutMs: 15_000,
+      fetcher,
+    })) as typeof result;
+  } catch {
     throw new AuthApiError(503, "unavailable");
   }
+  if (result.status !== 200) throw new AuthApiError(result.status, (result.data as ApiError).error);
+  return result.data as AuthResponse<C>;
 }

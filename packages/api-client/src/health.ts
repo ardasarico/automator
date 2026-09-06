@@ -1,19 +1,15 @@
-import { healthContract, parseHealthResponse } from "@automator/contracts";
+import { healthContract } from "@automator/contracts";
+import { request, type Fetcher } from "./request";
 
-type FetchHealth = (url: URL, init: RequestInit) => Promise<Response>;
-
-export async function getHealth(apiUrl: string | undefined, fetcher: FetchHealth = fetch) {
+/**
+ * Never throws: the dashboard renders a degraded state instead of an error page,
+ * so an unreachable or misconfigured API is just another status.
+ */
+export async function getHealth(apiUrl: string | undefined, fetcher: Fetcher = fetch) {
   if (!apiUrl) return { backend: "not_configured", database: "unknown" } as const;
-
   try {
-    const response = await fetcher(new URL(healthContract.path, apiUrl), {
-      method: healthContract.method,
-      cache: "no-store",
-      signal: AbortSignal.timeout(5000),
-    });
-    const body: unknown = await response.json();
-    const health = parseHealthResponse(response.status, body);
-    return { backend: "up", database: health.checks.database } as const;
+    const { data } = await request(apiUrl, healthContract, { fetcher });
+    return { backend: "up", database: data.checks.database } as const;
   } catch {
     return { backend: "down", database: "unknown" } as const;
   }

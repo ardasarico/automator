@@ -1,53 +1,55 @@
-import { meContract, profileContract, sessionContract } from "@automator/contracts";
+import {
+  isProfileInput,
+  meContract,
+  profileContract,
+  sessionContract,
+  Type,
+} from "@automator/contracts";
 import { UsernameTakenError, type UserStore } from "@automator/db";
 import { Elysia } from "elysia";
+import { createAuthGuard } from "./guard";
 import type { IdentityProvider } from "./privy";
 
 export interface AuthDependencies {
   users: UserStore;
   identity: IdentityProvider | undefined;
 }
+
+/** Usernames that would collide with a current or planned route segment. */
 const reservedUsernames = new Set([
   "admin",
   "administrator",
-  "automator",
-  "support",
   "api",
-  "root",
-  "login",
-  "onboarding",
-  "settings",
+  "auth",
+  "automator",
+  "create",
   "flows",
+  "health",
+  "help",
+  "login",
   "marketplace",
+  "me",
+  "null",
+  "onboarding",
+  "privy",
+  "root",
+  "runs",
+  "settings",
+  "support",
+  "system",
+  "undefined",
+  "www",
 ]);
 
 export function createAuthRoutes({ users, identity }: AuthDependencies) {
-  return new Elysia({ name: "auth", normalize: false })
-    .onRequest(({ set }) => {
-      set.headers["Cache-Control"] = "no-store";
-    })
-    .onError(({ code, error, path, status }) => {
-      if (code === "VALIDATION" || code === "PARSE")
-        return status(422, { error: "invalid_profile" as const });
-      console.error("Auth API failed", {
-        path,
-        kind: error.constructor.name,
-        code: "code" in error && typeof error.code === "string" ? error.code : code,
-      });
-      return status(503, { error: "unavailable" as const });
-    })
-    .resolve(async ({ headers, status }) => {
-      const match = headers.authorization?.match(/^Bearer ([^\s]+)$/i);
-      if (!match?.[1]) return status(401, { error: "unauthorized" as const });
-      if (!identity) return status(503, { error: "unavailable" as const });
-      const claims = await identity.verify(match[1]);
-      if (!claims) return status(401, { error: "unauthorized" as const });
-      return { claims };
-    })
+  return new Elysia({ name: "auth" })
+    .use(createAuthGuard(identity))
     .post(
       sessionContract.path,
       async ({ claims }) => {
-        const walletAddress = await identity!.walletAddress(claims.id);
+        const stored = await users.find(claims.id);
+        // Privy is only asked for a wallet while the stored user has none.
+        const walletAddress = stored?.walletAddress ?? (await identity!.walletAddress(claims.id));
         const user = await users.sync(claims.id, walletAddress);
         return { user, expiresAt: claims.expiresAt };
       },
@@ -59,16 +61,23 @@ export function createAuthRoutes({ users, identity }: AuthDependencies) {
     .put(
       profileContract.path,
       async ({ claims, body, status }) => {
+        // Checked here rather than by the route schema so that a profile the user
+        // can fix answers 422 `invalid_profile` instead of the generic 400.
+        if (!isProfileInput(body)) return status(422, { error: "invalid_profile" });
+        // Normalized before storing so two spellings of the same name compare equal.
+        const name = body.name.normalize("NFC").trim();
+        if (!name) return status(422, { error: "invalid_profile" });
         if (reservedUsernames.has(body.username))
           return status(409, { error: "username_reserved" });
         if (!(await users.find(claims.id))) return status(401, { error: "unauthorized" });
         try {
-          return { user: await users.saveProfile(claims.id, body) };
+          return { user: await users.saveProfile(claims.id, { ...body, name }) };
         } catch (error) {
           if (error instanceof UsernameTakenError) return status(409, { error: "username_taken" });
           throw error;
         }
       },
-      { body: profileContract.body, response: profileContract.response },
+      // The contract schema is applied in the handler, so the wire only has to be JSON.
+      { body: Type.Unknown(), response: profileContract.response },
     );
 }
