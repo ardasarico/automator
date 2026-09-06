@@ -1,8 +1,28 @@
 ## How we work
 
-- **Skills:** review the available skill descriptions, including `.agents/skills/`, and read and follow the skills relevant to the task.
+- **Harnesses:** this file is the single instruction source for every coding agent. Codex reads it natively; Claude Code reads it through `CLAUDE.md` (`@AGENTS.md`). Put shared guidance here, never in a harness-specific file. Local, untracked context lives in `AGENTS.override.md` (Codex) and `CLAUDE.local.md` (Claude, imports the same file).
+- **Skills:** project skills live in `.agents/skills/`; `.claude/skills` is a symlink to that directory. Review the available skill descriptions and read and follow the skills relevant to the task.
 - **Library docs:** use Context7 first; fall back to official documentation when it is unavailable or insufficient.
 - **Verification:** use the repository's existing checks for the affected code. Report what passed and what remains unverified.
+
+## Commands
+
+Bun workspaces with Turborepo; run everything from the repository root.
+
+- `bun install`, then `bun run dev` starts web (3000), API (3001), runtime (3002), and UI Lab (3003). Use `--filter=@automator/web` for one app; auth and health need the API running separately. UI Lab needs no env file or backend.
+- Verification: `bun run lint`, `bun run typecheck`, `bun run test`, `bun run build`, `bun run format:check` (`bun run format` fixes).
+- Single test file: `bun test apps/api/src/auth/privy.test.ts` from the root, or `bun test <pattern>` inside the package. Web tests need the package's happy-dom setup, so run them from `apps/web`.
+- Env files: copy each app's `.env.example` to `apps/api/.env` and `apps/web/.env.local`. Only the API gets `DATABASE_URL` and `PRIVY_APP_SECRET`.
+
+## Architecture
+
+Read `docs/architecture.md` for the full picture. The parts that span packages:
+
+- **Boundary:** `web/runtime → api → db`. Frontends call the API through `@automator/api-client/server` (server-only, given `API_URL` explicitly); the API owns Postgres via `@automator/db` (Bun SQL, no ORM, startup migration). Oxlint enforces this with restricted imports.
+- **Contracts:** `packages/contracts` holds TypeBox schemas, inferred types, and endpoint paths. Elysia validates responses against them; the API client validates incoming JSON against the same schema and status.
+- **Auth:** Privy authenticates in the browser; Next.js route handlers under `apps/web/src/app/api/auth` forward bearer tokens to the API and mirror the session into the `automator-session` cookie. Server code reads the user through `apps/web/src/auth/server.ts`. The cookie is a rendering mirror, not authorization; every private API handler enforces its own.
+- **UI:** `packages/ui` wraps Coss (Base UI) primitives imported via explicit subpaths such as `@automator/ui/button`; tokens and fonts come from `packages/tailwind-config`. `apps/ui-lab` previews them.
+- **Deploy:** Railway autodeploys `web` and `api` from GitHub `main`; `.railway/railway.ts` is the infrastructure definition and changes there need `railway config plan` / `apply`.
 
 ## Docs
 

@@ -8,6 +8,11 @@ dist/
 *.tsbuildinfo
 next-env.d.ts
 
+# Local agent context and harness state
+AGENTS.override.md
+CLAUDE.local.md
+.prova/
+
 # Downloaded skills stay local; curated Automator skills are project-owned.
 /.agents/skills/*
 !/.agents/skills/automator-ui/
