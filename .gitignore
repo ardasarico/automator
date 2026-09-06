@@ -8,7 +8,13 @@ dist/
 *.tsbuildinfo
 next-env.d.ts
 
-# Installed skills are restored from skills-lock.json.
+# Downloaded skills stay local; curated Automator skills are project-owned.
 /.agents/skills/*
-# Keep project-owned and customized skills in version control.
+!/.agents/skills/automator-ui/
+!/.agents/skills/code-review/
+!/.agents/skills/codebase-design/
 !/.agents/skills/committing/
+!/.agents/skills/diagnosing-bugs/
+!/.agents/skills/elysiajs/
+!/.agents/skills/oklch-skill/
+!/.agents/skills/turborepo/
