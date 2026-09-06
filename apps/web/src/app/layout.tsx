@@ -2,6 +2,7 @@ import { ThemeProvider } from "@automator/ui/theme-provider";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AgentationToolbar } from "../components/agentation-toolbar";
+import { AuthProvider } from "../auth/provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,7 +27,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased">
         <ThemeProvider>
-          {children}
+          <AuthProvider>{children}</AuthProvider>
           <AgentationToolbar />
         </ThemeProvider>
       </body>

@@ -2,31 +2,17 @@
 
 import { DitherAvatar } from "@automator/ui/dither-avatar";
 import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from "@automator/ui/menu";
-import {
-  Dialog,
-  DialogPopup,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogPanel,
-} from "@automator/ui/dialog";
-import { ThemeSelect } from "@automator/ui/theme-select";
 import { RiExpandUpDownLine, RiSettings3Line, RiLogoutBoxRLine } from "@remixicon/react";
 import { motion } from "motion/react";
 import { useRef, useState } from "react";
 import { useSidebar } from "./sidebar-context";
+import { SettingsDialog } from "./settings-dialog";
 import styles from "./account-menu.module.css";
+import { useAuthSession } from "../auth/provider";
 
-// Preview identity until wallet authentication is connected.
-const previewWalletAddress = "0x25e40000000000000000000000000000000066c8";
-
-export function AccountMenu({
-  walletAddress = previewWalletAddress,
-  onLogout,
-}: {
-  walletAddress?: string;
-  onLogout?: () => void;
-}) {
+export function AccountMenu() {
+  const { user, logout, pending, error, refresh } = useAuthSession();
+  const walletAddress = user?.walletAddress ?? undefined;
   const { state } = useSidebar();
   const isOpen = state === "open";
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -42,7 +28,7 @@ export function AccountMenu({
           title={isOpen ? undefined : "Account"}
         >
           <span className={styles.avatar} aria-hidden="true">
-            <DitherAvatar name={walletAddress ?? "Automator"} hue={192} size={24} animate={false} />
+            <DitherAvatar name={user?.id ?? "Automator"} hue={192} size={24} animate={false} />
           </span>
           <motion.span
             initial={false}
@@ -51,11 +37,13 @@ export function AccountMenu({
             aria-hidden="true"
           >
             <span className={styles.identity}>
-              <span>Account</span>
+              <span>{user?.name ?? "Account"}</span>
               <span className={styles.wallet} title={walletAddress}>
                 {walletAddress
                   ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
-                  : "No wallet connected"}
+                  : user?.username
+                    ? `@${user.username}`
+                    : "Loading account…"}
               </span>
             </span>
             <RiExpandUpDownLine size={18} />
@@ -73,34 +61,39 @@ export function AccountMenu({
             Settings
           </MenuItem>
           <MenuSeparator />
-          <MenuItem variant="destructive" onClick={onLogout}>
+          {error && (
+            <MenuItem
+              disabled={pending}
+              onClick={() => {
+                void refresh().catch(() => {});
+              }}
+            >
+              Retry connection
+            </MenuItem>
+          )}
+          <MenuItem
+            variant="destructive"
+            disabled={pending}
+            onClick={() => {
+              void logout().catch(() => {});
+            }}
+          >
             <RiLogoutBoxRLine aria-hidden="true" />
             Log out
           </MenuItem>
         </MenuPopup>
       </Menu>
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogPopup className="max-w-3xl" bottomStickOnMobile={false} finalFocus={triggerRef}>
-          <DialogHeader>
-            <DialogTitle>Settings</DialogTitle>
-            <DialogDescription>Make Automator feel right for you.</DialogDescription>
-          </DialogHeader>
-          <DialogPanel>
-            <section className={styles.settingsSection} aria-labelledby="appearance-heading">
-              <h2 id="appearance-heading" className={styles.sectionTitle}>
-                Appearance
-              </h2>
-              <div className={styles.settingRow}>
-                <div>
-                  <p>Theme</p>
-                  <p className={styles.hint}>Choose light, dark, or follow your system.</p>
-                </div>
-                <ThemeSelect />
-              </div>
-            </section>
-          </DialogPanel>
-        </DialogPopup>
-      </Dialog>
+      {error && (
+        <p className="px-3 text-caption text-destructive-foreground" role="alert">
+          {error}
+        </p>
+      )}
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        finalFocus={triggerRef}
+        walletAddress={walletAddress}
+      />
     </>
   );
 }

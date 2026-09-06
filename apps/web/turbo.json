@@ -2,15 +2,15 @@
   "extends": ["//"],
   "tasks": {
     "dev": {
-      "passThroughEnv": ["PORT", "API_URL"]
+      "passThroughEnv": ["PORT", "API_URL", "NEXT_PUBLIC_PRIVY_APP_ID"]
     },
     "start": {
-      "passThroughEnv": ["PORT", "API_URL"]
+      "passThroughEnv": ["PORT", "API_URL", "NEXT_PUBLIC_PRIVY_APP_ID"]
     },
     "build": {
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"],
       "inputs": ["$TURBO_DEFAULT$", ".env", ".env.*"],
-      "env": ["API_URL"]
+      "env": ["API_URL", "NEXT_PUBLIC_PRIVY_APP_ID"]
     },
     "typecheck": {
       "outputs": [".next/types/**", "*.tsbuildinfo"]

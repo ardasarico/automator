@@ -1,7 +1,7 @@
 {
   "extends": ["//"],
   "tasks": {
-    "dev": { "passThroughEnv": ["PORT", "DATABASE_URL"] },
-    "start": { "passThroughEnv": ["PORT", "DATABASE_URL"] }
+    "dev": { "passThroughEnv": ["PORT", "DATABASE_URL", "PRIVY_APP_ID", "PRIVY_APP_SECRET"] },
+    "start": { "passThroughEnv": ["PORT", "DATABASE_URL", "PRIVY_APP_ID", "PRIVY_APP_SECRET"] }
   }
 }

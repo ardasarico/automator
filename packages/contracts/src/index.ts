@@ -1,5 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { Check } from "@sinclair/typebox/value";
+export * from "./auth";
 
 const unavailableDatabaseSchema = Type.Union([
   Type.Literal("down"),

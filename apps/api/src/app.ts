@@ -7,9 +7,13 @@ import {
 } from "@automator/contracts";
 import type { createDatabase } from "@automator/db";
 import { Elysia } from "elysia";
+import { createAuthRoutes, type AuthDependencies } from "./auth/routes";
 
-export function createApp(database: Pick<ReturnType<typeof createDatabase>, "check">) {
-  return new Elysia()
+export function createApp(
+  database: Pick<ReturnType<typeof createDatabase>, "check">,
+  auth?: AuthDependencies,
+) {
+  return new Elysia({ normalize: false })
     .get(apiInfoContract.path, (): ApiInfoResponse => ({ name: "Automator API" }), {
       response: apiInfoContract.response,
     })
@@ -36,5 +40,6 @@ export function createApp(database: Pick<ReturnType<typeof createDatabase>, "che
         });
       },
       { response: healthContract.response },
-    );
+    )
+    .use(auth ? createAuthRoutes(auth) : new Elysia());
 }

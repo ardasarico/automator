@@ -54,29 +54,6 @@
   outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
-.settingsSection {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding-block: 16px 32px;
-}
-.sectionTitle {
-  font-size: 14px;
-  font-weight: 600;
-}
-.settingRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  font-size: 14px;
-}
-.hint {
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--muted-foreground);
-}
 @media (prefers-reduced-motion: reduce) {
   .trigger {
     transition: none;

@@ -1,0 +1,138 @@
+.page {
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+}
+.background {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.6;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    color-mix(in srgb, var(--primary) 2%, transparent),
+    transparent 70%
+  );
+  mask-image: radial-gradient(ellipse 380px 460px at 50% 50%, #0008, #000 100%);
+}
+.backgroundBlur {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  backdrop-filter: blur(14px);
+  mask-image: radial-gradient(ellipse 46% 58% at 50% 50%, #000 20%, transparent 90%);
+}
+:global(.dark) .background {
+  opacity: 0.16;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28px 36px;
+  gap: 24px;
+}
+.main {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 48px 24px 80px;
+}
+.form {
+  width: 100%;
+  max-width: 360px;
+}
+.intro {
+  margin-bottom: 32px;
+}
+.intro h1 {
+  font-size: 30px;
+  line-height: 33px;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.intro p {
+  margin-top: 12px;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.alternatives {
+  display: grid;
+  gap: 10px;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 24px 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 20px;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.note {
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  text-align: center;
+  font-size: 14px;
+  line-height: 20px;
+}
+.privyBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--foreground);
+  font-weight: 600;
+}
+.error {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--destructive-foreground);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted-foreground);
+}
+@media (max-width: 600px) {
+  .header {
+    padding: 20px;
+  }
+  .main {
+    padding-top: 32px;
+    padding-bottom: 48px;
+  }
+}
