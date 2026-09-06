@@ -1,25 +1,26 @@
 "use client";
-import { isOnboarded, profileContract } from "@automator/contracts";
+import { isOnboarded } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
 import { Spinner } from "@automator/ui/spinner";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
-import { authRequest, AuthRequestError } from "./client";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { AuthRequestError } from "./client";
 import { useAuthSession } from "./provider";
 import styles from "./auth.module.css";
 
 export function OnboardingForm() {
-  const { ready, authenticated, getAccessToken } = usePrivy();
-  const { user, pending, error: sessionError, refresh, logout } = useAuthSession();
+  const { ready, authenticated } = usePrivy();
+  const { user, pending, error: sessionError, refresh, saveProfile, logout } = useAuthSession();
   const router = useRouter();
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (ready && !authenticated) router.replace("/login");
     if (user && isOnboarded(user)) router.replace("/flows");
@@ -28,18 +29,25 @@ export function OnboardingForm() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving || pending || !user) return;
+    // `required` accepts a value made only of spaces, so the trim is checked here.
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      nameRef.current?.setCustomValidity("Enter a name");
+      nameRef.current?.reportValidity();
+      return;
+    }
     setSaving(true);
     setError(null);
     setUsernameError(false);
     try {
-      await authRequest(profileContract, await getAccessToken(), {
-        name: name.trim(),
-        username: username.toLowerCase(),
-      });
-      await refresh();
+      await saveProfile({ name: trimmedName, username: username.toLowerCase() });
       router.replace("/flows");
       router.refresh();
     } catch (cause) {
+      if (cause instanceof AuthRequestError && cause.code === "unauthorized") {
+        await recoverSession();
+        return;
+      }
       const taken =
         cause instanceof AuthRequestError &&
         ["username_taken", "username_reserved"].includes(cause.code);
@@ -53,6 +61,19 @@ export function OnboardingForm() {
       setSaving(false);
     }
   }
+
+  /** The token was rejected: try one refresh, and sign out if it cannot be recovered. */
+  async function recoverSession() {
+    const recovered = await refresh().catch(() => null);
+    if (recovered) {
+      setError("Your session was refreshed. Please try again.");
+      return;
+    }
+    await logout().catch(() => {
+      router.replace("/login");
+    });
+  }
+
   return (
     <>
       <div className={styles.intro}>
@@ -82,15 +103,18 @@ export function OnboardingForm() {
           <Field>
             <FieldLabel htmlFor="profile-name">Your name</FieldLabel>
             <Input
+              ref={nameRef}
               id="profile-name"
               name="name"
               autoComplete="name"
               required
               maxLength={60}
-              pattern=".*\S.*"
               size="lg"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                nameRef.current?.setCustomValidity("");
+                setName(event.target.value);
+              }}
               disabled={saving}
             />
           </Field>

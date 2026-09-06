@@ -1,5 +1,7 @@
 "use client";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { useHotkey } from "../lib/hotkeys";
+import { SIDEBAR_COOKIE, setPreferenceCookie } from "../lib/preferences";
 export type SidebarState = "open" | "collapsed";
 const SidebarContext = createContext<{
   state: SidebarState;
@@ -13,25 +15,14 @@ export function SidebarProvider({
   defaultState: SidebarState;
 }) {
   const [state, setStateInternal] = useState(defaultState);
-  function setState(next: SidebarState) {
+  const setState = useCallback((next: SidebarState) => {
     setStateInternal(next);
-    document.cookie = `workspace_sidebar=${next}; path=/; max-age=31536000; SameSite=Lax`;
-  }
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (
-        event.target instanceof HTMLElement &&
-        event.target.closest("input, textarea, select, [contenteditable=true]")
-      )
-        return;
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        setState(state === "open" ? "collapsed" : "open");
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [state]);
+    setPreferenceCookie(SIDEBAR_COOKIE, next);
+  }, []);
+  useHotkey("mod+shift+s", (event) => {
+    event.preventDefault();
+    setState(state === "open" ? "collapsed" : "open");
+  });
   return <SidebarContext.Provider value={{ state, setState }}>{children}</SidebarContext.Provider>;
 }
 export function useSidebar() {

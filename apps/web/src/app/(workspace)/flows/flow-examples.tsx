@@ -40,7 +40,7 @@ export function FlowExamples() {
                   variant="outline"
                   size="sm"
                   render={<Link href={`/create?example=${example.id}`} />}
-                  aria-label={`Fork ${example.name}`}
+                  aria-label={`Fork flow: ${example.name}`}
                 >
                   <RiGitForkLine aria-hidden="true" />
                   Fork flow

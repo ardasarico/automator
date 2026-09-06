@@ -1,7 +1,14 @@
 "use client";
 
-import { sessionContract, type AuthUser, type SessionResponse } from "@automator/contracts";
+import {
+  profileContract,
+  sessionContract,
+  type AuthUser,
+  type ProfileInput,
+  type SessionResponse,
+} from "@automator/contracts";
 import { PrivyProvider, useCreateWallet, usePrivy, useUser, type User } from "@privy-io/react-auth";
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -42,6 +49,7 @@ interface AuthSession {
   pending: boolean;
   error: string | null;
   refresh: () => Promise<AuthUser>;
+  saveProfile: (input: ProfileInput) => Promise<AuthUser>;
   logout: () => Promise<void>;
 }
 const SessionContext = createContext<AuthSession | null>(null);
@@ -58,18 +66,50 @@ function hasEmbeddedWallet(user: User) {
       account.walletClientType === "privy",
   );
 }
+/** Every field the UI renders, so an unchanged synchronization keeps the same object. */
+function sameUser(current: AuthUser | null, next: AuthUser) {
+  return (
+    current !== null &&
+    current.id === next.id &&
+    current.name === next.name &&
+    current.username === next.username &&
+    current.walletAddress === next.walletAddress
+  );
+}
+/** Routes that render for signed-out visitors; every other path needs a session. */
+const signedOutPaths = ["/login", "/onboarding"];
+function needsSession(pathname: string) {
+  return !signedOutPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
 
-function SessionProvider({ children }: { children: ReactNode }) {
+/**
+ * Holds the Automator session for one route group. `initialUser` is the
+ * server-verified user from the layout, so a hard load renders the account
+ * straight away and the background synchronization only corrects it.
+ */
+export function SessionProvider({
+  children,
+  initialUser,
+}: {
+  children: ReactNode;
+  initialUser?: AuthUser;
+}) {
   const { ready, authenticated, user: privyUser, getAccessToken, logout: privyLogout } = usePrivy();
   const { refreshUser } = useUser();
   const { createWallet } = useCreateWallet();
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [pending, setPending] = useState(true);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [user, setUser] = useState<AuthUser | null>(initialUser ?? null);
+  const [pending, setPending] = useState(!initialUser);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef<Promise<SessionResponse> | null>(null);
   const loggingOut = useRef(false);
   const lastAttemptAt = useRef(0);
   const userId = privyUser?.id;
+
+  const store = useCallback((next: AuthUser) => {
+    setUser((current) => (sameUser(current, next) ? current : next));
+  }, []);
 
   const synchronize = useCallback(() => {
     if (inFlight.current) return inFlight.current;
@@ -109,7 +149,7 @@ function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const session = await synchronize();
       if (session.user.id !== userId) throw new Error("The signed-in account changed");
-      setUser(session.user);
+      store(session.user);
       return session.user;
     } catch (cause) {
       setError(
@@ -121,7 +161,16 @@ function SessionProvider({ children }: { children: ReactNode }) {
     } finally {
       setPending(false);
     }
-  }, [synchronize, userId]);
+  }, [store, synchronize, userId]);
+
+  const saveProfile = useCallback(
+    async (input: ProfileInput) => {
+      const saved = await authRequest(profileContract, await getAccessToken(), input);
+      store(saved.user);
+      return saved.user;
+    },
+    [getAccessToken, store],
+  );
 
   // SDK callbacks may change identity when refreshUser updates the Privy context.
   // Read the latest callback without restarting the session effect on each render.
@@ -130,8 +179,13 @@ function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!ready) return;
     if (!authenticated || !userId) {
-      setUser(null);
-      setPending(false);
+      // Privy finished loading and reports the visitor as authenticated, but the user
+      // record has no id yet: there is nothing to synchronize, so stop waiting.
+      if (authenticated) {
+        void (async () => {
+          setPending(false);
+        })();
+      }
       return;
     }
     let active = true;
@@ -143,7 +197,7 @@ function SessionProvider({ children }: { children: ReactNode }) {
         const session = await synchronizeInEffect();
         if (session.user.id !== userId) throw new Error("The signed-in account changed");
         if (active) {
-          setUser(session.user);
+          store(session.user);
           setError(null);
           setPending(false);
         }
@@ -158,8 +212,6 @@ function SessionProvider({ children }: { children: ReactNode }) {
         }
       }
     };
-    setPending(true);
-    setUser(null);
     lastAttemptAt.current = 0;
     void sync();
     const interval = window.setInterval(() => {
@@ -174,7 +226,7 @@ function SessionProvider({ children }: { children: ReactNode }) {
       window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
     };
-  }, [ready, authenticated, userId]);
+  }, [ready, authenticated, userId, store]);
 
   const logout = useCallback(async () => {
     loggingOut.current = true;
@@ -183,9 +235,11 @@ function SessionProvider({ children }: { children: ReactNode }) {
     try {
       // Let any cookie-writing request finish before clearing the server session.
       await inFlight.current?.catch(() => {});
-      await privyLogout();
+      // Clear the mirrored cookie first: if it survives, the SDK session has to
+      // survive with it, or the next page load would render as a signed-in user.
       const response = await fetch("/api/auth/session", { method: "DELETE" });
       if (!response.ok) throw new Error("Could not clear session");
+      await privyLogout();
       window.location.assign("/login");
     } catch (cause) {
       loggingOut.current = false;
@@ -195,8 +249,36 @@ function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [privyLogout]);
 
+  // Privy is the source of truth: once it reports a signed-out visitor, the
+  // mirrored cookie is stale and private routes must send them to sign in.
+  const signedOut = ready && !authenticated;
+  const signOutHandled = useRef(false);
+  useEffect(() => {
+    if (!signedOut) {
+      signOutHandled.current = false;
+      return;
+    }
+    if (loggingOut.current || signOutHandled.current || !needsSession(pathname)) return;
+    signOutHandled.current = true;
+    void fetch("/api/auth/session", { method: "DELETE" }).catch(() => {});
+    router.replace("/login");
+  }, [signedOut, pathname, router]);
+
+  // A session loaded for another Privy user is stale until the next sync lands.
+  const stale = user !== null && userId !== undefined && user.id !== userId;
   return (
-    <SessionContext value={{ user, pending, error, refresh, logout }}>{children}</SessionContext>
+    <SessionContext
+      value={{
+        user: signedOut || stale ? null : user,
+        pending: signedOut ? false : stale || pending,
+        error,
+        refresh,
+        saveProfile,
+        logout,
+      }}
+    >
+      {children}
+    </SessionContext>
   );
 }
 
@@ -223,7 +305,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessions: { cookieWriteBehavior: "never" },
       }}
     >
-      <SessionProvider>{children}</SessionProvider>
+      {children}
     </PrivyProvider>
   );
 }

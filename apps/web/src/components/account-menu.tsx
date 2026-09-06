@@ -2,8 +2,8 @@
 
 import { DitherAvatar } from "@automator/ui/dither-avatar";
 import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from "@automator/ui/menu";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiExpandUpDownLine, RiSettings3Line, RiLogoutBoxRLine } from "@remixicon/react";
-import { motion } from "motion/react";
 import { useRef, useState } from "react";
 import { useSidebar } from "./sidebar-context";
 import { SettingsDialog } from "./settings-dialog";
@@ -18,37 +18,45 @@ export function AccountMenu() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
+  const trigger = (
+    <MenuTrigger
+      ref={triggerRef}
+      className={styles.trigger}
+      data-state={state}
+      aria-label={walletAddress ? `Account menu, ${walletAddress}` : "Account menu"}
+    >
+      <span className={styles.avatar} aria-hidden="true">
+        <DitherAvatar name={user?.id ?? "Automator"} hue={192} size={24} animate={false} />
+      </span>
+      <span className={styles.details} aria-hidden="true">
+        <span className={styles.identity}>
+          <span>{user?.name ?? "Account"}</span>
+          <span className={styles.wallet}>
+            {walletAddress
+              ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
+              : user?.username
+                ? `@${user.username}`
+                : "Loading account…"}
+          </span>
+        </span>
+        <RiExpandUpDownLine size={18} />
+      </span>
+    </MenuTrigger>
+  );
+
   return (
     <>
       <Menu>
-        <MenuTrigger
-          ref={triggerRef}
-          className={styles.trigger}
-          aria-label={walletAddress ? `Account menu, ${walletAddress}` : "Account menu"}
-          title={isOpen ? undefined : "Account"}
-        >
-          <span className={styles.avatar} aria-hidden="true">
-            <DitherAvatar name={user?.id ?? "Automator"} hue={192} size={24} animate={false} />
-          </span>
-          <motion.span
-            initial={false}
-            animate={{ opacity: isOpen ? 1 : 0 }}
-            className={styles.details}
-            aria-hidden="true"
-          >
-            <span className={styles.identity}>
-              <span>{user?.name ?? "Account"}</span>
-              <span className={styles.wallet} title={walletAddress}>
-                {walletAddress
-                  ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
-                  : user?.username
-                    ? `@${user.username}`
-                    : "Loading account…"}
-              </span>
-            </span>
-            <RiExpandUpDownLine size={18} />
-          </motion.span>
-        </MenuTrigger>
+        {isOpen ? (
+          trigger
+        ) : (
+          <Tooltip>
+            <TooltipTrigger render={trigger} />
+            <TooltipPopup side="right" sideOffset={8}>
+              Account
+            </TooltipPopup>
+          </Tooltip>
+        )}
         <MenuPopup
           side="top"
           align="start"
@@ -72,7 +80,6 @@ export function AccountMenu() {
             </MenuItem>
           )}
           <MenuItem
-            variant="destructive"
             disabled={pending}
             onClick={() => {
               void logout().catch(() => {});
@@ -84,16 +91,11 @@ export function AccountMenu() {
         </MenuPopup>
       </Menu>
       {error && (
-        <p className="px-3 text-caption text-destructive-foreground" role="alert">
+        <p className="px-3 text-caption text-destructive-text" role="alert">
           {error}
         </p>
       )}
-      <SettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        finalFocus={triggerRef}
-        walletAddress={walletAddress}
-      />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} finalFocus={triggerRef} />
     </>
   );
 }

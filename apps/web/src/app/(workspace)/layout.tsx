@@ -1,14 +1,18 @@
 import { WorkspaceShell } from "../../components/workspace-shell";
 import type { ReactNode } from "react";
-import { cookies } from "next/headers";
+import { SessionProvider } from "../../auth/provider";
 import { requireUser } from "../../auth/server";
+import { SIDEBAR_COOKIE } from "../../lib/preferences";
+import { readPreferenceCookie } from "../../lib/preferences.server";
 
 export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
-  await requireUser();
-  const state = (await cookies()).get("workspace_sidebar")?.value;
+  const user = await requireUser();
+  const state = await readPreferenceCookie(SIDEBAR_COOKIE);
   return (
-    <WorkspaceShell defaultState={state === "collapsed" ? "collapsed" : "open"}>
-      {children}
-    </WorkspaceShell>
+    <SessionProvider initialUser={user}>
+      <WorkspaceShell defaultState={state === "collapsed" ? "collapsed" : "open"}>
+        {children}
+      </WorkspaceShell>
+    </SessionProvider>
   );
 }

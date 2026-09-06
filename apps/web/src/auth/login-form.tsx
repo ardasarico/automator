@@ -37,7 +37,9 @@ export function LoginForm() {
   const codeRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const requestInFlight = useRef(false);
-  const disabled = !ready || busy || oauthLoading || modalOpen;
+  // Typing is allowed before Privy loads; only submitting has to wait for it.
+  const inputsDisabled = busy || oauthLoading || modalOpen;
+  const disabled = !ready || inputsDisabled;
 
   useEffect(() => {
     if (authenticated && user) router.replace(isOnboarded(user) ? "/flows" : "/onboarding");
@@ -63,6 +65,8 @@ export function LoginForm() {
       setCode("");
       setCooldown(30);
     } catch {
+      // No code was sent, so there is nothing to wait for before retrying.
+      setCooldown(0);
       setError("We couldn’t send a code. Check your email address and try again.");
     } finally {
       requestInFlight.current = false;
@@ -136,7 +140,7 @@ export function LoginForm() {
             : "Sign in or create an account to start building your flows."}
         </p>
       </div>
-      <form className={styles.stack} onSubmit={submit}>
+      <form className={styles.stack} onSubmit={submit} aria-busy={!ready || undefined}>
         {sent ? (
           <Field>
             <FieldLabel htmlFor="login-code">Verification code</FieldLabel>
@@ -154,7 +158,7 @@ export function LoginForm() {
               onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
               aria-describedby={error ? "login-error" : undefined}
               aria-invalid={Boolean(error)}
-              disabled={disabled}
+              disabled={inputsDisabled}
             />
           </Field>
         ) : (
@@ -171,7 +175,7 @@ export function LoginForm() {
               size="lg"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              disabled={disabled}
+              disabled={inputsDisabled}
               aria-describedby={error ? "login-error" : undefined}
             />
           </Field>
@@ -185,9 +189,9 @@ export function LoginForm() {
           type="submit"
           size="lg"
           className="w-full"
-          disabled={disabled || (!sent && cooldown > 0)}
-          loading={busy}
-          loadingText={sent ? "Verifying code" : "Sending code"}
+          disabled={inputsDisabled || (!sent && cooldown > 0)}
+          loading={busy || !ready}
+          loadingText={busy ? (sent ? "Verifying code" : "Sending code") : "Preparing sign-in"}
         >
           {sent
             ? "Verify and continue"

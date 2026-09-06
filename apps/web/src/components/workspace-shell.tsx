@@ -1,6 +1,7 @@
 "use client";
 import { Button } from "@automator/ui/button";
 import { Logo, LogoMark } from "@automator/ui/logo";
+import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiFlowChart, RiPlayCircleLine, RiCompass3Line, RiSideBarLine } from "@remixicon/react";
 import { motion, MotionConfig, useReducedMotion } from "motion/react";
 import Link from "next/link";
@@ -27,47 +28,43 @@ function SidebarHeader() {
   }
   return (
     <header className={styles.header}>
-      <div className={styles.markSlot}>
-        {isOpen ? (
-          <Link href="/flows" aria-label="Automator flows" className={styles.markLink}>
-            <LogoMark markColor="var(--primary)" aria-hidden="true" />
-          </Link>
-        ) : (
-          <Button
-            ref={expandRef}
-            variant="ghost"
-            size="icon-xl"
-            className={`size-10 sm:size-10 ${styles.expandButton}`}
-            aria-label="Expand sidebar"
-            aria-expanded={false}
-            aria-controls="workspace-sidebar"
-            onClick={toggle}
-          >
-            <span className={styles.iconStack}>
-              <span className={styles.mark}>
-                <LogoMark
-                  className="size-7 opacity-100"
-                  markColor="var(--primary)"
-                  aria-hidden="true"
-                />
-              </span>
-              <span className={styles.openIcon}>
-                <RiSideBarLine className="size-6 opacity-100" aria-hidden="true" />
-              </span>
-            </span>
-          </Button>
-        )}
-      </div>
-      <motion.div
-        initial={false}
-        animate={{ opacity: isOpen ? 1 : 0 }}
-        className={styles.label}
-        inert={!isOpen}
-      >
-        <Link href="/flows" aria-label="Automator flows">
+      {/*
+        Mark and wordmark share one link, so /flows is a single tab stop. The expand control
+        overlays the mark slot when collapsed, where the link is inert and its mark hidden.
+      */}
+      <Link href="/flows" className={styles.brand} aria-label="Automator flows" inert={!isOpen}>
+        <span className={styles.markSlot}>
+          <LogoMark markColor="var(--primary)" aria-hidden="true" />
+        </span>
+        <span className={styles.label}>
           <Logo markColor="transparent" aria-hidden="true" />
-        </Link>
-      </motion.div>
+        </span>
+      </Link>
+      {!isOpen && (
+        <Button
+          ref={expandRef}
+          variant="ghost"
+          size="icon-xl"
+          className={`size-10 sm:size-10 ${styles.expandButton}`}
+          aria-label="Expand sidebar"
+          aria-expanded={false}
+          aria-controls="workspace-sidebar"
+          onClick={toggle}
+        >
+          <span className={styles.iconStack}>
+            <span className={styles.mark}>
+              <LogoMark
+                className="size-7 opacity-100"
+                markColor="var(--primary)"
+                aria-hidden="true"
+              />
+            </span>
+            <span className={styles.openIcon}>
+              <RiSideBarLine className="size-6 opacity-100" aria-hidden="true" />
+            </span>
+          </span>
+        </Button>
+      )}
       <Button
         ref={collapseRef}
         variant="ghost"
@@ -89,23 +86,27 @@ function SidebarLink({ href, label, icon: Icon }: (typeof pages)[number]) {
   const { state } = useSidebar();
   const pathname = usePathname();
   const active = pathname === href || pathname.startsWith(`${href}/`);
-  return (
+  const link = (
     <Link
       href={href}
       className={styles.navLink}
       aria-label={label}
       aria-current={active ? "page" : undefined}
-      title={state === "collapsed" ? label : undefined}
     >
       <Icon className={styles.navIcon} aria-hidden="true" />
-      <motion.span
-        initial={false}
-        animate={{ opacity: state === "open" ? 1 : 0 }}
-        aria-hidden="true"
-      >
+      <span className={styles.navLabel} aria-hidden="true">
         {label}
-      </motion.span>
+      </span>
     </Link>
+  );
+  if (state === "open") return link;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={link} />
+      <TooltipPopup side="right" sideOffset={8}>
+        {label}
+      </TooltipPopup>
+    </Tooltip>
   );
 }
 function WorkspaceFrame({ children }: { children: ReactNode }) {
@@ -117,47 +118,41 @@ function WorkspaceFrame({ children }: { children: ReactNode }) {
     : { type: "spring" as const, bounce: 0.1, duration: 0.5 };
   return (
     <MotionConfig reducedMotion="user" transition={transition}>
-      <div className={styles.shell} data-state={state}>
-        <motion.aside
-          id="workspace-sidebar"
-          aria-label="Sidebar"
-          initial={false}
-          animate={{ width: isOpen ? 260 : 64 }}
-          className={styles.sidebar}
-        >
-          <div className={styles.sidebarTop}>
-            <SidebarHeader />
-            <nav aria-label="Main navigation" className={styles.navigation}>
-              {pages.map((page) => (
-                <SidebarLink key={page.href} {...page} />
-              ))}
-            </nav>
-          </div>
-          <div className={styles.footer}>
-            <AccountMenu />
-          </div>
-        </motion.aside>
-        <motion.div
-          initial={false}
-          className={styles.contentArea}
-          animate={{ paddingTop: isOpen ? 8 : 0, paddingRight: isOpen ? 8 : 0 }}
-        >
-          <motion.main
-            id="workspace-content"
-            tabIndex={-1}
+      <TooltipProvider delay={400}>
+        <div className={styles.shell} data-state={state}>
+          <a href="#workspace-content" className={styles.skipLink}>
+            Skip to content
+          </a>
+          <motion.aside
+            id="workspace-sidebar"
+            aria-label="Sidebar"
             initial={false}
-            className={styles.content}
-            animate={{
-              padding: isOpen ? 0 : 8,
-              paddingBottom: 0,
-              borderTopLeftRadius: isOpen ? 16 : 0,
-              borderTopRightRadius: isOpen ? 16 : 0,
-            }}
+            animate={{ width: isOpen ? 260 : 64 }}
+            className={styles.sidebar}
           >
-            {children}
-          </motion.main>
-        </motion.div>
-      </div>
+            <div className={styles.sidebarTop}>
+              <SidebarHeader />
+              <nav aria-label="Main navigation" className={styles.navigation}>
+                {pages.map((page) => (
+                  <SidebarLink key={page.href} {...page} />
+                ))}
+              </nav>
+            </div>
+            <div className={styles.footer}>
+              <AccountMenu />
+            </div>
+          </motion.aside>
+          {/*
+            Content inset and corner radius are CSS transitions keyed on the shell's
+            data-state, so the sidebar width spring stays the only per-frame JS layout write.
+          */}
+          <div className={styles.contentArea}>
+            <main id="workspace-content" tabIndex={-1} className={styles.content}>
+              {children}
+            </main>
+          </div>
+        </div>
+      </TooltipProvider>
     </MotionConfig>
   );
 }

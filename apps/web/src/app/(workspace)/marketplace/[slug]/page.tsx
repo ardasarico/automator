@@ -1,8 +1,9 @@
 import { Button } from "@automator/ui/button";
-import { RiArrowLeftLine, RiGitForkLine } from "@remixicon/react";
+import { RiGitForkLine } from "@remixicon/react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { WorkspaceBreadcrumbs } from "../../../../components/workspace-breadcrumbs";
 import { flowExamples } from "../examples";
 import { FlowNodeMarks } from "../flow-node-marks";
 
@@ -26,22 +27,24 @@ export default async function FlowDetailPage({ params }: Props) {
   const example = findExample((await params).slug);
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:p-8">
-      <Button variant="ghost" size="sm" render={<Link href="/flows" />}>
-        <RiArrowLeftLine aria-hidden="true" />
-        Back to flows
-      </Button>
-      <header className="mt-10 border-b pb-8">
+    <div className="mx-auto w-full max-w-4xl px-4 pt-2 pb-12 sm:px-8">
+      <WorkspaceBreadcrumbs
+        parents={[{ label: "Marketplace", href: "/marketplace" }]}
+        current={example.name}
+      />
+      <header className="mt-8 border-b pb-8">
         <FlowNodeMarks nodes={example.nodes} />
         <div className="mt-5 flex flex-wrap items-start justify-between gap-6">
           <div className="min-w-0 flex-1 basis-64">
-            <p className="mb-2 text-caption text-muted-foreground">Marketplace · By Automator</p>
-            <h1 className="text-page text-balance">{example.name}</h1>
-            <p className="mt-3 max-w-lg text-body text-pretty text-muted-foreground">
+            <p className="mb-2 text-caption text-muted-foreground">By Automator</p>
+            <p className="max-w-lg text-body text-pretty text-muted-foreground">
               {example.description}
             </p>
           </div>
-          <Button render={<Link href={`/create?example=${example.id}`} />}>
+          <Button
+            render={<Link href={`/create?example=${example.id}`} />}
+            aria-label={`Fork flow: ${example.name}`}
+          >
             <RiGitForkLine aria-hidden="true" />
             Fork flow
           </Button>

@@ -1,9 +1,30 @@
 .shell {
+  position: relative;
   display: flex;
   height: 100dvh;
   width: 100%;
   overflow: hidden;
   background: var(--background);
+}
+.skipLink {
+  position: absolute;
+  z-index: 20;
+  inset-inline-start: 8px;
+  top: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  translate: 0 calc(-100% - 16px);
+  transition: translate 150ms var(--ease-press);
+}
+.skipLink:focus-visible {
+  translate: 0 0;
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
 }
 .sidebar {
   position: relative;
@@ -26,24 +47,25 @@
   background: var(--background);
 }
 .header {
+  position: relative;
   display: flex;
   width: 260px;
   flex: none;
   align-items: center;
   padding: 16px 12px 12px;
 }
-.markSlot {
-  width: 40px;
-  height: 40px;
-  flex: none;
+.brand {
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
 }
-.markLink {
+.markSlot {
   display: flex;
   width: 40px;
   height: 40px;
+  flex: none;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
 }
 .label {
   width: 122px;
@@ -51,6 +73,7 @@
   overflow: hidden;
   flex: none;
   color: var(--foreground);
+  transition: opacity 200ms var(--ease-press);
 }
 .label svg {
   max-width: none;
@@ -62,7 +85,15 @@
   cursor: w-resize;
 }
 .expandButton {
+  position: absolute;
+  top: 16px;
+  inset-inline-start: 12px;
   cursor: e-resize;
+}
+/* The expand control draws its own mark, so the link's mark hides underneath it. */
+.shell[data-state="collapsed"] .markSlot,
+.shell[data-state="collapsed"] .label {
+  opacity: 0;
 }
 .iconStack {
   display: grid;
@@ -125,24 +156,29 @@
   border-radius: 8px;
   color: var(--muted-foreground);
   transition:
-    color 150ms,
-    background-color 150ms,
-    scale 150ms;
+    color 150ms var(--ease-press),
+    background-color 150ms var(--ease-press),
+    scale 150ms var(--ease-press);
 }
 .navIcon {
   width: 24px;
   height: 24px;
   flex: none;
 }
-.navLink span {
+.navLabel {
   flex: none;
+  transition: opacity 200ms var(--ease-press);
+}
+.shell[data-state="collapsed"] .navLabel {
+  opacity: 0;
 }
 .navLink[aria-current="page"] {
   color: var(--foreground);
   background: var(--accent);
 }
+.brand:active,
 .navLink:active {
-  scale: 0.99;
+  scale: 0.98;
 }
 @media (hover: hover) {
   .navLink:hover {
@@ -155,6 +191,12 @@
   min-width: 0;
   flex: 1;
   overflow: hidden;
+  padding: 0;
+  transition: padding 500ms var(--ease-press);
+}
+.shell[data-state="open"] .contentArea {
+  padding-block-start: 8px;
+  padding-inline-end: 8px;
 }
 .footer {
   display: flex;
@@ -171,25 +213,58 @@
   height: 100%;
   width: 100%;
   overflow: auto;
+  padding: 8px 8px 0;
   border: 1px solid var(--border);
   border-bottom: 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
   background: var(--muted);
+  transition:
+    padding 500ms var(--ease-press),
+    border-radius 500ms var(--ease-press);
+}
+.shell[data-state="open"] .content {
+  padding: 0;
+  border-start-start-radius: 16px;
+  border-start-end-radius: 16px;
 }
 .shell[data-state="collapsed"] .content {
   border-color: transparent;
 }
-.markLink:focus-visible,
-.label a:focus-visible,
-.navLink:focus-visible,
+/*
+  Content contract. A page opts into "fill" by wrapping its subtree in an element carrying
+  data-content-mode="fill"; the (workspace)/(canvas) layout does that for every route inside
+  it. :has() lets the shell react during server rendering, with no context, prop drilling or
+  client JavaScript. "document" is the default: main pads and scrolls. In "fill", main is a
+  flex column with no padding and no scrolling, and the child owns its own overflow.
+*/
+.shell[data-state] .content:has(> [data-content-mode="fill"]) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.brand:focus-visible,
+.navLink:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
 .content:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
 @media (prefers-reduced-motion: reduce) {
   .iconStack > span,
-  .navLink {
+  .navLink,
+  .navLabel,
+  .label,
+  .skipLink,
+  .contentArea,
+  .content {
     transition: none;
   }
+  .brand:active,
   .navLink:active {
     scale: 1;
   }

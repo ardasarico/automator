@@ -89,8 +89,12 @@
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
+/*
+  No semantic hover-border token exists yet; this strengthens --border toward the
+  foreground so it inverts with the theme. Replace with --border-hover if one is added.
+*/
 .exampleCard:has(.exampleLink:hover) {
-  border-color: var(--neutral-400);
+  border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
 }
 .templateActions {
   display: flex;
@@ -107,17 +111,27 @@
   margin-bottom: 24px;
 }
 .search {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: min(100%, 320px);
+  padding-inline: 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent);
+  transition:
+    border-color 150ms var(--ease-press),
+    box-shadow 150ms var(--ease-press);
+}
+.search:has(input:focus-visible) {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 24%, transparent);
 }
 .search > svg {
-  position: absolute;
   width: 16px;
   height: 16px;
-  inset-inline-start: 12px;
-  top: 50%;
-  translate: 0 -50%;
-  z-index: 1;
+  flex: none;
   color: var(--muted-foreground);
   pointer-events: none;
 }
@@ -168,41 +182,6 @@
   background-size: 6px 6px;
   font-weight: 400;
 }
-.thumbnail .previewCanvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 320px;
-  height: 200px;
-  padding: 16px;
-  transform: scale(0.3);
-  transform-origin: top left;
-}
-.previewStep {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  flex: 1 1 0;
-  min-width: 0;
-  border: 1px solid var(--border);
-  padding: 8px;
-  border-radius: 6px;
-  background: var(--card);
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-  overflow-wrap: anywhere;
-}
-.previewStep + .previewStep::before {
-  content: "";
-  position: absolute;
-  width: 12px;
-  height: 1px;
-  inset-inline-end: 100%;
-  top: 50%;
-  background: var(--border);
-}
 .flowDetails {
   padding: 14px 16px;
 }
@@ -216,24 +195,6 @@
   line-height: var(--text-caption--line-height);
   color: var(--muted-foreground);
 }
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-  font-size: var(--text-caption);
-  color: var(--muted-foreground);
-}
-.status::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--neutral-500);
-}
-.status[data-published="true"]::before {
-  background: var(--success);
-}
 .tableWrap {
   max-width: 100%;
   overflow-x: auto;
@@ -243,6 +204,7 @@
   text-align: start;
   border-collapse: collapse;
   font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
 }
 .table th,
 .table td {
@@ -270,7 +232,8 @@
 }
 .flowName {
   font-size: var(--text-label);
-  font-weight: 500;
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
   overflow-wrap: anywhere;
 }
 .tableFlow:hover .flowName {
@@ -278,14 +241,13 @@
   text-underline-offset: 4px;
 }
 .flowCard:focus-visible,
-.tableFlow:focus-visible,
-.tableWrap:focus-visible {
+.tableFlow:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
 @media (hover: hover) {
   .flowCard:hover {
-    border-color: var(--neutral-400);
+    border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
   }
 }
 @container flows (max-width: 812px) {
