@@ -1,3 +1,5 @@
-export default function HomePage() {
-  return <h1 className="sr-only">Home</h1>;
+import { redirect } from "next/navigation";
+
+export default function WorkspacePage() {
+  redirect("/flows");
 }

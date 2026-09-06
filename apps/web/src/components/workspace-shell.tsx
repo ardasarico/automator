@@ -1,13 +1,7 @@
 "use client";
 import { Button } from "@automator/ui/button";
 import { Logo, LogoMark } from "@automator/ui/logo";
-import {
-  RiHome5Line,
-  RiFlowChart,
-  RiPlayCircleLine,
-  RiCompass3Line,
-  RiSideBarLine,
-} from "@remixicon/react";
+import { RiFlowChart, RiPlayCircleLine, RiCompass3Line, RiSideBarLine } from "@remixicon/react";
 import { motion, MotionConfig, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -16,7 +10,6 @@ import { SidebarProvider, useSidebar, type SidebarState } from "./sidebar-contex
 import styles from "./workspace-shell.module.css";
 import { AccountMenu } from "./account-menu";
 const pages = [
-  { href: "/", label: "Home", icon: RiHome5Line },
   { href: "/flows", label: "Flows", icon: RiFlowChart },
   { href: "/runs", label: "Runs", icon: RiPlayCircleLine },
   { href: "/marketplace", label: "Marketplace", icon: RiCompass3Line },
@@ -36,7 +29,7 @@ function SidebarHeader() {
     <header className={styles.header}>
       <div className={styles.markSlot}>
         {isOpen ? (
-          <Link href="/" aria-label="Automator home" className={styles.markLink}>
+          <Link href="/flows" aria-label="Automator flows" className={styles.markLink}>
             <LogoMark markColor="var(--primary)" aria-hidden="true" />
           </Link>
         ) : (
@@ -71,7 +64,7 @@ function SidebarHeader() {
         className={styles.label}
         inert={!isOpen}
       >
-        <Link href="/" aria-label="Automator home">
+        <Link href="/flows" aria-label="Automator flows">
           <Logo markColor="transparent" aria-hidden="true" />
         </Link>
       </motion.div>
@@ -95,8 +88,7 @@ function SidebarHeader() {
 function SidebarLink({ href, label, icon: Icon }: (typeof pages)[number]) {
   const { state } = useSidebar();
   const pathname = usePathname();
-  const active =
-    href === "/" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
       href={href}
