@@ -2,8 +2,8 @@
 
 import { RiMoonLine, RiSunLine } from "@remixicon/react";
 import Link from "next/link";
+import { useTheme } from "@automator/ui/theme-provider";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
 import { useState, type ReactNode } from "react";
 
 const widths = [
@@ -14,6 +14,7 @@ const widths = [
 ];
 
 const pages = [
+  { href: "/tokens", label: "Tokens" },
   { href: "/components/button", label: "Button" },
   { href: "/components/input", label: "Input" },
   { href: "/components/textarea", label: "Textarea" },
@@ -31,6 +32,9 @@ const pages = [
   { href: "/components/scroll-area", label: "Scroll Area" },
   { href: "/components/spinner", label: "Spinner" },
   { href: "/components/empty-state-illustration", label: "Empty State Illustration" },
+  { href: "/components/logo", label: "Logo" },
+  { href: "/components/theme-select", label: "Theme Select" },
+  { href: "/components/dither-avatar", label: "Dither Avatar" },
 ];
 
 export function LabShell({ children }: { children: ReactNode }) {

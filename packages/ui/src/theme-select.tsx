@@ -1,8 +1,8 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./select";
+import { useTheme } from "./theme-provider";
 
 const subscribe = () => () => {};
 const clientSnapshot = () => true;

@@ -55,7 +55,8 @@ export function FieldError({
 }: FieldPrimitive.Error.Props): React.ReactElement {
   return (
     <FieldPrimitive.Error
-      className={cn("text-destructive-foreground text-xs", className)}
+      aria-live="polite"
+      className={cn("text-destructive-text text-xs", className)}
       data-slot="field-error"
       {...props}
     />

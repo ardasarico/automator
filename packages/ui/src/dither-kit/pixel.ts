@@ -1,13 +1,10 @@
 // Adapted from Dither Kit by ripgrim: https://www.tripwire.sh/r/avatar.json
-// Standalone pixel primitives for the non-chart Dither Kit pieces (avatar,
-// gradient). Deliberately free of the chart engine so those items install
-// without `core` — only palette.ts is shared. The Bayer matrix and bloom
-// presets mirror dither-paint.ts so everything reads as one texture.
+// Standalone pixel primitives for the Dither Kit avatar. Deliberately free of
+// the chart engine — only palette.ts is shared.
 
-import { type DitherColor, PALETTE, type Rgb } from "./palette";
+import type { Rgb } from "./palette";
 
-// 4×4 ordered (Bayer) matrix, normalized to 0–1 thresholds — the same matrix
-// the charts dither with.
+// 4×4 ordered (Bayer) matrix, normalized to 0–1 thresholds.
 export const BAYER4 = [
   [0, 8, 2, 10],
   [12, 4, 14, 6],
@@ -40,10 +37,7 @@ export function xorshift32(seed: number): () => number {
   };
 }
 
-/** A named palette colour or a raw hue (0–360). */
-export type PixelColor = DitherColor | number;
-
-/** Hue (0–360) → an rgb fill tuned to sit alongside the chart palette. */
+/** Hue (0–360) → an rgb fill. */
 export function hueFill(hue: number): Rgb {
   const h = ((hue % 360) + 360) % 360;
   const s = 0.85;
@@ -66,13 +60,8 @@ export function hueFill(hue: number): Rgb {
   return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
 }
 
-/** Resolve a {@link PixelColor} to its rgb fill. */
-export function fillOf(color: PixelColor): Rgb {
-  return typeof color === "number" ? hueFill(color) : PALETTE[color].fill;
-}
-
-// Bloom — same recipe as the charts: a blurred copy of the crisp canvas,
-// composited additively so the glow stays in the dither's own colour.
+// Bloom — a blurred copy of the crisp canvas, composited additively so the
+// glow stays in the dither's own colour.
 export type PixelBloom = "off" | "low" | "high" | "aura";
 
 const BLOOM_PRESET: Record<
@@ -84,7 +73,7 @@ const BLOOM_PRESET: Record<
   aura: { blur: 15, brightness: 2.9, opacity: 0.1, saturate: 3 },
 };
 
-export type PixelBloomStyle = {
+type PixelBloomStyle = {
   filter: string;
   opacity: number;
   mixBlendMode: "plus-lighter";

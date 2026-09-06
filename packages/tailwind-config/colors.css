@@ -16,7 +16,7 @@
   --neutral-900: oklch(0.067 0.002 220);
   --blue-100: oklch(0.92 0.035 223.092);
   --blue-200: oklch(0.83 0.093 223.092);
-  --blue-300: oklch(0.790228457 0.147288494 223.092235);
+  --blue-300: oklch(0.79 0.147 223.092);
   --blue-400: oklch(0.49 0.085 223.092);
   --blue-500: oklch(0.29 0.052 223.092);
   --green-100: oklch(0.92 0.035 150);
@@ -46,7 +46,8 @@
   --secondary-foreground: var(--neutral-800);
   --muted: var(--neutral-200);
   --muted-foreground: var(--neutral-600);
-  --accent: var(--neutral-200);
+  /* One step above --popover so highlights stay visible on popup surfaces. */
+  --accent: var(--neutral-300);
   --accent-foreground: var(--neutral-800);
   --border: color-mix(in srgb, var(--neutral-900) 8%, transparent);
   --input: color-mix(in srgb, var(--neutral-900) 10%, transparent);
@@ -58,7 +59,7 @@
   --sidebar-primary-foreground: var(--blue-500);
   --sidebar-accent: var(--neutral-200);
   --sidebar-accent-foreground: var(--neutral-800);
-  --sidebar-border: var(--neutral-300);
+  --sidebar-border: color-mix(in srgb, var(--neutral-900) 8%, transparent);
   --sidebar-ring: var(--blue-400);
   --info: var(--blue-300);
   --info-foreground: var(--blue-400);
@@ -70,8 +71,30 @@
   --warning-foreground: var(--amber-400);
   --warning-surface: var(--amber-100);
   --destructive: var(--red-400);
-  --destructive-foreground: var(--red-400);
+  /* Text on the solid --destructive fill. */
+  --destructive-foreground: var(--neutral-50);
+  /* Text on tinted or plain backgrounds, never on the solid fill. */
+  --destructive-text: var(--red-400);
   --destructive-surface: var(--red-100);
+
+  /* Builder canvas. Roles that read var(--card), var(--border), var(--ring) or a
+     neutral step invert with the theme and are not repeated in .dark. */
+  --canvas: var(--neutral-200);
+  --canvas-grid: color-mix(in srgb, var(--neutral-900) 10%, transparent);
+  --node: var(--card);
+  --node-border: var(--border);
+  --node-selected: var(--ring);
+  --edge: var(--neutral-500);
+  --edge-active: var(--ring);
+  --overlay: color-mix(in srgb, var(--neutral-900) 32%, transparent);
+  /* Not registered in @theme: Tailwind's --shadow-* namespace generates box-shadow
+     utilities, so a color there would be invalid. Use shadow-(color:--shadow-color). */
+  --shadow-color: color-mix(in srgb, var(--neutral-900) 12%, transparent);
+  --chart-1: var(--blue-400);
+  --chart-2: var(--green-400);
+  --chart-3: var(--amber-400);
+  --chart-4: var(--red-400);
+  --chart-5: var(--neutral-600);
 }
 
 .dark {
@@ -94,11 +117,27 @@
   --info-foreground: var(--blue-200);
   --success-foreground: var(--green-200);
   --warning-foreground: var(--amber-200);
-  --destructive-foreground: var(--red-200);
   --info-surface: var(--blue-500);
   --success-surface: var(--green-500);
   --warning-surface: var(--amber-500);
   --destructive-surface: var(--red-500);
+  /* Between neutral-300 and neutral-400: the first separates too little from the
+     popup surface, the second is light enough to pull muted and destructive text
+     under 4.5:1. Literal for the same reason as --destructive below. */
+  --accent: oklch(0.37 0.009 220);
+  /* No red step clears 3:1 against the dark canvas and 4.5:1 for its own
+     foreground at once: red-400 is too dark, red-300 too light. */
+  --destructive: oklch(0.55 0.2 25);
+  --destructive-foreground: var(--neutral-900);
+  --destructive-text: var(--red-200);
+  --canvas: var(--neutral-50);
+  --overlay: color-mix(in srgb, #000 56%, transparent);
+  /* Dark elevation reads from borders; the shadow only deepens the edge. */
+  --shadow-color: color-mix(in srgb, #000 64%, transparent);
+  --chart-1: var(--blue-200);
+  --chart-2: var(--green-200);
+  --chart-3: var(--amber-200);
+  --chart-4: var(--red-200);
 }
 
 @theme inline {
@@ -169,8 +208,29 @@
   --color-warning-surface: var(--warning-surface);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-text: var(--destructive-text);
   --color-destructive-surface: var(--destructive-surface);
+  --color-canvas: var(--canvas);
+  --color-canvas-grid: var(--canvas-grid);
+  --color-node: var(--node);
+  --color-node-border: var(--node-border);
+  --color-node-selected: var(--node-selected);
+  --color-edge: var(--edge);
+  --color-edge-active: var(--edge-active);
+  --color-overlay: var(--overlay);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 }
+
+/* Builder run states reuse existing roles; no run-state tokens are needed.
+   queued    -> muted / muted-foreground
+   running   -> info / info-surface / info-foreground
+   succeeded -> success / success-surface / success-foreground
+   failed    -> destructive / destructive-surface / destructive-text
+   skipped   -> muted / muted-foreground (dimmed the same way as queued) */
 
 @layer base {
   html {

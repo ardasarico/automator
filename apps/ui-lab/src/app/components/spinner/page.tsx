@@ -21,6 +21,19 @@ export default function SpinnerPage() {
             </div>
           ))}
         </section>
+        <section aria-labelledby="spinner-announced">
+          <h2 id="spinner-announced" className="mb-3 text-label">
+            Announced
+          </h2>
+          <p className="mb-3 max-w-prose text-caption text-muted-foreground">
+            The spinner is decorative by default. Pass <code>label</code> when it is the only sign
+            that something is happening, and it becomes a live status under that name.
+          </p>
+          <div className="flex flex-wrap items-center gap-5">
+            <Spinner className="size-5" />
+            <Spinner className="size-5" label="Loading activity" />
+          </div>
+        </section>
         <section aria-labelledby="spinner-context">
           <h2 id="spinner-context" className="mb-3 text-label">
             In context

@@ -8,7 +8,7 @@ import { cn } from "./utils";
 import { Spinner } from "./spinner";
 
 export const buttonVariants = cva(
-  "relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg border font-medium text-base outline-none touch-manipulation transition-[background-color,color,scale] duration-150 ease-press [-webkit-tap-highlight-color:transparent] [--button-press-scale:0.98] active:scale-[var(--button-press-scale)] motion-reduce:active:scale-100 pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:not-data-loading:opacity-64 data-loading:select-none sm:text-sm [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:-mx-0.5 [&_svg]:shrink-0",
+  "relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg border font-medium text-base outline-none touch-manipulation transition-[background-color,color,scale] duration-150 ease-press [-webkit-tap-highlight-color:transparent] [--button-press-scale:0.98] active:scale-[var(--button-press-scale)] motion-reduce:active:scale-100 pointer-coarse:after:absolute pointer-coarse:after:size-full pointer-coarse:after:min-h-11 pointer-coarse:after:min-w-11 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:not-data-loading:opacity-64 data-loading:cursor-default data-loading:select-none data-loading:active:scale-100 sm:text-sm [&_svg:not([class*='opacity-'])]:opacity-80 [&_svg:not([class*='size-'])]:size-4.5 sm:[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:-mx-0.5 [&_svg]:shrink-0",
   {
     compoundVariants: [
       {
@@ -39,9 +39,9 @@ export const buttonVariants = cva(
         default:
           "border-primary bg-primary text-primary-foreground hover:bg-primary/90 data-pressed:bg-primary/90",
         destructive:
-          "border-destructive bg-destructive text-white hover:bg-destructive/90 data-pressed:bg-destructive/90",
+          "border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/90 data-pressed:bg-destructive/90",
         "destructive-outline":
-          "border-input bg-popover not-dark:bg-clip-padding text-destructive-foreground hover:border-destructive/32 hover:bg-destructive/4 data-pressed:border-destructive/32 data-pressed:bg-destructive/4 dark:bg-input/32",
+          "border-input bg-popover not-dark:bg-clip-padding text-destructive-text hover:border-destructive/32 hover:bg-destructive/4 data-pressed:border-destructive/32 data-pressed:bg-destructive/4 dark:bg-input/32",
         ghost: "border-transparent text-foreground hover:bg-accent data-pressed:bg-accent",
         link: "border-transparent text-foreground underline-offset-4 hover:underline data-pressed:underline",
         outline:
@@ -53,31 +53,60 @@ export const buttonVariants = cva(
   },
 );
 
-export interface ButtonProps extends useRender.ComponentProps<"button"> {
-  variant?: VariantProps<typeof buttonVariants>["variant"];
-  size?: VariantProps<typeof buttonVariants>["size"];
+type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>["size"]>;
+type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>["variant"]>;
+
+/** Sizes that render an icon with no visible label. */
+type IconButtonSize = Extract<ButtonSize, `icon${string}`>;
+type TextButtonSize = Exclude<ButtonSize, IconButtonSize>;
+
+export interface ButtonOwnProps extends useRender.ComponentProps<"button"> {
+  variant?: ButtonVariant;
   loading?: boolean;
   /** Optional label shown beside the spinner. Its space is reserved to avoid layout shifts. */
   loadingText?: string;
 }
 
-export function Button({
-  className,
-  variant,
-  size,
-  render,
-  children,
-  loading = false,
-  loadingText,
-  disabled: disabledProp,
-  ...props
-}: ButtonProps): React.ReactElement {
-  const isDisabled: boolean = Boolean(loading || disabledProp);
+/** Icon-only buttons carry no text, so they have to name themselves. */
+type IconButtonProps = ButtonOwnProps & { size: IconButtonSize } & (
+    | { "aria-label": string }
+    | { "aria-labelledby": string }
+  );
+
+export type ButtonProps = (ButtonOwnProps & { size?: TextButtonSize }) | IconButtonProps;
+
+type ResolvedButtonProps = ButtonOwnProps & { size?: ButtonSize };
+
+export function Button(props: ButtonProps): React.ReactElement {
+  const {
+    className,
+    variant,
+    size,
+    render,
+    children,
+    loading = false,
+    loadingText,
+    disabled: disabledProp,
+    onClick,
+    ...rest
+  } = props as ResolvedButtonProps;
+
   const isIcon = size?.startsWith("icon") ?? false;
   const hasLoadingText = Boolean(loadingText) && !isIcon;
   const typeValue: React.ButtonHTMLAttributes<HTMLButtonElement>["type"] = render
     ? undefined
     : "button";
+
+  // Loading keeps the button focusable, so it stays in the tab order and the
+  // ring does not jump elsewhere mid-action. Enter and Space both dispatch a
+  // click, so guarding the click handler covers keyboard activation too.
+  const handleClick: React.MouseEventHandler<HTMLButtonElement> = (event) => {
+    if (loading) {
+      event.preventDefault();
+      return;
+    }
+    onClick?.(event);
+  };
 
   const defaultProps = {
     children: (
@@ -98,12 +127,7 @@ export function Button({
           className="pointer-events-none col-start-1 row-start-1 inline-flex items-center justify-center gap-[inherit]"
         >
           <span data-slot="button-spinner" className="inline-flex">
-            <Spinner
-              aria-hidden="true"
-              aria-label={undefined}
-              role="presentation"
-              className="motion-reduce:animate-none"
-            />
+            <Spinner className="motion-reduce:animate-none" />
           </span>
           {hasLoadingText ? <span>{loadingText}</span> : null}
         </span>
@@ -114,13 +138,14 @@ export function Button({
     "aria-busy": loading || undefined,
     "data-loading": loading ? "" : undefined,
     "data-slot": "button",
-    disabled: isDisabled,
+    disabled: disabledProp,
+    onClick: handleClick,
     type: typeValue,
   };
 
   return useRender({
     defaultTagName: "button",
-    props: mergeProps<"button">(defaultProps, props),
+    props: mergeProps<"button">(defaultProps, rest),
     render,
   });
 }
