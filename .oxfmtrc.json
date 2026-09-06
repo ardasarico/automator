@@ -13,7 +13,6 @@
     ".codex/**",
     "AGENTS.override.md",
     "CLAUDE.local.md",
-    "bun.lock",
-    "skills-lock.json"
+    "bun.lock"
   ]
 }

@@ -1,4 +1,4 @@
-import { defineRailway, github, postgres, project, service, volume } from "railway/iac";
+import { defineRailway, github, postgres, preserve, project, service, volume } from "railway/iac";
 
 export default defineRailway(() => {
   const Postgres = postgres("Postgres", { region: "sfo" });
@@ -16,7 +16,9 @@ export default defineRailway(() => {
       buildCommand: "bun run build --filter=@automator/api",
       watchPatterns: [
         "/apps/api/**",
-        "/packages/**",
+        "/packages/contracts/**",
+        "/packages/db/**",
+        "/packages/typescript-config/**",
         "/package.json",
         "/bun.lock",
         "/turbo.json",
@@ -32,6 +34,9 @@ export default defineRailway(() => {
       NODE_ENV: "production",
       PORT: "3001",
       RAILPACK_NODE_VERSION: "22",
+      PRIVY_APP_ID: preserve(),
+      PRIVY_APP_SECRET: preserve(),
+      PRIVY_VERIFICATION_KEY: preserve(),
     },
     replicas: { sfo: 1 },
   });
@@ -45,7 +50,11 @@ export default defineRailway(() => {
       buildCommand: "bun run build --filter=@automator/web",
       watchPatterns: [
         "/apps/web/**",
-        "/packages/**",
+        "/packages/ui/**",
+        "/packages/contracts/**",
+        "/packages/api-client/**",
+        "/packages/tailwind-config/**",
+        "/packages/typescript-config/**",
         "/package.json",
         "/bun.lock",
         "/turbo.json",
@@ -58,6 +67,7 @@ export default defineRailway(() => {
     deploy: { restartPolicyMaxRetries: 3 },
     env: {
       API_URL: "http://${{api.RAILWAY_PRIVATE_DOMAIN}}:3001",
+      NEXT_PUBLIC_PRIVY_APP_ID: preserve(),
       NODE_ENV: "production",
       PORT: "3000",
       RAILPACK_NODE_VERSION: "22",
@@ -66,12 +76,19 @@ export default defineRailway(() => {
   });
   const runtime = service("runtime", {
     source: github("ardasarico/automator", { branch: "main" }),
+    networking: {
+      serviceDomains: { "runtime-production-b62a.up.railway.app": { port: 3002 } },
+    },
     build: {
       builder: "RAILPACK",
       buildCommand: "bun run build --filter=@automator/runtime",
       watchPatterns: [
         "/apps/runtime/**",
-        "/packages/**",
+        "/packages/ui/**",
+        "/packages/contracts/**",
+        "/packages/api-client/**",
+        "/packages/tailwind-config/**",
+        "/packages/typescript-config/**",
         "/package.json",
         "/bun.lock",
         "/turbo.json",
