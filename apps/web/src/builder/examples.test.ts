@@ -15,8 +15,8 @@ describe("exampleToFlowDocument", () => {
     expect(document.nodes.map((node) => node.type)).toEqual([
       "trigger.miniapp-open",
       "screen.page",
-      "integration.world-selfie-check",
-      "integration.privy-wallet",
+      "world.selfie-check",
+      "privy.wallet",
       "screen.page",
     ]);
     expect(document.nodes.map((node) => node.label)).toEqual([
@@ -47,7 +47,7 @@ describe("exampleToFlowDocument", () => {
 
   test("recognises USDC from the step name", () => {
     const document = exampleToFlowDocument(findFlowExample("payment-link")!, "flow-3");
-    expect(document.nodes.at(-1)?.type).toBe("integration.usdc-payment");
+    expect(document.nodes.at(-1)?.type).toBe("usdc.payment");
   });
 
   test.each(flowExamples.map((example) => example.id))("%s produces a valid document", (slug) => {

@@ -22,12 +22,6 @@
   --xy-handle-border-color-default: var(--canvas);
   --xy-selection-background-color-default: color-mix(in srgb, var(--ring) 8%, transparent);
   --xy-selection-border-default: 1px solid var(--ring);
-  --xy-minimap-background-color-default: var(--popover);
-  --xy-minimap-mask-background-color-default: var(--overlay);
-  --xy-minimap-mask-stroke-color-default: transparent;
-  --xy-minimap-node-background-color-default: var(--edge);
-  --xy-minimap-node-stroke-color-default: transparent;
-  --xy-attribution-background-color-default: transparent;
 }
 
 /* Custom nodes get no default chrome; the card styles itself. */
@@ -41,18 +35,6 @@
 
 .canvas :global(.react-flow__edge.selectable:hover .react-flow__edge-path) {
   stroke: var(--edge-active);
-}
-
-.canvas :global(.react-flow__minimap) {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: 0 4px 12px var(--shadow-color);
-}
-
-.canvas :global(.react-flow__attribution) {
-  color: var(--muted-foreground);
-  font-size: 10px;
 }
 
 .node {
@@ -112,6 +94,13 @@
 .node[data-category="screen"] .nodeIcon {
   color: var(--chart-5);
 }
+.node[data-category="logic"] .nodeIcon,
+.node[data-category="notify"] .nodeIcon {
+  color: var(--chart-4);
+}
+.node[data-category="onchain"] .nodeIcon {
+  color: var(--chart-2);
+}
 
 .nodeIcon[data-category="trigger"] {
   color: var(--chart-1);
@@ -124,6 +113,13 @@
 }
 .nodeIcon[data-category="screen"] {
   color: var(--chart-5);
+}
+.nodeIcon[data-category="logic"],
+.nodeIcon[data-category="notify"] {
+  color: var(--chart-4);
+}
+.nodeIcon[data-category="onchain"] {
+  color: var(--chart-2);
 }
 
 .nodeText {
@@ -216,21 +212,6 @@
   box-shadow: 0 4px 12px var(--shadow-color);
 }
 
-.minimap {
-  background: var(--popover);
-}
-
-.emptyHint {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: 0.9375rem;
-  pointer-events: none;
-}
-
 .leftPanel {
   display: flex;
   width: 260px;
@@ -241,31 +222,193 @@
   background: var(--card);
 }
 
-/* Shared by the left panel's flow header and the right panel's title row. */
+/* Every bar shares one rhythm: 44 px of content, 8 px inset, 28 px controls with 4 px between
+   them, plus a 1 px border outside that content box so every control lands on the same pixel.
+   The left panel title, the canvas header, the right panel title, and the rail all use it. */
 .panelHeader {
   display: flex;
   flex: none;
-  align-items: flex-start;
-  gap: 8px;
-  min-height: 48px;
-  padding: 8px 8px 8px 12px;
+  align-items: center;
+  gap: 4px;
+  height: 45px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--border);
 }
 
-/* The node state's own header: back to the palette on the left, the eyebrow on the right. */
-.stateHeader {
+.canvasHeader {
   display: flex;
   flex: none;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 4px;
+  height: 45px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
 }
 
-.paletteHeading {
-  padding: 12px 12px 8px;
-  font-size: 0.9375rem;
+.sidePanel {
+  display: flex;
+  width: 360px;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--card);
+}
+
+/* A narrow bar on a window edge: the permanent left sidebar, or the stand-in for the minimized
+   right panel. Its inset matches the bars, so its first control sits on the header row. */
+.rail {
+  display: flex;
+  width: 45px;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  background: var(--card);
+}
+
+.rail[data-side="left"] {
+  padding: 0;
+  border-right: 1px solid var(--border);
+}
+
+/* The sidebar's header slot: one control under the same line as every other header. */
+.railHeader {
+  display: flex;
+  width: 100%;
+  height: 45px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The sidebar below its header: section toggles at the top, settings pushed to the bottom. */
+.railBody {
+  display: flex;
+  min-height: 0;
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.rail[data-side="right"] {
+  border-left: 1px solid var(--border);
+}
+
+/* Node palette: a search row above the group list, one open group, or search results. */
+.paletteTools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Inside a group: the way back and the group's name, on the same rhythm as the tools row. */
+.paletteCrumb {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px 0;
+}
+
+.paletteCrumbLabel {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
   font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+
+/* A group row on the first level: like an item, plus a count and a chevron. */
+.paletteGroupRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  cursor: pointer;
+}
+
+.paletteGroupRow:hover {
+  background: var(--accent);
+}
+
+.paletteGroupRow:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.paletteGroupRow .paletteItemText {
+  flex: 1;
+}
+
+.paletteGroupCount {
+  flex: none;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.paletteGroupChevron {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+
+.nodeIcon[data-group="triggers"] {
+  color: var(--chart-1);
+}
+.nodeIcon[data-group="logic"],
+.nodeIcon[data-group="notify"] {
+  color: var(--chart-4);
+}
+.nodeIcon[data-group="onchain"],
+.nodeIcon[data-group="usdc"] {
+  color: var(--chart-2);
+}
+.nodeIcon[data-group="ai"] {
+  color: var(--chart-3);
+}
+.nodeIcon[data-group="screens"] {
+  color: var(--chart-5);
+}
+
+.paletteSearch {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+}
+
+.paletteSearchIcon {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  width: 14px;
+  height: 14px;
+  translate: 0 -50%;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.paletteSearch input {
+  padding-left: 28px;
 }
 
 .paletteGroup {
@@ -295,16 +438,19 @@
   cursor: grab;
 }
 
-.paletteItem:hover {
+.paletteItem:hover,
+.paletteTile:hover {
   background: var(--accent);
 }
 
-.paletteItem:focus-visible {
+.paletteItem:focus-visible,
+.paletteTile:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
 
-.paletteItem:active {
+.paletteItem:active,
+.paletteTile:active {
   cursor: grabbing;
 }
 
@@ -315,9 +461,9 @@
 }
 
 .paletteItemLabel {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  line-height: 20px;
+  line-height: 18px;
 }
 
 .paletteItemDescription {
@@ -329,99 +475,43 @@
   white-space: nowrap;
 }
 
-.sidePanel {
-  display: flex;
-  width: 360px;
-  flex: none;
-  flex-direction: column;
-  min-height: 0;
-  border-left: 1px solid var(--border);
-  background: var(--card);
+.paletteGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
-/* The activity rail: always visible, so the panels stay reachable once collapsed. */
-.rail {
+.paletteTile {
   display: flex;
-  width: 40px;
-  flex: none;
+  min-width: 0;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 8px 0;
-  border-left: 1px solid var(--border);
-  background: var(--card);
-}
-
-.railButton {
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
+  gap: 6px;
+  padding: 8px 4px;
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-}
-
-.railButton:hover {
-  background: var(--accent);
   color: var(--foreground);
+  cursor: grab;
 }
 
-.railButton:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
-}
-
-.railButtonActive,
-.railButtonActive:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-/* A phone-shaped placeholder for a screen node; nothing inside it is interactive. */
-.phoneFrame {
-  position: relative;
-  display: flex;
-  width: 240px;
-  flex: none;
-  flex-direction: column;
-  aspect-ratio: 9 / 19.5;
+.paletteTileLabel {
+  max-width: 100%;
   overflow: hidden;
-  border: 6px solid var(--border);
-  border-radius: 24px;
-  background: var(--background);
-}
-
-.phoneBar {
-  flex: none;
-  height: 24px;
-  border-bottom: 1px solid var(--border);
-  background: var(--muted);
-}
-
-.phoneBody {
-  padding: 16px;
-}
-
-.phoneHint {
-  display: grid;
-  flex: 1;
-  place-items: center;
-  padding: 16px;
-  color: var(--muted-foreground);
   font-size: 12px;
+  font-weight: 500;
   line-height: 16px;
-  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* The document box grows with the JSON and the dialog panel scrolls it; only long lines
-   scroll inside the box, so the page never nests two vertical scroll containers. */
-.json {
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--muted);
+.paletteEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 24px 12px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  text-align: center;
 }

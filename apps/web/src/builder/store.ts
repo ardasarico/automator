@@ -12,12 +12,16 @@ import { createStore, type StoreApi } from "zustand";
 import { getCatalogEntry } from "./catalog";
 import { hydrateFlow, type BuilderEdge, type BuilderNode, type FlowMeta } from "./document";
 
+/** Whether a simulation of this flow is in progress. Only the status exists until the runner lands. */
+export type SimulationStatus = "idle" | "running";
+
 export type BuilderState = {
   meta: FlowMeta;
   nodes: BuilderNode[];
   edges: BuilderEdge[];
   /** True once the graph or meta differs from the last hydrated document. */
   dirty: boolean;
+  simulation: SimulationStatus;
   onNodesChange(changes: NodeChange<BuilderNode>[]): void;
   onEdgesChange(changes: EdgeChange<BuilderEdge>[]): void;
   onConnect(connection: Connection): void;
@@ -34,6 +38,9 @@ export type BuilderState = {
   clearSelection(): void;
   setMeta(patch: Partial<Omit<FlowMeta, "id">>): void;
   hydrate(document: FlowDocument): void;
+  /** Starts a simulation; a running one restarts. Only flips the status until the runner lands. */
+  startSimulation(): void;
+  stopSimulation(): void;
 };
 
 /** Node changes that only affect how the canvas looks, not the document. */
@@ -76,6 +83,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
   return createStore<BuilderState>((set, get) => ({
     ...hydrateFlow(document),
     dirty: false,
+    simulation: "idle",
 
     onNodesChange(changes) {
       const documentChanged = changes.some((change) => !cosmeticNodeChanges.has(change.type));
@@ -157,6 +165,14 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
 
     hydrate(document) {
       set({ ...hydrateFlow(document), dirty: false });
+    },
+
+    startSimulation() {
+      set({ simulation: "running" });
+    },
+
+    stopSimulation() {
+      set({ simulation: "idle" });
     },
   }));
 }

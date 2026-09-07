@@ -61,7 +61,7 @@ describe("builder store", () => {
   test("the same pair on another target handle connects, an exact duplicate does not", () => {
     const store = setup();
     const a = store.getState().addNode("trigger.miniapp-open", { x: 0, y: 0 });
-    const b = store.getState().addNode("integration.usdc-payment", { x: 300, y: 0 });
+    const b = store.getState().addNode("usdc.payment", { x: 300, y: 0 });
     const connection = {
       source: a,
       target: b,
@@ -82,7 +82,7 @@ describe("builder store", () => {
     const store = setup();
     const a = store.getState().addNode("trigger.miniapp-open", { x: 0, y: 0 });
     const b = store.getState().addNode("screen.page", { x: 0, y: 100 });
-    const c = store.getState().addNode("integration.usdc-payment", { x: 300, y: 0 });
+    const c = store.getState().addNode("usdc.payment", { x: 300, y: 0 });
 
     store
       .getState()
@@ -104,7 +104,7 @@ describe("builder store", () => {
     const store = setup();
     const a = store.getState().addNode("trigger.miniapp-open", { x: 0, y: 0 });
     const b = store.getState().addNode("screen.page", { x: 300, y: 0 });
-    const c = store.getState().addNode("integration.usdc-payment", { x: 300, y: 200 });
+    const c = store.getState().addNode("usdc.payment", { x: 300, y: 200 });
 
     const toB = { source: a, target: b, sourceHandle: "visitor", targetHandle: "data" };
     const toC = { source: a, target: c, sourceHandle: "visitor", targetHandle: "amount" };
@@ -248,11 +248,23 @@ describe("builder store", () => {
   test("the serialized store is a valid document", () => {
     const store = setup();
     const a = store.getState().addNode("trigger.miniapp-open", { x: 0, y: 0 });
-    const b = store.getState().addNode("integration.privy-wallet", { x: 300, y: 0 });
+    const b = store.getState().addNode("privy.wallet", { x: 300, y: 0 });
     store.getState().onConnect({ source: a, target: b, sourceHandle: null, targetHandle: null });
     const state = store.getState();
     expect(
       Value.Check(flowDocumentSchema, serializeFlow(state.meta, state.nodes, state.edges)),
     ).toBe(true);
+  });
+
+  test("simulation starts idle, and the controls only flip its status", () => {
+    const store = setup();
+    expect(store.getState().simulation).toBe("idle");
+    store.getState().startSimulation();
+    expect(store.getState().simulation).toBe("running");
+    store.getState().startSimulation(); // restart: still running
+    expect(store.getState().simulation).toBe("running");
+    store.getState().stopSimulation();
+    expect(store.getState().simulation).toBe("idle");
+    expect(store.getState().dirty).toBe(false); // simulating never edits the document
   });
 });

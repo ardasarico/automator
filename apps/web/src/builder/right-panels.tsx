@@ -1,13 +1,12 @@
 "use client";
 
 import { Button } from "@automator/ui/button";
+import { Tabs, TabsList, TabsPanel, TabsTab } from "@automator/ui/tabs";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiContractRightLine, RiRobot2Line, RiSmartphoneLine } from "@remixicon/react";
 import type { RemixiconComponentType } from "@remixicon/react";
 import { useState } from "react";
-import { AiPanel } from "./ai-panel";
 import styles from "./flow-builder.module.css";
-import { ScreenPreview } from "./screen-preview";
 
 type PanelId = "ai" | "preview";
 
@@ -16,77 +15,85 @@ const panels: readonly { id: PanelId; label: string; icon: RemixiconComponentTyp
   { id: "preview", label: "Screen preview", icon: RiSmartphoneLine },
 ];
 
-function RailToggle({
-  label,
-  icon: Icon,
-  active,
-  onToggle,
-}: {
-  label: string;
-  icon: RemixiconComponentType;
-  active: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            className={
-              active ? `${styles.railButton} ${styles.railButtonActive}` : styles.railButton
-            }
-            aria-label={label}
-            aria-pressed={active}
-            onClick={onToggle}
-          />
-        }
-      >
-        <Icon aria-hidden="true" className="size-4" />
-      </TooltipTrigger>
-      {/* The rail hugs the window edge, so the tooltip opens inward instead of over the other toggle. */}
-      <TooltipPopup side="left">{label}</TooltipPopup>
-    </Tooltip>
-  );
+function isPanelId(value: unknown): value is PanelId {
+  return panels.some((panel) => panel.id === value);
 }
 
 /**
- * The right side of the builder: one open panel at a time, plus the rail that switches
- * between them. Clicking the open panel's toggle collapses it; the choice is not persisted.
+ * The right side of the builder: one panel open at a time. Open, the title row holds a
+ * minimize control and the tabs that switch between panels; the bodies are empty shells while
+ * the design is worked out. Minimized, only a rail with one toggle per panel remains. The
+ * choice is not persisted.
  */
 export function RightPanels() {
   const [active, setActive] = useState<PanelId | null>("ai");
-  const open = panels.find((panel) => panel.id === active);
 
-  return (
-    <>
-      {open && (
-        <aside className={styles.sidePanel} aria-label={open.label}>
-          <div className={styles.panelHeader}>
-            <p className="min-w-0 truncate text-label">{open.label}</p>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Collapse panel"
-              onClick={() => setActive(null)}
+  if (active === null) {
+    return (
+      <nav className={styles.rail} data-side="right" aria-label="Panels">
+        {panels.map(({ id, label, icon: Icon }) => (
+          <Tooltip key={id}>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={label}
+                  aria-expanded={false}
+                  onClick={() => setActive(id)}
+                />
+              }
             >
-              <RiContractRightLine aria-hidden="true" />
-            </Button>
-          </div>
-          {open.id === "ai" ? <AiPanel /> : <ScreenPreview />}
-        </aside>
-      )}
-      <nav className={styles.rail} aria-label="Panels">
-        {panels.map(({ id, label, icon }) => (
-          <RailToggle
-            key={id}
-            label={label}
-            icon={icon}
-            active={active === id}
-            onToggle={() => setActive((current) => (current === id ? null : id))}
-          />
+              <Icon aria-hidden="true" />
+            </TooltipTrigger>
+            {/* The rail hugs the window edge, so tooltips open inward instead of over the next toggle. */}
+            <TooltipPopup side="left">{label}</TooltipPopup>
+          </Tooltip>
         ))}
       </nav>
-    </>
+    );
+  }
+
+  return (
+    <aside className={styles.sidePanel} aria-label="Panels">
+      <Tabs
+        value={active}
+        onValueChange={(value) => {
+          if (isPanelId(value)) setActive(value);
+        }}
+        className="min-h-0 flex-1 gap-0"
+      >
+        <div className={styles.panelHeader}>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Minimize panel"
+                  aria-expanded
+                  onClick={() => setActive(null)}
+                />
+              }
+            >
+              <RiContractRightLine aria-hidden="true" />
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">Minimize</TooltipPopup>
+          </Tooltip>
+          {/* 24 px tabs in a 2 px frame, so the list is as tall as the 28 px buttons beside it. */}
+          <TabsList size="sm" aria-label="Panels" className="ml-auto">
+            {panels.map(({ id, label, icon: Icon }) => (
+              <TabsTab key={id} value={id} className="h-6 sm:h-6">
+                <Icon aria-hidden="true" />
+                {label}
+              </TabsTab>
+            ))}
+          </TabsList>
+        </div>
+        {panels.map(({ id }) => (
+          <TabsPanel key={id} value={id} className="min-h-0" />
+        ))}
+      </Tabs>
+    </aside>
   );
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { FlowBuilder } from "../../../../../builder/flow-builder";
-import { resolveFlowDocument } from "../../../../../builder/resolve-document";
+import { FlowBuilder } from "../../../../builder/flow-builder";
+import { resolveFlowDocument } from "../../../../builder/resolve-document";
 
 export const metadata: Metadata = { title: "Flow · Automator" };
 

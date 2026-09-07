@@ -4,7 +4,6 @@ import {
   Background,
   BackgroundVariant,
   ConnectionLineType,
-  MiniMap,
   Panel,
   ReactFlow,
   useReactFlow,
@@ -116,13 +115,11 @@ export function FlowCanvas() {
         deleteKeyCode={["Backspace", "Delete"]}
         minZoom={0.25}
         maxZoom={2}
-        proOptions={{ hideAttribution: false }}
+        proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} />
-        <MiniMap pannable zoomable className={styles.minimap} />
         <ZoomPanel />
       </ReactFlow>
-      {nodes.length === 0 && <p className={styles.emptyHint}>Add a node from the palette</p>}
     </div>
   );
 }

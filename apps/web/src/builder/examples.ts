@@ -10,9 +10,9 @@ const startX = 80;
 
 /** Keyword to node type, checked against the step name and description in order. */
 const keywordTypes: readonly [RegExp, FlowNodeType][] = [
-  [/world/i, "integration.world-selfie-check"],
-  [/privy/i, "integration.privy-wallet"],
-  [/usdc/i, "integration.usdc-payment"],
+  [/world/i, "world.selfie-check"],
+  [/privy/i, "privy.wallet"],
+  [/usdc/i, "usdc.payment"],
 ];
 
 function stepType(step: FlowExample["steps"][number]): FlowNodeType {

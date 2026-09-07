@@ -231,20 +231,6 @@
 .shell[data-state="collapsed"] .content {
   border-color: transparent;
 }
-/*
-  Content contract. A page opts into "fill" by wrapping its subtree in an element carrying
-  data-content-mode="fill"; the (workspace)/(canvas) layout does that for every route inside
-  it. :has() lets the shell react during server rendering, with no context, prop drilling or
-  client JavaScript. "document" is the default: main pads and scrolls. In "fill", main is a
-  flex column with no padding and no scrolling, and the child owns its own overflow.
-*/
-.shell[data-state] .content:has(> [data-content-mode="fill"]) {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 0;
-  overflow: hidden;
-}
 .brand:focus-visible,
 .navLink:focus-visible {
   outline: 2px solid var(--ring);

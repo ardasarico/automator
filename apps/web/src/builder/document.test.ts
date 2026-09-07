@@ -17,7 +17,7 @@ const document: FlowDocument = {
     },
     {
       id: "n2",
-      type: "integration.usdc-payment",
+      type: "usdc.payment",
       position: { x: 300, y: 40 },
       label: "Pay",
       config: {},
@@ -63,7 +63,7 @@ describe("hydrateFlow", () => {
         id: "n2",
         type: "flow",
         position: { x: 300, y: 40 },
-        data: { type: "integration.usdc-payment", label: "Pay", config: {} },
+        data: { type: "usdc.payment", label: "Pay", config: {} },
       },
     ]);
     expect(edges).toEqual([
