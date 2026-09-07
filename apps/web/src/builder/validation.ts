@@ -34,6 +34,7 @@ const configSchemas: Partial<Record<FlowNodeType, TObject>> = {
 const requiredConfig: Partial<Record<FlowNodeType, readonly string[]>> = {
   "logic.set-variable": ["name"],
   "notify.discord": ["webhookUrl", "content"],
+  "world.id-verify": ["action"],
 };
 
 const fieldLabels: Record<string, string> = {
@@ -41,6 +42,7 @@ const fieldLabels: Record<string, string> = {
   discordWebhookUrl: "Discord webhook URL",
   content: "message content",
   name: "variable name",
+  action: "World action id",
 };
 
 function isBlank(value: unknown): boolean {
@@ -137,6 +139,17 @@ export function findFlowProblems(document: Pick<FlowDocument, "nodes" | "edges">
             nodeId: node.id,
             message: `“${label}” has no fields yet.`,
           });
+      }
+      if (
+        node.type === "world.id-verify" &&
+        !document.edges.some((edge) => edge.source === node.id && edge.sourceHandle === "rejected")
+      ) {
+        // An unwired port ends the flow, so a rejected visitor would see "All done".
+        problems.push({
+          severity: "warning",
+          nodeId: node.id,
+          message: `“${label}” has nothing on Rejected, so a failed verification ends the flow.`,
+        });
       }
     } catch {
       problems.push({

@@ -2,6 +2,7 @@ import {
   answerMiniAppSessionContract,
   flowNodeConfigSchemas,
   flowChainId,
+  isIdentityScreenType,
   isScreenNodeType,
   miniAppAnswerSchema,
   miniAppFailureMessage,
@@ -13,17 +14,27 @@ import {
   Value,
   visitorAnswer,
   type FlowDocument,
+  type FlowNode,
   type FlowRun,
   type MiniAppFailureCode,
+  type MiniAppAnswer,
   type MiniAppSession,
   type MiniAppStep,
+  type ScreenNodeType,
 } from "@automator/contracts";
 import type { FlowStore, MiniAppSessionRow, RunStore, SessionStore } from "@automator/db";
-import { runFlow, type RunOptions, type SecretsResolver } from "@automator/flow-engine";
+import {
+  resolveTemplates,
+  runFlow,
+  type RunOptions,
+  type SecretsResolver,
+} from "@automator/flow-engine";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Elysia } from "elysia";
+import type { IdentityProvider } from "../auth/privy";
 import type { ChainFactory } from "../chain/provider";
 import { clientAddress, createRateLimiter, defaultRateLimits } from "../rate-limit";
+import { WorldVerifyError, type WorldVerifier } from "../world/verify";
 
 export interface SessionDependencies {
   flows: FlowStore;
@@ -37,6 +48,10 @@ export interface SessionDependencies {
   /** Session calls one client address may make per minute before 429; sixty by default. */
   callsPerMinute?: number;
   now?: () => number;
+  /** Verifies a visitor's Privy token for `privy.login`; absent leaves that node unconfigured. */
+  identity?: Pick<IdentityProvider, "visitor">;
+  /** Verifies World ID proofs for `world.id-verify`; absent leaves that node unconfigured. */
+  world?: WorldVerifier;
 }
 
 function hashToken(token: string): string {
@@ -47,6 +62,21 @@ function tokenMatches(row: MiniAppSessionRow, token: string): boolean {
   const expected = Buffer.from(row.tokenHash, "hex");
   const given = Buffer.from(hashToken(token), "hex");
   return expected.length === given.length && timingSafeEqual(expected, given);
+}
+
+/** What an identity screen's templates may read: the session's `vars` and the opening payload. */
+type ScreenScope = { vars: Record<string, unknown>; trigger: unknown };
+
+/**
+ * A screen's config as the visitor's browser receives it. Identity screens resolve `vars`
+ * and `trigger` templates (a World signal bound to the signed-in visitor, say), so the
+ * runtime and the verifier see the same value; plain screens render their config as is.
+ */
+function screenConfig(node: FlowNode & { type: ScreenNodeType }, scope: ScreenScope) {
+  const parsed = parseScreenConfig(node.type, node.config);
+  return isIdentityScreenType(node.type)
+    ? resolveTemplates(parsed, { input: {}, vars: scope.vars, trigger: scope.trigger })
+    : parsed;
 }
 
 /**
@@ -86,7 +116,13 @@ function visitorHelp(document: FlowDocument): string {
  * or a node's error text: a failure answers one generic sentence, a code, and the owner's
  * own note when they wrote one.
  */
-function toSession(sessionId: string, document: FlowDocument, run: FlowRun): MiniAppSession {
+function toSession(
+  sessionId: string,
+  document: FlowDocument,
+  run: FlowRun,
+  scope: ScreenScope,
+  world: WorldVerifier | undefined,
+): MiniAppSession {
   const byId = new Map(document.nodes.map((node) => [node.id, node]));
   const steps: MiniAppStep[] = [];
   for (const result of run.nodes) {
@@ -99,15 +135,22 @@ function toSession(sessionId: string, document: FlowDocument, run: FlowRun): Min
     const waiting = run.nodes.find((result) => result.status === "waiting");
     const node = waiting ? byId.get(waiting.nodeId) : undefined;
     if (node && isScreenNodeType(node.type)) {
+      const type = node.type;
+      const config = screenConfig({ ...node, type }, scope);
+      // A World ID screen carries a signed request context, so the runtime can open IDKit
+      // without holding any World credential; none when the API has no World configuration.
+      const action = type === "world.id-verify" ? (config as { action: string }).action : "";
+      const request = world && action !== "" ? world.requestContext(action) : undefined;
       return {
         sessionId,
         status: "screen",
         steps,
         screen: {
           nodeId: node.id,
-          type: node.type,
+          type,
           label: node.label,
-          config: parseScreenConfig(node.type, node.config),
+          config,
+          ...(request ? { world: request } : {}),
         },
       };
     }
@@ -125,6 +168,78 @@ function toSession(sessionId: string, document: FlowDocument, run: FlowRun): Min
   };
 }
 
+type Resume = NonNullable<RunOptions["resume"]>;
+
+/** How an answer to an identity screen turns into the node's outputs, or why it cannot. */
+type IdentityOutcome =
+  | { resume: Resume }
+  | { status: 400 | 401 | 503; error: "invalid_request" | "unauthorized" | "unavailable" };
+
+/**
+ * Answers an identity screen from what the API verified, never from what the visitor sent:
+ * a Privy token becomes the visitor Privy describes; a World proof becomes the portal's
+ * verdict. A host without the provider fails the node as unconfigured, like an AI node
+ * without a model, so the owner sees it in the run history.
+ */
+async function answerIdentityScreen(
+  node: FlowNode,
+  body: MiniAppAnswer,
+  row: MiniAppSessionRow,
+  deps: Pick<SessionDependencies, "identity" | "world">,
+): Promise<IdentityOutcome> {
+  const failed = (error: string): IdentityOutcome => ({
+    resume: { nodeId: node.id, outputs: {}, variables: row.variables, error },
+  });
+  if (node.type === "privy.login") {
+    if (!body.privyToken) return { status: 400, error: "invalid_request" };
+    if (!deps.identity?.visitor)
+      return failed(
+        "Sign-in is not configured on this server: set PRIVY_APP_ID and PRIVY_APP_SECRET",
+      );
+    const visitor = await deps.identity.visitor(body.privyToken);
+    if (!visitor) return { status: 401, error: "unauthorized" };
+    return {
+      resume: {
+        nodeId: node.id,
+        outputs: { [screenPorts(node.type).primary]: visitor },
+        variables: { ...row.variables, visitor },
+      },
+    };
+  }
+  if (node.type === "world.id-verify") {
+    if (!body.worldProof) return { status: 400, error: "invalid_request" };
+    if (!deps.world) return failed("World ID is not configured on this server: set WORLD_APP_ID");
+    const config = resolveTemplates(parseScreenConfig(node.type, node.config), {
+      input: {},
+      vars: row.variables,
+      trigger: row.payload,
+    });
+    if (!config.action)
+      return failed("World ID verify needs an action id from the Developer Portal");
+    const ports = screenPorts(node.type);
+    try {
+      const result = await deps.world.verify({
+        action: config.action,
+        signal: config.signal,
+        proof: body.worldProof,
+      });
+      return {
+        resume: {
+          nodeId: node.id,
+          outputs: result.ok
+            ? { [ports.primary]: result.verification }
+            : { [ports.secondary ?? ports.primary]: result.rejection },
+          variables: row.variables,
+        },
+      };
+    } catch (error) {
+      if (error instanceof WorldVerifyError) return { status: 503, error: "unavailable" };
+      throw error;
+    }
+  }
+  return { status: 400, error: "invalid_request" };
+}
+
 /**
  * Sessions of a published mini-app. The API runs the flow as its owner, with the owner's
  * secrets, and stores every run in the owner's history; the visitor holds a session id and
@@ -140,6 +255,8 @@ export function createSessionRoutes({
   chainFactory,
   callsPerMinute = defaultRateLimits.sessions,
   now = Date.now,
+  identity,
+  world,
 }: SessionDependencies) {
   // Visitors are anonymous, so both routes share one window per client address.
   const limiter = createRateLimiter(callsPerMinute, now);
@@ -173,7 +290,13 @@ export function createSessionRoutes({
         await runs.create(found.ownerId, document, run, "miniapp");
         const sessionId = randomUUID();
         const token = randomBytes(24).toString("base64url");
-        const session = toSession(sessionId, document, run);
+        const session = toSession(
+          sessionId,
+          document,
+          run,
+          { vars: run.variables, trigger: payload },
+          world,
+        );
         await sessions.create({
           id: sessionId,
           flowId: document.id,
@@ -210,21 +333,35 @@ export function createSessionRoutes({
         const ports = screenPorts(node.type);
         if (body.port !== ports.primary && body.port !== ports.secondary)
           return status(400, { error: "invalid_request" });
-        const run = await runFlow(document, {
-          ...engine,
-          trigger: { payload: row.payload },
-          resume: {
+        let resume: Resume;
+        if (isIdentityScreenType(node.type)) {
+          const outcome = await answerIdentityScreen(node, body, row, { identity, world });
+          if (!("resume" in outcome)) return status(outcome.status, { error: outcome.error });
+          resume = outcome.resume;
+        } else {
+          resume = {
             nodeId: node.id,
             outputs: { [body.port]: visitorAnswer(body.port, body.data) },
             variables: row.variables,
-          },
+          };
+        }
+        const run = await runFlow(document, {
+          ...engine,
+          trigger: { payload: row.payload },
+          resume,
           secrets: secretsFor?.(found.ownerId),
           chain: chainFactory
             ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))
             : undefined,
         });
         await runs.create(found.ownerId, document, run, "miniapp");
-        const session = toSession(row.id, document, run);
+        const session = toSession(
+          row.id,
+          document,
+          run,
+          { vars: run.variables, trigger: row.payload },
+          world,
+        );
         await sessions.update(row.id, {
           status: session.status,
           nodeId: session.screen?.nodeId ?? null,

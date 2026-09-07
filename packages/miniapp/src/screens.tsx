@@ -10,12 +10,16 @@ import { RiCheckLine, RiCloseLine, RiQrCodeLine } from "@remixicon/react";
 import type React from "react";
 import { useState } from "react";
 import { screenPorts, type ScreenNode } from "./engine";
+import { PrivyLoginScreen, WorldIdVerifyScreen, type IdentityAnswer } from "./identity";
 import { QrCode } from "./qr-code";
 
 export type ScreenViewProps = {
   node: ScreenNode;
-  /** The visitor acted: continue on `port`; a form passes its values. */
-  onContinue(port: string, data?: Record<string, string>): void;
+  /**
+   * The visitor acted: continue on `port`; a form passes its values, an identity screen the
+   * host's verified answer (or a sample record in the preview).
+   */
+  onContinue(port: string, data?: Record<string, string>, identity?: IdentityAnswer): void;
   /** Focused after a visitor action, so screen readers land on the new screen. */
   titleRef?: React.Ref<HTMLHeadingElement>;
 };
@@ -233,6 +237,10 @@ export function ScreenView(props: ScreenViewProps): React.ReactElement {
       return <ConfirmationScreen {...props} />;
     case "screen.qr-code":
       return <QrCodeScreen {...props} />;
+    case "privy.login":
+      return <PrivyLoginScreen {...props} frame={ScreenFrame} title={Title} />;
+    case "world.id-verify":
+      return <WorldIdVerifyScreen {...props} frame={ScreenFrame} title={Title} />;
   }
 }
 

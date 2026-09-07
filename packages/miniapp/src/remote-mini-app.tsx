@@ -8,6 +8,7 @@ import {
 } from "@automator/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenNode } from "./engine";
+import type { IdentityAnswer } from "./identity";
 import { EndView, ScreenView, VisitorFailedView, WorkingView, type WorkingStep } from "./screens";
 
 /** How the page reaches the API: the runtime's same-origin handlers implement both. */
@@ -36,19 +37,27 @@ function toNode(screen: MiniAppScreen): ScreenNode {
     label: screen.label,
     config: screen.config,
     position: { x: 0, y: 0 },
+    ...(screen.world ? { world: screen.world } : {}),
   };
+}
+
+/**
+ * Why the session request did not settle, in the visitor's terms. A client that throws the
+ * API's error code (the runtime's does) lets a rejected sign-in or a rate limit read as such;
+ * anything else is the app being unreachable.
+ */
+export function describeUnavailable(cause: unknown): string {
+  const code = cause instanceof Error ? cause.message : "";
+  if (code === "unauthorized")
+    return "Your sign-in could not be verified. Start over and try again.";
+  if (code === "rate_limited") return "Too many requests right now. Wait a moment and try again.";
+  return "The app could not be reached. Try again.";
 }
 
 function toSteps(session: MiniAppSession): WorkingStep[] {
   return session.steps.map((step) => ({ id: step.nodeId, label: step.label, status: step.status }));
 }
 
-/** What to tell the visitor when the API answered an error instead of a session. */
-function unavailableMessage(error: unknown): string {
-  return error instanceof Error && error.message === "rate_limited"
-    ? "Too many requests right now. Wait a moment and try again."
-    : "The app could not be reached. Try again.";
-}
 
 /**
  * A published flow played through the API: the server runs it and hands back only the
@@ -69,9 +78,9 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
         setSteps(toSteps(session));
         setState({ kind: "session", session, token: session.token ?? token ?? "" });
       },
-      (error: unknown) => {
+      (cause: unknown) => {
         if (count !== requestCount.current) return;
-        setState({ kind: "unavailable", message: unavailableMessage(error) });
+        setState({ kind: "unavailable", message: describeUnavailable(cause) });
       },
     );
   }, []);
@@ -86,7 +95,7 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
       titleRef.current?.focus();
   }, [state]);
 
-  const act = (port: string, data?: Record<string, string>) => {
+  const act = (port: string, data?: Record<string, string>, identity?: IdentityAnswer) => {
     if (state.kind !== "session") return;
     interacted.current = true;
     const count = ++requestCount.current;
@@ -95,7 +104,7 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
     setState({ kind: "loading" });
     settle(
       count,
-      client.answer(session.sessionId, { token, port, ...(data ? { data } : {}) }),
+      client.answer(session.sessionId, { token, port, ...(data ? { data } : {}), ...identity }),
       token,
     );
   };

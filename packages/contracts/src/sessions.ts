@@ -1,5 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { apiErrorResponses } from "./contract";
+import { worldProofSchema, worldRequestSchema } from "./identity";
 
 /**
  * A visitor's session in a published mini-app. The API runs the flow server-side and hands
@@ -15,10 +16,14 @@ export const miniAppScreenSchema = Type.Object({
     Type.Literal("screen.form"),
     Type.Literal("screen.confirmation"),
     Type.Literal("screen.qr-code"),
+    Type.Literal("privy.login"),
+    Type.Literal("world.id-verify"),
   ]),
   label: Type.String(),
   /** The screen's parsed config: titles, fields, labels. Never other nodes' config. */
   config: Type.Record(Type.String(), Type.Unknown()),
+  /** `world.id-verify` only: what IDKit needs to request the proof; absent when unconfigured. */
+  world: Type.Optional(worldRequestSchema),
 });
 export type MiniAppScreen = Static<typeof miniAppScreenSchema>;
 
@@ -68,8 +73,12 @@ export const miniAppAnswerSchema = Type.Object(
   {
     token: Type.String({ minLength: 1 }),
     port: Type.String({ minLength: 1 }),
-    /** A form's values keyed by field id; absent for a button. */
+    /** A form's values keyed by field id; absent for a button. Ignored by identity screens. */
     data: Type.Optional(Type.Record(Type.String(), Type.String())),
+    /** `privy.login`: the visitor's Privy access token, verified on the API and never stored. */
+    privyToken: Type.Optional(Type.String({ minLength: 1 })),
+    /** `world.id-verify`: the proof IDKit or MiniKit produced, verified with the Developer Portal. */
+    worldProof: Type.Optional(worldProofSchema),
   },
   { additionalProperties: false },
 );

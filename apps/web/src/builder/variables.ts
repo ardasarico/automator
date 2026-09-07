@@ -36,6 +36,29 @@ function samplePayloadKeys(config: unknown): string[] {
   return Object.keys(sample).filter((key) => templateKey.test(key));
 }
 
+/** The fields an identity screen's answer carries, per output port, for the picker. */
+const identityFields: Partial<Record<FlowNode["type"], Record<string, [string, string][]>>> = {
+  "privy.login": {
+    user: [
+      ["userId", "User id"],
+      ["email", "Email"],
+      ["wallet", "Wallet"],
+      ["loginMethod", "Login method"],
+    ],
+  },
+  "world.id-verify": {
+    verified: [
+      ["nullifierHash", "Nullifier hash"],
+      ["verificationLevel", "Verification level"],
+      ["action", "Action"],
+    ],
+    rejected: [
+      ["code", "Rejection code"],
+      ["detail", "Rejection detail"],
+    ],
+  },
+};
+
 /**
  * Everything a node's templates can reach, in the order a settings menu lists it: the
  * values arriving on its input ports (one per incoming edge, plus one per field when the
@@ -72,6 +95,10 @@ export function listVariables(
         });
       }
     }
+    const fields = identityFields[source.type]?.[edge.sourceHandle ?? ""] ?? [];
+    for (const [key, label] of fields) {
+      options.push({ template: `{{input.${handle}.${key}}}`, source: source.label, label });
+    }
   }
 
   // Everything upstream, nearest first, for variables and the trigger.
@@ -92,6 +119,14 @@ export function listVariables(
 
   const names = new Set<string>();
   for (const node of upstream) {
+    if (node.type === "privy.login" && !names.has("visitor")) {
+      // The API keeps the signed-in visitor in `vars.visitor` for every node after the login.
+      names.add("visitor");
+      for (const [key, label] of identityFields["privy.login"]!.user!) {
+        options.push({ template: `{{vars.visitor.${key}}}`, source: node.label, label });
+      }
+      continue;
+    }
     if (node.type !== "logic.set-variable") continue;
     const name = node.config.name;
     if (typeof name !== "string" || name === "" || names.has(name)) continue;

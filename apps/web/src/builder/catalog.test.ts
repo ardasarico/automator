@@ -97,7 +97,7 @@ describe("node catalog", () => {
     expect(sections[0]!.entries.map((entry) => entry.type)).toEqual([
       "world.verification-completed",
     ]);
-    expect(sections.flatMap((section) => section.entries)).toHaveLength(3);
+    expect(sections.flatMap((section) => section.entries)).toHaveLength(2);
   });
 
   test("a single-category group is one unlabelled section", () => {

@@ -1,5 +1,6 @@
 import { defaultRateLimits, type RateLimits } from "./rate-limit";
 import { generateSecretsKey, parseSecretsKey } from "./secrets/crypto";
+import { readWorldConfig, type WorldConfig } from "./world/verify";
 
 export interface ApiConfig {
   port: number;
@@ -32,6 +33,12 @@ export interface ApiConfig {
   chainRpcUrls: Record<string, string>;
   /** Privy authorization key (base64 PKCS8) that signs with users' delegated embedded wallets. */
   privyAuthorizationKey: string | undefined;
+  /**
+   * World ID for `world.id-verify` nodes: the Developer Portal app, its relying party and
+   * signing key, and the environment proofs are made in. Optional in every environment;
+   * without it those nodes fail their run as unconfigured.
+   */
+  world: WorldConfig | undefined;
   /**
    * A bearer token the API accepts as a fixed test user, for end-to-end tests only. Refused
    * in production, since it bypasses Privy.
@@ -102,6 +109,7 @@ export function readConfig(env: Record<string, string | undefined> = process.env
         : undefined,
     chainRpcUrls: readChainRpcUrls(env),
     privyAuthorizationKey: env.PRIVY_AUTHORIZATION_KEY || undefined,
+    world: readWorldConfig(env),
     e2eTestToken: env.E2E_TEST_TOKEN || undefined,
     secretsKey,
     rateLimits: {

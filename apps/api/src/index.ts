@@ -9,6 +9,7 @@ import { createQuickJsSandbox } from "./sandbox/quickjs";
 import { createScheduler } from "./scheduler";
 import { createSecretsCrypto } from "./secrets/crypto";
 import { createSecretsResolver } from "./secrets/resolver";
+import { createWorldVerifier } from "./world/verify";
 
 const config = readConfig();
 const database = createDatabase(config.databaseUrl);
@@ -46,6 +47,7 @@ const app = createApp({
   identity,
   model,
   chainFactory,
+  world: createWorldVerifier(config.world),
   log: true,
   rateLimits: config.rateLimits,
 }).listen({ hostname: "::", port: config.port });

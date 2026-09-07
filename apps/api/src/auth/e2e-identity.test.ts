@@ -24,6 +24,13 @@ describe("withE2eIdentity", () => {
     expect(await identity.walletAddress("did:privy:real")).toBe("0xreal");
     expect(await identity.embeddedWallet!(e2eUser.id)).toMatchObject({ delegated: false });
     expect(await identity.embeddedWallet!("did:privy:real")).toBeNull();
+    expect(await identity.visitor!("e2e-secret")).toEqual({
+      userId: e2eUser.id,
+      wallet: e2eUser.walletAddress,
+      email: "e2e@example.com",
+      loginMethod: "email",
+    });
+    expect(await identity.visitor!("real")).toBeNull();
   });
 
   test("works without a real provider, for an API started without Privy", async () => {

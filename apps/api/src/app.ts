@@ -35,6 +35,7 @@ import { createSecretsResolver } from "./secrets/resolver";
 import { createSecretRoutes } from "./secrets/routes";
 import { createSessionRoutes } from "./sessions/routes";
 import { createWalletRoutes } from "./wallet/routes";
+import type { WorldVerifier } from "./world/verify";
 
 export interface AppDependencies {
   database: Pick<ReturnType<typeof createDatabase>, "check">;
@@ -54,6 +55,8 @@ export interface AppDependencies {
   model?: LanguageModel;
   /** Chains for onchain nodes, per user and mode; absent when the API has no chain provider. */
   chainFactory?: ChainFactory;
+  /** World ID proof verification for mini-app sessions; absent without `WORLD_APP_ID`. */
+  world?: WorldVerifier;
   /** Server-side request and failure logging, off by default so tests stay quiet. */
   log?: boolean;
   /** Calls per minute on the limited routes; the defaults from `rate-limit.ts` otherwise. */
@@ -92,6 +95,7 @@ export function createApp({
   model,
   chainFactory,
   rateLimits,
+  world,
 }: AppDependencies) {
   const limits = { ...defaultRateLimits, ...rateLimits };
   const startedAt = new WeakMap<Request, number>();
@@ -200,6 +204,8 @@ export function createApp({
               secretsFor,
               chainFactory,
               callsPerMinute: limits.sessions,
+              identity,
+              world,
             })
           : new Elysia(),
       )

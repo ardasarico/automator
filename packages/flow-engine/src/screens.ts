@@ -1,6 +1,9 @@
 import {
   isScreenNodeType,
   parseScreenConfig,
+  samplePrivyUser,
+  sampleWorldRejection,
+  sampleWorldVerification,
   screenPorts,
   type FlowNode,
   type ScreenFormField,
@@ -22,9 +25,11 @@ function sampleValue(field: ScreenFormField): string {
 
 /**
  * What a screen produces when Simulate answers it instead of a visitor. The shape matches the
- * real mini-app (form values keyed by field id; `{ action: port }` for a button), so the nodes
- * after it see the same input either way, plus a `simulated` key naming the port taken.
- * That key is never a handle id, so no edge fires on it. Null for a node that is not a screen.
+ * real mini-app (form values keyed by field id; `{ action: port }` for a button; the sample
+ * visitor for a Privy login; a sample verification or rejection for a World ID check), so
+ * the nodes after it see the same input either way, plus a `simulated` key naming the port
+ * taken. That key is never a handle id, so no edge fires on it. Null for a node that is not
+ * a screen.
  */
 export function autoAnswer(node: FlowNode): ExecutionOutputs | null {
   if (!isScreenNodeType(node.type)) return null;
@@ -36,6 +41,22 @@ export function autoAnswer(node: FlowNode): ExecutionOutputs | null {
     }
     const port = screenPorts(node.type).primary;
     return { [port]: values, simulated: { port } };
+  }
+  if (node.type === "privy.login") {
+    const port = screenPorts(node.type).primary;
+    return {
+      [port]: samplePrivyUser(parseScreenConfig(node.type, node.config)),
+      simulated: { port },
+    };
+  }
+  if (node.type === "world.id-verify") {
+    const config = parseScreenConfig(node.type, node.config);
+    const ports = screenPorts(node.type);
+    if (config.simulate === "rejected") {
+      const port = ports.secondary ?? ports.primary;
+      return { [port]: sampleWorldRejection, simulated: { port } };
+    }
+    return { [ports.primary]: sampleWorldVerification(config), simulated: { port: ports.primary } };
   }
   const port =
     node.type === "screen.confirmation"

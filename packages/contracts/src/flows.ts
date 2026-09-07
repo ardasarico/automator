@@ -44,7 +44,6 @@ export const flowNodeTypes = [
   "notify.email",
   "notify.discord",
   // Integrations, prefixed by provider
-  "world.selfie-check",
   "world.id-verify",
   "world.verification-completed",
   "privy.wallet",

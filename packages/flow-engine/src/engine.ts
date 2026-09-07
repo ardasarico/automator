@@ -31,6 +31,11 @@ export interface RunOptions {
     nodeId: string;
     outputs: Record<string, unknown>;
     variables?: Record<string, unknown>;
+    /**
+     * The screen could not be answered (a sign-in the host cannot verify, say): the node is
+     * recorded as failed with this message instead of producing `outputs`, and the run fails.
+     */
+    error?: string;
   };
   /** Called as each node's result is recorded, skipped ones included, in execution order. */
   onNodeResult?: (result: FlowRunNodeResult) => void;
@@ -345,6 +350,18 @@ async function execute(
     if (!halted && resume !== undefined && node.id === resume.nodeId) {
       // The visitor already answered this screen: its outputs are given, not computed.
       const finishedAt = now().toISOString();
+      if (resume.error !== undefined) {
+        record({
+          nodeId: node.id,
+          status: "failed",
+          startedAt: finishedAt,
+          finishedAt,
+          error: resume.error,
+        });
+        halted = { status: "failed" };
+        propagate(node, {});
+        continue;
+      }
       record({
         nodeId: node.id,
         status: "succeeded",

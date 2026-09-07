@@ -394,6 +394,86 @@ describe("runFlow resume", () => {
     expect(run.status).toBe("failed");
     expect(run.error).toBe('Node "d" is not a screen to resume from');
   });
+
+  test("resuming with an error fails the screen itself and skips the rest", async () => {
+    const seen: string[] = [];
+    const run = await runFlow(checkout, {
+      resume: { nodeId: "form", outputs: {}, error: "Sign-in is not configured" },
+      onNodeResult: (result) => seen.push(`${result.nodeId}:${result.status}`),
+      now: fixedNow,
+      sleep: noSleep,
+      fetch: okDiscord,
+    });
+    expect(run.status).toBe("failed");
+    expect(run.nodes[1]).toMatchObject({
+      nodeId: "form",
+      status: "failed",
+      error: "Sign-in is not configured",
+    });
+    expect(run.nodes.map((result) => result.status)).toEqual([
+      "skipped",
+      "failed",
+      "skipped",
+      "skipped",
+    ]);
+    expect(seen).toEqual(["t:skipped", "form:failed", "d:skipped", "done:skipped"]);
+  });
+
+  test("identity screens pause like any other screen and resume on their port", async () => {
+    const gated = flow(
+      [
+        node("t", "trigger.miniapp-open"),
+        node("login", "privy.login"),
+        node("verify", "world.id-verify", { action: "claim" }),
+        node("d", "notify.discord", {
+          webhookUrl: "https://discord.com/api/webhooks/1/abc",
+          content: "{{input.message.nullifierHash}} for {{vars.visitor.email}}",
+        }),
+        node("no", "screen.page"),
+      ],
+      [
+        edge("t", "visitor", "login", "visitor"),
+        edge("login", "user", "verify", "visitor"),
+        edge("verify", "verified", "d", "message"),
+        edge("verify", "rejected", "no", "data"),
+      ],
+    );
+    const first = await runFlow(gated, { trigger: { nodeId: "t" }, now: fixedNow });
+    expect(first.status).toBe("waiting");
+    expect(first.nodes[1]!.status).toBe("waiting");
+
+    const calls: unknown[] = [];
+    const verified = await runFlow(gated, {
+      resume: {
+        nodeId: "verify",
+        outputs: {
+          verified: { nullifierHash: "0xabc", verificationLevel: "orb", action: "claim" },
+        },
+        variables: { visitor: { email: "ada@example.com" } },
+      },
+      now: fixedNow,
+      fetch: fakeFetch((_url, init) => {
+        calls.push(JSON.parse(String(init?.body)));
+        return Response.json({ id: "m1", channel_id: "c1" });
+      }),
+    });
+    expect(verified.status).toBe("succeeded");
+    expect(calls).toEqual([{ content: "0xabc for ada@example.com" }]);
+    expect(verified.nodes.map((result) => result.status)).toEqual([
+      "skipped",
+      "skipped",
+      "succeeded",
+      "succeeded",
+      "skipped",
+    ]);
+
+    const rejected = await runFlow(gated, {
+      resume: { nodeId: "verify", outputs: { rejected: { code: "invalid_proof", detail: "" } } },
+      now: fixedNow,
+    });
+    expect(rejected.status).toBe("waiting");
+    expect(rejected.nodes[4]!.status).toBe("waiting");
+  });
 });
 
 describe("runFlow with screens: auto", () => {

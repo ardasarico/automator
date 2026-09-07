@@ -9,6 +9,7 @@ import {
 } from "@automator/contracts";
 import { RemoteMiniApp, type MiniAppClient } from "@automator/miniapp";
 import { useMemo } from "react";
+import { IdentityHost } from "./identity-host";
 import { MiniAppShell } from "./shell";
 
 /** The same-origin handlers under /api/a mirror the API's public session paths one to one. */
@@ -45,7 +46,9 @@ export function PublishedMiniApp({ flowId, name }: { flowId: string; name: strin
   const client = useMemo(() => createClient(flowId), [flowId]);
   return (
     <MiniAppShell>
-      <RemoteMiniApp client={client} name={name} />
+      <IdentityHost>
+        <RemoteMiniApp client={client} name={name} />
+      </IdentityHost>
     </MiniAppShell>
   );
 }

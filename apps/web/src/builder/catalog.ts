@@ -512,24 +512,14 @@ export const catalog: readonly CatalogEntry[] = [
 
   // Integrations
   {
-    type: "world.selfie-check",
-    category: "integration",
-    group: "world",
-    label: "World Selfie Check",
-    description: "Verify the visitor with a World Selfie Check.",
-    icon: worldLogo,
-    inputs: [port("visitor", "Visitor")],
-    outputs: [port("verified", "Verified")],
-  },
-  {
     type: "world.id-verify",
     category: "integration",
     group: "world",
     label: "World ID verify",
-    description: "Verify the visitor's World ID proof.",
+    description: "Ask the visitor to prove they are a unique human with World ID.",
     icon: worldLogo,
     inputs: [port("visitor", "Visitor")],
-    outputs: [port("proof", "Proof")],
+    outputs: [port("verified", "Verified"), port("rejected", "Rejected")],
   },
   {
     type: "privy.wallet",
@@ -546,7 +536,7 @@ export const catalog: readonly CatalogEntry[] = [
     category: "integration",
     group: "privy",
     label: "Privy login",
-    description: "Sign the visitor in with Privy.",
+    description: "Sign the visitor in with Privy and pass their identity on.",
     icon: remix(RiLoginBoxLine),
     inputs: [port("visitor", "Visitor")],
     outputs: [port("user", "User")],
