@@ -1,24 +1,20 @@
-import { RiFlowChart } from "@remixicon/react";
 import type { Metadata } from "next";
-import { UnavailablePanel } from "../../../../../components/unavailable-panel";
-import { WorkspaceBreadcrumbs } from "../../../../../components/workspace-breadcrumbs";
+import { FlowBuilder } from "../../../../../builder/flow-builder";
+import { resolveFlowDocument } from "../../../../../builder/resolve-document";
 
 export const metadata: Metadata = { title: "Flow · Automator" };
 
-/** The canonical flow URL. The builder canvas will replace this panel in place. */
-export default function FlowPage() {
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ example?: string | string[] }>;
+};
+
+/** The canonical flow URL. The document is client state until the flows API lands. */
+export default async function FlowPage({ params, searchParams }: Props) {
+  const [{ id }, { example }] = await Promise.all([params, searchParams]);
+  const slug = Array.isArray(example) ? example[0] : example;
   return (
-    <>
-      <div className="flex-none px-4 pt-2">
-        <WorkspaceBreadcrumbs parents={[{ label: "Flows", href: "/flows" }]} current="Flow" />
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        <UnavailablePanel
-          icon={<RiFlowChart />}
-          title="The flow builder is not ready yet"
-          description="Building, simulating and running a flow on the canvas is still in progress."
-        />
-      </div>
-    </>
+    // A new id or example seed remounts the builder and its store: no effect-based hydration.
+    <FlowBuilder key={`${id}:${slug ?? ""}`} document={resolveFlowDocument(id, example)} />
   );
 }

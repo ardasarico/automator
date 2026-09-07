@@ -1,0 +1,427 @@
+/* Builder canvas: React Flow re-skinned with the builder tokens. Both themes come from the
+   tokens, so React Flow's own colorMode stays unused. */
+
+.canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* React Flow's own stylesheet declares every `--xy-*-default` variable on `.react-flow`
+   itself, so overrides need at least that specificity to win over the shipped defaults. */
+.canvas :global(.react-flow) {
+  --xy-background-color-default: var(--canvas);
+  --xy-background-pattern-dots-color-default: var(--canvas-grid);
+  --xy-edge-stroke-default: var(--edge);
+  --xy-edge-stroke-width-default: 1.5;
+  --xy-edge-stroke-selected-default: var(--edge-active);
+  --xy-connectionline-stroke-default: var(--edge-active);
+  --xy-connectionline-stroke-width-default: 1.5;
+  --xy-handle-background-color-default: var(--edge);
+  --xy-handle-border-color-default: var(--canvas);
+  --xy-selection-background-color-default: color-mix(in srgb, var(--ring) 8%, transparent);
+  --xy-selection-border-default: 1px solid var(--ring);
+  --xy-minimap-background-color-default: var(--popover);
+  --xy-minimap-mask-background-color-default: var(--overlay);
+  --xy-minimap-mask-stroke-color-default: transparent;
+  --xy-minimap-node-background-color-default: var(--edge);
+  --xy-minimap-node-stroke-color-default: transparent;
+  --xy-attribution-background-color-default: transparent;
+}
+
+/* Custom nodes get no default chrome; the card styles itself. */
+.canvas :global(.react-flow__node-flow) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.canvas :global(.react-flow__edge.selectable:hover .react-flow__edge-path) {
+  stroke: var(--edge-active);
+}
+
+.canvas :global(.react-flow__minimap) {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.canvas :global(.react-flow__attribution) {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.node {
+  display: flex;
+  width: 240px;
+  flex-direction: column;
+  border: 1px solid var(--node-border);
+  border-radius: var(--radius-lg);
+  background: var(--node);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px var(--shadow-color);
+  transition:
+    box-shadow 150ms ease,
+    border-color 150ms ease;
+}
+
+.node:hover {
+  border-color: color-mix(in srgb, var(--node-border) 50%, var(--node-selected));
+}
+
+.nodeSelected,
+.nodeSelected:hover {
+  border-color: var(--node-selected);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--node-selected) 32%, transparent),
+    0 1px 2px var(--shadow-color);
+}
+
+.nodeHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.nodeIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.node[data-category="trigger"] .nodeIcon {
+  color: var(--chart-1);
+}
+.node[data-category="integration"] .nodeIcon {
+  color: var(--chart-2);
+}
+.node[data-category="ai"] .nodeIcon {
+  color: var(--chart-3);
+}
+.node[data-category="screen"] .nodeIcon {
+  color: var(--chart-5);
+}
+
+.nodeIcon[data-category="trigger"] {
+  color: var(--chart-1);
+}
+.nodeIcon[data-category="integration"] {
+  color: var(--chart-2);
+}
+.nodeIcon[data-category="ai"] {
+  color: var(--chart-3);
+}
+.nodeIcon[data-category="screen"] {
+  color: var(--chart-5);
+}
+
+.nodeText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nodeEyebrow {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nodeLabel {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Two columns of port rows. No horizontal padding, so a row's own edge is the card's edge and
+   React Flow's absolutely positioned handle lands on the border. */
+.nodePorts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding-bottom: 8px;
+}
+
+.nodePortColumn {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+/* Always the right column, so a node with no inputs still shows its outputs on the right. */
+.nodePortColumnOutputs {
+  grid-column: 2;
+}
+
+.nodePortRow {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  height: 24px;
+  align-items: center;
+  padding: 0 12px;
+}
+
+.nodePortColumnOutputs .nodePortRow {
+  justify-content: flex-end;
+}
+
+.nodePortLabel {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.handle {
+  width: 10px;
+  height: 10px;
+  border-width: 2px;
+  transition: scale 120ms ease;
+}
+
+/* `scale` rather than `transform`, so the dot keeps React Flow's own centring translate. */
+.handle:hover,
+.canvas :global(.react-flow__handle.connectingfrom),
+.canvas :global(.react-flow__handle.connectingto) {
+  background: var(--edge-active);
+  scale: 1.3;
+}
+
+.zoomPanel {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--popover);
+  box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.minimap {
+  background: var(--popover);
+}
+
+.emptyHint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  pointer-events: none;
+}
+
+.leftPanel {
+  display: flex;
+  width: 260px;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--card);
+}
+
+/* Shared by the left panel's flow header and the right panel's title row. */
+.panelHeader {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 48px;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The node state's own header: back to the palette on the left, the eyebrow on the right. */
+.stateHeader {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.paletteHeading {
+  padding: 12px 12px 8px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.paletteGroup {
+  padding: 4px 8px 8px;
+}
+
+.paletteGroupLabel {
+  padding: 4px 4px 6px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.paletteItem {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  cursor: grab;
+}
+
+.paletteItem:hover {
+  background: var(--accent);
+}
+
+.paletteItem:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.paletteItem:active {
+  cursor: grabbing;
+}
+
+.paletteItemText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.paletteItemLabel {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.paletteItemDescription {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidePanel {
+  display: flex;
+  width: 360px;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--card);
+}
+
+/* The activity rail: always visible, so the panels stay reachable once collapsed. */
+.rail {
+  display: flex;
+  width: 40px;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  border-left: 1px solid var(--border);
+  background: var(--card);
+}
+
+.railButton {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+.railButton:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.railButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.railButtonActive,
+.railButtonActive:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+/* A phone-shaped placeholder for a screen node; nothing inside it is interactive. */
+.phoneFrame {
+  position: relative;
+  display: flex;
+  width: 240px;
+  flex: none;
+  flex-direction: column;
+  aspect-ratio: 9 / 19.5;
+  overflow: hidden;
+  border: 6px solid var(--border);
+  border-radius: 24px;
+  background: var(--background);
+}
+
+.phoneBar {
+  flex: none;
+  height: 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--muted);
+}
+
+.phoneBody {
+  padding: 16px;
+}
+
+.phoneHint {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  padding: 16px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* The document box grows with the JSON and the dialog panel scrolls it; only long lines
+   scroll inside the box, so the page never nests two vertical scroll containers. */
+.json {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--muted);
+}

@@ -1,5 +1,6 @@
 import { RiArrowRightSLine } from "@remixicon/react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 type BreadcrumbItem = {
   label: string;
@@ -13,9 +14,12 @@ type BreadcrumbItem = {
 export function WorkspaceBreadcrumbs({
   parents = [],
   current,
+  children,
 }: {
   parents?: readonly BreadcrumbItem[];
   current: string;
+  /** Replaces the default heading; the caller must render the page's `h1` inside. */
+  children?: ReactNode;
 }) {
   return (
     <div className="flex min-h-10 min-w-0 flex-wrap items-center gap-2 text-section">
@@ -39,7 +43,7 @@ export function WorkspaceBreadcrumbs({
           </ol>
         </nav>
       )}
-      <h1 className="min-w-0 text-section wrap-anywhere">{current}</h1>
+      {children ?? <h1 className="min-w-0 text-section wrap-anywhere">{current}</h1>}
     </div>
   );
 }
