@@ -70,14 +70,14 @@ describe.skipIf(!url)("listings store", () => {
       // A name that slugifies to a reserved slug (a curated example's) skips past it.
       const curatedName = await flows.create("did:privy:test-b", {
         ...input,
-        name: "Payment link",
+        name: "Approval request",
       });
       const curated = await listings.publish("did:privy:test-b", curatedName.flow, {
-        name: "Payment link",
+        name: "Approval request",
         description: "",
       });
-      expect(curated.slug).toBe("payment-link-2");
-      expect(await listings.unpublish("did:privy:test-b", "payment-link-2")).toBe(true);
+      expect(curated.slug).toBe("approval-request-2");
+      expect(await listings.unpublish("did:privy:test-b", "approval-request-2")).toBe(true);
 
       // A second flow with the same name gets the next free slug.
       const other = await flows.create("did:privy:test-b", input);
