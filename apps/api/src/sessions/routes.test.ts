@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   answerMiniAppSessionContract,
+  miniAppFailureMessage,
   parseResponse,
   startMiniAppSessionContract,
   type FlowDocument,
@@ -456,8 +457,11 @@ describe("identity screens in sessions", () => {
     const failed = await answer(post, session, { port: "user", privyToken: "jwt" });
     expect(failed.status).toBe(200);
     expect(failed.json.status).toBe("failed");
-    expect(failed.json.error).toContain("Sign-in is not configured");
+    // The visitor sees the generic sentence and a code; the real reason stays in the stored run.
+    expect(failed.json.error).toBe(miniAppFailureMessage);
+    expect(failed.json.code).toBe("unconfigured");
     expect(created.at(-1)!.run.nodes[1]).toMatchObject({ nodeId: "login", status: "failed" });
+    expect(created.at(-1)!.run.nodes[1]!.error).toContain("Sign-in is not configured");
   });
 
   test("verifies the World proof against the resolved action and signal and takes Verified", async () => {
@@ -504,6 +508,13 @@ describe("identity screens in sessions", () => {
     expect(screen.json.screen?.world).toBeUndefined();
     const failed = await answer(unconfigured.post, other, { port: "verified", worldProof: proof });
     expect(failed.json.status).toBe("failed");
-    expect(failed.json.error).toContain("World ID is not configured");
+    expect(failed.json.error).toBe(miniAppFailureMessage);
+    expect(failed.json.code).toBe("unconfigured");
+    expect(
+      unconfigured.created.at(-1)!.run.nodes.find((node) => node.nodeId === "verify"),
+    ).toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("World ID is not configured"),
+    });
   });
 });

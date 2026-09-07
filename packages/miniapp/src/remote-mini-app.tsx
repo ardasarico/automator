@@ -58,7 +58,6 @@ function toSteps(session: MiniAppSession): WorkingStep[] {
   return session.steps.map((step) => ({ id: step.nodeId, label: step.label, status: step.status }));
 }
 
-
 /**
  * A published flow played through the API: the server runs it and hands back only the
  * current screen, so the visitor never holds the document. Starting and every answer show
