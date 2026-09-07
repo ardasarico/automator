@@ -4,58 +4,109 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { WorkspaceBreadcrumbs } from "../../../../components/workspace-breadcrumbs";
-import { flowExamples } from "../examples";
-import { FlowNodeMarks } from "../flow-node-marks";
+import { CopyLinkButton } from "../../../../marketplace/copy-link-button";
+import { FlowPreview } from "../../../../marketplace/flow-preview";
+import { forkHref, type MarketplaceItem } from "../../../../marketplace/listing";
+import { ListingMarks } from "../../../../marketplace/listing-marks";
+import { findMarketplaceItem } from "../../../../marketplace/server";
 
 type Props = { params: Promise<{ slug: string }> };
 
-function findExample(slug: string) {
-  const example = flowExamples.find((item) => item.id === slug);
-  if (!example) notFound();
-  return example;
+const dateFormat = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const forkCountFormat = new Intl.NumberFormat("en");
+
+async function loadListing(slug: string) {
+  const listing = await findMarketplaceItem(decodeURIComponent(slug));
+  if (!listing) notFound();
+  return listing;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const example = findExample((await params).slug);
+  const listing = await loadListing((await params).slug);
   return {
-    title: `${example.name} · Marketplace · Automator`,
-    description: example.description,
+    title: `${listing.name} · Marketplace · Automator`,
+    description: listing.description,
   };
 }
 
-export default async function FlowDetailPage({ params }: Props) {
-  const example = findExample((await params).slug);
+/** "By Automator", or the publisher with their publish date and fork count. */
+function ListingByline({ listing }: { listing: MarketplaceItem }) {
+  if (listing.author.kind === "automator")
+    return <p className="mb-2 text-caption text-muted-foreground">By Automator</p>;
+  const { name, username } = listing.author;
+  return (
+    <p className="mb-2 flex flex-wrap items-center gap-x-2 text-caption text-muted-foreground tabular-nums">
+      <span>
+        By {name} <span className="text-muted-foreground/80">@{username}</span>
+      </span>
+      {listing.publishedAt && (
+        <>
+          <span aria-hidden="true">·</span>
+          <time dateTime={listing.publishedAt}>
+            {dateFormat.format(new Date(listing.publishedAt))}
+          </time>
+        </>
+      )}
+      <span aria-hidden="true">·</span>
+      <span>
+        {forkCountFormat.format(listing.forkCount)} {listing.forkCount === 1 ? "fork" : "forks"}
+      </span>
+    </p>
+  );
+}
+
+export default async function ListingPage({ params }: Props) {
+  const listing = await loadListing((await params).slug);
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 pt-2 pb-12 sm:px-8">
       <WorkspaceBreadcrumbs
         parents={[{ label: "Marketplace", href: "/marketplace" }]}
-        current={example.name}
+        current={listing.name}
       />
       <header className="mt-8 border-b pb-8">
-        <FlowNodeMarks nodes={example.nodes} />
+        <ListingMarks nodeTypes={listing.nodeTypes} />
         <div className="mt-5 flex flex-wrap items-start justify-between gap-6">
           <div className="min-w-0 flex-1 basis-64">
-            <p className="mb-2 text-caption text-muted-foreground">By Automator</p>
+            <ListingByline listing={listing} />
             <p className="max-w-lg text-body text-pretty text-muted-foreground">
-              {example.description}
+              {listing.description}
             </p>
           </div>
-          <Button
-            render={<Link href={`/create?example=${example.id}`} />}
-            aria-label={`Fork flow: ${example.name}`}
-          >
-            <RiGitForkLine aria-hidden="true" />
-            Fork flow
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <CopyLinkButton path={`/marketplace/${listing.slug}`} />
+            <Button
+              render={<Link href={forkHref(listing)} />}
+              aria-label={`Fork flow: ${listing.name}`}
+            >
+              <RiGitForkLine aria-hidden="true" />
+              Fork flow
+            </Button>
+          </div>
         </div>
       </header>
+      {listing.document && listing.document.nodes.length > 0 && (
+        <section className="mt-8" aria-labelledby="flow-preview-title">
+          <h2 id="flow-preview-title" className="text-section">
+            The flow
+          </h2>
+          <p className="mt-1 mb-4 text-caption text-muted-foreground">
+            Read-only. Fork it to edit a copy on your own canvas.
+          </p>
+          <FlowPreview document={listing.document} label={`Graph of ${listing.name}`} />
+        </section>
+      )}
       <section className="mt-8" aria-labelledby="flow-steps-title">
         <h2 id="flow-steps-title" className="text-section">
           How it works
         </h2>
         <ol className="mt-6 space-y-6">
-          {example.steps.map((step, index) => (
+          {listing.steps.map((step, index) => (
             <li key={step.name} className="flex gap-4">
               <span
                 className="pt-0.5 font-mono text-caption text-muted-foreground"

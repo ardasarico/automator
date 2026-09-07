@@ -26,3 +26,7 @@ CLAUDE.local.md
 
 # Brainstorming mockups (superpowers visual companion)
 .superpowers/
+
+# Playwright
+apps/web/test-results/
+apps/web/playwright-report/

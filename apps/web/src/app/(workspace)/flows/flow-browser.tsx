@@ -20,8 +20,11 @@ import {
 } from "@remixicon/react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { getCatalogEntry } from "../../../builder/catalog";
+import { CatalogIconMark } from "../../../builder/catalog-icon";
 import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
 import { FLOWS_VIEW_COOKIE, setPreferenceCookie } from "../../../lib/preferences";
+import { DeleteFlowButton } from "./delete-flow-button";
 import styles from "./flows.module.css";
 
 export type FlowView = "grid" | "table";
@@ -35,6 +38,27 @@ const dateFormat = new Intl.DateTimeFormat("en", {
   year: "numeric",
   timeZone: "UTC",
 });
+
+/** How a flow starts and how big it is: one mark per trigger kind, then the node count. */
+function FlowFacts({ flow }: { flow: FlowSummary }) {
+  const triggers = flow.triggerTypes.map((type) => getCatalogEntry(type));
+  return (
+    <span className={styles.flowFacts}>
+      {triggers.length === 0 ? (
+        <span>No trigger</span>
+      ) : (
+        <span className={styles.flowTriggers} title={triggers.map((t) => t.label).join(", ")}>
+          {triggers.map((entry) => (
+            <CatalogIconMark key={entry.type} icon={entry.icon} label={entry.label} />
+          ))}
+          <span>{triggers.length === 1 ? triggers[0]!.label : `${triggers.length} triggers`}</span>
+        </span>
+      )}
+      <span aria-hidden="true">·</span>
+      <span>{flow.nodeCount === 1 ? "1 node" : `${flow.nodeCount} nodes`}</span>
+    </span>
+  );
+}
 
 /** A flow summary carries no graph yet, so the preview is a placeholder mark. */
 function FlowPreview({ compact = false }: { compact?: boolean }) {
@@ -206,12 +230,18 @@ export function FlowBrowser({
           ) : view === "grid" ? (
             <ul className={styles.flowGrid}>
               {visibleFlows.map((flow) => (
-                <li key={flow.id}>
+                <li key={flow.id} className="relative">
+                  <div className={styles.cardActions}>
+                    <DeleteFlowButton id={flow.id} name={flow.name} />
+                  </div>
                   <Link href={`/flows/${flow.id}`} className={styles.flowCard}>
                     <FlowPreview />
                     <div className={styles.flowDetails}>
                       <div className="min-w-0">
                         <h2 className="line-clamp-2 text-label wrap-anywhere">{flow.name}</h2>
+                        <div className={styles.flowMeta}>
+                          <FlowFacts flow={flow} />
+                        </div>
                         <div className={styles.flowMeta}>
                           <time dateTime={flow.updatedAt}>
                             {dateFormat.format(new Date(flow.updatedAt))}
@@ -231,6 +261,9 @@ export function FlowBrowser({
                   <tr>
                     <th scope="col">Name</th>
                     <th scope="col">Last edited</th>
+                    <th scope="col">
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -244,6 +277,9 @@ export function FlowBrowser({
                             <p className="mt-1 line-clamp-2 text-caption font-normal text-muted-foreground">
                               {flow.description}
                             </p>
+                            <p className="mt-1 text-caption font-normal text-muted-foreground">
+                              <FlowFacts flow={flow} />
+                            </p>
                           </div>
                         </Link>
                       </th>
@@ -251,6 +287,9 @@ export function FlowBrowser({
                         <time dateTime={flow.updatedAt}>
                           {dateFormat.format(new Date(flow.updatedAt))}
                         </time>
+                      </td>
+                      <td className="w-px">
+                        <DeleteFlowButton id={flow.id} name={flow.name} />
                       </td>
                     </tr>
                   ))}

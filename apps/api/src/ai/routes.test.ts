@@ -1,0 +1,76 @@
+import { describe, expect, test } from "bun:test";
+import { generateFlowContract, parseResponse } from "@automator/contracts";
+import { scriptedModel, type LanguageModel } from "@automator/flow-engine";
+import { Elysia } from "elysia";
+import type { IdentityProvider } from "../auth/privy";
+import { createAiRoutes } from "./routes";
+
+const identity: IdentityProvider = {
+  verify: async (token) => (token === "alice" ? { id: "did:privy:alice", expiresAt: 2e9 } : null),
+  walletAddress: async () => null,
+};
+
+const answer = {
+  name: "Ping",
+  description: "",
+  summary: "Manual run posts to Discord.",
+  nodes: [
+    { id: "n1", type: "trigger.manual", label: "Run", config: {} },
+    { id: "n2", type: "notify.discord", label: "Post", config: { content: "hi" } },
+  ],
+  edges: [{ source: "n1", sourceHandle: "run", target: "n2", targetHandle: "message" }],
+};
+
+function fixture(model: LanguageModel | undefined) {
+  const app = new Elysia().use(createAiRoutes({ identity, model }));
+  const post = (body: unknown, token?: string) =>
+    app.handle(
+      new Request(`http://localhost${generateFlowContract.path}`, {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+  return { post };
+}
+
+describe("POST /ai/flows", () => {
+  test("requires a token, then a prompt", async () => {
+    const { post } = fixture(scriptedModel([]).model);
+    expect((await post({ prompt: "x" })).status).toBe(401);
+    expect((await post({}, "alice")).status).toBe(400);
+  });
+
+  test("answers 503 without a configured model", async () => {
+    const { post } = fixture(undefined);
+    const response = await post({ prompt: "x" }, "alice");
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "unavailable" });
+  });
+
+  test("returns a contract-valid generated document", async () => {
+    const { post } = fixture(
+      scriptedModel([{ content: JSON.stringify(answer), toolCalls: [] }]).model,
+    );
+    const response = await post({ prompt: "post to discord when I run it" }, "alice");
+    expect(response.status).toBe(200);
+    const result = parseResponse(generateFlowContract, 200, await response.json());
+    if (result.status !== 200) throw new Error("expected a document");
+    expect(result.data.summary).toBe("Manual run posts to Discord.");
+    expect(result.data.document.nodes.map((node) => node.type)).toEqual([
+      "trigger.manual",
+      "notify.discord",
+    ]);
+  });
+
+  test("answers 422 when the model cannot produce a valid flow", async () => {
+    const bad = { content: JSON.stringify({ ...answer, edges: [] }), toolCalls: [] };
+    const { post } = fixture(scriptedModel([bad, bad]).model);
+    const response = await post({ prompt: "x" }, "alice");
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "invalid_flow" });
+  });
+});

@@ -1,7 +1,7 @@
 import { flowDocumentSchema, Value } from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
 import { createEmptyFlow, serializeFlow } from "./document";
-import { createBuilderStore } from "./store";
+import { createBuilderStore, historyLimit } from "./store";
 
 function setup() {
   return createBuilderStore(createEmptyFlow("flow-1"));
@@ -256,15 +256,235 @@ describe("builder store", () => {
     ).toBe(true);
   });
 
-  test("simulation starts idle, and the controls only flip its status", () => {
+  test("markSaved clears dirty without touching the graph", () => {
     const store = setup();
-    expect(store.getState().simulation).toBe("idle");
-    store.getState().startSimulation();
-    expect(store.getState().simulation).toBe("running");
-    store.getState().startSimulation(); // restart: still running
-    expect(store.getState().simulation).toBe("running");
-    store.getState().stopSimulation();
-    expect(store.getState().simulation).toBe("idle");
-    expect(store.getState().dirty).toBe(false); // simulating never edits the document
+    const id = store.getState().addNode("trigger.webhook", { x: 1, y: 2 });
+    expect(store.getState().dirty).toBe(true);
+    store.getState().markSaved();
+    expect(store.getState().dirty).toBe(false);
+    expect(store.getState().nodes.map((node) => node.id)).toEqual([id]);
+    store.getState().renameNode(id, "Hook");
+    expect(store.getState().dirty).toBe(true);
+  });
+});
+
+describe("node config", () => {
+  test("setNodeConfig merges one field at a time and marks the store dirty", () => {
+    const store = setup();
+    const id = store.getState().addNode("notify.discord", { x: 0, y: 0 });
+    store.getState().markSaved();
+    store.getState().setNodeConfig(id, { content: "hi" });
+    store.getState().setNodeConfig(id, { username: "Bot" });
+    const node = store.getState().nodes.find((item) => item.id === id);
+    expect(node?.data.config).toEqual({ content: "hi", username: "Bot" });
+    expect(store.getState().dirty).toBe(true);
+  });
+});
+
+describe("applyDocument", () => {
+  test("replaces the graph and meta, keeps the flow id, and marks the store dirty", () => {
+    const store = setup();
+    store.getState().addNode("trigger.manual", { x: 0, y: 0 });
+    store.getState().markSaved();
+    store.getState().applyDocument({
+      version: 1,
+      name: "Generated",
+      description: "From a prompt",
+      nodes: [
+        {
+          id: "a",
+          type: "trigger.webhook",
+          position: { x: 80, y: 120 },
+          label: "Hook",
+          config: {},
+        },
+        {
+          id: "b",
+          type: "notify.discord",
+          position: { x: 380, y: 120 },
+          label: "Post",
+          config: { content: "x" },
+        },
+      ],
+      edges: [
+        { id: "e", source: "a", sourceHandle: "request", target: "b", targetHandle: "message" },
+      ],
+    });
+    const state = store.getState();
+    expect(state.meta).toEqual({ id: "flow-1", name: "Generated", description: "From a prompt" });
+    expect(state.nodes.map((node) => [node.id, node.data.type])).toEqual([
+      ["a", "trigger.webhook"],
+      ["b", "notify.discord"],
+    ]);
+    expect(state.edges).toHaveLength(1);
+    expect(state.dirty).toBe(true);
+  });
+});
+
+describe("history", () => {
+  test("undo and redo walk through node additions and edge connections", () => {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    const b = store.getState().addNode("screen.page", { x: 300, y: 0 });
+    store.getState().onConnect({ source: a, target: b, sourceHandle: null, targetHandle: null });
+    expect(store.getState().edges).toHaveLength(1);
+
+    store.getState().undo();
+    expect(store.getState().edges).toHaveLength(0);
+    expect(store.getState().nodes).toHaveLength(2);
+    store.getState().undo();
+    store.getState().undo();
+    expect(store.getState().nodes).toHaveLength(0);
+    // Nothing left to undo: a no-op rather than an error.
+    store.getState().undo();
+    expect(store.getState().past).toEqual([]);
+
+    store.getState().redo();
+    store.getState().redo();
+    store.getState().redo();
+    expect(store.getState().nodes.map((node) => node.id)).toEqual([a, b]);
+    expect(store.getState().edges).toHaveLength(1);
+    expect(store.getState().future).toEqual([]);
+  });
+
+  test("a new edit after undo discards the redo stack", () => {
+    const store = setup();
+    store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    store.getState().undo();
+    store.getState().addNode("screen.page", { x: 0, y: 0 });
+    expect(store.getState().future).toEqual([]);
+    expect(store.getState().nodes[0]?.data.type).toBe("screen.page");
+  });
+
+  test("typing into one field coalesces into a single undo step", () => {
+    const store = setup();
+    const id = store.getState().addNode("screen.page", { x: 0, y: 0 });
+    store.getState().renameNode(id, "W");
+    store.getState().renameNode(id, "We");
+    store.getState().renameNode(id, "Wel");
+    store.getState().setNodeConfig(id, { title: "H" });
+    store.getState().setNodeConfig(id, { title: "Hi" });
+    expect(store.getState().past).toHaveLength(3);
+
+    store.getState().undo();
+    expect(store.getState().nodes[0]?.data.config).toEqual({});
+    expect(store.getState().nodes[0]?.data.label).toBe("Wel");
+    store.getState().undo();
+    expect(store.getState().nodes[0]?.data.label).toBe("Screen");
+  });
+
+  test("a drag is one undo step and removals are undoable", () => {
+    const store = setup();
+    const id = store.getState().addNode("screen.page", { x: 0, y: 0 });
+    const move = (x: number, dragging: boolean) =>
+      store.getState().onNodesChange([{ type: "position", id, position: { x, y: 0 }, dragging }]);
+    move(10, true);
+    move(20, true);
+    move(30, false);
+    expect(store.getState().nodes[0]?.position.x).toBe(30);
+    expect(store.getState().past).toHaveLength(2);
+    store.getState().undo();
+    expect(store.getState().nodes[0]?.position.x).toBe(0);
+
+    store.getState().redo();
+    store.getState().onNodesChange([{ type: "remove", id }]);
+    expect(store.getState().nodes).toHaveLength(0);
+    store.getState().undo();
+    expect(store.getState().nodes).toHaveLength(1);
+  });
+
+  test("deleting a node and its edges in one tick is one undo step", () => {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    const b = store.getState().addNode("screen.page", { x: 300, y: 0 });
+    store.getState().onConnect({ source: a, target: b, sourceHandle: null, targetHandle: null });
+    const edgeId = store.getState().edges[0]!.id;
+    // React Flow removes the edges of a deleted node first, then the node.
+    store.getState().onEdgesChange([{ type: "remove", id: edgeId }]);
+    store.getState().onNodesChange([{ type: "remove", id: b }]);
+    expect(store.getState().nodes).toHaveLength(1);
+    expect(store.getState().edges).toHaveLength(0);
+    store.getState().undo();
+    expect(store.getState().nodes).toHaveLength(2);
+    expect(store.getState().edges).toHaveLength(1);
+  });
+
+  test("selection changes never create history and hydrate clears it", () => {
+    const store = setup();
+    const id = store.getState().addNode("screen.page", { x: 0, y: 0 });
+    store.getState().onNodesChange([{ type: "select", id, selected: false }]);
+    store.getState().clearSelection();
+    expect(store.getState().past).toHaveLength(1);
+    store.getState().hydrate(createEmptyFlow("flow-2"));
+    expect(store.getState().past).toEqual([]);
+    expect(store.getState().future).toEqual([]);
+  });
+
+  test("the undo stack is capped", () => {
+    const store = setup();
+    for (let index = 0; index < historyLimit + 10; index++)
+      store.getState().addNode("screen.page", { x: index, y: 0 });
+    expect(store.getState().past).toHaveLength(historyLimit);
+  });
+});
+
+describe("duplicateNodes", () => {
+  test("copies nodes and the edges between them, offset and selected", () => {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    const b = store.getState().addNode("screen.page", { x: 300, y: 0 });
+    const c = store.getState().addNode("screen.form", { x: 600, y: 0 });
+    store.getState().setNodeConfig(b, { title: "Hello" });
+    store
+      .getState()
+      .onConnect({ source: a, target: b, sourceHandle: "request", targetHandle: "data" });
+    store
+      .getState()
+      .onConnect({ source: b, target: c, sourceHandle: "next", targetHandle: "data" });
+
+    const copies = store.getState().duplicateNodes([a, b]);
+    expect(copies).toHaveLength(2);
+    const state = store.getState();
+    expect(state.nodes).toHaveLength(5);
+    expect(state.nodes.filter((node) => node.selected).map((node) => node.id)).toEqual(copies);
+    const copyOfB = state.nodes.find((node) => node.id === copies[1])!;
+    expect(copyOfB.position).toEqual({ x: 340, y: 40 });
+    expect(copyOfB.data).toEqual({
+      type: "screen.page",
+      label: "Screen",
+      config: { title: "Hello" },
+    });
+    // Only the a -> b edge is inside the copied set; b -> c is not duplicated.
+    expect(state.edges).toHaveLength(3);
+    expect(state.edges.at(-1)).toMatchObject({ source: copies[0], target: copies[1] });
+
+    store.getState().undo();
+    expect(store.getState().nodes).toHaveLength(3);
+    expect(store.getState().duplicateNodes(["missing"])).toEqual([]);
+  });
+});
+
+describe("setNodePositions", () => {
+  test("moves the listed nodes as one undo step and ignores no-ops", () => {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    const b = store.getState().addNode("screen.page", { x: 5, y: 5 });
+    const before = store.getState().past.length;
+    store.getState().setNodePositions(new Map([[a, { x: 0, y: 0 }]]));
+    expect(store.getState().past).toHaveLength(before);
+    store.getState().setNodePositions(
+      new Map([
+        [a, { x: 80, y: 120 }],
+        [b, { x: 380, y: 120 }],
+        ["ghost", { x: 1, y: 1 }],
+      ]),
+    );
+    expect(store.getState().nodes.map((node) => node.position)).toEqual([
+      { x: 80, y: 120 },
+      { x: 380, y: 120 },
+    ]);
+    expect(store.getState().past).toHaveLength(before + 1);
+    store.getState().undo();
+    expect(store.getState().nodes[1]?.position).toEqual({ x: 5, y: 5 });
   });
 });

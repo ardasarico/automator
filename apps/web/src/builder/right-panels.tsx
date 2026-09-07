@@ -6,7 +6,9 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiContractRightLine, RiRobot2Line, RiSmartphoneLine } from "@remixicon/react";
 import type { RemixiconComponentType } from "@remixicon/react";
 import { useState } from "react";
+import { AiPanel } from "./ai-panel";
 import styles from "./flow-builder.module.css";
+import { ScreenPreview } from "./screen-preview";
 
 type PanelId = "ai" | "preview";
 
@@ -21,9 +23,9 @@ function isPanelId(value: unknown): value is PanelId {
 
 /**
  * The right side of the builder: one panel open at a time. Open, the title row holds a
- * minimize control and the tabs that switch between panels; the bodies are empty shells while
- * the design is worked out. Minimized, only a rail with one toggle per panel remains. The
- * choice is not persisted.
+ * minimize control and the tabs that switch between panels; the AI body designs or edits
+ * the flow from a prompt, the preview plays the flow as a mini-app. Minimized, only
+ * a rail with one toggle per panel remains. The choice is not persisted.
  */
 export function RightPanels() {
   const [active, setActive] = useState<PanelId | null>("ai");
@@ -90,9 +92,12 @@ export function RightPanels() {
             ))}
           </TabsList>
         </div>
-        {panels.map(({ id }) => (
-          <TabsPanel key={id} value={id} className="min-h-0" />
-        ))}
+        <TabsPanel value="ai" className="flex min-h-0 flex-1 flex-col">
+          <AiPanel />
+        </TabsPanel>
+        <TabsPanel value="preview" className="flex min-h-0 flex-1 flex-col">
+          <ScreenPreview />
+        </TabsPanel>
       </Tabs>
     </aside>
   );

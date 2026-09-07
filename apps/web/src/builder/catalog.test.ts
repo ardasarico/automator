@@ -1,4 +1,4 @@
-import { flowNodeTypes } from "@automator/contracts";
+import { flowNodePorts, flowNodeTypes } from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
 import {
   catalog,
@@ -123,5 +123,19 @@ describe("node catalog", () => {
     expect(visitor.flatMap((s) => s.entries).map((e) => e.type)).toContain("privy.wallet");
     expect(searchCatalog("")).toEqual([]);
     expect(searchCatalog("nothing matches this")).toEqual([]);
+  });
+});
+
+describe("catalog ports", () => {
+  test("match the contract's handle ids for every type", () => {
+    for (const entry of catalog) {
+      expect({
+        inputs: entry.inputs.map((port) => port.id),
+        outputs: entry.outputs.map((port) => port.id),
+      }).toEqual({
+        inputs: [...flowNodePorts[entry.type].inputs],
+        outputs: [...flowNodePorts[entry.type].outputs],
+      });
+    }
   });
 });

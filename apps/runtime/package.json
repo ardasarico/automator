@@ -7,11 +7,13 @@
     "dev": "next dev --port 3002",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port ${PORT:-3002}",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@automator/api-client": "workspace:*",
     "@automator/contracts": "workspace:*",
+    "@automator/miniapp": "workspace:*",
     "@automator/ui": "workspace:*",
     "next": "16.3.4",
     "react": "19.2.8",
@@ -21,6 +23,7 @@
     "@automator/tailwind-config": "workspace:*",
     "@automator/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "4.3.3",
+    "@types/bun": "1.4.1",
     "@types/node": "26.4.1",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",

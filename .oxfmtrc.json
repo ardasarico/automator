@@ -13,6 +13,8 @@
     ".codex/**",
     "AGENTS.override.md",
     "CLAUDE.local.md",
-    "bun.lock"
+    "bun.lock",
+    "**/test-results/**",
+    "**/playwright-report/**"
   ]
 }

@@ -1,0 +1,36 @@
+{
+  "name": "@automator/miniapp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./engine": "./src/engine.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --deny-warnings .",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@automator/contracts": "workspace:*",
+    "@automator/flow-engine": "workspace:*",
+    "@automator/ui": "workspace:*",
+    "@remixicon/react": "4.9.0",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "@automator/typescript-config": "workspace:*",
+    "@types/bun": "1.4.1",
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "7.0.2"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
+}

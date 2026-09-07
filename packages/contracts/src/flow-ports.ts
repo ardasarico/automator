@@ -1,0 +1,56 @@
+import type { FlowNodeType } from "./flows";
+
+/**
+ * Input and output handle ids per node type. The builder's catalog renders these as port
+ * rows (with labels and icons of its own); the engine keys inputs and outputs by them; the
+ * flow generator validates edges against them.
+ */
+export interface FlowNodePorts {
+  inputs: readonly string[];
+  outputs: readonly string[];
+}
+
+const ports = (inputs: readonly string[], outputs: readonly string[]): FlowNodePorts => ({
+  inputs,
+  outputs,
+});
+
+export const flowNodePorts: Record<FlowNodeType, FlowNodePorts> = {
+  "trigger.schedule": ports([], ["tick"]),
+  "trigger.onchain-event": ports([], ["event"]),
+  "trigger.webhook": ports([], ["request"]),
+  "trigger.miniapp-open": ports([], ["visitor"]),
+  "trigger.manual": ports([], ["run"]),
+  "logic.condition": ports(["value"], ["true", "false"]),
+  "logic.switch": ports(["value"], ["match", "default"]),
+  "logic.wait": ports(["in"], ["done"]),
+  "logic.for-each": ports(["items"], ["item", "done"]),
+  "logic.merge": ports(["a", "b"], ["merged"]),
+  "logic.filter": ports(["items"], ["kept", "dropped"]),
+  "logic.set-variable": ports(["value"], ["value"]),
+  "logic.run-code": ports(["input"], ["output"]),
+  "onchain.read-contract": ports(["args"], ["result"]),
+  "onchain.write-contract": ports(["wallet", "args"], ["receipt"]),
+  "onchain.transfer-token": ports(["wallet", "amount"], ["receipt"]),
+  "onchain.sign-message": ports(["wallet", "message"], ["signature"]),
+  "ai.agent": ports(["prompt", "context"], ["result"]),
+  "ai.classify": ports(["text"], ["label"]),
+  "ai.extract": ports(["text"], ["data"]),
+  "ai.generate-text": ports(["prompt"], ["text"]),
+  "screen.page": ports(["data"], ["next"]),
+  "screen.form": ports(["data"], ["submitted"]),
+  "screen.confirmation": ports(["data"], ["confirmed", "cancelled"]),
+  "screen.qr-code": ports(["value"], ["next"]),
+  "notify.telegram": ports(["message"], ["sent"]),
+  "notify.email": ports(["message"], ["sent"]),
+  "notify.discord": ports(["message"], ["sent"]),
+  "world.selfie-check": ports(["visitor"], ["verified"]),
+  "world.id-verify": ports(["visitor"], ["proof"]),
+  "world.verification-completed": ports([], ["proof"]),
+  "privy.wallet": ports(["visitor"], ["wallet"]),
+  "privy.login": ports(["visitor"], ["user"]),
+  "privy.sign-transaction": ports(["wallet", "transaction"], ["signed"]),
+  "usdc.payment": ports(["amount", "payer"], ["receipt"]),
+  "usdc.payout": ports(["recipient", "amount"], ["receipt"]),
+  "usdc.balance": ports(["wallet"], ["balance"]),
+};

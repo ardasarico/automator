@@ -1,0 +1,19 @@
+import { AuthApiError, request } from "@automator/api-client/server";
+import { listSecretsContract } from "@automator/contracts";
+import { NextResponse } from "next/server";
+import { authErrorResponse, bearerToken, isSameOrigin } from "../../../auth/http";
+
+/** Lists the signed-in user's secret names for the browser; values never travel. */
+export async function GET(req: Request) {
+  if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
+  const token = bearerToken(req);
+  if (!token) return authErrorResponse(req, new AuthApiError(401, "unauthorized"));
+  try {
+    const result = await request(process.env.API_URL, listSecretsContract, { token });
+    if (result.status !== 200)
+      return authErrorResponse(req, new AuthApiError(result.status, result.data.error));
+    return NextResponse.json(result.data, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return authErrorResponse(req, error);
+  }
+}

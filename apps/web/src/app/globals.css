@@ -2,3 +2,5 @@
 @import "@automator/ui/styles.css";
 
 @source "..";
+/* The mini-app screens ship Tailwind classes of their own. */
+@source "../../node_modules/@automator/miniapp/src";

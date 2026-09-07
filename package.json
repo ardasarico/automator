@@ -11,6 +11,7 @@
     "start": "turbo run start",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "e2e": "bun run --cwd apps/web e2e",
     "lint": "turbo run lint lint:config",
     "lint:fix": "turbo run lint lint:config -- --fix",
     "lint:config": "oxlint --deny-warnings .railway",

@@ -8,11 +8,13 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@automator/api-client": "workspace:*",
     "@automator/contracts": "workspace:*",
+    "@automator/miniapp": "workspace:*",
     "@automator/ui": "workspace:*",
     "@paper-design/shaders-react": "0.0.80",
     "@privy-io/react-auth": "3.40.0",
@@ -26,9 +28,11 @@
     "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@automator/flow-engine": "workspace:*",
     "@automator/tailwind-config": "workspace:*",
     "@automator/typescript-config": "workspace:*",
     "@happy-dom/global-registrator": "20.14.0",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/bun": "1.4.1",
     "@types/node": "26.4.1",

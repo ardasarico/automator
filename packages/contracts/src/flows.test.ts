@@ -1,6 +1,17 @@
 import { Value } from "@sinclair/typebox/value";
 import { describe, expect, test } from "bun:test";
-import { flowDocumentSchema, flowNodeTypes, type FlowDocument } from "./flows";
+import {
+  createFlowContract,
+  deleteFlowContract,
+  findFlowDocumentProblem,
+  flowDocumentSchema,
+  flowNodeTypes,
+  getFlowContract,
+  isFlowDocumentInput,
+  listFlowsContract,
+  updateFlowContract,
+  type FlowDocument,
+} from "./flows";
 
 const document: FlowDocument = {
   version: 1,
@@ -59,5 +70,71 @@ describe("flow document schema", () => {
     ],
   ])("rejects %s", (_name, invalid) => {
     expect(Value.Check(flowDocumentSchema, invalid)).toBe(false);
+  });
+});
+
+describe("flow document input", () => {
+  const { id: _id, ...input } = document;
+
+  test("accepts a document without an id", () => {
+    expect(isFlowDocumentInput(input)).toBe(true);
+  });
+
+  test.each([
+    ["an id", { ...input, id: "flow-1" }],
+    ["a blank name", { ...input, name: "   " }],
+    ["an empty name", { ...input, name: "" }],
+    ["an overlong name", { ...input, name: "a".repeat(121) }],
+    ["unknown keys", { ...input, ownerId: "did:privy:bob" }],
+  ])("rejects %s", (_name, invalid) => {
+    expect(isFlowDocumentInput(invalid)).toBe(false);
+  });
+
+  test("findFlowDocumentProblem accepts a consistent graph", () => {
+    expect(findFlowDocumentProblem(input)).toBeNull();
+  });
+
+  test.each([
+    ["a duplicate node id", { ...input, nodes: [input.nodes[0]!, input.nodes[0]!] }],
+    [
+      "a duplicate edge id",
+      { ...input, edges: [input.edges[0]!, { ...input.edges[0]!, target: "n2" }] },
+    ],
+    ["a self loop", { ...input, edges: [{ id: "e1", source: "n1", target: "n1" }] }],
+    [
+      "an edge from a missing node",
+      { ...input, edges: [{ id: "e1", source: "nx", target: "n2" }] },
+    ],
+    ["an edge to a missing node", { ...input, edges: [{ id: "e1", source: "n1", target: "nx" }] }],
+  ])("findFlowDocumentProblem reports %s", (_name, invalid) => {
+    expect(findFlowDocumentProblem(invalid)).toEqual(expect.any(String));
+  });
+});
+
+describe("flow endpoint contracts", () => {
+  test("paths and methods", () => {
+    expect([listFlowsContract, createFlowContract, getFlowContract, updateFlowContract]).toEqual([
+      expect.objectContaining({ method: "GET", path: "/flows" }),
+      expect.objectContaining({ method: "POST", path: "/flows" }),
+      expect.objectContaining({ method: "GET", path: "/flows/:id" }),
+      expect.objectContaining({ method: "PUT", path: "/flows/:id" }),
+    ]);
+  });
+
+  test("a record response carries the document and timestamps", () => {
+    const record = {
+      flow: document,
+      createdAt: "2026-09-07T00:00:00.000Z",
+      updatedAt: "2026-09-07T00:00:00.000Z",
+    };
+    expect(Value.Check(getFlowContract.response[200], record)).toBe(true);
+    expect(Value.Check(getFlowContract.response[200], { flow: document })).toBe(false);
+  });
+});
+
+describe("delete and public contracts", () => {
+  test("paths", () => {
+    expect(deleteFlowContract).toMatchObject({ method: "DELETE", path: "/flows/:id" });
+    expect(Value.Check(deleteFlowContract.response[200], { id: "flow-1" })).toBe(true);
   });
 });

@@ -1,8 +1,23 @@
 import type { DatabaseStatus } from "@automator/contracts";
 import { SQL } from "bun";
+import { createFlowStore } from "./flows";
+import { createListingStore } from "./listings";
 import { migrate } from "./migrations";
+import { createRunStore } from "./runs";
+import { createSecretStore } from "./secrets";
+import { createSessionStore } from "./sessions";
 import { createUserStore } from "./users";
+export {
+  documentTriggerTypes,
+  FlowOwnerMissingError,
+  type FlowStore,
+  type OwnedFlow,
+} from "./flows";
+export { type ListingStore } from "./listings";
 export { migrate, migrations, type Migration } from "./migrations";
+export { type RunStore } from "./runs";
+export { type SecretStore } from "./secrets";
+export { type MiniAppSessionRow, type SessionStore } from "./sessions";
 export { UsernameTakenError, type UserStore } from "./users";
 
 export function createDatabase(url: string | undefined) {
@@ -10,6 +25,11 @@ export function createDatabase(url: string | undefined) {
 
   return {
     users: createUserStore(sql),
+    flows: createFlowStore(sql),
+    listings: createListingStore(sql),
+    runs: createRunStore(sql),
+    secrets: createSecretStore(sql),
+    sessions: createSessionStore(sql),
     async migrate() {
       if (sql) await migrate(sql);
     },

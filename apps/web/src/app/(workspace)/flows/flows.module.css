@@ -185,6 +185,24 @@
 .flowDetails {
   padding: 14px 16px;
 }
+/* Sits over the card's link, on the preview's corner, so the card stays one big link. */
+.cardActions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.cardActions:focus-within,
+li:hover > .cardActions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .cardActions {
+    opacity: 1;
+  }
+}
 .flowMeta {
   display: flex;
   align-items: center;
@@ -290,4 +308,23 @@
   .flowCard {
     transition: none;
   }
+}
+
+/* Trigger kinds and node count under a flow's name. */
+.flowFacts {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.flowTriggers {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.flowTriggers img,
+.flowTriggers svg {
+  width: 14px;
+  height: 14px;
 }

@@ -1,0 +1,23 @@
+{
+  "name": "@automator/flow-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --deny-warnings .",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@automator/contracts": "workspace:*",
+    "viem": "2.56.3"
+  },
+  "devDependencies": {
+    "@automator/typescript-config": "workspace:*",
+    "@types/bun": "1.4.1",
+    "typescript": "7.0.2"
+  }
+}

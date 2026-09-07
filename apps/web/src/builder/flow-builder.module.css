@@ -515,3 +515,397 @@
   font-size: 13px;
   text-align: center;
 }
+
+/* The last run's outcome on a card: a pill in the header, a tinted border, and the error text. */
+.nodeRunStatus {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+.node[data-run-status="succeeded"] {
+  border-color: var(--chart-2);
+}
+.node[data-run-status="succeeded"] .nodeRunStatus {
+  color: var(--chart-2);
+}
+.node[data-run-status="failed"] {
+  border-color: var(--destructive-text);
+}
+.node[data-run-status="failed"] .nodeRunStatus {
+  color: var(--destructive-text);
+}
+.node[data-run-status="waiting"] .nodeRunStatus {
+  color: var(--chart-5);
+}
+.node[data-run-status="skipped"] {
+  opacity: 0.6;
+}
+
+.nodeRunError {
+  padding: 0 12px 8px;
+  color: var(--destructive-text);
+  font-size: 11px;
+  line-height: 14px;
+  overflow-wrap: anywhere;
+}
+
+/* The selected node's settings in the left panel: a back row, then the form. */
+.nodeSettings {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.nodeSettingsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nodeSettingsForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* Canvas header notes: the aggregate run error, or the validation warning before a run. */
+.headerNote {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.headerNote[data-tone="error"] {
+  color: var(--destructive-text);
+}
+.headerNote[data-tone="warning"] {
+  color: var(--warning-foreground);
+}
+
+/* Edges after a run: the ones that fired carry the flow, the dead ones fade. */
+.canvas :global(.react-flow__edge).edge-fired :global(.react-flow__edge-path) {
+  stroke: var(--chart-2);
+  stroke-width: 2;
+}
+.canvas :global(.react-flow__edge).edge-dead :global(.react-flow__edge-path) {
+  stroke-dasharray: 4 4;
+  opacity: 0.5;
+}
+
+/* A validation mark on a card: a small badge in the header slot the run status uses. */
+.nodeProblem {
+  margin-left: auto;
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+.node[data-problem="error"] .nodeProblem {
+  background: var(--destructive-surface);
+  color: var(--destructive-text);
+}
+.node[data-problem="warning"] .nodeProblem {
+  background: var(--warning-surface);
+  color: var(--warning-foreground);
+}
+.node[data-problem="error"]:not([data-run-status]) {
+  border-color: color-mix(in oklab, var(--destructive-text) 60%, var(--border));
+}
+
+/* Outline problems: a list above the node list, on the palette rhythm. */
+.outlineProblems {
+  flex: none;
+  max-height: 40%;
+  overflow-y: auto;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.outlineProblem {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+}
+button.outlineProblem {
+  cursor: pointer;
+}
+button.outlineProblem:hover {
+  background: var(--accent);
+}
+button.outlineProblem:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.outlineProblemIcon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-top: 1px;
+}
+.outlineProblems li[data-severity="error"] .outlineProblemIcon {
+  color: var(--destructive-text);
+}
+.outlineProblems li[data-severity="warning"] .outlineProblemIcon {
+  color: var(--warning-foreground);
+}
+.paletteItem[aria-current="true"] {
+  background: var(--accent);
+}
+
+/* The run panel: docked to the bottom of the canvas, on the panel surface. */
+.runPanel {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 5;
+  display: flex;
+  max-height: min(320px, 55%);
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+.runPanel[data-collapsed] {
+  max-height: none;
+}
+.runPanelHeader {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  height: 37px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 16px;
+}
+.runPanel[data-collapsed] .runPanelHeader {
+  border-bottom: 0;
+}
+.runPanelStatus {
+  font-weight: 500;
+}
+.runPanelStatus[data-status="succeeded"] {
+  color: var(--chart-2);
+}
+.runPanelStatus[data-status="failed"] {
+  color: var(--destructive-text);
+}
+.runPanelStatus[data-status="waiting"] {
+  color: var(--chart-5);
+}
+.runPanelMeta {
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.runPanelError {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--destructive-text);
+}
+.runPanelBody {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(200px, 2fr) minmax(0, 3fr);
+}
+.runList {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px;
+  border-right: 1px solid var(--border);
+}
+.runRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+.runRow:hover,
+.runRow[aria-current="true"] {
+  background: var(--accent);
+}
+.runRow:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.runRowStatus {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--muted-foreground);
+  opacity: 0.4;
+}
+.runRow[data-status="succeeded"] .runRowStatus {
+  background: var(--chart-2);
+  opacity: 1;
+}
+.runRow[data-status="failed"] .runRowStatus {
+  background: var(--destructive-text);
+  opacity: 1;
+}
+.runRow[data-status="waiting"] .runRowStatus {
+  background: var(--chart-5);
+  opacity: 1;
+}
+.runRowLabel {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.runRowMeta {
+  flex: none;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.runDetail {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.runDetailTitle {
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+.runDetailMuted {
+  color: var(--muted-foreground);
+}
+.runDetailError {
+  color: var(--destructive-text);
+  overflow-wrap: anywhere;
+}
+.runOutputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.runOutputs dt {
+  margin-bottom: 2px;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.runOutputs pre {
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The minimap, on the popover surface like the zoom panel; nodes take the edge colour. */
+.canvas :global(.react-flow) {
+  --xy-minimap-background-color-default: var(--popover);
+  --xy-minimap-mask-background-color-default: color-mix(in srgb, var(--canvas) 55%, transparent);
+  --xy-minimap-mask-stroke-color-default: var(--border);
+  --xy-minimap-node-background-color-default: var(--edge);
+  --xy-minimap-node-stroke-color-default: transparent;
+}
+.miniMap {
+  width: 160px;
+  height: 100px;
+  margin: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 12px var(--shadow-color);
+  overflow: hidden;
+}
+
+/* The empty canvas: a centred note over the dots, out of the way of drops. */
+.canvasEmpty {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  pointer-events: none;
+}
+.canvasEmpty > * {
+  pointer-events: auto;
+}
+.canvasEmptyIcon {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 4px;
+  color: var(--muted-foreground);
+}
+.canvasEmptyTitle {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+.canvasEmptyBody {
+  max-width: 320px;
+  margin-bottom: 8px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+/* A checkbox group for fixed-choice arrays in the node settings. */
+.multiSelect {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 6px;
+}
+.multiSelectOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+}

@@ -1,0 +1,97 @@
+.panel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.prompt {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hint {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.summary {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.changeKind {
+  flex-shrink: 0;
+  width: 56px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.change[data-kind="added"] .changeKind {
+  color: var(--chart-2);
+}
+.change[data-kind="removed"] .changeKind {
+  color: var(--destructive-text);
+  text-decoration: line-through;
+}
+.change[data-kind="changed"] .changeKind {
+  color: var(--chart-5);
+}
+
+.changeLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changeType {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

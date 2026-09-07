@@ -1,68 +1,300 @@
-import type { FlowDocument, FlowNode, FlowNodeType } from "@automator/contracts";
+import type { FlowDocument, FlowEdge, FlowNode, FlowNodeType } from "@automator/contracts";
 import { flowExamples } from "../app/(workspace)/marketplace/examples";
-import { getCatalogEntry } from "./catalog";
 
 export type FlowExample = (typeof flowExamples)[number];
 
+/** Hand-authored graph for one example, with short local node ids the document minting replaces. */
+type Fixture = { nodes: FlowNode[]; edges: FlowEdge[] };
+
 const columnGap = 300;
-const rowY = 120;
-const startX = 80;
+const rowGap = 150;
+const origin = { x: 80, y: 120 };
 
-/** Keyword to node type, checked against the step name and description in order. */
-const keywordTypes: readonly [RegExp, FlowNodeType][] = [
-  [/world/i, "world.selfie-check"],
-  [/privy/i, "privy.wallet"],
-  [/usdc/i, "usdc.payment"],
-];
-
-function stepType(step: FlowExample["steps"][number]): FlowNodeType {
-  const text = `${step.name} ${step.description}`;
-  return keywordTypes.find(([pattern]) => pattern.test(text))?.[1] ?? "screen.page";
+function node(
+  id: string,
+  type: FlowNodeType,
+  column: number,
+  row: number,
+  label: string,
+  config: Record<string, unknown> = {},
+): FlowNode {
+  return {
+    id,
+    type,
+    position: { x: origin.x + column * columnGap, y: origin.y + row * rowGap },
+    label,
+    config,
+  };
 }
+
+function edge(
+  source: string,
+  sourceHandle: string,
+  target: string,
+  targetHandle: string,
+): FlowEdge {
+  return {
+    id: `${source}.${sourceHandle}->${target}.${targetHandle}`,
+    source,
+    sourceHandle,
+    target,
+    targetHandle,
+  };
+}
+
+/**
+ * Every fixture uses only node types the engine runs or the mini-app renders today, and each
+ * simulates from a fresh fork: either every node succeeds, or the run stops at a screen that
+ * waits for a visitor. Discord nodes ship with an empty webhook, marked as a secret to set
+ * after forking, so they sit behind a screen or a dry-run branch and never fail a simulation.
+ * The AI example needs a configured model and the USDC examples a chain provider; both are
+ * exercised in tests with stubs.
+ */
+const fixtures: Record<FlowExample["id"], () => Fixture> = {
+  "approval-request": () => ({
+    nodes: [
+      node("open", "trigger.miniapp-open", 0, 0, "Mini-app opened"),
+      node("request", "screen.form", 1, 0, "Request access", {
+        title: "Request access",
+        description: "Tell the reviewers who you are and what you need.",
+        fields: [
+          { id: "name", label: "Your name", type: "text", placeholder: "", required: true },
+          {
+            id: "reason",
+            label: "Why do you need access?",
+            type: "textarea",
+            placeholder: "One or two sentences",
+            required: true,
+          },
+        ],
+        submit: "Continue",
+      }),
+      node("confirm", "screen.confirmation", 2, 0, "Send this request?", {
+        title: "Send this request?",
+        message: "The reviewers get your request on Discord and reply there.",
+        confirm: "Send request",
+        cancel: "Go back",
+      }),
+      node("notify", "notify.discord", 3, 0, "Post to Discord", {
+        webhookUrl: "",
+        content: "New access request from {{input.message.name}}: {{input.message.reason}}",
+        username: "Automator",
+      }),
+      node("cancelled", "screen.page", 3, 1, "Request not sent", {
+        title: "Request not sent",
+        body: "Nothing was shared. Come back whenever you are ready.",
+        button: "Start over",
+      }),
+    ],
+    edges: [
+      edge("open", "visitor", "request", "data"),
+      edge("request", "submitted", "confirm", "data"),
+      edge("confirm", "confirmed", "notify", "message"),
+      edge("confirm", "cancelled", "cancelled", "data"),
+    ],
+  }),
+
+  "audience-gate": () => ({
+    nodes: [
+      node("open", "trigger.miniapp-open", 0, 0, "Mini-app opened"),
+      node("audience", "logic.set-variable", 1, 0, "Set audience", {
+        name: "audience",
+        value: "guest",
+      }),
+      node("check", "logic.condition", 2, 0, "Is a member?", {
+        left: "{{vars.audience}}",
+        operator: "equals",
+        right: "member",
+      }),
+      node("members", "screen.page", 3, 0, "Welcome back", {
+        title: "Welcome back",
+        body: "Members go straight in.",
+        button: "Enter",
+      }),
+      node("waitlist", "screen.form", 3, 1, "Join the waitlist", {
+        title: "Join the waitlist",
+        description: "Guests get an invite as soon as a seat opens.",
+        fields: [
+          {
+            id: "email",
+            label: "Email",
+            type: "email",
+            placeholder: "you@example.com",
+            required: true,
+          },
+        ],
+        submit: "Join",
+      }),
+      node("joined", "screen.page", 4, 1, "You're on the list", {
+        title: "You're on the list",
+        body: "We'll email you when it is your turn.",
+        button: "Done",
+      }),
+    ],
+    edges: [
+      edge("open", "visitor", "audience", "value"),
+      edge("audience", "value", "check", "value"),
+      edge("check", "true", "members", "data"),
+      edge("check", "false", "waitlist", "data"),
+      edge("waitlist", "submitted", "joined", "data"),
+    ],
+  }),
+
+  "scheduled-reminder": () => ({
+    nodes: [
+      node("schedule", "trigger.schedule", 0, 0, "Every hour", { every: "1h" }),
+      node("dry-run", "logic.set-variable", 1, 0, "Dry run?", { name: "dryRun", value: "yes" }),
+      node("check", "logic.condition", 2, 0, "Is a dry run?", {
+        left: "{{vars.dryRun}}",
+        operator: "equals",
+        right: "yes",
+      }),
+      node("rehearse", "logic.wait", 3, 0, "Rehearse", { seconds: 1 }),
+      node("notify", "notify.discord", 3, 1, "Post reminder", {
+        webhookUrl: "",
+        content: "Reminder: the standup starts in 10 minutes.",
+        username: "Automator",
+      }),
+    ],
+    edges: [
+      edge("schedule", "tick", "dry-run", "value"),
+      edge("dry-run", "value", "check", "value"),
+      edge("check", "true", "rehearse", "in"),
+      edge("check", "false", "notify", "message"),
+    ],
+  }),
+
+  "event-check-in": () => ({
+    nodes: [
+      node("open", "trigger.miniapp-open", 0, 0, "Mini-app opened"),
+      node("welcome", "screen.page", 1, 0, "Welcome", {
+        title: "Welcome to Automator Night",
+        body: "Register in a few seconds and get your entry code.",
+        button: "Register",
+      }),
+      node("details", "screen.form", 2, 0, "Your details", {
+        title: "Your details",
+        description: "",
+        fields: [
+          { id: "name", label: "Full name", type: "text", placeholder: "", required: true },
+          {
+            id: "email",
+            label: "Email",
+            type: "email",
+            placeholder: "you@example.com",
+            required: true,
+          },
+        ],
+        submit: "Get my code",
+      }),
+      node("code", "screen.qr-code", 3, 0, "Entry code", {
+        title: "Your entry code",
+        value: "{{input.value.email}}",
+        caption: "Show this code at the door.",
+        button: "Done",
+      }),
+      node("notify", "notify.discord", 4, 0, "Announce check-in", {
+        webhookUrl: "",
+        content: "{{input.message.name}} just checked in.",
+        username: "Automator",
+      }),
+    ],
+    edges: [
+      edge("open", "visitor", "welcome", "data"),
+      edge("welcome", "next", "details", "data"),
+      edge("details", "submitted", "code", "value"),
+      edge("code", "next", "notify", "message"),
+    ],
+  }),
+  "ai-digest": () => ({
+    nodes: [
+      node("start", "trigger.manual", 0, 0, "Run"),
+      node("topic", "logic.set-variable", 1, 0, "Set topic", {
+        name: "topic",
+        value: "what shipped in Automator this week",
+      }),
+      node("write", "ai.generate-text", 2, 0, "Write the digest", {
+        instructions: "You write short, friendly release notes for a developer community.",
+        prompt: "Write a two-sentence update about {{vars.topic}}.",
+      }),
+      node("notify", "notify.discord", 3, 0, "Post the digest", {
+        webhookUrl: "",
+        content: "{{input.message}}",
+        username: "Automator",
+      }),
+    ],
+    edges: [
+      edge("start", "run", "topic", "value"),
+      edge("topic", "value", "write", "prompt"),
+      edge("write", "text", "notify", "message"),
+    ],
+  }),
+
+  "usdc-balance-alert": () => ({
+    nodes: [
+      node("start", "trigger.manual", 0, 0, "Run"),
+      node("balance", "usdc.balance", 1, 0, "Read USDC balance", { address: "" }),
+      node("check", "logic.condition", 2, 0, "Below 10 USDC?", {
+        left: "{{input.value.formatted}}",
+        operator: "less_than",
+        right: "10",
+      }),
+      node("notify", "notify.discord", 3, 0, "Warn on Discord", {
+        webhookUrl: "",
+        content: "Low USDC: {{input.message.formatted}}",
+        username: "Automator",
+      }),
+    ],
+    edges: [
+      edge("start", "run", "balance", "wallet"),
+      edge("balance", "balance", "check", "value"),
+      edge("check", "true", "notify", "message"),
+    ],
+  }),
+
+  "usdc-payout": () => ({
+    nodes: [
+      node("hook", "trigger.webhook", 0, 0, "Payout request"),
+      node("pay", "usdc.payout", 1, 0, "Send USDC", {
+        to: "{{input.recipient.to}}",
+        amount: "{{input.recipient.amount}}",
+      }),
+      node("notify", "notify.discord", 2, 0, "Confirm on Discord", {
+        webhookUrl: "",
+        content:
+          "Paid {{input.message.amount}} USDC to {{input.message.to}} ({{input.message.hash}})",
+        username: "Automator",
+      }),
+    ],
+    edges: [
+      edge("hook", "request", "pay", "recipient"),
+      edge("pay", "receipt", "notify", "message"),
+    ],
+  }),
+};
 
 export function findFlowExample(slug: string | undefined): FlowExample | undefined {
   return slug ? flowExamples.find((example) => example.id === slug) : undefined;
 }
 
 /**
- * Seeds a canvas from a curated example: a mini-app trigger followed by one node per step,
- * chained left to right. Steps name integrations in their copy, which is enough for dummy
- * nodes; anything else becomes a screen.
+ * Seeds a canvas from a curated example: the example's fixture with fresh node and edge ids,
+ * so two forks of the same example never share an id.
  */
 export function exampleToFlowDocument(example: FlowExample, id: string): FlowDocument {
-  const trigger: FlowNode = {
-    id: crypto.randomUUID(),
-    type: "trigger.miniapp-open",
-    position: { x: startX, y: rowY },
-    label: getCatalogEntry("trigger.miniapp-open").label,
-    config: {},
-  };
-  const steps: FlowNode[] = example.steps.map((step, index) => ({
-    id: crypto.randomUUID(),
-    type: stepType(step),
-    position: { x: startX + (index + 1) * columnGap, y: rowY },
-    label: step.name,
-    config: {},
-  }));
-  const nodes = [trigger, ...steps];
-  // Seeded chains use the first port on each side, so every edge names its handles.
-  const edges = nodes.slice(1).map((node, index) => {
-    const source = nodes[index]!;
-    return {
-      id: crypto.randomUUID(),
-      source: source.id,
-      sourceHandle: getCatalogEntry(source.type).outputs[0]!.id,
-      target: node.id,
-      targetHandle: getCatalogEntry(node.type).inputs[0]!.id,
-    };
-  });
-
+  const fixture = fixtures[example.id]();
+  const ids = new Map(fixture.nodes.map((entry) => [entry.id, crypto.randomUUID()]));
   return {
     version: 1,
     id,
     name: example.name,
     description: example.description,
-    nodes,
-    edges,
+    nodes: fixture.nodes.map((entry) => ({ ...entry, id: ids.get(entry.id)! })),
+    edges: fixture.edges.map((entry) => ({
+      ...entry,
+      id: crypto.randomUUID(),
+      source: ids.get(entry.source)!,
+      target: ids.get(entry.target)!,
+    })),
   };
 }

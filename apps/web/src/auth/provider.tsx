@@ -21,6 +21,7 @@ import {
 } from "react";
 import { useTheme } from "@automator/ui/theme-provider";
 import { authRequest, AuthRequestError } from "./client";
+import { e2eSession } from "./access-token";
 
 function setupError(stage: "session" | "wallet" | "account", cause: unknown) {
   const code =
@@ -251,7 +252,8 @@ export function SessionProvider({
 
   // Privy is the source of truth: once it reports a signed-out visitor, the
   // mirrored cookie is stale and private routes must send them to sign in.
-  const signedOut = ready && !authenticated;
+  // The end-to-end suite has no Privy session in the browser; its token stands in instead.
+  const signedOut = ready && !authenticated && !e2eSession;
   const signOutHandled = useRef(false);
   useEffect(() => {
     if (!signedOut) {

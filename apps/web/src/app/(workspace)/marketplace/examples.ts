@@ -1,72 +1,150 @@
 import {
-  RiBankCardLine,
+  RiCheckboxCircleLine,
+  RiCoinLine,
+  RiDiscordLine,
+  RiFileList3Line,
   RiGitBranchLine,
-  RiShieldCheckLine,
-  RiUserFollowLine,
+  RiQrCodeLine,
+  RiSparklingLine,
+  RiTimeLine,
+  RiWebhookLine,
 } from "@remixicon/react";
 
+/**
+ * The curated examples. `id` names the fixture in `apps/web/src/builder/examples.ts` that
+ * the canvas is seeded from; `steps` is the prose overview on the detail page and must match
+ * that fixture. `nodes` feeds the Flows page cards, `nodeTypes` the marketplace listing marks
+ * (drawn from the builder catalog).
+ */
 export const flowExamples = [
   {
-    id: "ticket-checkout",
+    id: "approval-request",
+    name: "Approval request",
+    description: "Collect a request, confirm it, and post it to Discord.",
     steps: [
-      { name: "Select a ticket", description: "Choose a ticket and quantity." },
-      { name: "Verify the visitor", description: "Complete a World Selfie Check before checkout." },
+      { name: "Request access", description: "A form asks for the visitor's name and reason." },
       {
-        name: "Collect payment",
-        description: "Use a Privy wallet to pay for the selected tickets.",
+        name: "Send this request?",
+        description: "A confirmation screen sends the request or goes back.",
       },
-      { name: "Issue the ticket", description: "Show the ticket after payment is confirmed." },
-    ],
-    name: "Ticket checkout",
-    description: "Verify a visitor, collect payment and issue a ticket.",
-    nodes: [
-      { name: "World · Selfie Check", logo: "world" },
-      { name: "Privy · Wallet", logo: "privy" },
-    ],
-  },
-  {
-    id: "payment-link",
-    steps: [
-      { name: "Open the payment app", description: "Display the amount and payment details." },
-      { name: "Connect a wallet", description: "Let the payer connect through Privy." },
-      { name: "Collect USDC", description: "Request the payment and show its confirmation." },
-    ],
-    name: "Payment link",
-    description: "Accept USDC payments through a shareable app.",
-    nodes: [
-      { name: "Privy · Wallet", logo: "privy" },
-      { name: "USDC payment", icon: RiBankCardLine },
-    ],
-  },
-  {
-    id: "verification-gate",
-    steps: [
-      { name: "Verify the visitor", description: "Complete a World Selfie Check." },
-      { name: "Check the result", description: "Continue only when verification succeeds." },
-      { name: "Grant access", description: "Open the next step for the verified visitor." },
-    ],
-    name: "Verification gate",
-    description: "Verify visitors before giving them access.",
-    nodes: [
-      { name: "World · Selfie Check", logo: "world" },
-      { name: "Access check", icon: RiShieldCheckLine },
-    ],
-  },
-  {
-    id: "approval-flow",
-    steps: [
-      { name: "Submit a request", description: "Collect the information a reviewer needs." },
-      { name: "Wait for a decision", description: "Let a reviewer approve or reject the request." },
       {
-        name: "Choose the next step",
-        description: "Continue when approved, or stop when rejected.",
+        name: "Post to Discord",
+        description: "The request lands in a channel through a webhook you set after forking.",
       },
     ],
-    name: "Approval flow",
-    description: "Review a request before allowing the next step.",
     nodes: [
-      { name: "Human approval", icon: RiUserFollowLine },
+      { name: "Form", icon: RiFileList3Line },
+      { name: "Discord message", icon: RiDiscordLine },
+    ],
+    nodeTypes: ["screen.form", "screen.confirmation", "notify.discord"],
+  },
+  {
+    id: "audience-gate",
+    name: "Audience gate",
+    description: "Send members and guests down different paths.",
+    steps: [
+      { name: "Set audience", description: "A variable names the visitor's audience." },
+      {
+        name: "Is a member?",
+        description: "A condition sends members to the welcome screen and guests to the waitlist.",
+      },
+      { name: "Join the waitlist", description: "Guests leave an email and see a confirmation." },
+    ],
+    nodes: [
+      { name: "Condition", icon: RiGitBranchLine },
+      { name: "Form", icon: RiFileList3Line },
+    ],
+    nodeTypes: ["logic.set-variable", "logic.condition", "screen.form"],
+  },
+  {
+    id: "scheduled-reminder",
+    name: "Scheduled reminder",
+    description: "Post a reminder to Discord every hour, with a dry-run switch.",
+    steps: [
+      { name: "Every hour", description: "A schedule trigger starts the flow." },
+      { name: "Dry run?", description: "A variable set to “yes” keeps the run silent." },
+      {
+        name: "Rehearse or post",
+        description: "The dry run waits a second; switching it to “no” posts to Discord.",
+      },
+    ],
+    nodes: [
+      { name: "Schedule", icon: RiTimeLine },
+      { name: "Discord message", icon: RiDiscordLine },
+    ],
+    nodeTypes: ["logic.set-variable", "logic.condition", "logic.wait", "notify.discord"],
+  },
+  {
+    id: "event-check-in",
+    name: "Event check-in",
+    description: "Register visitors and hand them a QR code for the door.",
+    steps: [
+      { name: "Welcome", description: "A welcome screen invites the visitor to register." },
+      { name: "Your details", description: "A form collects a name and an email." },
+      {
+        name: "Entry code",
+        description: "A QR code screen shows the code to present at the door.",
+      },
+      { name: "Announce check-in", description: "Discord gets a message once the code is shown." },
+    ],
+    nodes: [
+      { name: "QR code", icon: RiQrCodeLine },
+      { name: "Confirmation", icon: RiCheckboxCircleLine },
+    ],
+    nodeTypes: ["screen.page", "screen.form", "screen.qr-code", "notify.discord"],
+  },
+  {
+    id: "ai-digest",
+    name: "AI digest",
+    description: "Have a model write a short update and post it to Discord.",
+    steps: [
+      { name: "Set topic", description: "A variable names what the update is about." },
+      {
+        name: "Write the digest",
+        description: "Generate text turns the topic into two friendly sentences.",
+      },
+      {
+        name: "Post the digest",
+        description: "Discord gets the text through a webhook you set after forking.",
+      },
+    ],
+    nodes: [
+      { name: "Generate text", icon: RiSparklingLine },
+      { name: "Discord message", icon: RiDiscordLine },
+    ],
+    nodeTypes: ["logic.set-variable", "ai.generate-text", "notify.discord"],
+  },
+  {
+    id: "usdc-balance-alert",
+    name: "USDC balance alert",
+    description: "Warn on Discord when the wallet drops below 10 USDC.",
+    steps: [
+      { name: "Read USDC balance", description: "Reads the flow owner's USDC balance." },
+      { name: "Below 10 USDC?", description: "A condition compares the formatted balance." },
+      { name: "Warn on Discord", description: "Only the low-balance branch posts a message." },
+    ],
+    nodes: [
+      { name: "USDC balance", icon: RiCoinLine },
       { name: "Condition", icon: RiGitBranchLine },
     ],
+    nodeTypes: ["usdc.balance", "logic.condition", "notify.discord"],
+  },
+  {
+    id: "usdc-payout",
+    name: "USDC payout",
+    description: "Pay a recipient from a webhook request and confirm on Discord.",
+    steps: [
+      { name: "Payout request", description: "A webhook delivers the recipient and amount." },
+      { name: "Send USDC", description: "The payout node transfers the amount to the recipient." },
+      {
+        name: "Confirm on Discord",
+        description: "The receipt is posted with its transaction hash.",
+      },
+    ],
+    nodes: [
+      { name: "Webhook", icon: RiWebhookLine },
+      { name: "USDC payout", icon: RiCoinLine },
+    ],
+    nodeTypes: ["trigger.webhook", "usdc.payout", "notify.discord"],
   },
 ] as const;

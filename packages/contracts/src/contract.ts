@@ -4,9 +4,12 @@ import { Check } from "@sinclair/typebox/value";
 /** Every non-2xx response in the API uses this body, whatever the endpoint. */
 export const apiErrorCodeSchema = Type.Union([
   Type.Literal("forbidden"),
+  Type.Literal("invalid_flow"),
+  Type.Literal("invalid_listing"),
   Type.Literal("invalid_profile"),
   Type.Literal("invalid_request"),
   Type.Literal("not_found"),
+  Type.Literal("rate_limited"),
   Type.Literal("unauthorized"),
   Type.Literal("unavailable"),
   Type.Literal("username_reserved"),
@@ -25,6 +28,7 @@ export const apiErrorResponses = {
   404: apiErrorSchema,
   409: apiErrorSchema,
   422: apiErrorSchema,
+  429: apiErrorSchema,
   500: apiErrorSchema,
   503: apiErrorSchema,
 } as const;
