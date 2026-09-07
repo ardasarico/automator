@@ -43,6 +43,8 @@ describe("API configuration", () => {
       privyVerificationKey: "-----BEGIN PUBLIC KEY-----",
       openRouterApiKey: undefined,
       openRouterModel: "openai/gpt-oss-120b",
+      openAiApiKey: undefined,
+      openAiModel: "gpt-4.1-mini",
       secretsKey: Buffer.from(secretsKey, "base64"),
       chainId: 84532,
       chainRpcUrl: "https://sepolia.base.org",
@@ -100,6 +102,16 @@ describe("API configuration", () => {
     expect(
       readConfig({ ...complete, OPENROUTER_API_KEY: "sk", OPENROUTER_MODEL: "anthropic/claude" }),
     ).toMatchObject({ openRouterApiKey: "sk", openRouterModel: "anthropic/claude" });
+  });
+
+  test("OpenAI is optional, with a default model that a blank variable keeps", () => {
+    expect(readConfig({ ...complete, OPENAI_API_KEY: "", OPENAI_MODEL: "" })).toMatchObject({
+      openAiApiKey: undefined,
+      openAiModel: "gpt-4.1-mini",
+    });
+    expect(
+      readConfig({ ...complete, OPENAI_API_KEY: "sk-proj", OPENAI_MODEL: "gpt-5" }),
+    ).toMatchObject({ openAiApiKey: "sk-proj", openAiModel: "gpt-5" });
   });
 
   test.each([undefined, "", "not-a-number"])("falls back to port 3001 for PORT %p", (port) => {

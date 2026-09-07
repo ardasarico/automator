@@ -16,7 +16,16 @@ export interface OpenRouterOptions {
   appUrl?: string;
 }
 
-const defaultBaseUrl = "https://openrouter.ai/api/v1";
+export interface OpenAiOptions {
+  apiKey: string | undefined;
+  model: string;
+  baseUrl?: string;
+  timeoutMs?: number;
+  fetcher?: typeof fetch;
+}
+
+const openRouterBaseUrl = "https://openrouter.ai/api/v1";
+const openAiBaseUrl = "https://api.openai.com/v1";
 
 // OpenRouter tries these in order on upstream errors, within our single request timeout.
 // The free router also covers catalog churn without ever selecting a paid model.
@@ -74,6 +83,34 @@ function responseFormat(format: ChatRequest["responseFormat"]) {
   };
 }
 
+/** The OpenRouter body picks a free router when the model is free; OpenAI takes the id as is. */
+function modelSelection(provider: "OpenRouter" | "OpenAI", model: string) {
+  if (provider === "OpenRouter" && (model.endsWith(":free") || model === "openrouter/free"))
+    return {
+      models: [
+        ...[...new Set([model, ...freeFallbacks])]
+          .filter((candidate) => candidate !== "openrouter/free")
+          .slice(0, 2),
+        "openrouter/free",
+      ],
+      provider: {
+        require_parameters: true,
+        max_price: { prompt: 0, completion: 0 },
+      },
+    };
+  return { model };
+}
+
+interface ChatCompletionsOptions {
+  provider: "OpenRouter" | "OpenAI";
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+  timeoutMs: number;
+  fetcher: typeof fetch;
+  headers?: Record<string, string>;
+}
+
 /**
  * A `LanguageModel` over OpenRouter's OpenAI-compatible chat completions. Returns `undefined`
  * without an API key, so callers can pass "no model" through unchanged. Failures become
@@ -82,28 +119,78 @@ function responseFormat(format: ChatRequest["responseFormat"]) {
 export function createOpenRouterModel({
   apiKey,
   model,
-  baseUrl = defaultBaseUrl,
+  baseUrl = openRouterBaseUrl,
   timeoutMs = 60_000,
   fetcher = fetch,
   appUrl,
 }: OpenRouterOptions): LanguageModel | undefined {
   if (!apiKey) return undefined;
+  return createChatCompletionsModel({
+    provider: "OpenRouter",
+    apiKey,
+    model,
+    baseUrl,
+    timeoutMs,
+    fetcher,
+    headers: appUrl ? { "HTTP-Referer": appUrl, "X-Title": "Automator" } : undefined,
+  });
+}
+
+/**
+ * The same `LanguageModel` over OpenAI's own chat completions, for a paid fallback behind the
+ * free OpenRouter models (see `withFallbackModel`). Absent without an API key.
+ */
+export function createOpenAiModel({
+  apiKey,
+  model,
+  baseUrl = openAiBaseUrl,
+  timeoutMs = 60_000,
+  fetcher = fetch,
+}: OpenAiOptions): LanguageModel | undefined {
+  if (!apiKey) return undefined;
+  return createChatCompletionsModel({
+    provider: "OpenAI",
+    apiKey,
+    model,
+    baseUrl,
+    timeoutMs,
+    fetcher,
+  });
+}
+
+/**
+ * Asks `fallback` when `primary` fails with a `LanguageModelError` of any kind: an unreachable
+ * or erroring upstream, a timeout, or an unreadable answer. Anything else is a bug and passes
+ * through. When both fail, the fallback's error is the one reported.
+ */
+export function withFallbackModel(
+  primary: LanguageModel,
+  fallback: LanguageModel,
+  log?: (line: string) => void,
+): LanguageModel {
+  return async (request) => {
+    try {
+      return await primary(request);
+    } catch (error) {
+      if (!(error instanceof LanguageModelError)) throw error;
+      log?.(`Primary model failed (${error.kind}: ${error.message}); asking the fallback`);
+      return fallback(request);
+    }
+  };
+}
+
+function createChatCompletionsModel({
+  provider,
+  apiKey,
+  model,
+  baseUrl,
+  timeoutMs,
+  fetcher,
+  headers,
+}: ChatCompletionsOptions): LanguageModel {
   return async (request) => {
     const body = {
-      ...(model.endsWith(":free") || model === "openrouter/free"
-        ? {
-            models: [
-              ...[...new Set([model, ...freeFallbacks])]
-                .filter((candidate) => candidate !== "openrouter/free")
-                .slice(0, 2),
-              "openrouter/free",
-            ],
-            provider: {
-              require_parameters: true,
-              max_price: { prompt: 0, completion: 0 },
-            },
-          }
-        : { model }),
+      ...modelSelection(provider, model),
       messages: request.messages.map(toWire),
       ...(request.tools?.length
         ? {
@@ -130,7 +217,7 @@ export function createOpenRouterModel({
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          ...(appUrl ? { "HTTP-Referer": appUrl, "X-Title": "Automator" } : {}),
+          ...headers,
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutMs),
@@ -155,7 +242,7 @@ export function createOpenRouterModel({
     if (!response.ok)
       throw new LanguageModelError(
         "upstream",
-        `OpenRouter answered ${response.status}${payload.error?.message ? `: ${payload.error.message}` : ""}`,
+        `${provider} answered ${response.status}${payload.error?.message ? `: ${payload.error.message}` : ""}`,
         response.status,
       );
     const message = payload.choices?.[0]?.message;

@@ -54,7 +54,7 @@ describe("AI executors", () => {
     );
     expect(run.nodes[1]).toMatchObject({
       status: "failed",
-      error: "No language model is configured; set OPENROUTER_API_KEY",
+      error: "No language model is configured; set OPENROUTER_API_KEY or OPENAI_API_KEY",
     });
   });
 

@@ -1,6 +1,6 @@
 import { createDatabase } from "@automator/db";
 import { PrivyClient } from "@privy-io/node";
-import { createOpenRouterModel } from "./ai/client";
+import { createOpenAiModel, createOpenRouterModel, withFallbackModel } from "./ai/client";
 import { createApp } from "./app";
 import { createPrivyIdentity, withE2eIdentity } from "./auth/privy";
 import { createChainFactory, resolveChainSettings } from "./chain/provider";
@@ -15,10 +15,16 @@ const config = readConfig();
 const database = createDatabase(config.databaseUrl);
 await database.migrate();
 const secretsCrypto = createSecretsCrypto(config.secretsKey);
-const model = createOpenRouterModel({
+// OpenRouter first (free models when configured so), OpenAI when it fails or is not configured.
+const openRouter = createOpenRouterModel({
   apiKey: config.openRouterApiKey,
   model: config.openRouterModel,
 });
+const openAi = createOpenAiModel({ apiKey: config.openAiApiKey, model: config.openAiModel });
+const model =
+  openRouter && openAi
+    ? withFallbackModel(openRouter, openAi, (line) => console.warn(line))
+    : (openRouter ?? openAi);
 const identity = withE2eIdentity(
   createPrivyIdentity(config.privyAppId, config.privyAppSecret, config.privyVerificationKey),
   config.e2eTestToken,

@@ -10,7 +10,9 @@ import { parseJsonAnswer, type ChatMessage, type LanguageModel } from "./languag
 
 export function requireModel(context: ExecutionContext): LanguageModel {
   if (!context.model)
-    throw new NodeExecutionError("No language model is configured; set OPENROUTER_API_KEY");
+    throw new NodeExecutionError(
+      "No language model is configured; set OPENROUTER_API_KEY or OPENAI_API_KEY",
+    );
   return context.model;
 }
 

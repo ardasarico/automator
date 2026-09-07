@@ -18,6 +18,12 @@ export interface ApiConfig {
   openRouterApiKey: string | undefined;
   openRouterModel: string;
   /**
+   * OpenAI credentials for a paid fallback behind OpenRouter (or the only model without an
+   * OpenRouter key); optional in every environment.
+   */
+  openAiApiKey: string | undefined;
+  openAiModel: string;
+  /**
    * 32-byte base64 key that encrypts user secrets at rest. Required in production;
    * development without one gets a key generated at startup, so stored secrets do not
    * survive a restart there.
@@ -58,6 +64,12 @@ export const defaultUsdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
  * OpenRouter model id can be set per environment with `OPENROUTER_MODEL`.
  */
 export const defaultOpenRouterModel = "openai/gpt-oss-120b";
+
+/**
+ * Cheap, supports tools and JSON-schema answers, and accepts the engine's `temperature: 0`
+ * (the gpt-5 family rejects it); any other id can be set per environment with `OPENAI_MODEL`.
+ */
+export const defaultOpenAiModel = "gpt-4.1-mini";
 
 const required = [
   "DATABASE_URL",
@@ -105,6 +117,8 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     privyVerificationKey: env.PRIVY_VERIFICATION_KEY,
     openRouterApiKey: env.OPENROUTER_API_KEY || undefined,
     openRouterModel: env.OPENROUTER_MODEL || defaultOpenRouterModel,
+    openAiApiKey: env.OPENAI_API_KEY || undefined,
+    openAiModel: env.OPENAI_MODEL || defaultOpenAiModel,
     chainId: Number(env.CHAIN_ID) || defaultChainId,
     // Without CHAIN_RPC_URL the named chain keeps its own public RPC, never Base Sepolia's.
     chainRpcUrl:

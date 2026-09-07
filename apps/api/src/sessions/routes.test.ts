@@ -379,7 +379,7 @@ describe("mini-app sessions", () => {
     ["Transaction 0xabc reverted", "node_failed"],
     ["The run was cancelled.", "cancelled"],
     ["timed out after 1000 ms", "timeout"],
-    ["No language model is configured; set OPENROUTER_API_KEY", "unconfigured"],
+    ["No language model is configured; set OPENROUTER_API_KEY or OPENAI_API_KEY", "unconfigured"],
     ["No chain is configured for this run", "unconfigured"],
     ['Secret "hook" is not defined', "unconfigured"],
     ["Server signing is not enabled for this wallet", "unconfigured"],

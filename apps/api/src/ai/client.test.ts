@@ -1,6 +1,6 @@
 import { LanguageModelError } from "@automator/flow-engine";
 import { describe, expect, test } from "bun:test";
-import { createOpenRouterModel } from "./client";
+import { createOpenAiModel, createOpenRouterModel, withFallbackModel } from "./client";
 
 type Call = { url: string; headers: Headers; body: Record<string, unknown> };
 
@@ -165,5 +165,109 @@ describe("OpenRouter client", () => {
         throw timeout;
       }),
     ).toEqual(["timeout", undefined]);
+  });
+});
+
+describe("OpenAI client", () => {
+  test("is absent without an API key", () => {
+    expect(createOpenAiModel({ apiKey: undefined, model: "gpt-4.1-mini" })).toBeUndefined();
+  });
+
+  test("sends the same completion request to OpenAI without OpenRouter headers", async () => {
+    const calls: Call[] = [];
+    const model = createOpenAiModel({
+      apiKey: "sk-openai",
+      model: "gpt-4.1-mini",
+      fetcher: (async (url: string | URL | Request, init?: RequestInit) => {
+        calls.push({
+          url: String(url),
+          headers: new Headers(init?.headers),
+          body: JSON.parse(String(init?.body)),
+        });
+        return Response.json({ choices: [{ message: { content: "ok" } }] });
+      }) as unknown as typeof fetch,
+    })!;
+    expect(await model({ messages: [{ role: "user", content: "hi" }], temperature: 0 })).toEqual({
+      content: "ok",
+      toolCalls: [],
+    });
+    const call = calls[0]!;
+    expect(call.url).toBe("https://api.openai.com/v1/chat/completions");
+    expect(call.headers.get("authorization")).toBe("Bearer sk-openai");
+    expect(call.headers.get("http-referer")).toBeNull();
+    expect(call.body).toEqual({
+      model: "gpt-4.1-mini",
+      messages: [{ role: "user", content: "hi" }],
+      temperature: 0,
+    });
+  });
+
+  test("names OpenAI in upstream failures", async () => {
+    const model = createOpenAiModel({
+      apiKey: "sk-openai",
+      model: "gpt-4.1-mini",
+      fetcher: (async (_url: string | URL | Request) =>
+        Response.json({ error: { message: "quota" } }, { status: 429 })) as typeof fetch,
+    })!;
+    await expect(model({ messages: [{ role: "user", content: "x" }] })).rejects.toMatchObject({
+      kind: "upstream",
+      status: 429,
+      message: "OpenAI answered 429: quota",
+    });
+  });
+});
+
+describe("withFallbackModel", () => {
+  const request = { messages: [{ role: "user" as const, content: "hi" }] };
+  const answer = (content: string) => async () => ({ content, toolCalls: [] });
+
+  test("answers from the primary model when it works", async () => {
+    let fallbackCalls = 0;
+    const model = withFallbackModel(answer("primary"), async () => {
+      fallbackCalls++;
+      return { content: "fallback", toolCalls: [] };
+    });
+    expect(await model(request)).toEqual({ content: "primary", toolCalls: [] });
+    expect(fallbackCalls).toBe(0);
+  });
+
+  test.each(["upstream", "timeout", "invalid_response"] as const)(
+    "asks the fallback when the primary fails with %s",
+    async (kind) => {
+      const model = withFallbackModel(async () => {
+        throw new LanguageModelError(kind, "primary broke");
+      }, answer("fallback"));
+      expect(await model(request)).toEqual({ content: "fallback", toolCalls: [] });
+    },
+  );
+
+  test("reports the fallback's failure when both fail", async () => {
+    const model = withFallbackModel(
+      async () => {
+        throw new LanguageModelError("upstream", "primary broke");
+      },
+      async () => {
+        throw new LanguageModelError("timeout", "fallback broke");
+      },
+    );
+    await expect(model(request)).rejects.toMatchObject({
+      kind: "timeout",
+      message: "fallback broke",
+    });
+  });
+
+  test("lets unexpected errors through without asking the fallback", async () => {
+    let fallbackCalls = 0;
+    const model = withFallbackModel(
+      async () => {
+        throw new TypeError("bug");
+      },
+      async () => {
+        fallbackCalls++;
+        return { content: "fallback", toolCalls: [] };
+      },
+    );
+    await expect(model(request)).rejects.toBeInstanceOf(TypeError);
+    expect(fallbackCalls).toBe(0);
   });
 });
