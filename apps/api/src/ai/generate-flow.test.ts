@@ -5,6 +5,7 @@ import {
   FlowGenerationError,
   generatableNodeTypes,
   generateFlow,
+  historyMessages,
   materialize,
 } from "./generate-flow";
 
@@ -12,6 +13,13 @@ const text = (content: unknown): ChatResponse => ({
   content: JSON.stringify(content),
   toolCalls: [],
 });
+
+/** The flow of an answer, failing the test on a message. */
+async function flowOf(answer: ReturnType<typeof generateFlow>) {
+  const result = await answer;
+  if (result.kind !== "flow") throw new Error(`expected a flow, got ${result.kind}`);
+  return result;
+}
 
 const good = {
   name: "Price alert",
@@ -49,7 +57,7 @@ describe("generateFlow", () => {
 
   test("turns a valid answer into a laid-out, cleaned document", async () => {
     const { model, requests } = scriptedModel([text(good)]);
-    const { document, summary } = await generateFlow(model, "alert me on big amounts");
+    const { document, summary } = await flowOf(generateFlow(model, "alert me on big amounts"));
     expect(summary).toBe("A webhook triggers a Discord post.");
     expect(findFlowDocumentProblem(document)).toBeNull();
     expect(document.nodes.map((node) => [node.id, node.position])).toEqual([
@@ -92,10 +100,48 @@ describe("generateFlow", () => {
         edges: [{ source: "keep", sourceHandle: "run", target: "n2", targetHandle: "in" }],
       }),
     ]);
-    const { document } = await generateFlow(model, "add a wait", current);
+    const { document } = await flowOf(generateFlow(model, "add a wait", current));
     expect(document.nodes.map((node) => node.id)).toEqual(["keep", "n2"]);
     expect(requests[0]!.messages[1]!.content).toContain('"id":"keep"');
     expect(requests[0]!.messages[1]!.content).not.toContain("position");
+  });
+
+  test("sends the recent history before the request, summaries only", async () => {
+    const { model, requests } = scriptedModel([text(good)]);
+    const history = Array.from({ length: 15 }, (_, index) => ({
+      role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
+      text: `turn ${index}`,
+    }));
+    history.push({ role: "assistant", text: "" });
+    await generateFlow(model, "also notify Discord", undefined, history);
+    const messages = requests[0]!.messages;
+    expect(messages[0]!.role).toBe("system");
+    expect(messages[0]!.content).toContain("Earlier turns of the conversation");
+    // The last 12 turns, the blank one dropped, then the request itself.
+    expect(messages.slice(1, -1).map((message) => message.content)).toEqual(
+      history.slice(-12, -1).map((turn) => turn.text),
+    );
+    expect(messages.slice(1, -1).map((message) => message.role)).toEqual(
+      history.slice(-12, -1).map((turn) => turn.role),
+    );
+    expect(messages.at(-1)!.content).toContain("also notify Discord");
+    expect(historyMessages([{ role: "user", text: "x".repeat(2000) }])[0]!.content).toHaveLength(
+      1500,
+    );
+  });
+
+  test("passes a message answer through instead of a flow", async () => {
+    const { model } = scriptedModel([text({ message: "Which chain should the payout use?" })]);
+    await expect(generateFlow(model, "pay someone")).resolves.toEqual({
+      kind: "message",
+      text: "Which chain should the payout use?",
+    });
+    // An empty message is not an answer; the retry gets the problem.
+    const empty = scriptedModel([text({ message: "  " }), text(good)]);
+    await expect(flowOf(generateFlow(empty.model, "x"))).resolves.toMatchObject({
+      summary: good.summary,
+    });
+    expect(empty.requests[1]!.messages.at(-1)!.content).toContain("needs nodes and edges");
   });
 
   test("retries once with the problem, then gives up", async () => {

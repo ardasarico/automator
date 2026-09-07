@@ -1,14 +1,16 @@
 "use client";
 
-import type { FlowDocumentInput, FlowNode } from "@automator/contracts";
+import type { FlowNode } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import { Checkbox } from "@automator/ui/checkbox";
 import { Field, FieldLabel } from "@automator/ui/field";
 import { Textarea } from "@automator/ui/textarea";
-import { RiSparklingLine } from "@remixicon/react";
+import { RiRestartLine, RiSendPlaneLine } from "@remixicon/react";
 import { useReactFlow } from "@xyflow/react";
 import { useEffect, useRef, useState } from "react";
-import { AiRequestError, generateFlowRequest } from "./ai-client";
+import { describeAiFailure, generateFlowRequest } from "./ai-client";
+import { historyOf, type AiProposal, type AiTurn } from "./ai-store";
+import { useAiStore } from "./ai-store-provider";
 import styles from "./ai-panel.module.css";
 import { serializeFlow } from "./document";
 import { useBuilderStore } from "./store-provider";
@@ -16,14 +18,6 @@ import { useAccessToken } from "../auth/access-token";
 
 type ChangeKind = "added" | "removed" | "changed" | "kept";
 type Change = { kind: ChangeKind; id: string; label: string; type: string };
-
-const failureMessages: Record<string, string> = {
-  unauthorized: "Your session expired. Reload the page and try again.",
-  unavailable: "AI is not available right now. Check that the API has an OpenRouter key.",
-  invalid_flow: "The model could not produce a valid flow for that. Try rephrasing.",
-  invalid_request: "The request was rejected. Shorten the prompt and try again.",
-  rate_limited: "Too many requests. Try again in a moment.",
-};
 
 /** What applying `next` would do to the canvas, node by node, in the order the canvas will show. */
 export function diffNodes(current: readonly FlowNode[], next: readonly FlowNode[]): Change[] {
@@ -52,10 +46,65 @@ const changeLabels: Record<ChangeKind, string> = {
   kept: "Keep",
 };
 
+const proposalStates: Record<Exclude<AiProposal["state"], "pending">, string> = {
+  applied: "Applied",
+  discarded: "Discarded",
+  stale: "Superseded by a later change",
+};
+
+/** A proposed document: the node-by-node preview with Apply and Discard while it is pending. */
+function ProposalCard({
+  turn,
+  proposal,
+  onApply,
+  onDiscard,
+}: {
+  turn: AiTurn;
+  proposal: AiProposal;
+  onApply(): void;
+  onDiscard(): void;
+}) {
+  const nodes = useBuilderStore((state) => state.nodes);
+  const hasNodes = nodes.length > 0;
+  if (proposal.state !== "pending")
+    return <p className={styles.proposalState}>{proposalStates[proposal.state]}</p>;
+  const changes = diffNodes(
+    nodes.map((node) => ({ ...node.data, id: node.id, position: node.position })),
+    proposal.document.nodes,
+  );
+  return (
+    <div className={styles.preview} role="region" aria-label="Proposed flow">
+      <ul className={styles.changes}>
+        {changes.map((change) => (
+          <li
+            key={`${turn.id}:${change.kind}:${change.id}`}
+            className={styles.change}
+            data-kind={change.kind}
+          >
+            <span className={styles.changeKind}>{changeLabels[change.kind]}</span>
+            <span className={styles.changeLabel}>{change.label}</span>
+            <span className={styles.changeType}>{change.type}</span>
+          </li>
+        ))}
+      </ul>
+      <div className={styles.actions}>
+        <Button variant="ghost" size="sm" onClick={onDiscard}>
+          Discard
+        </Button>
+        <Button size="sm" onClick={onApply}>
+          {proposal.replaces && hasNodes ? "Replace canvas" : "Apply changes"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /**
- * The AI panel: a prompt that designs a new flow or, when the canvas has nodes and the box is
- * ticked, edits the current one. The answer is previewed as a node-by-node list of changes
- * and only lands on the canvas when applied.
+ * The AI panel: a conversation with the model about the flow. Each request sends the
+ * canvas as it is now (after any applied proposals) with the thread's earlier turns, so a
+ * follow-up edits the current flow. An answer is a message, or a proposal previewed as a
+ * node-by-node list of changes that only lands on the canvas when applied. Explanations of a
+ * failed run arrive in the same thread from the run panel.
  */
 export function AiPanel() {
   const getAccessToken = useAccessToken();
@@ -64,135 +113,161 @@ export function AiPanel() {
   const nodes = useBuilderStore((state) => state.nodes);
   const edges = useBuilderStore((state) => state.edges);
   const applyDocument = useBuilderStore((state) => state.applyDocument);
+  const turns = useAiStore((state) => state.turns);
+  const pending = useAiStore((state) => state.pending);
+  const ask = useAiStore((state) => state.ask);
+  const answer = useAiStore((state) => state.answer);
+  const fail = useAiStore((state) => state.fail);
+  const apply = useAiStore((state) => state.apply);
+  const discard = useAiStore((state) => state.discard);
+  const clear = useAiStore((state) => state.clear);
   const hasNodes = nodes.length > 0;
   const [prompt, setPrompt] = useState("");
   const [edit, setEdit] = useState(true);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ document: FlowDocumentInput; summary: string } | null>(
-    null,
-  );
-  const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
+  const thread = useRef<HTMLDivElement>(null);
 
+  // A canvas with nodes is edited unless the user unticks the box; an empty one gets a new flow.
   const editing = hasNodes && edit;
 
-  async function generate() {
+  useEffect(() => {
+    const element = thread.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [turns, pending]);
+
+  async function send() {
     const text = prompt.trim();
     if (!text || pending) return;
-    controller.current?.abort();
-    const current = new AbortController();
-    controller.current = current;
-    setPending(true);
-    setError(null);
-    setResult(null);
+    const askId = ask(text);
+    setPrompt("");
+    const { id: _id, ...document } = serializeFlow(meta, nodes, edges);
     try {
-      const { id: _id, ...document } = serializeFlow(meta, nodes, edges);
-      const answer = await generateFlowRequest(
-        await getAccessToken(),
-        editing ? { prompt: text, document } : { prompt: text },
-        current.signal,
-      );
-      if (controller.current === current) setResult(answer);
-    } catch (caught) {
-      if (controller.current !== current) return;
-      const code = caught instanceof AiRequestError ? caught.code : "unavailable";
-      setError(failureMessages[code] ?? "The flow could not be generated. Please try again.");
-    } finally {
-      if (controller.current === current) setPending(false);
+      const result = await generateFlowRequest(await getAccessToken(), {
+        prompt: text,
+        ...(editing ? { document } : {}),
+        history: historyOf(turns),
+      });
+      answer(askId, result, { replaces: !editing });
+    } catch (error) {
+      fail(askId, describeAiFailure(error));
     }
   }
 
-  function apply() {
-    if (!result) return;
-    applyDocument(result.document);
-    setResult(null);
-    setPrompt("");
+  function applyProposal(turn: AiTurn, proposal: AiProposal) {
+    applyDocument(proposal.document);
+    apply(turn.id);
     // Nodes are new to React Flow on this render; fit once they have been measured.
     setTimeout(() => void fitView({ padding: 0.2, duration: 300 }), 80);
   }
 
-  const changes = result
-    ? diffNodes(
-        nodes.map((node) => ({ ...node.data, id: node.id, position: node.position })),
-        result.document.nodes,
-      )
-    : [];
-
   return (
     <div className={styles.panel}>
-      <Field>
-        <FieldLabel htmlFor="ai-prompt">
-          {editing ? "What should change?" : "What should this flow do?"}
-        </FieldLabel>
-        <Textarea
-          id="ai-prompt"
-          className={styles.prompt}
-          placeholder={
-            editing
-              ? "Add a condition before the Discord message that checks the amount"
-              : "When a webhook fires, post the payload to Discord if the amount is over 10"
-          }
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") void generate();
-          }}
-        />
-      </Field>
-      <div className={styles.row}>
-        <Field className="flex-row items-center gap-2">
-          <Checkbox
-            id="ai-edit"
-            checked={editing}
-            disabled={!hasNodes}
-            onCheckedChange={(checked) => setEdit(checked === true)}
-          />
-          <FieldLabel htmlFor="ai-edit" className="text-caption">
-            Edit the current flow
-          </FieldLabel>
-        </Field>
-        <Button size="sm" loading={pending} disabled={!prompt.trim()} onClick={generate}>
-          <RiSparklingLine aria-hidden="true" />
-          Generate
-        </Button>
-      </div>
-      {!hasNodes && (
-        <p className={styles.hint}>The canvas is empty, so the answer becomes a new flow.</p>
-      )}
-      {error && (
-        <p role="alert" className="text-caption text-destructive-text">
-          {error}
-        </p>
-      )}
-      {result && (
-        <div className={styles.preview} role="region" aria-label="Proposed flow">
-          <p className={styles.summary}>
-            {result.summary || result.document.description || result.document.name}
-          </p>
-          <ul className={styles.changes}>
-            {changes.map((change) => (
-              <li
-                key={`${change.kind}:${change.id}`}
-                className={styles.change}
-                data-kind={change.kind}
-              >
-                <span className={styles.changeKind}>{changeLabels[change.kind]}</span>
-                <span className={styles.changeLabel}>{change.label}</span>
-                <span className={styles.changeType}>{change.type}</span>
-              </li>
-            ))}
-          </ul>
-          <div className={styles.actions}>
-            <Button variant="ghost" size="sm" onClick={() => setResult(null)}>
-              Discard
-            </Button>
-            <Button size="sm" onClick={apply}>
-              {editing ? "Apply changes" : "Replace canvas"}
-            </Button>
+      <div ref={thread} className={styles.thread} role="log" aria-label="AI conversation">
+        {turns.length === 0 && (
+          <div className={styles.empty}>
+            <p>
+              {hasNodes
+                ? "Ask for a change to this flow, or a question about it. Nothing lands on the canvas until you apply it."
+                : "Describe what the flow should do. The canvas is empty, so the first answer becomes a new flow."}
+            </p>
           </div>
+        )}
+        {turns.map((turn) =>
+          turn.role === "user" ? (
+            <div key={turn.id} className={styles.userTurn}>
+              {turn.text}
+            </div>
+          ) : (
+            <div
+              key={turn.id}
+              className={styles.assistantTurn}
+              data-error={turn.error ? "" : undefined}
+            >
+              <p className={styles.summary} role={turn.error ? "alert" : undefined}>
+                {turn.text}
+              </p>
+              {turn.proposal && (
+                <ProposalCard
+                  turn={turn}
+                  proposal={turn.proposal}
+                  onApply={() => applyProposal(turn, turn.proposal!)}
+                  onDiscard={() => discard(turn.id)}
+                />
+              )}
+            </div>
+          ),
+        )}
+        {pending && (
+          <p className={styles.thinking} role="status">
+            Thinking…
+          </p>
+        )}
+      </div>
+      <form
+        className={styles.composer}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void send();
+        }}
+      >
+        <Field>
+          <FieldLabel htmlFor="ai-prompt" className="sr-only">
+            Message
+          </FieldLabel>
+          <Textarea
+            id="ai-prompt"
+            className={styles.prompt}
+            placeholder={
+              editing
+                ? "Add a condition before the Discord message that checks the amount"
+                : "When a webhook fires, post the payload to Discord if the amount is over 10"
+            }
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            onKeyDown={(event) => {
+              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                event.preventDefault();
+                void send();
+              }
+            }}
+          />
+        </Field>
+        <div className={styles.row}>
+          {hasNodes ? (
+            <Field className="flex-row items-center gap-2">
+              <Checkbox
+                id="ai-edit"
+                checked={editing}
+                onCheckedChange={(checked) => setEdit(checked === true)}
+              />
+              <FieldLabel htmlFor="ai-edit" className="text-caption">
+                Edit the current flow
+              </FieldLabel>
+            </Field>
+          ) : (
+            <span className={styles.hint}>New flow</span>
+          )}
+          <span className="ml-auto flex items-center gap-1">
+            {turns.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  clear();
+                  setPrompt("");
+                }}
+              >
+                <RiRestartLine aria-hidden="true" />
+                Start over
+              </Button>
+            )}
+            <Button type="submit" size="sm" loading={pending} disabled={!prompt.trim()}>
+              <RiSendPlaneLine aria-hidden="true" />
+              Send
+            </Button>
+          </span>
         </div>
-      )}
+      </form>
     </div>
   );
 }

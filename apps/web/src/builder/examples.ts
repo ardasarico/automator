@@ -230,6 +230,98 @@ const fixtures: Record<FlowExample["id"], () => Fixture> = {
     ],
   }),
 
+  "support-triage": () => ({
+    nodes: [
+      node("open", "trigger.miniapp-open", 0, 0, "Mini-app opened"),
+      node("message", "screen.form", 1, 0, "Describe the issue", {
+        title: "How can we help?",
+        description: "Tell us what happened and we will route it to the right people.",
+        fields: [
+          {
+            id: "message",
+            label: "Your message",
+            type: "textarea",
+            placeholder: "What happened?",
+            required: true,
+            sample: "The payout button does nothing when I tap it on Base Sepolia.",
+          },
+          {
+            id: "email",
+            label: "Email",
+            type: "email",
+            placeholder: "you@example.com",
+            required: false,
+            sample: "",
+          },
+        ],
+        submit: "Send",
+      }),
+      node("remember", "logic.set-variable", 2, 0, "Remember the message", {
+        name: "message",
+        value: "{{input.value.message}}",
+      }),
+      node("classify", "ai.classify", 3, 0, "Sort the message", {
+        text: "{{vars.message}}",
+        labels: ["bug", "question", "feedback"],
+        instructions:
+          "You triage support messages for a small product team. A bug reports something broken, a question asks how something works, feedback is everything else.",
+      }),
+      node("is-bug", "logic.condition", 4, 0, "Is a bug?", {
+        left: "{{input.value}}",
+        operator: "equals",
+        right: "bug",
+      }),
+      node("bug", "notify.discord", 5, 0, "Report the bug", {
+        webhookUrl: "",
+        content: "Bug report: {{vars.message}}",
+        username: "Automator triage",
+      }),
+      node("bug-done", "screen.page", 6, 0, "Bug filed", {
+        title: "Thanks, we are on it",
+        body: "Your report went straight to the engineers.",
+        button: "Done",
+      }),
+      node("is-question", "logic.condition", 5, 1, "Is a question?", {
+        left: "{{input.value}}",
+        operator: "equals",
+        right: "question",
+      }),
+      node("question", "notify.discord", 6, 1, "Ask the team", {
+        webhookUrl: "",
+        content: "Question from a visitor: {{vars.message}}",
+        username: "Automator triage",
+      }),
+      node("question-done", "screen.page", 7, 1, "Answer on the way", {
+        title: "Good question",
+        body: "Someone from the team will get back to you.",
+        button: "Done",
+      }),
+      node("feedback", "notify.discord", 6, 2, "Share the feedback", {
+        webhookUrl: "",
+        content: "Feedback: {{vars.message}}",
+        username: "Automator triage",
+      }),
+      node("feedback-done", "screen.page", 7, 2, "Feedback noted", {
+        title: "Thanks for the feedback",
+        body: "It is in front of the team already.",
+        button: "Done",
+      }),
+    ],
+    edges: [
+      edge("open", "visitor", "message", "data"),
+      edge("message", "submitted", "remember", "value"),
+      edge("remember", "value", "classify", "text"),
+      edge("classify", "label", "is-bug", "value"),
+      edge("is-bug", "true", "bug", "message"),
+      edge("bug", "sent", "bug-done", "data"),
+      edge("is-bug", "false", "is-question", "value"),
+      edge("is-question", "true", "question", "message"),
+      edge("question", "sent", "question-done", "data"),
+      edge("is-question", "false", "feedback", "message"),
+      edge("feedback", "sent", "feedback-done", "data"),
+    ],
+  }),
+
   "usdc-balance-alert": () => ({
     nodes: [
       node("start", "trigger.manual", 0, 0, "Run"),

@@ -4,6 +4,7 @@ import "@xyflow/react/dist/style.css";
 
 import type { FlowDocument, FlowRun } from "@automator/contracts";
 import { ReactFlowProvider } from "@xyflow/react";
+import { AiStoreProvider } from "./ai-store-provider";
 import { CanvasHeader } from "./canvas-header";
 import { FlowActivationProvider } from "./flow-activation";
 import { FlowCanvas } from "./flow-canvas";
@@ -34,16 +35,18 @@ export function FlowBuilder({
         <RunStoreProvider initialRun={initialRun}>
           <SaveFlowProvider>
             <LeaveGuardProvider>
-              <ReactFlowProvider>
-                <div className="flex min-h-0 flex-1">
-                  <LeftPanel />
-                  <div className="flex min-w-0 flex-1 flex-col">
-                    <CanvasHeader />
-                    <FlowCanvas />
+              <AiStoreProvider>
+                <ReactFlowProvider>
+                  <div className="flex min-h-0 flex-1">
+                    <LeftPanel />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <CanvasHeader />
+                      <FlowCanvas />
+                    </div>
+                    <RightPanels />
                   </div>
-                  <RightPanels />
-                </div>
-              </ReactFlowProvider>
+                </ReactFlowProvider>
+              </AiStoreProvider>
             </LeaveGuardProvider>
           </SaveFlowProvider>
         </RunStoreProvider>

@@ -7,6 +7,7 @@ import { RiContractRightLine, RiRobot2Line, RiSmartphoneLine } from "@remixicon/
 import type { RemixiconComponentType } from "@remixicon/react";
 import { useState } from "react";
 import { AiPanel } from "./ai-panel";
+import { useAiStore } from "./ai-store-provider";
 import styles from "./flow-builder.module.css";
 import { ScreenPreview } from "./screen-preview";
 
@@ -25,10 +26,18 @@ function isPanelId(value: unknown): value is PanelId {
  * The right side of the builder: one panel open at a time. Open, the title row holds a
  * minimize control and the tabs that switch between panels; the AI body designs or edits
  * the flow from a prompt, the preview plays the flow as a mini-app. Minimized, only
- * a rail with one toggle per panel remains. The choice is not persisted.
+ * a rail with one toggle per panel remains. The choice is not persisted. An explanation asked
+ * from the run panel brings the AI tab in front.
  */
 export function RightPanels() {
   const [active, setActive] = useState<PanelId | null>("ai");
+  const focusRequests = useAiStore((state) => state.focusRequests);
+  // Each new focus request opens the AI tab once; the user may switch away afterwards.
+  const [seenFocusRequests, setSeenFocusRequests] = useState(focusRequests);
+  if (focusRequests !== seenFocusRequests) {
+    setSeenFocusRequests(focusRequests);
+    setActive("ai");
+  }
 
   if (active === null) {
     return (

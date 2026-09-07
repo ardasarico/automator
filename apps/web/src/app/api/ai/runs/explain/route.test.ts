@@ -1,12 +1,14 @@
 /// <reference types="bun" />
 import { afterAll, beforeAll, beforeEach, expect, mock, test } from "bun:test";
-import type { GenerateFlowResponse } from "@automator/contracts";
+import type { ExplainRunRequest, ExplainRunResponse } from "@automator/contracts";
 
 mock.module("server-only", () => ({}));
 
-const generated: GenerateFlowResponse & { kind: "flow" } = {
-  kind: "flow",
-  summary: "A manual run posts to Discord.",
+const explained: ExplainRunResponse = {
+  kind: "message",
+  text: "The Discord node has no webhook URL. Set one in its settings.",
+};
+const body: ExplainRunRequest = {
   document: {
     version: 1,
     name: "Ping",
@@ -16,8 +18,14 @@ const generated: GenerateFlowResponse & { kind: "flow" } = {
     ],
     edges: [],
   },
+  run: {
+    status: "failed",
+    trigger: { nodeId: "n1", payload: {} },
+    nodes: [{ nodeId: "n1", status: "failed", error: "boom" }],
+  },
+  nodeId: "n1",
 };
-let answer: () => Promise<Response> = async () => Response.json(generated, { status: 200 });
+let answer: () => Promise<Response> = async () => Response.json(explained, { status: 200 });
 const calls: Array<{ url: string; authorization: string | null; body: unknown }> = [];
 
 const { POST } = await import("./route");
@@ -46,7 +54,7 @@ afterAll(() => {
 });
 beforeEach(() => {
   calls.length = 0;
-  answer = async () => Response.json(generated, { status: 200 });
+  answer = async () => Response.json(explained, { status: 200 });
 });
 
 const signedIn = {
@@ -54,27 +62,27 @@ const signedIn = {
   authorization: "Bearer privy-token",
   "content-type": "application/json",
 };
-function post(body: string, headers: Record<string, string> = signedIn) {
+function post(payload: string, headers: Record<string, string> = signedIn) {
   return POST(
-    new Request("https://app.automator.dev/api/ai/flows", { method: "POST", headers, body }),
+    new Request("https://app.automator.dev/api/ai/runs/explain", {
+      method: "POST",
+      headers,
+      body: payload,
+    }),
   );
 }
 
-test("a prompt is forwarded with the bearer token and the answer relayed", async () => {
-  const response = await post(JSON.stringify({ prompt: "post to discord" }));
+test("the run is forwarded with the bearer token and the answer relayed", async () => {
+  const response = await post(JSON.stringify(body));
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual(generated);
+  expect(await response.json()).toEqual(explained);
   expect(calls).toEqual([
-    {
-      url: "http://api.internal:3001/ai/flows",
-      authorization: "Bearer privy-token",
-      body: { prompt: "post to discord" },
-    },
+    { url: "http://api.internal:3001/ai/runs/explain", authorization: "Bearer privy-token", body },
   ]);
 });
 
-test("a body without a prompt never reaches the API", async () => {
-  expect((await post(JSON.stringify({ document: generated.document }))).status).toBe(400);
+test("a body without the run never reaches the API", async () => {
+  expect((await post(JSON.stringify({ document: body.document }))).status).toBe(400);
   expect(calls).toHaveLength(0);
 });
 
@@ -82,13 +90,13 @@ test.each([
   ["a foreign origin", { ...signedIn, origin: "https://evil.example" }, 403],
   ["no token", { origin: signedIn.origin, "content-type": "application/json" }, 401],
 ])("%s is refused before the API is called", async (_name, headers, status) => {
-  expect((await post(JSON.stringify({ prompt: "x" }), headers)).status).toBe(status);
+  expect((await post(JSON.stringify(body), headers)).status).toBe(status);
   expect(calls).toHaveLength(0);
 });
 
 test("API errors are relayed by code", async () => {
-  answer = async () => Response.json({ error: "unavailable" }, { status: 503 });
-  const response = await post(JSON.stringify({ prompt: "x" }));
-  expect(response.status).toBe(503);
-  expect(await response.json()).toEqual({ error: "unavailable" });
+  answer = async () => Response.json({ error: "invalid_flow" }, { status: 422 });
+  const response = await post(JSON.stringify(body));
+  expect(response.status).toBe(422);
+  expect(await response.json()).toEqual({ error: "invalid_flow" });
 });

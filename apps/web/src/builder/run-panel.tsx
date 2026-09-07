@@ -12,6 +12,7 @@ import {
   RiArrowUpSLine,
   RiCloseLine,
   RiExternalLinkLine,
+  RiSparklingLine,
 } from "@remixicon/react";
 import { useState } from "react";
 import { getCatalogEntry } from "./catalog";
@@ -27,6 +28,7 @@ import {
   transactionHashes,
 } from "./run-selectors";
 import { useRunStore } from "./run-store-provider";
+import { useExplainRun } from "./use-explain-run";
 import { useSelectNode } from "./use-select-node";
 import { useBuilderStore } from "./store-provider";
 import { noFundsMessage } from "./wallet-funds";
@@ -65,6 +67,17 @@ function ExplorerLinks({ output, chainId }: { output: unknown; chainId: number }
   );
 }
 
+/** "Explain with AI" for a failed run: asks the API and continues in the AI tab. */
+function ExplainButton({ nodeId }: { nodeId?: string }) {
+  const { explain, pending } = useExplainRun();
+  return (
+    <Button variant="ghost" size="sm" loading={pending} onClick={() => void explain(nodeId)}>
+      <RiSparklingLine aria-hidden="true" />
+      Explain with AI
+    </Button>
+  );
+}
+
 function Outputs({ result, chainId }: { result: FlowRunNodeResult; chainId: number }) {
   const outputs = result.outputs ?? {};
   const handles = outputHandles(result);
@@ -78,11 +91,10 @@ function Outputs({ result, chainId }: { result: FlowRunNodeResult; chainId: numb
         {isInsufficientFundsError(result.error) && (
           <p className="mt-2 text-caption text-warning-foreground">{noFundsMessage(chainId)}</p>
         )}
-        {result.error.includes("Server signing is not enabled") && (
-          <div className="mt-2">
-            <EnableSigningButton />
-          </div>
-        )}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {result.error.includes("Server signing is not enabled") && <EnableSigningButton />}
+          <ExplainButton nodeId={result.nodeId} />
+        </div>
       </>
     );
   if (result.status === "skipped")
@@ -119,7 +131,8 @@ function Outputs({ result, chainId }: { result: FlowRunNodeResult; chainId: numb
  * The last run, docked at the bottom of the canvas: its outcome and any run-wide error in the
  * title row, then every node in execution order with its status and elapsed time. Choosing a
  * row selects the node on the canvas and shows its outputs or error; the panel opens on the
- * failed node when there is one.
+ * failed node when there is one. A failed run offers "Explain with AI" in the title row and
+ * under the failed node's error; the answer lands in the AI tab.
  */
 export function RunPanel() {
   const status = useRunStore((state) => state.status);
@@ -168,6 +181,7 @@ export function RunPanel() {
           </span>
         )}
         <span className="ml-auto flex items-center gap-1">
+          {run?.status === "failed" && <ExplainButton nodeId={failed?.nodeId} />}
           <Button
             variant="ghost"
             size="icon-sm"

@@ -3,20 +3,72 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
+}
+
+.thread {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
   gap: 12px;
   padding: 12px;
   overflow-y: auto;
 }
 
+.empty {
+  margin: auto 0;
+  padding: 0 8px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.userTurn {
+  align-self: flex-end;
+  max-width: 88%;
+  padding: 6px 10px;
+  border-radius: var(--radius-lg);
+  background: var(--accent);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistantTurn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assistantTurn[data-error] .summary {
+  color: var(--destructive-text);
+}
+
+.thinking {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.composer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
 .prompt {
-  min-height: 96px;
+  min-height: 72px;
   resize: vertical;
 }
 
 .row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
 }
 
@@ -39,6 +91,14 @@
 .summary {
   font-size: 13px;
   line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.proposalState {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .changes {

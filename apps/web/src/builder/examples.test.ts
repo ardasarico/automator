@@ -7,8 +7,17 @@ import { exampleToFlowDocument, findFlowExample } from "./examples";
 
 const slugs = flowExamples.map((example) => example.id);
 
-/** The AI example runs against a scripted model and the USDC examples against a stub chain. */
-const model: LanguageModel = async () => ({ content: "Two sentences.", toolCalls: [] });
+/**
+ * The AI examples run against a scripted model (a label for Classify's JSON-schema request,
+ * prose otherwise) and the USDC examples against a stub chain.
+ */
+const model: LanguageModel = async (request) => ({
+  content:
+    request.responseFormat?.type === "json_schema"
+      ? JSON.stringify({ label: "bug" })
+      : "Two sentences.",
+  toolCalls: [],
+});
 /** What a trigger receives in the simulation; the payout webhook needs a recipient. */
 const payloads: Record<string, unknown> = {
   "usdc-payout": { to: "0x2222222222222222222222222222222222222222", amount: "1.5" },
@@ -88,6 +97,28 @@ describe("exampleToFlowDocument", () => {
       "succeeded",
       "failed",
     ]);
+  });
+
+  test("the support triage takes the branch the model's label picks", async () => {
+    const triage = exampleToFlowDocument(findFlowExample("support-triage")!, "flow");
+    const run = await runFlow(triage, { trigger: { payload: {} }, screens: "auto", model });
+    const statusOf = (label: string) =>
+      run.nodes.find((result) => {
+        const node = triage.nodes.find((item) => item.id === result.nodeId);
+        return node?.label === label;
+      })?.status;
+    expect(run.variables).toEqual({
+      message: "The payout button does nothing when I tap it on Base Sepolia.",
+    });
+    expect(statusOf("Sort the message")).toBe("succeeded");
+    expect(statusOf("Is a bug?")).toBe("succeeded");
+    expect(statusOf("Report the bug")).toBe("failed");
+    expect(statusOf("Is a question?")).toBe("skipped");
+    expect(statusOf("Share the feedback")).toBe("skipped");
+    const bug = triage.nodes.find((node) => node.label === "Report the bug")!;
+    expect(run.nodes.find((result) => result.nodeId === bug.id)?.error).toBe(
+      "Discord message needs a Discord webhook URL",
+    );
   });
 
   test("findFlowExample returns undefined for unknown or missing slugs", () => {
