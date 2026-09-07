@@ -5,7 +5,7 @@ import type {
   WorldVerification,
 } from "@automator/contracts";
 import { signRequest } from "@worldcoin/idkit-server";
-import { keccak256, stringToBytes } from "viem";
+import { hexToBytes, keccak256, stringToBytes, type Hex } from "viem";
 
 /** Where World ID proofs are checked, per relying party; the same host serves every environment. */
 const verifyEndpoint = "https://developer.world.org/api/v4/verify";
@@ -42,12 +42,17 @@ export class WorldVerifyError extends Error {
   }
 }
 
+/** IDKit reads a `0x` signal with an even number of hex digits as bytes, not as text. */
+const hexSignal = /^0x(?:[0-9a-fA-F]{2})+$/;
+
 /**
  * The field a signal becomes inside the proof, as IDKit's `hashSignal`: keccak256 of the
- * UTF-8 bytes, shifted right by one byte so it fits the proving field, as 32 hex bytes.
+ * signal's bytes (hex-decoded when it is a `0x` hex string such as an address, else UTF-8),
+ * shifted right by one byte so it fits the proving field, as 32 hex bytes.
  */
 export function hashSignal(signal: string): `0x${string}` {
-  const hash = BigInt(keccak256(stringToBytes(signal))) >> BigInt(8);
+  const bytes = hexSignal.test(signal) ? hexToBytes(signal as Hex) : stringToBytes(signal);
+  const hash = BigInt(keccak256(bytes)) >> BigInt(8);
   return `0x${hash.toString(16).padStart(64, "0")}`;
 }
 

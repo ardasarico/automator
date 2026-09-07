@@ -49,6 +49,19 @@ describe("hashSignal", () => {
     expect(hashSignal("hello")).toMatch(/^0x[0-9a-f]{64}$/);
     expect(hashSignal("hello")).not.toBe(hashSignal("hello!"));
   });
+
+  test("hashes a 0x hex signal such as an address as bytes, like IDKit", () => {
+    // Vectors from @worldcoin/idkit-core's hashSignal, which the World App uses for signal_hash.
+    expect(hashSignal("0x0000000000000000000000000000000000000001")).toBe(
+      "0x001468288056310c82aa4c01a7e12a10f8111a0560e72b700555479031b86c35",
+    );
+    expect(hashSignal("0xabc")).toBe(
+      "0x00851bb152e67e6c958ab7da1431fcaed09ce0efc598885f69a750b3b4b81fc1",
+    );
+    expect(hashSignal("hello")).toBe(
+      "0x001c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36dea",
+    );
+  });
 });
 
 describe("readWorldConfig", () => {
