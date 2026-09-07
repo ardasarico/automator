@@ -7,10 +7,12 @@ import {
   parseNodeConfig,
   screenConfigSchemas,
   Value,
+  type AiHistoryTurn,
   type FlowDocumentInput,
   type FlowEdge,
   type FlowNode,
   type FlowNodeType,
+  type GenerateFlowResponse,
   type TObject,
 } from "@automator/contracts";
 import {
@@ -84,7 +86,7 @@ export function describeNodeTypes(): string {
     .join("\n");
 }
 
-const systemPrompt =
+export const systemPrompt =
   () => `You design automation flows for Automator, a visual canvas for onchain workflows.
 A flow is a directed acyclic graph. It starts at a trigger node (a type whose inputs list is empty); every other node must have at least one incoming edge. Edges connect a source node's output handle to a target node's input handle, and each input handle takes at most one edge. Screens are pages the visitor sees in a mini-app; a run pauses there until the visitor acts.
 Config strings may reference upstream values with templates: {{input.<input handle>}} is the value delivered to that handle, {{vars.<name>}} a variable set earlier, {{trigger.<path>}} the trigger payload. The handle in {{input.<input handle>}} is always the receiving node's OWN input handle, never the upstream node's output handle: a notify.discord node reads what arrived on its "message" input as {{input.message}} (not {{input.result}} or {{input.text}}), a logic.condition reads {{input.value}}. A trigger hands its whole payload (an object, e.g. a webhook body) to its output handle, so a field of it is addressed as {{input.<input handle>.<field>}} on the next node, or {{trigger.<field>}} anywhere.
@@ -92,11 +94,15 @@ Config strings may reference upstream values with templates: {{input.<input hand
 Node types you may use, with their handles and config fields:
 ${describeNodeTypes()}
 
-Answer with one JSON object and nothing else:
-{"name": string, "description": string, "summary": string, "nodes": [{"id": string, "type": string, "label": string, "config": object}], "edges": [{"source": string, "sourceHandle": string, "target": string, "targetHandle": string}]}
-Use short unique ids such as "n1", "n2". Labels are short and human. Only set config fields listed above; leave secrets such as webhook URLs empty for the user to fill in. "summary" is one or two sentences for the user about what the flow does or what you changed.`;
+Earlier turns of the conversation may come before the request; assistant turns there are the summaries the user saw, and the flow JSON in the request is always the current state of the canvas.
 
-function withoutPositions(document: FlowDocumentInput) {
+Answer with one JSON object and nothing else. To propose a flow:
+{"name": string, "description": string, "summary": string, "nodes": [{"id": string, "type": string, "label": string, "config": object}], "edges": [{"source": string, "sourceHandle": string, "target": string, "targetHandle": string}]}
+Use short unique ids such as "n1", "n2". Labels are short and human. Only set config fields listed above; leave secrets such as webhook URLs empty for the user to fill in. "summary" is one or two sentences for the user about what the flow does or what you changed.
+When the request is a question, asks for an explanation, or needs one clarification before you can build anything, answer {"message": string} instead, in plain prose; never propose a flow for a message that does not ask to build or change one. The user decides what lands on the canvas.`;
+
+/** The document as the model sees it: no positions or edge ids, which it neither reads nor sets. */
+export function withoutPositions(document: FlowDocumentInput) {
   return {
     name: document.name,
     description: document.description,
@@ -154,10 +160,23 @@ function readDraft(answer: unknown): Draft {
         ? answer.name.trim().slice(0, 120)
         : "Untitled flow",
     description: typeof answer.description === "string" ? answer.description.slice(0, 1000) : "",
-    summary: typeof answer.summary === "string" ? answer.summary : "",
+    summary:
+      typeof answer.summary === "string"
+        ? answer.summary
+        : typeof answer.message === "string"
+          ? answer.message
+          : "",
     nodes,
     edges,
   };
+}
+
+/** A `{"message": ...}` answer: the model chose prose over a flow. */
+function readMessage(answer: unknown): string | undefined {
+  if (!isRecord(answer) || "nodes" in answer || "edges" in answer) return undefined;
+  return typeof answer.message === "string" && answer.message.trim()
+    ? answer.message.trim()
+    : undefined;
 }
 
 const columnGap = 300;
@@ -273,31 +292,26 @@ export function materialize(draft: Draft): FlowDocumentInput {
   return document;
 }
 
-export interface GeneratedFlow {
-  document: FlowDocumentInput;
-  summary: string;
+/** Prior turns the model actually sees: the most recent ones, each cut to a readable length. */
+const modelHistoryLimit = 12;
+const modelHistoryTurnLength = 1500;
+
+export function historyMessages(history: readonly AiHistoryTurn[] = []): ChatMessage[] {
+  return history
+    .slice(-modelHistoryLimit)
+    .filter((turn) => turn.text.trim() !== "")
+    .map((turn) => ({ role: turn.role, content: turn.text.slice(0, modelHistoryTurnLength) }));
 }
 
 /**
- * Asks the model for a new flow, or for a changed version of `current`, and validates the
- * answer. An invalid first answer is sent back once with the problem; a second invalid
- * answer throws `FlowGenerationError`. Model failures throw `LanguageModelError`.
+ * Sends the conversation and validates the answer: a flow is materialized, a message is
+ * passed through. An invalid first answer is sent back once with the problem; a second
+ * invalid answer throws `FlowGenerationError`. Model failures throw `LanguageModelError`.
  */
-export async function generateFlow(
+export async function askForFlow(
   model: LanguageModel,
-  prompt: string,
-  current?: FlowDocumentInput,
-): Promise<GeneratedFlow> {
-  const messages: ChatMessage[] = [{ role: "system", content: systemPrompt() }];
-  if (current) {
-    messages.push({
-      role: "user",
-      content: `Here is the current flow as JSON:\n${JSON.stringify(withoutPositions(current))}\n\nChange it as follows, keeping everything else (ids included) unless the change requires otherwise: ${prompt}`,
-    });
-  } else {
-    messages.push({ role: "user", content: `Design a flow for this request: ${prompt}` });
-  }
-
+  messages: ChatMessage[],
+): Promise<GenerateFlowResponse> {
   let lastProblem: string | undefined;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const answer = await model({
@@ -306,8 +320,11 @@ export async function generateFlow(
       temperature: 0.2,
     });
     try {
-      const draft = readDraft(parseJsonAnswer(answer.content));
-      return { document: materialize(draft), summary: draft.summary };
+      const parsed = parseJsonAnswer(answer.content);
+      const message = readMessage(parsed);
+      if (message !== undefined) return { kind: "message", text: message };
+      const draft = readDraft(parsed);
+      return { kind: "flow", document: materialize(draft), summary: draft.summary };
     } catch (error) {
       if (!(error instanceof FlowGenerationError) && !(error instanceof LanguageModelError))
         throw error;
@@ -320,4 +337,30 @@ export async function generateFlow(
     }
   }
   throw new FlowGenerationError(lastProblem ?? "The model did not produce a valid flow");
+}
+
+/**
+ * Asks the model for a new flow, or for a changed version of `current`, after the earlier
+ * turns in `history`. The model may answer with a message instead when the prompt asks a
+ * question rather than for a change.
+ */
+export async function generateFlow(
+  model: LanguageModel,
+  prompt: string,
+  current?: FlowDocumentInput,
+  history?: readonly AiHistoryTurn[],
+): Promise<GenerateFlowResponse> {
+  const messages: ChatMessage[] = [
+    { role: "system", content: systemPrompt() },
+    ...historyMessages(history),
+  ];
+  if (current) {
+    messages.push({
+      role: "user",
+      content: `Here is the current flow as JSON:\n${JSON.stringify(withoutPositions(current))}\n\nChange it as follows, keeping everything else (ids included) unless the change requires otherwise: ${prompt}`,
+    });
+  } else {
+    messages.push({ role: "user", content: `Design a flow for this request: ${prompt}` });
+  }
+  return askForFlow(model, messages);
 }
