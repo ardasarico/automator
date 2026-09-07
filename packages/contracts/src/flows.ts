@@ -17,15 +17,50 @@ export type FlowSummary = Static<typeof flowSummarySchema>;
  * Ids are namespaced by category: `trigger`, `integration`, `ai`, `screen`.
  */
 export const flowNodeTypes = [
+  // Generic triggers
   "trigger.schedule",
   "trigger.onchain-event",
   "trigger.webhook",
   "trigger.miniapp-open",
-  "integration.world-selfie-check",
-  "integration.privy-wallet",
-  "integration.usdc-payment",
+  "trigger.manual",
+  // Logic
+  "logic.condition",
+  "logic.switch",
+  "logic.wait",
+  "logic.for-each",
+  "logic.merge",
+  "logic.filter",
+  "logic.set-variable",
+  "logic.run-code",
+  // Onchain
+  "onchain.read-contract",
+  "onchain.write-contract",
+  "onchain.transfer-token",
+  "onchain.sign-message",
+  // AI
   "ai.agent",
+  "ai.classify",
+  "ai.extract",
+  "ai.generate-text",
+  // Screens
   "screen.page",
+  "screen.form",
+  "screen.confirmation",
+  "screen.qr-code",
+  // Notifications
+  "notify.telegram",
+  "notify.email",
+  "notify.discord",
+  // Integrations, prefixed by provider
+  "world.selfie-check",
+  "world.id-verify",
+  "world.verification-completed",
+  "privy.wallet",
+  "privy.login",
+  "privy.sign-transaction",
+  "usdc.payment",
+  "usdc.payout",
+  "usdc.balance",
 ] as const;
 export type FlowNodeType = (typeof flowNodeTypes)[number];
 

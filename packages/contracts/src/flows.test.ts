@@ -17,7 +17,7 @@ const document: FlowDocument = {
     },
     {
       id: "n2",
-      type: "integration.privy-wallet",
+      type: "privy.wallet",
       position: { x: 300, y: 0 },
       label: "Collect payment",
       config: { note: "dummy" },
@@ -39,15 +39,15 @@ describe("flow document schema", () => {
     expect(Value.Check(flowDocumentSchema, withHandles)).toBe(true);
   });
 
-  test("lists nine node types with no duplicates", () => {
-    expect(flowNodeTypes).toHaveLength(9);
+  test("lists 37 node types with no duplicates", () => {
+    expect(flowNodeTypes).toHaveLength(37);
     expect(new Set(flowNodeTypes).size).toBe(flowNodeTypes.length);
   });
 
   test.each([
     [
       "unknown node type",
-      { ...document, nodes: [{ ...document.nodes[0], type: "logic.condition" }] },
+      { ...document, nodes: [{ ...document.nodes[0], type: "logic.nonexistent" }] },
     ],
     ["wrong version", { ...document, version: 2 }],
     ["missing config", { ...document, nodes: [{ ...document.nodes[0], config: undefined }] }],
