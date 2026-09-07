@@ -42,6 +42,11 @@ those ratios. No gradient or white thumb override is applied.
 UI icons, including Coss indicators and the loading spinner, use Remix Icons
 from `@remixicon/react` instead of the registry's icon sources.
 
+Alert Dialog was copied from the registry on 2026-09-07 for the builder's
+unsaved-changes prompt. Like Dialog, its backdrop and viewport use the
+`--z-overlay` token and the `--overlay` colour instead of the registry's
+`z-50` and `bg-black/32`, and the popup gets `outline-none`.
+
 Automator's palette is mapped through the semantic CSS variables in
 `packages/tailwind-config/colors.css`. Neutral border/input/secondary tokens use
 Coss's opacity levels with our palette, except dark secondary uses 8% instead of

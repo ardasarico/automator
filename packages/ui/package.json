@@ -22,6 +22,7 @@
     "./tooltip": "./src/tooltip.tsx",
     "./switch": "./src/switch.tsx",
     "./dialog": "./src/dialog.tsx",
+    "./alert-dialog": "./src/alert-dialog.tsx",
     "./menu": "./src/menu.tsx",
     "./badge": "./src/badge.tsx",
     "./separator": "./src/separator.tsx",
