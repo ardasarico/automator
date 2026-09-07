@@ -37,6 +37,7 @@ const messages: Record<string, string> = {
   unauthorized: "Sign in again to manage secrets.",
   invalid_request: "Use lowercase letters, digits and underscores, and a non-empty value.",
   unavailable: "Secrets are unavailable right now. Try again shortly.",
+  rate_limited: "Too many requests. Try again in a moment.",
 };
 
 async function call(token: string | null, path: string, init: RequestInit = {}) {

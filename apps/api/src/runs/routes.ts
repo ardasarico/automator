@@ -19,10 +19,14 @@ import { createAuthGuard } from "../auth/guard";
 import { createQuickJsSandbox } from "../sandbox/quickjs";
 import type { IdentityProvider } from "../auth/privy";
 import type { ChainFactory } from "../chain/provider";
+import { createRateLimiter, defaultRateLimits } from "../rate-limit";
 import { executeStoredRun } from "./execute";
 
 export interface RunDependencies {
   identity: IdentityProvider | undefined;
+  /** Runs a user may start per minute before 429; thirty by default. */
+  callsPerMinute?: number;
+  now?: () => number;
   /** Engine overrides, used by tests to replace network and timers. */
   engine?: Pick<RunOptions, "fetch" | "sleep" | "executors" | "model">;
   /** The caller's `{{secrets.*}}`, decrypted per run; absent when secrets are not configured. */
@@ -49,7 +53,11 @@ export function createRunRoutes({
   secretsFor,
   chainFactory,
   sandbox = createQuickJsSandbox(),
+  callsPerMinute = defaultRateLimits.runs,
+  now = Date.now,
 }: RunDependencies) {
+  // Both run routes share one per-user window; the read routes are not limited.
+  const limiter = createRateLimiter(callsPerMinute, now);
   const app = new Elysia({ name: "runs" }).use(createAuthGuard(identity)).post(
     runFlowContract.path,
     async ({ claims, body, status, request }) => {
@@ -70,7 +78,15 @@ export function createRunRoutes({
         ...(chain ? { chain } : {}),
       });
     },
-    { body: Type.Unknown(), response: runFlowContract.response },
+    {
+      beforeHandle: ({ claims, set, status }) => {
+        if (limiter.allow(claims.id)) return;
+        set.headers["Retry-After"] = String(limiter.retryAfter(claims.id));
+        return status(429, { error: "rate_limited" });
+      },
+      body: Type.Unknown(),
+      response: runFlowContract.response,
+    },
   );
   if (!flows || !runs) return app;
   const stores = { flows, runs };
@@ -102,6 +118,11 @@ export function createRunRoutes({
         return status(201, stored);
       },
       {
+        beforeHandle: ({ claims, set, status }) => {
+          if (limiter.allow(claims.id)) return;
+          set.headers["Retry-After"] = String(limiter.retryAfter(claims.id));
+          return status(429, { error: "rate_limited" });
+        },
         params: runSavedFlowContract.params,
         body: Type.Unknown(),
         response: runSavedFlowContract.response,

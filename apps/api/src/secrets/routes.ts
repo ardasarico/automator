@@ -10,17 +10,28 @@ import {
 import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
 import type { IdentityProvider } from "../auth/privy";
+import { createRateLimiter, defaultRateLimits } from "../rate-limit";
 import type { SecretsAccess } from "./resolver";
 
 export interface SecretDependencies extends SecretsAccess {
   identity: IdentityProvider | undefined;
+  /** Secret writes a user may make per minute before 429; thirty by default. */
+  callsPerMinute?: number;
+  now?: () => number;
 }
 
 /**
  * The caller's secrets: names in, names out. A value is encrypted on the way in and only
  * ever decrypted inside a run of the caller's own flow; no route returns one.
  */
-export function createSecretRoutes({ identity, secrets, crypto }: SecretDependencies) {
+export function createSecretRoutes({
+  identity,
+  secrets,
+  crypto,
+  callsPerMinute = defaultRateLimits.secrets,
+  now = Date.now,
+}: SecretDependencies) {
+  const limiter = createRateLimiter(callsPerMinute, now);
   return new Elysia({ name: "secrets" })
     .use(createAuthGuard(identity))
     .get(
@@ -38,6 +49,11 @@ export function createSecretRoutes({ identity, secrets, crypto }: SecretDependen
         return secrets.put(claims.id, params.name, crypto.encrypt(body.value));
       },
       {
+        beforeHandle: ({ claims, set, status }) => {
+          if (limiter.allow(claims.id)) return;
+          set.headers["Retry-After"] = String(limiter.retryAfter(claims.id));
+          return status(429, { error: "rate_limited" });
+        },
         params: Type.Object({ name: Type.String() }),
         body: Type.Unknown(),
         response: putSecretContract.response,

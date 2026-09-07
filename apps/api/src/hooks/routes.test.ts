@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { FlowDocument } from "@automator/contracts";
 import { Elysia } from "elysia";
 import { memoryStores } from "../runs/test-stores";
-import { createHookRoutes, createRateLimiter } from "./routes";
+import { createHookRoutes } from "./routes";
 
 const hooked: FlowDocument = {
   version: 1,
@@ -100,19 +100,10 @@ describe("POST /hooks/:flowId/:token", () => {
     expect((await call("/hooks/flow-1/token-flow-1")).status).toBe(202);
     const limited = await call("/hooks/flow-1/token-flow-1");
     expect(limited.status).toBe(429);
+    expect(limited.headers.get("Retry-After")).toBe("60");
     expect(await limited.json()).toEqual({ error: "rate_limited" });
     expect(stores.runRecords).toHaveLength(2);
     advance(61_000);
     expect((await call("/hooks/flow-1/token-flow-1")).status).toBe(202);
   });
-});
-
-test("the rate limiter keys per flow", () => {
-  let clock = 0;
-  const limiter = createRateLimiter(1, () => clock);
-  expect(limiter.allow("a")).toBe(true);
-  expect(limiter.allow("a")).toBe(false);
-  expect(limiter.allow("b")).toBe(true);
-  clock = 60_001;
-  expect(limiter.allow("a")).toBe(true);
 });

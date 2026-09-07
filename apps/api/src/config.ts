@@ -1,3 +1,4 @@
+import { defaultRateLimits, type RateLimits } from "./rate-limit";
 import { generateSecretsKey, parseSecretsKey } from "./secrets/crypto";
 
 export interface ApiConfig {
@@ -31,6 +32,8 @@ export interface ApiConfig {
    * in production, since it bypasses Privy.
    */
   e2eTestToken: string | undefined;
+  /** Calls per minute before 429, per user, client address or flow; see `rate-limit.ts`. */
+  rateLimits: RateLimits;
 }
 
 /** A free model that handles tools and JSON-schema answers; paid ones can be set per environment. */
@@ -74,6 +77,10 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     );
     secretsKey = parseSecretsKey(generateSecretsKey())!;
   }
+  const perMinute = (value: string | undefined, fallback: number) => {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+  };
   return {
     port: Number(env.PORT) || 3001,
     databaseUrl: env.DATABASE_URL,
@@ -91,5 +98,12 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     privyAuthorizationKey: env.PRIVY_AUTHORIZATION_KEY || undefined,
     e2eTestToken: env.E2E_TEST_TOKEN || undefined,
     secretsKey,
+    rateLimits: {
+      runs: perMinute(env.RATE_LIMIT_RUNS, defaultRateLimits.runs),
+      ai: perMinute(env.RATE_LIMIT_AI, defaultRateLimits.ai),
+      secrets: perMinute(env.RATE_LIMIT_SECRETS, defaultRateLimits.secrets),
+      sessions: perMinute(env.RATE_LIMIT_SESSIONS, defaultRateLimits.sessions),
+      webhooks: perMinute(env.RATE_LIMIT_WEBHOOKS, defaultRateLimits.webhooks),
+    },
   };
 }

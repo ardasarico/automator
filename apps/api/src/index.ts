@@ -53,6 +53,7 @@ const app = createApp({
   model,
   chainFactory,
   log: true,
+  rateLimits: config.rateLimits,
 }).listen({ hostname: "::", port: config.port });
 
 console.log(`API listening on ${app.server?.url}`);

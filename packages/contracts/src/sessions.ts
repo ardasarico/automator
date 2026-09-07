@@ -22,12 +22,11 @@ export const miniAppScreenSchema = Type.Object({
 });
 export type MiniAppScreen = Static<typeof miniAppScreenSchema>;
 
-/** One non-screen node the last run worked through, for the interstitial. */
+/** One non-screen node the last run worked through, for the interstitial. Never its error. */
 export const miniAppStepSchema = Type.Object({
   nodeId: Type.String({ minLength: 1 }),
   label: Type.String(),
   status: Type.Union([Type.Literal("succeeded"), Type.Literal("failed")]),
-  error: Type.Optional(Type.String()),
 });
 export type MiniAppStep = Static<typeof miniAppStepSchema>;
 
@@ -38,6 +37,18 @@ export const miniAppSessionStatusSchema = Type.Union([
 ]);
 export type MiniAppSessionStatus = Static<typeof miniAppSessionStatusSchema>;
 
+/** What kind of failure ended the session, for the runtime; the error text stays with the owner. */
+export const miniAppFailureCodeSchema = Type.Union([
+  Type.Literal("node_failed"),
+  Type.Literal("unconfigured"),
+  Type.Literal("cancelled"),
+  Type.Literal("timeout"),
+]);
+export type MiniAppFailureCode = Static<typeof miniAppFailureCodeSchema>;
+
+/** The one sentence every failed session answers with; the runtime shows it as is. */
+export const miniAppFailureMessage = "This app hit a problem and could not continue.";
+
 export const miniAppSessionSchema = Type.Object({
   sessionId: Type.String({ minLength: 1 }),
   /** Present on the answer that started the session only. */
@@ -45,8 +56,11 @@ export const miniAppSessionSchema = Type.Object({
   status: miniAppSessionStatusSchema,
   screen: Type.Optional(miniAppScreenSchema),
   steps: Type.Array(miniAppStepSchema),
-  /** Why the flow failed, in words a visitor can be shown; never node config. */
+  /** A sentence any visitor may read (`miniAppFailureMessage`); never the node's own error. */
   error: Type.Optional(Type.String()),
+  code: Type.Optional(miniAppFailureCodeSchema),
+  /** The owner's note to visitors on failure, from the mini-app trigger's config. */
+  help: Type.Optional(Type.String()),
 });
 export type MiniAppSession = Static<typeof miniAppSessionSchema>;
 

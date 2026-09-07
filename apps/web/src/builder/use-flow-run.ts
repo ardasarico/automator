@@ -12,6 +12,7 @@ const failureMessages: Record<string, string> = {
   unauthorized: "Your session expired. Reload the page and try again.",
   invalid_request: "The flow could not be run: check the node settings and try again.",
   not_found: "This flow no longer exists.",
+  rate_limited: "Too many requests. Try again in a moment.",
 };
 
 /**

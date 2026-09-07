@@ -56,10 +56,12 @@ export function memorySecretStore() {
   return { store, rows };
 }
 
-function fixture() {
+function fixture(callsPerMinute?: number) {
   const crypto = createSecretsCrypto(parseSecretsKey(generateSecretsKey())!);
   const { store, rows } = memorySecretStore();
-  const app = new Elysia().use(createSecretRoutes({ identity, secrets: store, crypto }));
+  const app = new Elysia().use(
+    createSecretRoutes({ identity, secrets: store, crypto, callsPerMinute }),
+  );
   const call = (method: string, path: string, body?: unknown, token = "alice") =>
     app.handle(
       new Request(`http://localhost${path}`, {
@@ -75,6 +77,18 @@ function fixture() {
 }
 
 describe("secret routes", () => {
+  test("writes beyond the per-user limit answer 429; reads and deletes are not limited", async () => {
+    const { call } = fixture(1);
+    expect((await call("PUT", "/secrets/a", { value: "1" })).status).toBe(200);
+    const limited = await call("PUT", "/secrets/b", { value: "2" });
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("Retry-After")).toMatch(/^\d+$/);
+    expect(await limited.json()).toEqual({ error: "rate_limited" });
+    expect((await call("PUT", "/secrets/b", { value: "2" }, "bob")).status).toBe(200);
+    expect((await call("GET", "/secrets")).status).toBe(200);
+    expect((await call("DELETE", "/secrets/a")).status).toBe(200);
+  });
+
   test("stores encrypted values and lists names only", async () => {
     const { call, rows, store, crypto } = fixture();
     const put = await call("PUT", "/secrets/discord", { value: "https://discord.com/x" });

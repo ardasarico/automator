@@ -18,6 +18,16 @@ export const scheduleTriggerConfigSchema = Type.Object({
 });
 export type ScheduleTriggerConfig = Static<typeof scheduleTriggerConfigSchema>;
 
+export const miniAppOpenConfigSchema = Type.Object({
+  /** Shown to visitors under the generic failure notice when the app cannot continue. */
+  visitorErrorMessage: Type.String({
+    default: "",
+    description:
+      "Shown to visitors when the app hits a problem, for example how to reach you. The error itself is never shown to them.",
+  }),
+});
+export type MiniAppOpenConfig = Static<typeof miniAppOpenConfigSchema>;
+
 export { conditionOperators, type ConditionOperator } from "./condition-operators";
 
 export const conditionConfigSchema = Type.Object({
@@ -97,6 +107,7 @@ export const flowNodeConfigSchemas = {
   "trigger.manual": emptyConfigSchema,
   "trigger.webhook": emptyConfigSchema,
   "trigger.schedule": scheduleTriggerConfigSchema,
+  "trigger.miniapp-open": miniAppOpenConfigSchema,
   "logic.condition": conditionConfigSchema,
   "logic.set-variable": setVariableConfigSchema,
   "logic.wait": waitConfigSchema,

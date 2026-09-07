@@ -1,7 +1,10 @@
 import {
   answerMiniAppSessionContract,
+  flowNodeConfigSchemas,
   isScreenNodeType,
   miniAppAnswerSchema,
+  miniAppFailureMessage,
+  parseNodeConfig,
   parseScreenConfig,
   screenPorts,
   startMiniAppSessionContract,
@@ -10,6 +13,7 @@ import {
   visitorAnswer,
   type FlowDocument,
   type FlowRun,
+  type MiniAppFailureCode,
   type MiniAppSession,
   type MiniAppStep,
 } from "@automator/contracts";
@@ -18,6 +22,7 @@ import { runFlow, type RunOptions, type SecretsResolver } from "@automator/flow-
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Elysia } from "elysia";
 import type { ChainFactory } from "../chain/provider";
+import { clientAddress, createRateLimiter, defaultRateLimits } from "../rate-limit";
 
 export interface SessionDependencies {
   flows: FlowStore;
@@ -28,6 +33,9 @@ export interface SessionDependencies {
   secretsFor?: (ownerId: string) => SecretsResolver;
   /** The owner's live chain access for onchain nodes; absent when chains are not configured. */
   chainFactory?: ChainFactory;
+  /** Session calls one client address may make per minute before 429; sixty by default. */
+  callsPerMinute?: number;
+  now?: () => number;
 }
 
 function hashToken(token: string): string {
@@ -41,8 +49,41 @@ function tokenMatches(row: MiniAppSessionRow, token: string): boolean {
 }
 
 /**
+ * What kind of failure the engine's error text describes. The text itself (which can name
+ * URLs, addresses, revert data or secret names) never leaves the owner's stored run.
+ */
+export function failureCode(error: string | undefined): MiniAppFailureCode {
+  if (!error) return "node_failed";
+  if (error === "The run was cancelled.") return "cancelled";
+  if (/timed out|timeout/i.test(error)) return "timeout";
+  if (
+    /is not configured|is not defined|is not enabled|has no wallet|^No .+ is configured/i.test(
+      error,
+    )
+  )
+    return "unconfigured";
+  return "node_failed";
+}
+
+/** The owner's note to visitors from the mini-app trigger, or nothing when unset or unreadable. */
+function visitorHelp(document: FlowDocument): string {
+  const entry = document.nodes.find((node) => node.type === "trigger.miniapp-open");
+  if (!entry) return "";
+  try {
+    return parseNodeConfig(
+      flowNodeConfigSchemas["trigger.miniapp-open"],
+      entry.config,
+    ).visitorErrorMessage.trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
  * What the visitor may see of a finished run: the screen to show next (its own config
- * only), the steps worked through, or why it stopped. Never the document or other config.
+ * only), the steps worked through, or that it stopped. Never the document, other config,
+ * or a node's error text: a failure answers one generic sentence, a code, and the owner's
+ * own note when they wrote one.
  */
 function toSession(sessionId: string, document: FlowDocument, run: FlowRun): MiniAppSession {
   const byId = new Map(document.nodes.map((node) => [node.id, node]));
@@ -51,12 +92,7 @@ function toSession(sessionId: string, document: FlowDocument, run: FlowRun): Min
     if (result.status !== "succeeded" && result.status !== "failed") continue;
     const node = byId.get(result.nodeId);
     if (!node || isScreenNodeType(node.type) || node.type.startsWith("trigger.")) continue;
-    steps.push({
-      nodeId: node.id,
-      label: node.label,
-      status: result.status,
-      ...(result.error === undefined ? {} : { error: result.error }),
-    });
+    steps.push({ nodeId: node.id, label: node.label, status: result.status });
   }
   if (run.status === "waiting") {
     const waiting = run.nodes.find((result) => result.status === "waiting");
@@ -77,11 +113,14 @@ function toSession(sessionId: string, document: FlowDocument, run: FlowRun): Min
   }
   if (run.status === "succeeded") return { sessionId, status: "end", steps };
   const failed = run.nodes.find((result) => result.status === "failed");
+  const help = visitorHelp(document);
   return {
     sessionId,
     status: "failed",
     steps,
-    error: failed?.error ?? run.error ?? "The flow failed",
+    error: miniAppFailureMessage,
+    code: failureCode(failed?.error ?? run.error),
+    ...(help ? { help } : {}),
   };
 }
 
@@ -98,8 +137,21 @@ export function createSessionRoutes({
   engine,
   secretsFor,
   chainFactory,
+  callsPerMinute = defaultRateLimits.sessions,
+  now = Date.now,
 }: SessionDependencies) {
+  // Visitors are anonymous, so both routes share one window per client address.
+  const limiter = createRateLimiter(callsPerMinute, now);
   return new Elysia({ name: "sessions" })
+    .onBeforeHandle(({ request, server, set, status }) => {
+      const address = clientAddress(
+        request.headers.get("x-forwarded-for"),
+        server?.requestIP(request)?.address,
+      );
+      if (limiter.allow(address)) return;
+      set.headers["Retry-After"] = String(limiter.retryAfter(address));
+      return status(429, { error: "rate_limited" });
+    })
     .post(
       startMiniAppSessionContract.path,
       async ({ params, status }) => {

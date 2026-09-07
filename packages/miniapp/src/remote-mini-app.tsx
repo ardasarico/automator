@@ -1,9 +1,14 @@
 "use client";
 
-import type { MiniAppAnswer, MiniAppScreen, MiniAppSession } from "@automator/contracts";
+import {
+  miniAppFailureMessage,
+  type MiniAppAnswer,
+  type MiniAppScreen,
+  type MiniAppSession,
+} from "@automator/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenNode } from "./engine";
-import { EndView, FailedView, ScreenView, WorkingView, type WorkingStep } from "./screens";
+import { EndView, ScreenView, VisitorFailedView, WorkingView, type WorkingStep } from "./screens";
 
 /** How the page reaches the API: the runtime's same-origin handlers implement both. */
 export interface MiniAppClient {
@@ -35,12 +40,14 @@ function toNode(screen: MiniAppScreen): ScreenNode {
 }
 
 function toSteps(session: MiniAppSession): WorkingStep[] {
-  return session.steps.map((step) => ({
-    id: step.nodeId,
-    label: step.label,
-    status: step.status,
-    ...(step.error === undefined ? {} : { error: step.error }),
-  }));
+  return session.steps.map((step) => ({ id: step.nodeId, label: step.label, status: step.status }));
+}
+
+/** What to tell the visitor when the API answered an error instead of a session. */
+function unavailableMessage(error: unknown): string {
+  return error instanceof Error && error.message === "rate_limited"
+    ? "Too many requests right now. Wait a moment and try again."
+    : "The app could not be reached. Try again.";
 }
 
 /**
@@ -62,9 +69,9 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
         setSteps(toSteps(session));
         setState({ kind: "session", session, token: session.token ?? token ?? "" });
       },
-      () => {
+      (error: unknown) => {
         if (count !== requestCount.current) return;
-        setState({ kind: "unavailable", message: "The app could not be reached. Try again." });
+        setState({ kind: "unavailable", message: unavailableMessage(error) });
       },
     );
   }, []);
@@ -104,7 +111,7 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
   let body: React.ReactNode;
   if (state.kind === "loading") body = <WorkingView steps={steps} />;
   else if (state.kind === "unavailable")
-    body = <FailedView label={undefined} error={state.message} onRestart={restart} />;
+    body = <VisitorFailedView message={state.message} onRetry={restart} />;
   else if (state.session.status === "screen" && state.session.screen)
     body = (
       <ScreenView
@@ -116,10 +123,11 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
     );
   else if (state.session.status === "failed")
     body = (
-      <FailedView
-        label={undefined}
-        error={state.session.error ?? "The flow failed"}
-        onRestart={restart}
+      <VisitorFailedView
+        message={state.session.error ?? miniAppFailureMessage}
+        help={state.session.help}
+        code={state.session.code ?? "node_failed"}
+        onRetry={restart}
       />
     );
   else body = <EndView onRestart={restart} />;
