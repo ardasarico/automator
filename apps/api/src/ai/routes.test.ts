@@ -92,6 +92,43 @@ describe("POST /ai/flows", () => {
     expect(scripted.requests[0]!.messages[1]).toEqual({ role: "user", content: "make a flow" });
   });
 
+  test("blanks the document's secret fields before the model sees them", async () => {
+    const scripted = scriptedModel([{ content: JSON.stringify(answer), toolCalls: [] }]);
+    const { post } = fixture(scripted.model);
+    const response = await post(
+      {
+        prompt: "say hello instead",
+        document: {
+          version: 1,
+          name: "Ping",
+          description: "",
+          nodes: [
+            {
+              id: "n1",
+              type: "trigger.manual",
+              position: { x: 0, y: 0 },
+              label: "Run",
+              config: {},
+            },
+            {
+              id: "n2",
+              type: "notify.discord",
+              position: { x: 300, y: 0 },
+              label: "Post",
+              config: { webhookUrl: "https://discord.com/api/webhooks/1/abc", content: "hi" },
+            },
+          ],
+          edges: [
+            { id: "e", source: "n1", sourceHandle: "run", target: "n2", targetHandle: "message" },
+          ],
+        },
+      },
+      "alice",
+    );
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(scripted.requests)).not.toContain("discord.com/api/webhooks");
+  });
+
   test("answers 422 when the model cannot produce a valid flow", async () => {
     const bad = { content: JSON.stringify({ ...answer, edges: [] }), toolCalls: [] };
     const { post } = fixture(scriptedModel([bad, bad]).model);

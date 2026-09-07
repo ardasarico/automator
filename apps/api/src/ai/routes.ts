@@ -1,4 +1,10 @@
-import { explainRunContract, generateFlowContract, Type, Value } from "@automator/contracts";
+import {
+  explainRunContract,
+  generateFlowContract,
+  redactFlowSecrets,
+  Type,
+  Value,
+} from "@automator/contracts";
 import { LanguageModelError, type LanguageModel } from "@automator/flow-engine";
 import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
@@ -56,8 +62,10 @@ export function createAiRoutes({
       async ({ body, status }) => {
         if (!Value.Check(generateFlowContract.body, body))
           return status(400, { error: "invalid_request" });
+        // The builder already blanks secret fields; doing it here too keeps them off the model.
+        const current = body.document ? redactFlowSecrets(body.document) : undefined;
         const result = await attempt("Flow generation", (model) =>
-          generateFlow(model, body.prompt, body.document, body.history),
+          generateFlow(model, body.prompt, current, body.history),
         );
         return result.status === 200 ? result.data : status(result.status, { error: result.error });
       },

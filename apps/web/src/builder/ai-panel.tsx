@@ -1,6 +1,6 @@
 "use client";
 
-import { restoreFlowSecrets, type FlowNode } from "@automator/contracts";
+import { redactFlowSecrets, restoreFlowSecrets, type FlowNode } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import { Checkbox } from "@automator/ui/checkbox";
 import { Field, FieldLabel } from "@automator/ui/field";
@@ -141,9 +141,10 @@ export function AiPanel() {
     setPrompt("");
     const { id: _id, ...document } = serializeFlow(meta, nodes, edges);
     try {
+      // The model never sees a credential: secret fields go out blank and come back on Apply.
       const result = await generateFlowRequest(await getAccessToken(), {
         prompt: text,
-        ...(editing ? { document } : {}),
+        ...(editing ? { document: redactFlowSecrets(document) } : {}),
         history: historyOf(turns),
       });
       answer(askId, result, { replaces: !editing });
@@ -153,7 +154,7 @@ export function AiPanel() {
   }
 
   function applyProposal(turn: AiTurn, proposal: AiProposal) {
-    // An explanation's fix was drawn from a document with its secrets blanked; keep the canvas's.
+    // Proposals are drawn from a document with its secrets blanked; keep the canvas's values.
     applyDocument(restoreFlowSecrets(proposal.document, serializeFlow(meta, nodes, edges)));
     apply(turn.id);
     // Nodes are new to React Flow on this render; fit once they have been measured.
