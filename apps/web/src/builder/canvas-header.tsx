@@ -7,7 +7,7 @@ import { useState } from "react";
 import styles from "./flow-builder.module.css";
 import { PublishButton } from "./publish-button";
 import { useRunStore } from "./run-store-provider";
-import { SaveButton, useSaveFlow } from "./save-button";
+import { SaveButton, useSaveFlowController } from "./save-button";
 import { useCanvasHotkeys } from "./use-canvas-hotkeys";
 import { useFlowProblems } from "./use-flow-problems";
 import { useFlowRun } from "./use-flow-run";
@@ -22,7 +22,7 @@ import { countErrors } from "./validation";
 export function CanvasHeader() {
   const { running, error, run, stop: stopSimulation } = useFlowRun();
   const runError = useRunStore((state) => state.run?.error ?? null);
-  const saving = useSaveFlow();
+  const saving = useSaveFlowController();
   const problems = useFlowProblems();
   const errors = countErrors(problems);
   const [warned, setWarned] = useState(false);
@@ -36,7 +36,7 @@ export function CanvasHeader() {
     void run();
   }
 
-  useCanvasHotkeys({ save: saving.save, run: startSimulation });
+  useCanvasHotkeys({ save: () => void saving.save(), run: startSimulation });
 
   const warning =
     warned && errors > 0

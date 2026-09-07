@@ -98,11 +98,23 @@ describe("NodeSettings", () => {
 
   test("edits a trigger's sample payload as JSON with inline feedback", async () => {
     // Like the left panel, re-read the node from the store so an edit re-renders the form.
-    let setNodeConfig: (id: string, patch: Record<string, unknown>) => void = () => {};
+    // The "type" button stands in for the textarea's onChange, which writes the text as is.
+    let typed = "";
     function Live() {
       const node = useBuilderStore((state) => state.nodes.find((n) => n.id === "t")!);
-      setNodeConfig = useBuilderStore((state) => state.setNodeConfig);
-      return <NodeSettings node={node} onBack={() => {}} />;
+      const setNodeConfig = useBuilderStore((state) => state.setNodeConfig);
+      return (
+        <>
+          <NodeSettings node={node} onBack={() => {}} />
+          <button
+            type="button"
+            data-testid="type"
+            onClick={() => setNodeConfig("t", { samplePayload: typed })}
+          >
+            Type
+          </button>
+        </>
+      );
     }
     container = window.document.createElement("div");
     window.document.body.append(container);
@@ -114,6 +126,12 @@ describe("NodeSettings", () => {
         </BuilderStoreProvider>,
       );
     });
+    const type = async (text: string) => {
+      typed = text;
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>("[data-testid=type]")!.click(),
+      );
+    };
     const textarea = container.querySelector<HTMLTextAreaElement>("textarea#t-samplePayload");
     expect(textarea).not.toBeNull();
     // The Textarea primitive styles its wrapper; the font cascades to the control.
@@ -121,12 +139,11 @@ describe("NodeSettings", () => {
     expect(container.textContent).toContain("Payload Simulate hands to this trigger");
     expect(container.textContent).not.toContain("Invalid JSON");
 
-    // What the textarea's onChange writes: the text as typed, half-written or not.
-    await act(async () => setNodeConfig("t", { samplePayload: '{"openedAt": ' }));
+    await type('{"openedAt": ');
     expect(container.textContent).toContain("Invalid JSON");
     expect(textarea!.getAttribute("aria-invalid")).toBe("true");
     expect(textarea!.value).toBe('{"openedAt": ');
-    await act(async () => setNodeConfig("t", { samplePayload: '{"openedAt": "now"}' }));
+    await type('{"openedAt": "now"}');
     expect(container.textContent).not.toContain("Invalid JSON");
     expect(textarea!.getAttribute("aria-invalid")).toBeNull();
   });
