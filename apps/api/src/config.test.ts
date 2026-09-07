@@ -151,6 +151,17 @@ describe("chain configuration", () => {
     );
   });
 
+  test("a registry CHAIN_ID without CHAIN_RPC_URL keeps that chain's own RPC", () => {
+    expect(readConfig({ ...complete, CHAIN_ID: "4801" })).toMatchObject({
+      chainId: 4801,
+      chainRpcUrl: "https://worldchain-sepolia.g.alchemy.com/public",
+      usdcAddress: undefined,
+    });
+    expect(
+      readConfig({ ...complete, CHAIN_ID: "4801", CHAIN_RPC_URL: "http://rpc" }),
+    ).toMatchObject({ chainId: 4801, chainRpcUrl: "http://rpc" });
+  });
+
   test("collects per-chain RPC overrides from CHAIN_RPC_URL_<id>", () => {
     expect(
       readConfig({

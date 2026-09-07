@@ -1,3 +1,4 @@
+import { getChain } from "@automator/contracts";
 import { defaultRateLimits, type RateLimits } from "./rate-limit";
 import { generateSecretsKey, parseSecretsKey } from "./secrets/crypto";
 import { readWorldConfig, type WorldConfig } from "./world/verify";
@@ -102,7 +103,11 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     openRouterApiKey: env.OPENROUTER_API_KEY || undefined,
     openRouterModel: env.OPENROUTER_MODEL || defaultOpenRouterModel,
     chainId: Number(env.CHAIN_ID) || defaultChainId,
-    chainRpcUrl: env.CHAIN_RPC_URL || defaultRpcUrl,
+    // Without CHAIN_RPC_URL the named chain keeps its own public RPC, never Base Sepolia's.
+    chainRpcUrl:
+      env.CHAIN_RPC_URL ||
+      getChain(Number(env.CHAIN_ID) || defaultChainId)?.rpcUrl ||
+      defaultRpcUrl,
     usdcAddress:
       env.USDC_ADDRESS || (Number(env.CHAIN_ID) || defaultChainId) === defaultChainId
         ? env.USDC_ADDRESS || defaultUsdcAddress
