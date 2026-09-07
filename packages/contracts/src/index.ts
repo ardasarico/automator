@@ -21,3 +21,4 @@ export * from "./flow-layout";
 export * from "./onchain-configs";
 export * from "./notify-configs";
 export * from "./loop-configs";
+export * from "./account";

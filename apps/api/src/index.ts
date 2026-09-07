@@ -49,6 +49,7 @@ const app = createApp({
   secrets: database.secrets,
   secretsCrypto,
   sessions: database.sessions,
+  account: database.account,
   identity,
   model,
   chainFactory,

@@ -7,6 +7,7 @@ import {
   type LivenessResponse,
 } from "@automator/contracts";
 import type {
+  AccountStore,
   createDatabase,
   FlowStore,
   ListingStore,
@@ -19,6 +20,7 @@ import type { LanguageModel } from "@automator/flow-engine";
 import { Elysia } from "elysia";
 import type { IdentityProvider } from "./auth/privy";
 import type { ChainFactory } from "./chain/provider";
+import { createAccountRoutes } from "./account/routes";
 import { createAiRoutes } from "./ai/routes";
 import { createAuthRoutes } from "./auth/routes";
 import { createFlowRoutes } from "./flows/routes";
@@ -43,6 +45,8 @@ export interface AppDependencies {
   secretsCrypto?: SecretsCrypto;
   /** Mini-app sessions for published flows; needs flows, runs and secrets as well. */
   sessions?: SessionStore;
+  /** Per-user usage counts for the Settings dialog. */
+  account?: AccountStore;
   identity?: IdentityProvider;
   /** The chat model for AI nodes and flow generation; absent without an OpenRouter key. */
   model?: LanguageModel;
@@ -78,6 +82,7 @@ export function createApp({
   secrets,
   secretsCrypto,
   sessions,
+  account,
   identity,
   log = false,
   model,
@@ -172,6 +177,7 @@ export function createApp({
           : new Elysia(),
       )
       .use(createAiRoutes({ identity, model, log }))
+      .use(account ? createAccountRoutes({ account, identity }) : new Elysia())
       // Listings publish and fork the caller's flows, so they need both stores and the user profile.
       .use(
         listings && flows && users
