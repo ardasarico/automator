@@ -3,6 +3,7 @@
 import {
   flowNodeConfigSchemas,
   parseNodeConfig,
+  samplePayloadProblem,
   screenConfigSchemas,
   Value,
   type FlowNodeType,
@@ -70,6 +71,8 @@ type Property = {
   description?: string;
   /** Marks credentials; the field suggests a `{{secrets.*}}` reference and stays plain otherwise. */
   secret?: boolean;
+  /** `application/json` marks JSON text, edited in a monospace textarea with parse feedback. */
+  contentMediaType?: string;
   minimum?: number;
   maximum?: number;
   items?: Property;
@@ -180,6 +183,11 @@ function ConfigField({ id, name, property, value, onChange, variables = [] }: Fi
       </Field>
     );
   }
+  if (property.type === "string" && property.contentMediaType === "application/json") {
+    return (
+      <JsonField id={id} label={label} property={property} value={value} onChange={onChange} />
+    );
+  }
   if (property.type === "string") {
     const text = typeof value === "string" ? value : "";
     return (
@@ -266,6 +274,42 @@ function ConfigField({ id, name, property, value, onChange, variables = [] }: Fi
     );
   }
   return <p className="text-caption text-muted-foreground">{label} is not editable here yet.</p>;
+}
+
+/**
+ * JSON text in a monospace textarea, such as a trigger's sample payload. The text is stored
+ * as typed, so a half-written value survives; the inline error says when it does not parse.
+ */
+function JsonField({
+  id,
+  label,
+  property,
+  value,
+  onChange,
+}: Omit<FieldProps, "name"> & { label: string }) {
+  const text = typeof value === "string" ? value : "";
+  const problem = samplePayloadProblem(text);
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Textarea
+        id={id}
+        rows={6}
+        spellCheck={false}
+        className="font-mono text-xs sm:text-xs"
+        aria-invalid={problem ? true : undefined}
+        aria-describedby={problem ? `${id}-error` : undefined}
+        value={text}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {problem && (
+        <p id={`${id}-error`} className="text-xs text-destructive-text" aria-live="polite">
+          {problem}
+        </p>
+      )}
+      <Help text={property.description} />
+    </Field>
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

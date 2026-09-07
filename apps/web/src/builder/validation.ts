@@ -2,6 +2,7 @@ import {
   findFlowDocumentProblem,
   flowNodeConfigSchemas,
   parseNodeConfig,
+  samplePayloadProblem,
   screenConfigSchemas,
   secretFields,
   type FlowDocument,
@@ -122,6 +123,12 @@ export function findFlowProblems(document: Pick<FlowDocument, "nodes" | "edges">
             : { severity: "error", nodeId: node.id, message: `“${label}” needs a ${name}.` },
         );
       }
+      if (typeof config.samplePayload === "string" && samplePayloadProblem(config.samplePayload))
+        problems.push({
+          severity: "warning",
+          nodeId: node.id,
+          message: `“${label}” has a sample payload that is not valid JSON, so Simulate sends an empty one.`,
+        });
       if (node.type === "screen.form") {
         const fields = (config.fields as { id?: string }[] | undefined) ?? [];
         if (!fields.some((field) => field.id))

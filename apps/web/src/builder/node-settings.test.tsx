@@ -9,7 +9,7 @@ GlobalRegistrator.register();
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const { NodeSettings } = await import("./node-settings");
-const { BuilderStoreProvider } = await import("./store-provider");
+const { BuilderStoreProvider, useBuilderStore } = await import("./store-provider");
 const { createBuilderStore } = await import("./store");
 const { hydrateFlow } = await import("./document");
 
@@ -92,5 +92,42 @@ describe("NodeSettings", () => {
   test("hides the picker when nothing is upstream", async () => {
     await mount("t");
     expect(container.querySelectorAll('[aria-label="Insert variable"]').length).toBe(0);
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
+  test("edits a trigger's sample payload as JSON with inline feedback", async () => {
+    // Like the left panel, re-read the node from the store so an edit re-renders the form.
+    let setNodeConfig: (id: string, patch: Record<string, unknown>) => void = () => {};
+    function Live() {
+      const node = useBuilderStore((state) => state.nodes.find((n) => n.id === "t")!);
+      setNodeConfig = useBuilderStore((state) => state.setNodeConfig);
+      return <NodeSettings node={node} onBack={() => {}} />;
+    }
+    container = window.document.createElement("div");
+    window.document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <BuilderStoreProvider document={document}>
+          <Live />
+        </BuilderStoreProvider>,
+      );
+    });
+    const textarea = container.querySelector<HTMLTextAreaElement>("textarea#t-samplePayload");
+    expect(textarea).not.toBeNull();
+    // The Textarea primitive styles its wrapper; the font cascades to the control.
+    expect(textarea!.parentElement!.className).toContain("font-mono");
+    expect(container.textContent).toContain("Payload Simulate hands to this trigger");
+    expect(container.textContent).not.toContain("Invalid JSON");
+
+    // What the textarea's onChange writes: the text as typed, half-written or not.
+    await act(async () => setNodeConfig("t", { samplePayload: '{"openedAt": ' }));
+    expect(container.textContent).toContain("Invalid JSON");
+    expect(textarea!.getAttribute("aria-invalid")).toBe("true");
+    expect(textarea!.value).toBe('{"openedAt": ');
+    await act(async () => setNodeConfig("t", { samplePayload: '{"openedAt": "now"}' }));
+    expect(container.textContent).not.toContain("Invalid JSON");
+    expect(textarea!.getAttribute("aria-invalid")).toBeNull();
   });
 });

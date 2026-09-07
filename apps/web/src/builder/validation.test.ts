@@ -26,6 +26,27 @@ describe("findFlowProblems", () => {
     expect(problems).toEqual([]);
   });
 
+  test("a trigger sample payload that is not JSON is a warning", () => {
+    const problems = findFlowProblems({
+      nodes: [node("hook", "trigger.webhook", { samplePayload: "{oops" })],
+      edges: [],
+    });
+    expect(problems).toEqual([
+      {
+        severity: "warning",
+        nodeId: "hook",
+        message:
+          "“hook” has a sample payload that is not valid JSON, so Simulate sends an empty one.",
+      },
+    ]);
+    expect(
+      findFlowProblems({
+        nodes: [node("hook", "trigger.webhook", { samplePayload: '{"body":{}}' })],
+        edges: [],
+      }),
+    ).toEqual([]);
+  });
+
   test("nodes no trigger reaches are warned about", () => {
     const problems = findFlowProblems({
       nodes: [
