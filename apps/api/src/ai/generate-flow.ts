@@ -1,5 +1,7 @@
 import {
+  aiFlowTestSchema,
   findFlowDocumentProblem,
+  findFlowConfigProblems,
   flowDocumentInputSchema,
   flowNodeConfigSchemas,
   flowNodePorts,
@@ -7,6 +9,7 @@ import {
   parseNodeConfig,
   screenConfigSchemas,
   Value,
+  Type,
   type AiHistoryTurn,
   type FlowDocumentInput,
   type FlowEdge,
@@ -22,6 +25,8 @@ import {
   type ChatMessage,
   type LanguageModel,
 } from "@automator/flow-engine";
+
+import { verifyFlow } from "./verify-flow";
 
 /** The model may only use types the engine or the mini-app can run today. */
 export const generatableNodeTypes = flowNodeTypes.filter(
@@ -62,17 +67,8 @@ interface Draft {
 }
 
 function describeSchema(schema: TObject): string {
-  const fields = Object.entries(schema.properties as Record<string, Record<string, unknown>>).map(
-    ([name, property]) => {
-      const type = Array.isArray(property.anyOf)
-        ? (property.anyOf as { const?: unknown }[])
-            .map((option) => JSON.stringify(option.const))
-            .join("|")
-        : String(property.type ?? "unknown");
-      return `${name}: ${type}${property.default === undefined ? "" : ` (default ${JSON.stringify(property.default)})`}`;
-    },
-  );
-  return fields.length > 0 ? `{ ${fields.join(", ")} }` : "{}";
+  // JSON Schema preserves nested array items, required fields, enums, descriptions and defaults.
+  return JSON.stringify(schema);
 }
 
 /** What the model is told about each node type: id, handles, and the config fields it can set. */
@@ -92,13 +88,24 @@ A flow is a directed acyclic graph. It starts at a trigger node (a type whose in
 logic.for-each repeats the steps after its Item output for each element of its items list (a JSON string or a template resolving to a list, maxItems at most 100). Its Done output carries {items, results, count} after all iterations. Put screens after Done, never inside the Item body. Do not draw a cycle to express a loop.
 Config strings may reference upstream values with templates: {{input.<input handle>}} is the value delivered to that handle, {{vars.<name>}} a variable set earlier, {{trigger.<path>}} the trigger payload. The handle in {{input.<input handle>}} is always the receiving node's OWN input handle, never the upstream node's output handle: a notify.discord node reads what arrived on its "message" input as {{input.message}} (not {{input.result}} or {{input.text}}), a logic.condition reads {{input.value}}. A trigger hands its whole payload (an object, e.g. a webhook body) to its output handle, so a field of it is addressed as {{input.<input handle>.<field>}} on the next node, or {{trigger.<field>}} anywhere.
 
-Node types you may use, with their handles and config fields:
+Execution rules and examples:
+- screen.form fields are objects with id, label, type, required and sample. Set a unique nonempty id such as "ticketCount", type "number", required true, sample "2". Submitted form values are strings keyed by field id.
+- A form wired to a condition's value input is read with {{input.value.ticketCount}}. Conditions forward the original value unchanged on true/false. A page wired to their output displays {{input.data.ticketCount}} in its body.
+- A form wired to a run-code node's input is read inside JavaScript as input.ticketCount (the function receives the value of that single handle, not all handles). Example: return {totalCost: Number(input.ticketCount) * 25};. A page after it displays Total: {{input.data.totalCost}}.
+- run-code requires the server sandbox and cannot run in browser preview. External service, identity and onchain nodes are not exercised by automatic checks. Do not describe those checks as proof of real delivery/payment.
+- Prefer native conditions and data nodes when they suffice. Supply representative samplePayload JSON on triggers, using the actual payload shape. Missing field ids, wrong port references and failing behavior tests are rejected.
+
+Node types you may use, with their handles and full config schemas:
 ${describeNodeTypes()}
 
 Earlier turns of the conversation may come before the request; assistant turns there are the summaries the user saw, and the flow JSON in the request is always the current state of the canvas.
 
 Answer with one JSON object and nothing else. To propose a flow:
 {"name": string, "description": string, "summary": string, "nodes": [{"id": string, "type": string, "label": string, "config": object}], "edges": [{"source": string, "sourceHandle": string, "target": string, "targetHandle": string}]}
+Include a "tests" array in flow answers. A mini-app with a form MUST include at least one test (at least two when it branches), with concrete answers and expected result screens or output values derived from the user's request. Include boundary cases such as 0, 4 and 5 for a 1-to-4 limit. These are test-only inputs, never changes to the saved form sample. Each test follows this schema:
+${JSON.stringify(aiFlowTestSchema)}
+Example: {"name":"Two tickets cost 50","answers":{"form":{"port":"submitted","data":{"ticketCount":"2"}}},"expect":[{"nodeId":"calculate","output":"output","path":"totalCost","equals":50},{"nodeId":"result","screenBody":"Total: 50"}]}.
+A nodeId-only expectation asserts that the node was reached. Use output/path/equals to check a calculation, screenBody to check rendered text. Use actual node ids from the proposal. For non-mini-app triggers also provide triggerNodeId and payload.
 Use short unique ids such as "n1", "n2". Labels are short and human. Only set config fields listed above; leave secrets such as webhook URLs empty for the user to fill in. "summary" is one or two sentences for the user about what the flow does or what you changed.
 When the request is a question, asks for an explanation, or needs one clarification before you can build anything, answer {"message": string} instead, in plain prose; never propose a flow for a message that does not ask to build or change one. The user decides what lands on the canvas.`;
 
@@ -125,6 +132,8 @@ function readDraft(answer: unknown): Draft {
   if (!isRecord(answer)) throw new FlowGenerationError("The answer is not a JSON object");
   if (!Array.isArray(answer.nodes) || !Array.isArray(answer.edges))
     throw new FlowGenerationError("The answer needs nodes and edges arrays");
+  if (answer.nodes.length > 80)
+    throw new FlowGenerationError("AI proposals are limited to 80 nodes.");
   const nodes: DraftNode[] = answer.nodes.map((raw, index) => {
     if (!isRecord(raw) || typeof raw.id !== "string" || typeof raw.type !== "string")
       throw new FlowGenerationError(`Node ${index + 1} needs an id and a type`);
@@ -290,6 +299,31 @@ export function materialize(draft: Draft): FlowDocumentInput {
     throw new FlowGenerationError("The flow does not fit the document schema");
   const problem = findFlowDocumentProblem(document);
   if (problem) throw new FlowGenerationError(problem);
+  const configProblems = findFlowConfigProblems(document);
+  for (const node of document.nodes) {
+    if (
+      node.type === "screen.form" &&
+      (!Array.isArray(node.config.fields) || node.config.fields.length === 0)
+    )
+      configProblems.push({
+        nodeId: node.id,
+        path: "config.fields",
+        message: "A generated form needs at least one field.",
+      });
+    if (node.type === "logic.set-variable" && !String(node.config.name ?? "").trim())
+      configProblems.push({
+        nodeId: node.id,
+        path: "config.name",
+        message: "Set variable needs a name.",
+      });
+  }
+  if (configProblems.length)
+    throw new FlowGenerationError(
+      configProblems
+        .slice(0, 8)
+        .map((p) => `${p.nodeId}.${p.path}: ${p.message}`)
+        .join("\n"),
+    );
   return document;
 }
 
@@ -314,6 +348,7 @@ export async function askForFlow(
   messages: ChatMessage[],
 ): Promise<GenerateFlowResponse> {
   let lastProblem: string | undefined;
+  let pinnedTests: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const answer = await model({
       messages,
@@ -325,7 +360,33 @@ export async function askForFlow(
       const message = readMessage(parsed);
       if (message !== undefined) return { kind: "message", text: message };
       const draft = readDraft(parsed);
-      return { kind: "flow", document: materialize(draft), summary: draft.summary };
+      const document = materialize(draft);
+      const tests = pinnedTests ?? (isRecord(parsed) ? parsed.tests : undefined);
+      if (
+        document.nodes.some((n) => n.type === "trigger.miniapp-open") &&
+        document.nodes.some((n) => n.type === "screen.form")
+      ) {
+        const minimum = document.nodes.some((n) => n.type === "logic.condition") ? 2 : 1;
+        if (!Array.isArray(tests) || tests.length < minimum)
+          throw new FlowGenerationError(
+            `This mini-app needs at least ${minimum} behavioral test scenarios with form answers and expected results.`,
+          );
+      }
+      if (
+        Array.isArray(tests) &&
+        tests.length &&
+        Value.Check(Type.Array(aiFlowTestSchema, { maxItems: 6 }), tests)
+      )
+        pinnedTests = structuredClone(tests);
+      let verification;
+      try {
+        verification = await verifyFlow(document, tests);
+      } catch (error) {
+        throw new FlowGenerationError(
+          error instanceof Error ? error.message : "Automatic checks failed",
+        );
+      }
+      return { kind: "flow", document, summary: draft.summary, verification };
     } catch (error) {
       if (!(error instanceof FlowGenerationError) && !(error instanceof LanguageModelError))
         throw error;
@@ -333,7 +394,7 @@ export async function askForFlow(
       messages.push({ role: "assistant", content: answer.content ?? "" });
       messages.push({
         role: "user",
-        content: `That answer is not a valid flow: ${lastProblem}. Answer again with the corrected JSON object only.`,
+        content: `That answer is not a valid flow: ${lastProblem}. Correct the flow to satisfy the original request, preserving node ids and the original test expectations; do not weaken an expectation to match broken behavior. Answer with the corrected JSON object only.`,
       });
     }
   }

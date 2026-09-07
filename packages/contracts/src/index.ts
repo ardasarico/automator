@@ -26,3 +26,4 @@ export * from "./account";
 export * from "./chains";
 export * from "./wallet";
 export * from "./flow-versions";
+export * from "./flow-config-problems";

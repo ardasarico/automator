@@ -3,6 +3,9 @@ import { apiErrorResponses } from "./contract";
 import { flowRunNodeResultSchema, flowRunStatusSchema, flowRunTriggerSchema } from "./flow-runs";
 import { flowDocumentInputSchema } from "./flows";
 
+/** Two model attempts, provider fallback and bounded local checks share this client budget. */
+export const aiRequestTimeoutMs = 300_000;
+
 /** How many prior turns a request may carry; the API sends the model fewer still. */
 export const aiHistoryLimit = 40;
 
@@ -30,11 +33,54 @@ export const generateFlowRequestSchema = Type.Object({
 });
 export type GenerateFlowRequest = Static<typeof generateFlowRequestSchema>;
 
+/** Model-authored examples checked in an isolated run, not a guarantee of the user's intent. */
+export const aiFlowTestSchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 120 }),
+  triggerNodeId: Type.Optional(Type.String()),
+  payload: Type.Optional(Type.Unknown()),
+  answers: Type.Optional(
+    Type.Record(
+      Type.String(),
+      Type.Object({
+        port: Type.String(),
+        data: Type.Optional(Type.Record(Type.String(), Type.String())),
+      }),
+    ),
+  ),
+  expect: Type.Array(
+    Type.Object({
+      nodeId: Type.String(),
+      /** Omit to assert that this node was reached. */
+      output: Type.Optional(Type.String()),
+      path: Type.Optional(Type.String()),
+      equals: Type.Optional(Type.Unknown()),
+      /** Checks the rendered screen body; includes template resolution. */
+      screenBody: Type.Optional(Type.String()),
+    }),
+    { minItems: 1, maxItems: 12 },
+  ),
+});
+export type AiFlowTest = Static<typeof aiFlowTestSchema>;
+
+export const aiVerificationSchema = Type.Object({
+  checks: Type.Array(
+    Type.Object({
+      name: Type.String(),
+      status: Type.Union([Type.Literal("passed"), Type.Literal("skipped")]),
+      detail: Type.String(),
+    }),
+    { maxItems: 8 },
+  ),
+  warnings: Type.Array(Type.String(), { maxItems: 20 }),
+});
+export type AiVerification = Static<typeof aiVerificationSchema>;
+
 export const aiFlowAnswerSchema = Type.Object({
   kind: Type.Literal("flow"),
   document: flowDocumentInputSchema,
   /** One or two sentences from the model on what the flow does or what changed. */
   summary: Type.String(),
+  verification: Type.Optional(aiVerificationSchema),
 });
 export type AiFlowAnswer = Static<typeof aiFlowAnswerSchema>;
 

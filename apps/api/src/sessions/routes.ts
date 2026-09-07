@@ -25,6 +25,7 @@ import {
 import type { FlowStore, MiniAppSessionRow, RunStore, SessionStore } from "@automator/db";
 import {
   resolveTemplates,
+  screenScope,
   runFlow,
   type RunOptions,
   type SecretsResolver,
@@ -64,19 +65,23 @@ function tokenMatches(row: MiniAppSessionRow, token: string): boolean {
   return expected.length === given.length && timingSafeEqual(expected, given);
 }
 
-/** What an identity screen's templates may read: the session's `vars` and the opening payload. */
-type ScreenScope = { vars: Record<string, unknown>; trigger: unknown };
+/** A screen sees only its incoming values, session variables and opening payload; never secrets. */
+type ScreenScope = {
+  input?: Record<string, unknown>;
+  vars: Record<string, unknown>;
+  trigger: unknown;
+};
 
 /**
- * A screen's config as the visitor's browser receives it. Identity screens resolve `vars`
- * and `trigger` templates (a World signal bound to the signed-in visitor, say), so the
- * runtime and the verifier see the same value; plain screens render their config as is.
+ * Resolve screen templates before rendering, consistently with preview and identity verification.
  */
 function screenConfig(node: FlowNode & { type: ScreenNodeType }, scope: ScreenScope) {
   const parsed = parseScreenConfig(node.type, node.config);
-  return isIdentityScreenType(node.type)
-    ? resolveTemplates(parsed, { input: {}, vars: scope.vars, trigger: scope.trigger })
-    : parsed;
+  return resolveTemplates(parsed, {
+    input: scope.input ?? {},
+    vars: scope.vars,
+    trigger: scope.trigger,
+  });
 }
 
 /**
@@ -136,7 +141,10 @@ function toSession(
     const node = waiting ? byId.get(waiting.nodeId) : undefined;
     if (node && isScreenNodeType(node.type)) {
       const type = node.type;
-      const config = screenConfig({ ...node, type }, scope);
+      const config = screenConfig(
+        { ...node, type },
+        { ...scope, input: screenScope(document, run, node.id).input },
+      );
       // A World ID screen carries a signed request context, so the runtime can open IDKit
       // without holding any World credential; none when the API has no World configuration.
       const action = type === "world.id-verify" ? (config as { action: string }).action : "";
@@ -186,6 +194,7 @@ async function answerIdentityScreen(
   body: MiniAppAnswer,
   row: MiniAppSessionRow,
   deps: Pick<SessionDependencies, "identity" | "world">,
+  input: Record<string, unknown>,
 ): Promise<IdentityOutcome> {
   const failed = (error: string): IdentityOutcome => ({
     resume: { nodeId: node.id, outputs: {}, variables: row.variables, error },
@@ -210,7 +219,7 @@ async function answerIdentityScreen(
     if (!body.worldProof) return { status: 400, error: "invalid_request" };
     if (!deps.world) return failed("World ID is not configured on this server: set WORLD_APP_ID");
     const config = resolveTemplates(parseScreenConfig(node.type, node.config), {
-      input: {},
+      input,
       vars: row.variables,
       trigger: row.payload,
     });
@@ -339,7 +348,13 @@ export function createSessionRoutes({
           return status(400, { error: "invalid_request" });
         let resume: Resume;
         if (isIdentityScreenType(node.type)) {
-          const outcome = await answerIdentityScreen(node, body, row, { identity, world });
+          const outcome = await answerIdentityScreen(
+            node,
+            body,
+            row,
+            { identity, world },
+            screenScope(document, previous.run, node.id).input,
+          );
           if (!("resume" in outcome)) return status(outcome.status, { error: outcome.error });
           resume = outcome.resume;
         } else {

@@ -1,6 +1,7 @@
 import {
   aiHistoryLimit,
   type AiHistoryTurn,
+  type AiVerification,
   type FlowDocumentInput,
   type GenerateFlowResponse,
 } from "@automator/contracts";
@@ -12,6 +13,7 @@ import { createStore, type StoreApi } from "zustand";
  */
 export type AiProposal = {
   document: FlowDocumentInput;
+  verification?: AiVerification;
   /** True when the answer was asked as a new flow rather than an edit of the canvas. */
   replaces: boolean;
   state: "pending" | "applied" | "discarded" | "stale";
@@ -72,6 +74,7 @@ export function createAiStore({ focusOnMount = false } = {}): StoreApi<AiState> 
               text: answer.summary || answer.document.description || answer.document.name,
               proposal: {
                 document: answer.document,
+                verification: answer.verification,
                 replaces: options.replaces ?? false,
                 state: "pending",
               },

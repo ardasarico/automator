@@ -1,5 +1,5 @@
 import { AuthApiError, request } from "@automator/api-client/server";
-import { explainRunContract, Value } from "@automator/contracts";
+import { aiRequestTimeoutMs, explainRunContract, Value } from "@automator/contracts";
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../../auth/http";
 
@@ -17,11 +17,11 @@ export async function POST(req: Request) {
   if (!Value.Check(explainRunContract.body, body))
     return authErrorResponse(req, new AuthApiError(400, "invalid_request"));
   try {
-    // Two model turns at most, so the budget covers a slow model and one retry.
+    // Include provider fallback, one repair attempt and bounded local checks.
     const result = await request(process.env.API_URL, explainRunContract, {
       token,
       body,
-      timeoutMs: 120_000,
+      timeoutMs: aiRequestTimeoutMs,
     });
     if (result.status !== 200)
       return authErrorResponse(req, new AuthApiError(result.status, result.data.error));

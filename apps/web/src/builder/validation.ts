@@ -1,5 +1,6 @@
 import {
   findFlowDocumentProblem,
+  findFlowConfigProblems,
   flowNodeConfigSchemas,
   parseNodeConfig,
   samplePayloadProblem,
@@ -159,6 +160,12 @@ export function findFlowProblems(document: Pick<FlowDocument, "nodes" | "edges">
       });
     }
   }
+  for (const problem of findFlowConfigProblems(document))
+    problems.push({
+      severity: "error",
+      nodeId: problem.nodeId,
+      message: `${problem.path}: ${problem.message}`,
+    });
   return problems;
 }
 

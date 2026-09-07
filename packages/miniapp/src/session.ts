@@ -1,6 +1,6 @@
 import type { FlowDocument, FlowRun, FlowRunNodeResult } from "@automator/contracts";
 import { visitorAnswer } from "@automator/contracts";
-import { runFlow, type RunOptions } from "@automator/flow-engine";
+import { runFlow, screenScope, type TemplateScope, type RunOptions } from "@automator/flow-engine";
 import { findEntry } from "./engine";
 
 /**
@@ -11,7 +11,7 @@ import { findEntry } from "./engine";
 export type SessionState =
   | { kind: "no-entry" }
   | { kind: "running"; results: FlowRunNodeResult[] }
-  | { kind: "screen"; nodeId: string }
+  | { kind: "screen"; nodeId: string; scope?: TemplateScope }
   | { kind: "end" }
   | { kind: "failed"; nodeId: string | null; error: string };
 
@@ -19,10 +19,16 @@ export type SessionState =
 export type EngineOptions = Pick<RunOptions, "fetch" | "sleep" | "executors" | "model">;
 
 /** Where the flow stopped, as the state to show next. */
-export function settleRun(run: FlowRun): SessionState {
+export function settleRun(run: FlowRun, document?: FlowDocument): SessionState {
   if (run.status === "waiting") {
     const waiting = run.nodes.find((result) => result.status === "waiting");
-    return waiting ? { kind: "screen", nodeId: waiting.nodeId } : { kind: "end" };
+    return waiting
+      ? {
+          kind: "screen",
+          nodeId: waiting.nodeId,
+          ...(document ? { scope: screenScope(document, run, waiting.nodeId) } : {}),
+        }
+      : { kind: "end" };
   }
   if (run.status === "succeeded") return { kind: "end" };
   const failed = run.nodes.find((result) => result.status === "failed");

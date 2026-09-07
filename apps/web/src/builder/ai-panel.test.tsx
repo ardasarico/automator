@@ -43,6 +43,12 @@ const document: FlowDocument = {
 const proposal = {
   kind: "flow",
   summary: "Changed the message.",
+  verification: {
+    checks: [
+      { name: "Message delivery", status: "skipped", detail: "External service was not called." },
+    ],
+    warnings: ["Delivery remains unverified."],
+  },
   document: {
     ...document,
     id: undefined,
@@ -132,6 +138,9 @@ describe("AiPanel", () => {
     expect(body.document.nodes[1]!.config.webhookUrl).toBe("");
     expect(JSON.stringify(body)).not.toContain("discord.com/api/webhooks");
 
+    expect(container.textContent).toContain("Automatic checks");
+    expect(container.textContent).toContain("Not tested: Message delivery");
+    expect(container.textContent).toContain("Delivery remains unverified.");
     await act(async () => buttonNamed("Apply changes")!.click());
     const probe = container.querySelector('[data-testid="probe"]')!;
     expect(JSON.parse(probe.textContent!)).toEqual([

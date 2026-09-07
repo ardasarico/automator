@@ -34,7 +34,8 @@ export {
   type ToolCall,
   type ToolDefinition,
 } from "./language-model";
-export { resolveTemplate, resolveTemplates, type TemplateScope } from "./template";
+export { lookupPath, resolveTemplate, resolveTemplates, type TemplateScope } from "./template";
+export { screenScope } from "./screen-scope";
 export { SecretMissingError, secretsScope, type SecretsResolver } from "./secrets";
 export { loopExecutors } from "./loop-executors";
 export { notifyExecutors } from "./notify-executors";

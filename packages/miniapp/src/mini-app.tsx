@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveTemplates } from "@automator/flow-engine";
 import type { FlowDocument, FlowRun, FlowRunNodeResult } from "@automator/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isScreenNode, type ScreenNode } from "./engine";
@@ -86,7 +87,7 @@ export function MiniApp({
         if (count !== runCount.current) return;
         variables.current = finished.variables;
         completed.current = finished.nodes;
-        setSession(settleRun(finished));
+        setSession(settleRun(finished, latest.current.document));
       });
     },
     [],
@@ -172,7 +173,8 @@ export function MiniApp({
 function currentScreen(document: FlowDocument, session: SessionState): ScreenNode | null {
   if (session.kind !== "screen") return null;
   const node = document.nodes.find((candidate) => candidate.id === session.nodeId);
-  return node && isScreenNode(node) ? node : null;
+  if (!node || !isScreenNode(node)) return null;
+  return session.scope ? { ...node, config: resolveTemplates(node.config, session.scope) } : node;
 }
 
 /** The steps worth showing while a run is in progress: what ran, in order, minus the skipped and the screens. */

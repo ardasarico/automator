@@ -74,6 +74,21 @@ function ProposalCard({
   );
   return (
     <div className={styles.preview} role="region" aria-label="Proposed flow">
+      {proposal.verification && (
+        <div className="space-y-2 text-caption wrap-anywhere" aria-label="Automatic checks">
+          <p>Automatic checks · no external actions</p>
+          <ul>
+            {proposal.verification.checks.map((check, index) => (
+              <li key={index}>
+                {check.status === "passed" ? "Passed" : "Not tested"}: {check.name} — {check.detail}
+              </li>
+            ))}
+          </ul>
+          {proposal.verification.warnings.map((warning, index) => (
+            <p key={index}>{warning}</p>
+          ))}
+        </div>
+      )}
       <ul className={styles.changes}>
         {changes.map((change) => (
           <li
@@ -207,7 +222,7 @@ export function AiPanel() {
         )}
         {pending && (
           <p className={styles.thinking} role="status">
-            Thinking…
+            Creating and checking the flow…
           </p>
         )}
       </div>

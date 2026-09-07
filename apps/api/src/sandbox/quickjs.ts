@@ -16,7 +16,11 @@ export function createQuickJsSandbox(): Sandbox {
         const __input = ${JSON.stringify(input ?? null)};
         const __vars = ${JSON.stringify(vars ?? {})};
         const __result = (function (input, vars) {\n${code}\n})(__input, __vars);
-        __result === undefined ? undefined : JSON.parse(JSON.stringify(__result));
+        __result === undefined ? undefined : JSON.parse(JSON.stringify(__result, (_key, value) => {
+          if (typeof value === "number" && !Number.isFinite(value))
+            throw new Error("Run code returned a non-finite number; check its numeric inputs.");
+          return value;
+        }));
       `;
       try {
         return QuickJS.evalCode(script, {

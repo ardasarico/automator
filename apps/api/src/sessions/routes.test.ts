@@ -197,6 +197,87 @@ async function start(post: ReturnType<typeof fixture>["post"], flowId = "flow-1"
 }
 
 describe("mini-app sessions", () => {
+  test("resolves screen inputs, variables and trigger data across visitor pauses", async () => {
+    const flow: FlowDocument = {
+      ...document,
+      nodes: [
+        {
+          id: "t",
+          type: "trigger.miniapp-open",
+          label: "Open",
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+        {
+          id: "form",
+          type: "screen.form",
+          label: "Tickets",
+          position: { x: 0, y: 0 },
+          config: { fields: [{ id: "ticketCount", type: "number" }] },
+        },
+        {
+          id: "keep",
+          type: "logic.set-variable",
+          label: "Keep",
+          position: { x: 0, y: 0 },
+          config: { name: "count", value: "{{input.value.ticketCount}}" },
+        },
+        {
+          id: "page",
+          type: "screen.page",
+          label: "Result",
+          position: { x: 0, y: 0 },
+          config: {
+            body: "Count {{input.data}} / {{vars.count}}",
+            title: "Opened {{trigger.openedAt}}",
+          },
+        },
+        {
+          id: "end",
+          type: "screen.page",
+          label: "End",
+          position: { x: 0, y: 0 },
+          config: { body: "Still {{vars.count}}" },
+        },
+      ],
+      edges: [
+        { id: "a", source: "t", sourceHandle: "visitor", target: "form", targetHandle: "data" },
+        {
+          id: "b",
+          source: "form",
+          sourceHandle: "submitted",
+          target: "keep",
+          targetHandle: "value",
+        },
+        { id: "c", source: "keep", sourceHandle: "value", target: "page", targetHandle: "data" },
+        { id: "d", source: "page", sourceHandle: "next", target: "end", targetHandle: "data" },
+      ],
+    };
+    const { post, posted } = fixture({ flow });
+    const opened = await start(post);
+    const answer = async (port: string, data?: Record<string, string>) => {
+      const response = await post(`/public/flows/flow-1/sessions/${opened.sessionId}/answer`, {
+        token: opened.token,
+        port,
+        data,
+      });
+      expect(response.status).toBe(200);
+      const parsed = parseResponse(
+        answerMiniAppSessionContract,
+        response.status,
+        await response.json(),
+      );
+      if (parsed.status !== 200) throw new Error("Expected a session response");
+      return parsed.data;
+    };
+    const result = await answer("submitted", { ticketCount: "3" });
+    expect(result.screen!.config.body).toBe("Count 3 / 3");
+    expect(result.screen!.config.title).toMatch(/^Opened \d{4}-/);
+    expect((await answer("next")).screen!.config.body).toBe("Still 3");
+    expect(posted).toEqual([]);
+    expect(flow.nodes[3]!.config.body).toContain("{{input.data}}");
+  });
+
   test("two screen pauses retain a sibling output without sending twice, even after republishing", async () => {
     const branched = structuredClone(document);
     branched.nodes.push({

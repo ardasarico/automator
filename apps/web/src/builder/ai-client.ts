@@ -1,4 +1,5 @@
 import {
+  aiRequestTimeoutMs,
   explainRunContract,
   generateFlowContract,
   parseAuthError,
@@ -38,8 +39,8 @@ async function post<C extends EndpointContract & { readonly method: "POST" }>(
   signal?: AbortSignal,
 ): Promise<unknown> {
   if (!token) throw new AiRequestError("unauthorized");
-  // Two model turns at most, so the budget covers a slow model and one retry.
-  const timeout = AbortSignal.timeout(125_000);
+  // Include provider fallback, one repair attempt and bounded local checks.
+  const timeout = AbortSignal.timeout(aiRequestTimeoutMs + 5000);
   const response = await fetch(`/api${contract.path}`, {
     method: contract.method,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
