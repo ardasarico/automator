@@ -158,6 +158,22 @@ export const migrations: Migration[] = [
       ) distinct_types)
     WHERE node_types @> '["world.selfie-check"]'`,
   },
+  {
+    name: "0009_flow_versions",
+    sql: `CREATE TABLE IF NOT EXISTS automator_flow_versions (
+      id TEXT PRIMARY KEY,
+      flow_id TEXT NOT NULL REFERENCES automator_flows(id) ON DELETE CASCADE,
+      owner_id TEXT NOT NULL REFERENCES automator_users(id) ON DELETE CASCADE,
+      number INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      document JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (flow_id, number)
+    );
+    CREATE INDEX IF NOT EXISTS automator_flow_versions_flow_number
+      ON automator_flow_versions (flow_id, number DESC)`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (

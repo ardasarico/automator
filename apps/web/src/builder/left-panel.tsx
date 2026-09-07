@@ -6,6 +6,7 @@ import {
   RiArrowLeftLine,
   RiBracesLine,
   RiFlowChart,
+  RiHistoryLine,
   RiListUnordered,
   RiSettings3Line,
   RiStackLine,
@@ -16,23 +17,25 @@ import { useState } from "react";
 import styles from "./flow-builder.module.css";
 import { NodePalette } from "./node-palette";
 import { VariablesPanel } from "./variables-panel";
+import { FlowHistory } from "./flow-history";
 import { FlowOutline } from "./flow-outline";
 import { FlowSettingsDialog } from "./flow-settings-dialog";
 import { useLeaveGuard } from "./leave-guard";
 import { NodeSettings } from "./node-settings";
 import { useBuilderStore } from "./store-provider";
 
-type SectionId = "nodes" | "variables" | "outline";
+type SectionId = "nodes" | "variables" | "outline" | "history";
 
 /**
  * The panel's sections, in sidebar order: the node catalog; the flow's inputs, constants and
- * secret references that node configs read; and a node list with search for large canvases.
- * Every body is empty until it is designed.
+ * secret references that node configs read; a node list with search for large canvases; and
+ * the flow's saved versions with restore.
  */
 const sections: readonly { id: SectionId; label: string; icon: RemixiconComponentType }[] = [
   { id: "nodes", label: "Nodes", icon: RiStackLine },
   { id: "variables", label: "Variables", icon: RiBracesLine },
   { id: "outline", label: "Outline", icon: RiListUnordered },
+  { id: "history", label: "History", icon: RiHistoryLine },
 ];
 
 function SidebarButton({
@@ -73,7 +76,8 @@ function SidebarButton({
  * opens the flow settings dialog (name and description). The panel shows the flow name over the section's body: the node
  * palette for Nodes, replaced by the selected node's settings while exactly one node is
  * selected; Outline lists the flow's problems and its nodes; Variables holds the user's
- * secrets (names only) for `{{secrets.*}}` references.
+ * secrets (names only) for `{{secrets.*}}` references; History lists the flow's saved
+ * versions and restores one onto the canvas.
  */
 export function LeftPanel() {
   const [section, setSection] = useState<SectionId>("nodes");
@@ -145,6 +149,7 @@ export function LeftPanel() {
           ))}
         {section === "variables" && <VariablesPanel />}
         {section === "outline" && <FlowOutline />}
+        {section === "history" && <FlowHistory />}
       </aside>
     </>
   );

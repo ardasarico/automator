@@ -10,6 +10,7 @@ import type {
   AccountStore,
   createDatabase,
   FlowStore,
+  FlowVersionStore,
   ListingStore,
   RunStore,
   SecretStore,
@@ -24,6 +25,7 @@ import { createAccountRoutes } from "./account/routes";
 import { createAiRoutes } from "./ai/routes";
 import { createAuthRoutes } from "./auth/routes";
 import { createFlowRoutes } from "./flows/routes";
+import { createFlowVersionRoutes } from "./flows/versions";
 import { createHookRoutes } from "./hooks/routes";
 import { createPublicRoutes } from "./public/routes";
 import { createMarketplaceRoutes } from "./marketplace/routes";
@@ -61,6 +63,8 @@ export interface AppDependencies {
   log?: boolean;
   /** Calls per minute on the limited routes; the defaults from `rate-limit.ts` otherwise. */
   rateLimits?: Partial<RateLimits>;
+  /** Save history per flow; recorded by the flow routes and read by the version routes. */
+  flowVersions?: FlowVersionStore;
 }
 
 /** Everything a client is allowed to learn about a failure. */
@@ -96,6 +100,7 @@ export function createApp({
   chainFactory,
   rateLimits,
   world,
+  flowVersions,
 }: AppDependencies) {
   const limits = { ...defaultRateLimits, ...rateLimits };
   const startedAt = new WeakMap<Request, number>();
@@ -161,7 +166,15 @@ export function createApp({
         { response: healthContract.response },
       )
       .use(users ? createAuthRoutes({ users, identity }) : new Elysia())
-      .use(flows ? createFlowRoutes({ flows, identity, log }) : new Elysia())
+      .use(
+        flows ? createFlowRoutes({ flows, identity, versions: flowVersions, log }) : new Elysia(),
+      )
+      // A flow's save history, readable by its owner; the flow routes above record it.
+      .use(
+        flows && flowVersions
+          ? createFlowVersionRoutes({ flows, versions: flowVersions, identity, log })
+          : new Elysia(),
+      )
       // Published flows are readable without a session, for the runtime that hosts them.
       .use(flows ? createPublicRoutes({ flows }) : new Elysia())
       // Any signed-in user may run a document statelessly; saved runs need both stores.
@@ -212,8 +225,9 @@ export function createApp({
       )
       .use(createAiRoutes({ identity, model, log, callsPerMinute: limits.ai }))
       .use(account ? createAccountRoutes({ account, identity }) : new Elysia())
-      // The caller's embedded wallet balances per chain; 503 until a chain provider exists.
-      .use(createWalletRoutes({ identity, chainFactory }))
+      // The caller's embedded wallet balances per chain (503 until a chain provider exists)
+      // and the transactions their stored runs sent.
+      .use(createWalletRoutes({ identity, chainFactory, runs }))
       // Listings publish and fork the caller's flows, so they need both stores and the user profile.
       .use(
         listings && flows && users

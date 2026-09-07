@@ -27,6 +27,8 @@ export type BuilderState = {
   edges: BuilderEdge[];
   /** True once the graph or meta differs from the last hydrated document. */
   dirty: boolean;
+  /** How many saves this builder has confirmed; the History panel refetches when it grows. */
+  saveCount: number;
   /** Undo stack, oldest first, capped at `historyLimit`; `future` holds what redo restores. */
   past: HistoryEntry[];
   future: HistoryEntry[];
@@ -144,6 +146,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
   return createStore<BuilderState>((set, get) => ({
     ...hydrateFlow(document),
     dirty: false,
+    saveCount: 0,
     past: [],
     future: [],
     dragging: false,
@@ -364,7 +367,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     markSaved() {
-      set({ dirty: false });
+      set((state) => ({ dirty: false, saveCount: state.saveCount + 1 }));
     },
   }));
 }

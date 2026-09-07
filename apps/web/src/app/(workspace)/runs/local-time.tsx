@@ -6,19 +6,26 @@ const subscribe = () => () => {};
 const clientSnapshot = () => false;
 const serverSnapshot = () => true;
 
-export function formatRunTime(value: string, timeZone?: string): string {
+export function formatRunTime(value: string, timeZone?: string, { zone = true } = {}): string {
   return new Intl.DateTimeFormat("en", {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    timeZoneName: "short",
+    ...(zone ? { timeZoneName: "short" as const } : {}),
     ...(timeZone ? { timeZone } : {}),
   }).format(new Date(value));
 }
 
-/** UTC during SSR/hydration; then the browser's local time, always with a zone label. */
-export function LocalTime({ value }: { value: string }) {
+/**
+ * UTC during SSR/hydration; then the browser's local time. The zone label is on by default
+ * and off (`zone={false}`) where the row is too narrow for it, such as the History panel.
+ */
+export function LocalTime({ value, zone = true }: { value: string; zone?: boolean }) {
   const server = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
-  return <time dateTime={value}>{formatRunTime(value, server ? "UTC" : undefined)}</time>;
+  return (
+    <time dateTime={value} title={formatRunTime(value, server ? "UTC" : undefined)}>
+      {formatRunTime(value, server ? "UTC" : undefined, { zone })}
+    </time>
+  );
 }

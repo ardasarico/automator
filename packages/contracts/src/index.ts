@@ -25,3 +25,4 @@ export * from "./loop-configs";
 export * from "./account";
 export * from "./chains";
 export * from "./wallet";
+export * from "./flow-versions";

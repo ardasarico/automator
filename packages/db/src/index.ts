@@ -9,6 +9,7 @@ import { createRunStore } from "./runs";
 import { createSecretStore } from "./secrets";
 import { createSessionStore } from "./sessions";
 import { createUserStore } from "./users";
+import { createFlowVersionStore } from "./flow-versions";
 export { type AccountStore } from "./account";
 export {
   documentTriggerTypes,
@@ -19,10 +20,11 @@ export {
 export { type EventCursor, type EventCursorStore } from "./event-cursors";
 export { type ListingStore } from "./listings";
 export { migrate, migrations, type Migration } from "./migrations";
-export { type RunStore } from "./runs";
+export { RunCursorError, type RunStore } from "./runs";
 export { type SecretStore } from "./secrets";
 export { type MiniAppSessionRow, type SessionStore } from "./sessions";
 export { UsernameTakenError, type UserStore } from "./users";
+export { flowVersionLimit, type FlowVersionInput, type FlowVersionStore } from "./flow-versions";
 
 export function createDatabase(url: string | undefined) {
   const sql = url ? new SQL(url, { max: 5, connectionTimeout: 3, idleTimeout: 20 }) : undefined;
@@ -36,6 +38,7 @@ export function createDatabase(url: string | undefined) {
     sessions: createSessionStore(sql),
     account: createAccountStore(sql),
     eventCursors: createEventCursorStore(sql),
+    flowVersions: createFlowVersionStore(sql),
     async migrate() {
       if (sql) await migrate(sql);
     },

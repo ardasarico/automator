@@ -10,15 +10,18 @@ import {
   updateFlowContract,
   Type,
 } from "@automator/contracts";
-import { FlowOwnerMissingError, type FlowStore } from "@automator/db";
+import { FlowOwnerMissingError, type FlowStore, type FlowVersionStore } from "@automator/db";
 import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
 import type { IdentityProvider } from "../auth/privy";
 import { isStoredDocumentValid } from "./stored";
+import { graphChanged } from "./versions";
 
 export interface FlowDependencies {
   flows: FlowStore;
   identity: IdentityProvider | undefined;
+  /** Save history: version 1 on create, one more per save that changes the graph. */
+  versions?: FlowVersionStore;
   /** Names stored documents that fail the schema on the server log; off in tests. */
   log?: boolean;
 }
@@ -27,7 +30,7 @@ export interface FlowDependencies {
  * Every route is owner-scoped through the auth guard: a flow that exists but belongs to
  * someone else is indistinguishable from a missing one and answers 404.
  */
-export function createFlowRoutes({ flows, identity, log = false }: FlowDependencies) {
+export function createFlowRoutes({ flows, identity, versions, log = false }: FlowDependencies) {
   return new Elysia({ name: "flows" })
     .use(createAuthGuard(identity))
     .get(listFlowsContract.path, async ({ claims }) => ({ flows: await flows.list(claims.id) }), {
@@ -41,7 +44,9 @@ export function createFlowRoutes({ flows, identity, log = false }: FlowDependenc
         if (!isFlowDocumentInput(body) || findFlowDocumentProblem(body))
           return status(422, { error: "invalid_flow" });
         try {
-          return status(201, await flows.create(claims.id, body));
+          const record = await flows.create(claims.id, body);
+          await versions?.record(claims.id, record.flow.id, body);
+          return status(201, record);
         } catch (error) {
           if (error instanceof FlowOwnerMissingError) return status(401, { error: "unauthorized" });
           throw error;
@@ -65,8 +70,14 @@ export function createFlowRoutes({ flows, identity, log = false }: FlowDependenc
       async ({ claims, params, body, status }) => {
         if (!isFlowDocumentInput(body) || findFlowDocumentProblem(body))
           return status(422, { error: "invalid_flow" });
+        // The stored document is read first so a save that changes the graph records a
+        // version; a rename or a new description alone leaves the history as it is.
+        const previous = versions ? await flows.find(claims.id, params.id) : null;
         const record = await flows.update(claims.id, params.id, body);
-        return record ?? status(404, { error: "not_found" });
+        if (!record) return status(404, { error: "not_found" });
+        if (versions && (!previous || graphChanged(previous.flow, record.flow)))
+          await versions.record(claims.id, record.flow.id, body);
+        return record;
       },
       {
         params: updateFlowContract.params,

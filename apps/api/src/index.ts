@@ -50,6 +50,7 @@ const app = createApp({
   world: createWorldVerifier(config.world),
   log: true,
   rateLimits: config.rateLimits,
+  flowVersions: database.flowVersions,
 }).listen({ hostname: "::", port: config.port });
 
 console.log(`API listening on ${app.server?.url}`);
