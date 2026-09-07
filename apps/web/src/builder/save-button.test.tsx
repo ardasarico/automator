@@ -2,7 +2,7 @@
 import type { FlowDocument } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
-import { act } from "react";
+import { act, useEffect } from "react";
 import type { Root } from "react-dom/client";
 import type { SaveFlowController } from "./save-button";
 
@@ -42,11 +42,16 @@ const document: FlowDocument = {
   edges: [],
 };
 
-let controller: SaveFlowController;
-let setMeta: (patch: { name: string }) => void;
+/** The controller and the store action the test drives, published from an effect. */
+const handles: { controller?: SaveFlowController; setMeta?: (patch: { name: string }) => void } =
+  {};
 function Probe() {
-  controller = useSaveFlowController();
-  setMeta = useBuilderStore((state) => state.setMeta);
+  const controller = useSaveFlowController();
+  const setMeta = useBuilderStore((state) => state.setMeta);
+  useEffect(() => {
+    handles.controller = controller;
+    handles.setMeta = setMeta;
+  });
   return <output data-testid="probe">{controller.state}</output>;
 }
 
@@ -80,12 +85,12 @@ afterAll(async () => {
 describe("useSaveFlow", () => {
   test("a save asked for while one is running shares that save's outcome", async () => {
     await mount();
-    await act(async () => setMeta({ name: "Renamed" }));
+    await act(async () => handles.setMeta!({ name: "Renamed" }));
     let first: Promise<{ ok: boolean }>;
     let second: Promise<{ ok: boolean }>;
     await act(async () => {
-      first = controller.save();
-      second = controller.save();
+      first = handles.controller!.save();
+      second = handles.controller!.save();
     });
     expect(gates).toHaveLength(1);
     await act(async () => gates[0]!.reject(new FlowRequestError("unauthorized")));
@@ -96,10 +101,10 @@ describe("useSaveFlow", () => {
   });
 
   test("a save after the running one finished starts a new request", async () => {
-    await act(async () => setMeta({ name: "Renamed twice" }));
+    await act(async () => handles.setMeta!({ name: "Renamed twice" }));
     let outcome: Promise<{ ok: boolean }>;
     await act(async () => {
-      outcome = controller.save();
+      outcome = handles.controller!.save();
     });
     expect(gates).toHaveLength(1);
     await act(async () => gates[0]!.resolve());

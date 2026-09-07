@@ -3,14 +3,10 @@ import type { FlowDocument } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
 import { act } from "react";
-import type { Root } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 
 GlobalRegistrator.register();
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-
-// React DOM decides at load time whether `input` events exist, so it must see the DOM first;
-// with it loaded after registration a dispatched input event reaches a controlled onChange.
-const { createRoot } = await import("react-dom/client");
 
 mock.module("../auth/access-token", () => ({
   e2eSession: false,
@@ -103,13 +99,19 @@ async function mount() {
   });
 }
 
+/**
+ * Types into a controlled textarea. happy-dom does not deliver React's synthetic change event
+ * for a dispatched input event (React decides at load time whether `input` exists), so the
+ * change goes straight to the props React attached to the element, with the real value set.
+ */
 function type(textarea: HTMLTextAreaElement, text: string) {
-  // React listens for the native input event and reads the value through the prototype setter.
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
     textarea,
     text,
   );
-  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  const key = Object.keys(textarea).find((name) => name.startsWith("__reactProps"))!;
+  const props = (textarea as unknown as Record<string, { onChange(event: unknown): void }>)[key]!;
+  props.onChange({ target: textarea, currentTarget: textarea });
 }
 
 const buttonNamed = (text: string) =>
