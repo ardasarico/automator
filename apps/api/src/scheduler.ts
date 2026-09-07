@@ -157,7 +157,11 @@ export function createScheduler({
       toBlock: to,
     });
     const shared = typeof engine === "function" ? engine(ownerId) : engine;
-    const chain = chainFactory ? await chainFactory.forUser(ownerId, "live", chainId) : undefined;
+    // The owner's chain provider looks their wallet up (a Privy call); only worth it with logs.
+    const chain =
+      chainFactory && logs.length > 0
+        ? await chainFactory.forUser(ownerId, "live", chainId)
+        : undefined;
     let handled: bigint | null = null;
     try {
       for (const entry of logs) {

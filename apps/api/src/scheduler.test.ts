@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { FlowDocument } from "@automator/contracts";
 import type { Address, Hex } from "viem";
+import { createStubChain } from "@automator/flow-engine";
 import type { EventFilter, EventLog, EventReader } from "./chain/events";
+import type { ChainFactory } from "./chain/provider";
 import { memoryEventCursors, memoryStores } from "./runs/test-stores";
 import { createScheduler, parseInterval } from "./scheduler";
 
@@ -221,6 +223,7 @@ describe("onchain-event polling", () => {
       cursors?: Parameters<typeof memoryEventCursors>[0];
       maxBlocks?: number;
       readers?: Partial<Record<number, EventReader>>;
+      chainFactory?: ChainFactory;
     } = {},
   ) {
     const stores = memoryStores(
@@ -236,6 +239,7 @@ describe("onchain-event polling", () => {
       ...stores,
       log: (line) => lines.push(line),
       engine: { sleep: async () => {} },
+      ...(options.chainFactory ? { chainFactory: options.chainFactory } : {}),
       eventCursors: cursors.store,
       eventReaderFor: (chainId) =>
         options.readers ? options.readers[chainId] : chainId === 84532 ? chain.reader : undefined,
@@ -289,6 +293,29 @@ describe("onchain-event polling", () => {
     await scheduler.tick();
     await scheduler.settle();
     expect(chain.filters[1]).toMatchObject({ fromBlock: BigInt(1001), toBlock: BigInt(1003) });
+  });
+
+  test("asks for the owner's chain provider only when a poll found logs", async () => {
+    const forUserCalls: Array<[string, string, number | undefined]> = [];
+    const chainFactory = {
+      forUser: async (userId: string, mode: "live" | "dry-run", chainId?: number) => {
+        forUserCalls.push([userId, mode, chainId]);
+        return createStubChain();
+      },
+    } as unknown as ChainFactory;
+    const { scheduler, chain, stores } = fixture({
+      head: 1000,
+      logs: [transfer(1003, 0, 5)],
+      chainFactory,
+    });
+    await scheduler.tick();
+    await scheduler.settle();
+    expect(forUserCalls).toEqual([]);
+    chain.setHead(1003);
+    await scheduler.tick();
+    await scheduler.settle();
+    expect(forUserCalls).toEqual([["did:privy:alice", "live", 84532]]);
+    expect(stores.runRecords.map((r) => r.run.status)).toEqual(["succeeded"]);
   });
 
   test("passes the indexed argument filter along", async () => {
