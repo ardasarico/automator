@@ -4,6 +4,7 @@ import {
   RiDiscordLine,
   RiFileList3Line,
   RiGitBranchLine,
+  RiPriceTag3Line,
   RiQrCodeLine,
   RiSparklingLine,
   RiTimeLine,
@@ -113,6 +114,29 @@ export const flowExamples = [
       { name: "Discord message", icon: RiDiscordLine },
     ],
     nodeTypes: ["logic.set-variable", "ai.generate-text", "notify.discord"],
+  },
+  {
+    id: "support-triage",
+    name: "Support triage",
+    description: "Sort support messages with AI and route each kind to Discord.",
+    steps: [
+      { name: "Describe the issue", description: "A form takes the visitor's message." },
+      {
+        name: "Sort the message",
+        description: "Classify labels it a bug, a question or feedback.",
+      },
+      {
+        name: "Route it",
+        description:
+          "Two conditions send each label down its own branch to a Discord message written for it.",
+      },
+      { name: "Confirm", description: "The visitor sees a screen matching where it went." },
+    ],
+    nodes: [
+      { name: "Classify", icon: RiPriceTag3Line },
+      { name: "Condition", icon: RiGitBranchLine },
+    ],
+    nodeTypes: ["screen.form", "ai.classify", "logic.condition", "notify.discord"],
   },
   {
     id: "usdc-balance-alert",
