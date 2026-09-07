@@ -1,10 +1,150 @@
 import { describe, expect, test } from "bun:test";
-import { getWalletContract, parseResponse } from "@automator/contracts";
+import {
+  getWalletContract,
+  getWalletTransactionsContract,
+  parseResponse,
+  type FlowDocument,
+  type FlowRun,
+} from "@automator/contracts";
 import { Elysia } from "elysia";
 import { custom, encodeFunctionResult, numberToHex, parseAbi, type Address } from "viem";
 import type { IdentityProvider } from "../auth/privy";
 import { createChainFactory, resolveChainSettings } from "../chain/provider";
+import { memoryStores } from "../runs/test-stores";
 import { createWalletRoutes } from "./routes";
+import { collectWalletTransactions } from "./transactions";
+
+const hashA = `0x${"aa".repeat(32)}`;
+const hashB = `0x${"bb".repeat(32)}`;
+const hashC = `0x${"cc".repeat(32)}`;
+
+const payout: FlowDocument = {
+  version: 1,
+  id: "flow-pay",
+  name: "Payout",
+  description: "",
+  chainId: 4801,
+  nodes: [
+    { id: "t", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Run", config: {} },
+    { id: "send", type: "usdc.payout", position: { x: 1, y: 0 }, label: "Send", config: {} },
+    {
+      id: "call",
+      type: "onchain.write-contract",
+      position: { x: 2, y: 0 },
+      label: "Call",
+      config: { chainId: 84532 },
+    },
+  ],
+  edges: [],
+};
+
+function run(id: string, startedAt: string, nodes: FlowRun["nodes"]): FlowRun {
+  return {
+    id,
+    flowId: payout.id,
+    status: "succeeded",
+    startedAt,
+    finishedAt: startedAt,
+    trigger: { nodeId: "t" },
+    nodes,
+    variables: {},
+  };
+}
+
+describe("collectWalletTransactions", () => {
+  test("lists receipt hashes newest first with the node's chain and time", () => {
+    const older = run("r-old", "2026-09-07T09:00:00.000Z", [
+      { nodeId: "t", status: "succeeded", outputs: { run: {} } },
+      {
+        nodeId: "send",
+        status: "succeeded",
+        finishedAt: "2026-09-07T09:00:02.000Z",
+        outputs: { receipt: { hash: hashA }, echo: { receipt: { transactionHash: hashA } } },
+      },
+      { nodeId: "call", status: "succeeded", outputs: { receipt: { transactionHash: hashB } } },
+    ]);
+    const newer = run("r-new", "2026-09-07T10:00:00.000Z", [
+      { nodeId: "t", status: "succeeded", outputs: { run: {} } },
+      { nodeId: "send", status: "failed", error: "insufficient funds" },
+      { nodeId: "call", status: "skipped" },
+      { nodeId: "ghost", status: "succeeded", outputs: { receipt: { hash: hashC } } },
+    ]);
+    const records = [
+      { run: newer, flowName: "Payout", source: "manual" as const, document: payout },
+      { run: older, flowName: "Payout", source: "manual" as const, document: payout },
+    ];
+    expect(collectWalletTransactions(records)).toEqual([
+      {
+        hash: hashA,
+        chainId: 4801,
+        flowId: "flow-pay",
+        flowName: "Payout",
+        runId: "r-old",
+        nodeId: "send",
+        nodeType: "usdc.payout",
+        at: "2026-09-07T09:00:02.000Z",
+      },
+      {
+        hash: hashB,
+        chainId: 84532,
+        flowId: "flow-pay",
+        flowName: "Payout",
+        runId: "r-old",
+        nodeId: "call",
+        nodeType: "onchain.write-contract",
+        at: "2026-09-07T09:00:00.000Z",
+      },
+    ]);
+    expect(collectWalletTransactions(records, 1).map((t) => t.hash)).toEqual([hashA]);
+  });
+});
+
+describe("GET /wallet/transactions", () => {
+  test("needs a session and a run store", async () => {
+    const { runs } = memoryStores([]);
+    const call = app(createWalletRoutes({ identity: identity(null), runs }));
+    expect((await call("/wallet/transactions")).status).toBe(401);
+    const without = app(createWalletRoutes({ identity: identity(null) }));
+    const response = await without("/wallet/transactions", "alice");
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "unavailable" });
+  });
+
+  test("answers the caller's own transactions, newest first", async () => {
+    const { runs } = memoryStores([{ ownerId: "did:privy:alice", flow: payout }]);
+    await runs.create(
+      "did:privy:alice",
+      payout,
+      run("r1", "2026-09-07T09:00:00.000Z", [
+        { nodeId: "send", status: "succeeded", outputs: { receipt: { hash: hashA } } },
+      ]),
+    );
+    await runs.create(
+      "did:privy:alice",
+      payout,
+      run("r2", "2026-09-07T10:00:00.000Z", [
+        { nodeId: "send", status: "succeeded", outputs: { receipt: { hash: hashB } } },
+      ]),
+    );
+    await runs.create(
+      "did:privy:bob",
+      payout,
+      run("r3", "2026-09-07T11:00:00.000Z", [
+        { nodeId: "send", status: "succeeded", outputs: { receipt: { hash: hashC } } },
+      ]),
+    );
+    const call = app(createWalletRoutes({ identity: identity(null), runs }));
+    const response = await call("/wallet/transactions", "alice");
+    expect(response.status).toBe(200);
+    const parsed = parseResponse(getWalletTransactionsContract, 200, await response.json());
+    expect(parsed.status).toBe(200);
+    if (parsed.status !== 200) return;
+    expect(parsed.data.transactions.map((t) => [t.hash, t.runId, t.chainId])).toEqual([
+      [hashB, "r2", 4801],
+      [hashA, "r1", 4801],
+    ]);
+  });
+});
 
 const user = "0x1111111111111111111111111111111111111111" as Address;
 const erc20 = parseAbi(["function balanceOf(address owner) view returns (uint256)"]);

@@ -14,7 +14,9 @@ import {
   RiEqualizerLine,
   RiFileCopyLine,
   RiUser3Line,
+  RiWallet3Line,
 } from "@remixicon/react";
+import Link from "next/link";
 import { type ReactNode, type RefObject, useEffect, useState, useSyncExternalStore } from "react";
 import { AccountRequestError, getAccountUsageRequest } from "../account/client";
 import { useAccessToken } from "../auth/access-token";
@@ -79,7 +81,7 @@ function shortAddress(address: string) {
  * grant) and the notification channels they have stored credentials for. Derived from the
  * session and the secret names the Variables panel lists; nothing here is an OAuth link.
  */
-function ConnectedApps({ open }: { open: boolean }) {
+function ConnectedApps({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
   const { user } = useAuthSession();
   const getAccessToken = useAccessToken();
   const status = useSecrets((state) => state.status);
@@ -97,7 +99,7 @@ function ConnectedApps({ open }: { open: boolean }) {
     <div className="pt-2">
       <DetailRow
         label="Embedded wallet"
-        description="Created by Privy when you signed in. Server signing lets flows send transactions while you are away."
+        description="Created by Privy when you signed in. Server signing lets flows send transactions while you are away; the wallet page shows balances and what runs sent."
       >
         <div className="flex min-w-0 flex-col items-end gap-2">
           {user?.walletAddress ? (
@@ -108,6 +110,15 @@ function ConnectedApps({ open }: { open: boolean }) {
             <span className="text-caption text-muted-foreground">No wallet yet</span>
           )}
           <EnableSigningButton />
+          <Button
+            variant="ghost"
+            size="sm"
+            render={<Link href="/wallet" onClick={onNavigate} />}
+            aria-label="Open the wallet page for balances and transactions"
+          >
+            <RiWallet3Line aria-hidden="true" />
+            Balances and transactions
+          </Button>
         </div>
       </DetailRow>
       {detected.map((channel) => (
@@ -330,7 +341,7 @@ export function SettingsDialog({
                 title="Connected apps"
                 description="The wallet and channels your flows can use."
               />
-              <ConnectedApps open={open} />
+              <ConnectedApps open={open} onNavigate={() => onOpenChange(false)} />
             </TabsPanel>
             <TabsPanel value="usage" className="p-7 max-sm:px-5 max-sm:py-6">
               <PanelHeader title="Usage" description="What you have built and run." />

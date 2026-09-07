@@ -65,3 +65,8 @@ export function explorerTransactionUrl(chainId: number, hash: string): string | 
   const chain = getChain(chainId);
   return chain ? `${chain.explorerUrl}/tx/${hash}` : undefined;
 }
+
+export function explorerAddressUrl(chainId: number, address: string): string | undefined {
+  const chain = getChain(chainId);
+  return chain ? `${chain.explorerUrl}/address/${address}` : undefined;
+}

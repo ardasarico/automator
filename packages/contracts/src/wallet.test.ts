@@ -1,6 +1,35 @@
 import { Value } from "@sinclair/typebox/value";
 import { describe, expect, test } from "bun:test";
-import { getWalletContract, walletSchema } from "./wallet";
+import {
+  getWalletContract,
+  getWalletTransactionsContract,
+  walletSchema,
+  walletTransactionSchema,
+} from "./wallet";
+
+describe("wallet transactions contract", () => {
+  test("describes GET /wallet/transactions as run-derived transactions", () => {
+    expect(getWalletTransactionsContract).toMatchObject({
+      method: "GET",
+      path: "/wallet/transactions",
+    });
+    const transaction = {
+      hash: `0x${"ab".repeat(32)}`,
+      chainId: 84532,
+      flowId: "f1",
+      flowName: "Payout",
+      runId: "r1",
+      nodeId: "send",
+      nodeType: "usdc.transfer",
+      at: "2026-09-07T10:00:01.000Z",
+    };
+    const list = getWalletTransactionsContract.response[200];
+    expect(Value.Check(walletTransactionSchema, transaction)).toBe(true);
+    expect(Value.Check(walletTransactionSchema, { ...transaction, hash: "0xabc" })).toBe(false);
+    expect(Value.Check(list, { transactions: [transaction] })).toBe(true);
+    expect(Value.Check(list, { transactions: [] })).toBe(true);
+  });
+});
 
 describe("wallet contract", () => {
   test("describes GET /wallet with an optional chain id", () => {

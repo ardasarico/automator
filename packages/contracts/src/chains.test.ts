@@ -5,6 +5,7 @@ import {
   chainName,
   chains,
   defaultChainId,
+  explorerAddressUrl,
   explorerTransactionUrl,
   getChain,
   isChainId,
@@ -47,5 +48,7 @@ describe("chain registry", () => {
       "https://worldchain-sepolia.explorer.alchemy.com/tx/0xabc",
     );
     expect(explorerTransactionUrl(1, "0xabc")).toBeUndefined();
+    expect(explorerAddressUrl(84532, "0xabc")).toBe("https://sepolia.basescan.org/address/0xabc");
+    expect(explorerAddressUrl(1, "0xabc")).toBeUndefined();
   });
 });

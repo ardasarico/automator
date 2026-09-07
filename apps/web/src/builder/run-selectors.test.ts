@@ -8,21 +8,7 @@ import {
   nodeStatusLabel,
   outputHandles,
   simulatedAnswer,
-  transactionHashes,
 } from "./run-selectors";
-
-const hash = `0x${"ab".repeat(32)}`;
-
-describe("transactionHashes", () => {
-  test("finds a receipt's hash at the top level or one level down, once", () => {
-    expect(transactionHashes({ hash, status: "success" })).toEqual([hash]);
-    expect(transactionHashes({ receipt: { transactionHash: hash }, hash })).toEqual([hash]);
-    expect(transactionHashes({ token: "0xabc", hash: "not a hash" })).toEqual([]);
-    expect(transactionHashes({ deep: { deeper: { hash } } })).toEqual([]);
-    expect(transactionHashes("text")).toEqual([]);
-    expect(transactionHashes(undefined)).toEqual([]);
-  });
-});
 
 describe("isInsufficientFundsError", () => {
   test.each([

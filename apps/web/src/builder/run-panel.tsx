@@ -31,7 +31,7 @@ import { useRunStore } from "./run-store-provider";
 import { useExplainRun } from "./use-explain-run";
 import { useSelectNode } from "./use-select-node";
 import { useBuilderStore } from "./store-provider";
-import { noFundsMessage } from "./wallet-funds";
+import { noFundsMessage } from "./wallet-funds-check";
 
 const runStatusLabels = {
   succeeded: "Succeeded",

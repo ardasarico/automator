@@ -4,22 +4,13 @@ import { chainName, type Wallet } from "@automator/contracts";
 import { useEffect, useRef, useState } from "react";
 import { useAccessToken } from "../auth/access-token";
 import { fetchWallet, WalletRequestError } from "./wallet-client";
+import { hasNoFunds, noFundsMessage } from "./wallet-funds-check";
 
 const failures: Record<string, string> = {
   unauthorized: "Your session expired. Reload the page to see balances.",
   not_found: "This account has no embedded wallet yet.",
   unavailable: "Balances are unavailable right now.",
 };
-
-/** True when the wallet holds nothing the flow could spend on that chain. */
-export function hasNoFunds(wallet: Wallet): boolean {
-  return Number(wallet.nativeBalance) === 0 && Number(wallet.usdcBalance ?? "0") === 0;
-}
-
-/** The warning the settings dialog and the run panel share. */
-export function noFundsMessage(chainId: number): string {
-  return `This wallet has no funds on ${chainName(chainId)}.`;
-}
 
 /**
  * The embedded wallet's balances on one chain, fetched when the chain changes and cached for

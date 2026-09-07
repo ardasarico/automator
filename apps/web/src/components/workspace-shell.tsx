@@ -2,7 +2,13 @@
 import { Button } from "@automator/ui/button";
 import { Logo, LogoMark } from "@automator/ui/logo";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@automator/ui/tooltip";
-import { RiFlowChart, RiPlayCircleLine, RiCompass3Line, RiSideBarLine } from "@remixicon/react";
+import {
+  RiFlowChart,
+  RiPlayCircleLine,
+  RiCompass3Line,
+  RiSideBarLine,
+  RiWallet3Line,
+} from "@remixicon/react";
 import { motion, MotionConfig, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,6 +20,7 @@ const pages = [
   { href: "/flows", label: "Flows", icon: RiFlowChart },
   { href: "/runs", label: "Runs", icon: RiPlayCircleLine },
   { href: "/marketplace", label: "Marketplace", icon: RiCompass3Line },
+  { href: "/wallet", label: "Wallet", icon: RiWallet3Line },
 ];
 function SidebarHeader() {
   const { state, setState } = useSidebar();
