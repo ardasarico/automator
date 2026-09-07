@@ -71,6 +71,9 @@ describe("login and error helpers", () => {
 
   test("describes known codes and falls back to a generic message", () => {
     expect(describeIdKitError("user_rejected")).toContain("closed the verification");
+    // An expired request context cannot be retried in place: the screen keeps the one it was served.
+    expect(describeIdKitError("rp_signature_expired")).toContain("Reload the page");
+    expect(describeIdKitError("timestamp_too_old")).toContain("Reload the page");
     expect(describeIdKitError("something_else")).toBe(
       "Verification failed (something_else). Try again.",
     );

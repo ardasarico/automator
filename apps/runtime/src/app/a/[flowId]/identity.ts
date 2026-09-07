@@ -66,8 +66,9 @@ const idKitMessages: Record<string, string> = {
   unknown_rp: "This app's World ID setup was not recognised.",
   inactive_rp: "This app's World ID setup is inactive.",
   invalid_rp_signature: "This app's World ID request could not be trusted.",
-  rp_signature_expired: "The verification request expired. Try again.",
-  timestamp_too_old: "The verification request expired. Try again.",
+  // The signed request context came with the screen; only a new session brings a fresh one.
+  rp_signature_expired: "The verification request expired. Reload the page and try again.",
+  timestamp_too_old: "The verification request expired. Reload the page and try again.",
 };
 
 /** An IDKit error code in the visitor's words. */
