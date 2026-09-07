@@ -10,13 +10,14 @@ const count = Type.Integer({ minimum: 0 });
 
 export const accountUsageSchema = Type.Object({
   flows: count,
-  /** Flows whose webhook and schedule triggers are switched on. */
+  /** Flows whose webhook, schedule and onchain-event triggers are switched on. */
   activeFlows: count,
   runsLast30Days: Type.Object({
     manual: count,
     webhook: count,
     schedule: count,
     miniapp: count,
+    event: count,
   }),
   secrets: count,
   /** Marketplace listings the user has published. */
@@ -35,5 +36,5 @@ export const accountUsageContract = {
 /** Every stored run of the window, whatever started it. */
 export function totalRuns(usage: Pick<AccountUsage, "runsLast30Days">): number {
   const runs = usage.runsLast30Days;
-  return runs.manual + runs.webhook + runs.schedule + runs.miniapp;
+  return runs.manual + runs.webhook + runs.schedule + runs.miniapp + runs.event;
 }

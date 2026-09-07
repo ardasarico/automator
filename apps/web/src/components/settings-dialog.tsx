@@ -212,13 +212,13 @@ function Usage({ open }: { open: boolean }) {
       <dl className="pt-2">
         <UsageRow
           term="Flows"
-          detail={`${usage.activeFlows} active (webhook and schedule triggers on)`}
+          detail={`${usage.activeFlows} active (webhook, schedule and onchain-event triggers on)`}
         >
           {usage.flows}
         </UsageRow>
         <UsageRow
           term="Runs in the last 30 days"
-          detail={`${runs.manual} Simulate · ${runs.webhook} webhook · ${runs.schedule} schedule · ${runs.miniapp} mini-app`}
+          detail={`${runs.manual} Simulate · ${runs.webhook} webhook · ${runs.schedule} schedule · ${runs.miniapp} mini-app · ${runs.event} onchain event`}
         >
           {totalRuns(usage)}
         </UsageRow>

@@ -62,7 +62,7 @@ describe.skipIf(!url)("account store", () => {
         expect(await account.usage("did:privy:test-a", now)).toEqual({
           flows: 0,
           activeFlows: 0,
-          runsLast30Days: { manual: 0, webhook: 0, schedule: 0, miniapp: 0 },
+          runsLast30Days: { manual: 0, webhook: 0, schedule: 0, miniapp: 0, event: 0 },
           secrets: 0,
           listings: 0,
           since: "2026-08-08T12:00:00.000Z",
@@ -114,14 +114,14 @@ describe.skipIf(!url)("account store", () => {
         expect(await account.usage("did:privy:test-a", now)).toEqual({
           flows: 2,
           activeFlows: 1,
-          runsLast30Days: { manual: 1, webhook: 2, schedule: 0, miniapp: 0 },
+          runsLast30Days: { manual: 1, webhook: 2, schedule: 0, miniapp: 0, event: 0 },
           secrets: 2,
           listings: 1,
           since: "2026-08-08T12:00:00.000Z",
         });
         expect(await account.usage("did:privy:test-b", now)).toMatchObject({
           flows: 1,
-          runsLast30Days: { manual: 1, webhook: 0, schedule: 0, miniapp: 0 },
+          runsLast30Days: { manual: 1, webhook: 0, schedule: 0, miniapp: 0, event: 0 },
         });
 
         await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;

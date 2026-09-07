@@ -13,7 +13,7 @@ const identity: IdentityProvider = {
 const usage: AccountUsage = {
   flows: 2,
   activeFlows: 1,
-  runsLast30Days: { manual: 3, webhook: 1, schedule: 0, miniapp: 0 },
+  runsLast30Days: { manual: 3, webhook: 1, schedule: 0, miniapp: 0, event: 0 },
   secrets: 1,
   listings: 0,
   since: "2026-08-08T12:00:00.000Z",
