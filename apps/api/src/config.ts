@@ -20,10 +20,15 @@ export interface ApiConfig {
    * survive a restart there.
    */
   secretsKey: Buffer;
-  /** Chain for onchain nodes; defaults to Base Sepolia over its public RPC with Circle's USDC. */
+  /**
+   * The legacy single-chain override: `CHAIN_RPC_URL` and `USDC_ADDRESS` apply to the registry
+   * chain `CHAIN_ID` names (Base Sepolia by default); see `resolveChainSettings`.
+   */
   chainId: number;
   chainRpcUrl: string;
   usdcAddress: string | undefined;
+  /** Per-chain RPC overrides from `CHAIN_RPC_URL_<chain id>`, keyed by chain id. */
+  chainRpcUrls: Record<string, string>;
   /** Privy authorization key (base64 PKCS8) that signs with users' delegated embedded wallets. */
   privyAuthorizationKey: string | undefined;
   /**
@@ -88,8 +93,19 @@ export function readConfig(env: Record<string, string | undefined> = process.env
       env.USDC_ADDRESS || (Number(env.CHAIN_ID) || defaultChainId) === defaultChainId
         ? env.USDC_ADDRESS || defaultUsdcAddress
         : undefined,
+    chainRpcUrls: readChainRpcUrls(env),
     privyAuthorizationKey: env.PRIVY_AUTHORIZATION_KEY || undefined,
     e2eTestToken: env.E2E_TEST_TOKEN || undefined,
     secretsKey,
   };
+}
+
+/** `CHAIN_RPC_URL_4801=https://...` overrides one chain's RPC; blank or non-numeric ids are ignored. */
+function readChainRpcUrls(env: Record<string, string | undefined>): Record<string, string> {
+  const urls: Record<string, string> = {};
+  for (const [name, value] of Object.entries(env)) {
+    const match = /^CHAIN_RPC_URL_(\d+)$/.exec(name);
+    if (match && value) urls[match[1]!] = value;
+  }
+  return urls;
 }

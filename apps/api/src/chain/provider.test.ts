@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { custom, encodeAbiParameters, encodeFunctionResult, parseAbi, type Address } from "viem";
 import type { IdentityProvider } from "../auth/privy";
-import { createChainFactory, resolveChain } from "./provider";
+import { createChainFactory, resolveChain, resolveChainSettings } from "./provider";
 
 const user = "0x1111111111111111111111111111111111111111" as Address;
 const abi = parseAbi(["function balanceOf(address owner) view returns (uint256)"]);
+const baseUsdc = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+const worldUsdc = "0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88";
 
 /** A transport answering canned JSON-RPC, recording every call. */
 function fakeTransport(answers: Record<string, (params: unknown[]) => unknown>) {
@@ -30,11 +32,72 @@ function identity(
   };
 }
 
+const legacyDefaults = {
+  chainId: 84532,
+  chainRpcUrl: "https://sepolia.base.org",
+  usdcAddress: baseUsdc,
+  chainRpcUrls: {},
+};
+
+describe("chain settings", () => {
+  test("every registry chain with its public RPC and USDC by default", () => {
+    expect(resolveChainSettings(legacyDefaults)).toEqual([
+      { chainId: 84532, rpcUrl: "https://sepolia.base.org", usdcAddress: baseUsdc },
+      {
+        chainId: 4801,
+        rpcUrl: "https://worldchain-sepolia.g.alchemy.com/public",
+        usdcAddress: worldUsdc,
+      },
+    ]);
+  });
+
+  test("the legacy CHAIN_ID trio overrides its own chain only", () => {
+    const settings = resolveChainSettings({
+      chainId: 4801,
+      chainRpcUrl: "http://localhost:8545",
+      usdcAddress: "0xabc",
+      chainRpcUrls: {},
+    });
+    expect(settings[0]).toEqual({
+      chainId: 84532,
+      rpcUrl: "https://sepolia.base.org",
+      usdcAddress: baseUsdc,
+    });
+    expect(settings[1]).toEqual({
+      chainId: 4801,
+      rpcUrl: "http://localhost:8545",
+      usdcAddress: "0xabc",
+    });
+  });
+
+  test("CHAIN_RPC_URL_<id> wins over the legacy RPC, and an unknown CHAIN_ID is reported", () => {
+    const warnings: string[] = [];
+    const settings = resolveChainSettings(
+      {
+        chainId: 8453,
+        chainRpcUrl: "https://mainnet.base.org",
+        usdcAddress: undefined,
+        chainRpcUrls: { 84532: "https://base.example", 4801: "https://world.example", 1: "x" },
+      },
+      (line) => warnings.push(line),
+    );
+    expect(settings.map((chain) => chain.rpcUrl)).toEqual([
+      "https://base.example",
+      "https://world.example",
+    ]);
+    expect(warnings).toEqual([
+      "CHAIN_ID 8453 is not in the chain registry; CHAIN_RPC_URL and USDC_ADDRESS are ignored",
+      "CHAIN_RPC_URL_1 names a chain that is not in the registry; ignored",
+    ]);
+  });
+});
+
 describe("chain provider", () => {
   test("resolves a known chain with the configured RPC and defines unknown ones", () => {
     const base = resolveChain(84532, "https://rpc.example");
     expect(base.name).toBe("Base Sepolia");
     expect(base.rpcUrls.default.http).toEqual(["https://rpc.example"]);
+    expect(resolveChain(4801, "https://rpc.example").name).toBe("World Chain Sepolia");
     expect(resolveChain(999999, "https://x").name).toBe("Chain 999999");
   });
 
@@ -44,10 +107,10 @@ describe("chain provider", () => {
       eth_chainId: () => "0x14a34",
     });
     const factory = createChainFactory(
-      { chainId: 84532, rpcUrl: "https://rpc.example" },
+      [{ chainId: 84532, rpcUrl: "https://rpc.example" }],
       identity(null),
       undefined,
-      transport,
+      () => transport,
     );
     const provider = await factory.forUser("did:privy:alice", "dry-run");
     const result = await provider.reader.readContract({
@@ -60,16 +123,53 @@ describe("chain provider", () => {
     expect(calls[0]?.method).toBe("eth_call");
     expect(provider.signer).toBeUndefined();
     expect(provider.signerUnavailableReason).toBe("This account has no embedded wallet");
+    expect(factory.canSign).toBe(false);
+    expect(await factory.wallet("did:privy:alice")).toBeNull();
+  });
+
+  test("builds the provider for the chain the run asks for, with that chain's USDC", async () => {
+    const transports = new Map<number, ReturnType<typeof fakeTransport>>();
+    const factory = createChainFactory(
+      resolveChainSettings(legacyDefaults),
+      identity({ id: "w1", address: user, delegated: false }),
+      undefined,
+      (settings) => {
+        const fake = fakeTransport({ eth_chainId: () => `0x${settings.chainId.toString(16)}` });
+        transports.set(settings.chainId, fake);
+        return fake.transport;
+      },
+    );
+    expect(factory.chainIds).toEqual([84532, 4801]);
+    const base = await factory.forUser("u", "dry-run");
+    expect(base).toMatchObject({
+      chainId: 84532,
+      chainName: "Base Sepolia",
+      usdcAddress: baseUsdc,
+    });
+    const world = await factory.forUser("u", "live", 4801);
+    expect(world).toMatchObject({
+      chainId: 4801,
+      chainName: "World Chain Sepolia",
+      mode: "live",
+      account: user,
+      usdcAddress: worldUsdc,
+    });
+    expect(world.reader).not.toBe(base.reader);
+    expect(factory.chain(4801)?.chainName).toBe("World Chain Sepolia");
+    expect(factory.chain(4801)?.eventReader).toBeDefined();
+    expect(factory.chain(1)).toBeUndefined();
+    await expect(factory.forUser("u", "dry-run", 1)).rejects.toThrow("Chain 1 is not configured");
+    expect(await factory.wallet("u")).toEqual({ id: "w1", address: user, delegated: false });
   });
 
   test("explains why signing is unavailable, step by step", async () => {
     const { transport } = fakeTransport({});
-    const settings = { chainId: 84532, rpcUrl: "https://rpc.example", usdcAddress: user };
+    const settings = [{ chainId: 84532, rpcUrl: "https://rpc.example", usdcAddress: user }];
     const notDelegated = await createChainFactory(
       settings,
       identity({ id: "w1", address: user, delegated: false }),
       undefined,
-      transport,
+      () => transport,
     ).forUser("u", "live");
     expect(notDelegated).toMatchObject({
       account: user,
@@ -78,18 +178,20 @@ describe("chain provider", () => {
         "Server signing is not configured on the API (PRIVY_AUTHORIZATION_KEY)",
     });
     const signing = { privy: {} as never, authorizationKey: "key" };
-    const noGrant = await createChainFactory(
+    const withKey = createChainFactory(
       settings,
       identity({ id: "w1", address: user, delegated: false }),
       signing,
-      transport,
-    ).forUser("u", "live");
+      () => transport,
+    );
+    expect(withKey.canSign).toBe(true);
+    const noGrant = await withKey.forUser("u", "live");
     expect(noGrant.signerUnavailableReason).toContain("not enabled for this wallet");
     const ready = await createChainFactory(
       settings,
       identity({ id: "w1", address: user, delegated: true }),
       signing,
-      transport,
+      () => transport,
     ).forUser("u", "live");
     expect(ready.signer?.address).toBe(user);
     expect(ready.signerUnavailableReason).toBeUndefined();
@@ -107,10 +209,10 @@ describe("chain provider", () => {
       },
     });
     const provider = await createChainFactory(
-      { chainId: 84532, rpcUrl: "https://rpc.example" },
+      [{ chainId: 84532, rpcUrl: "https://rpc.example" }],
       identity(null),
       undefined,
-      transport,
+      () => transport,
     ).forUser("u", "dry-run");
     await expect(
       provider.reader.simulateContract({

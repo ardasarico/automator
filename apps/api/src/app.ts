@@ -31,6 +31,7 @@ import type { SecretsCrypto } from "./secrets/crypto";
 import { createSecretsResolver } from "./secrets/resolver";
 import { createSecretRoutes } from "./secrets/routes";
 import { createSessionRoutes } from "./sessions/routes";
+import { createWalletRoutes } from "./wallet/routes";
 
 export interface AppDependencies {
   database: Pick<ReturnType<typeof createDatabase>, "check">;
@@ -172,6 +173,8 @@ export function createApp({
           : new Elysia(),
       )
       .use(createAiRoutes({ identity, model, log }))
+      // The caller's embedded wallet balances per chain; 503 until a chain provider exists.
+      .use(createWalletRoutes({ identity, chainFactory }))
       // Listings publish and fork the caller's flows, so they need both stores and the user profile.
       .use(
         listings && flows && users

@@ -1,5 +1,6 @@
 import {
   answerMiniAppSessionContract,
+  flowChainId,
   isScreenNodeType,
   miniAppAnswerSchema,
   parseScreenConfig,
@@ -113,7 +114,9 @@ export function createSessionRoutes({
           ...engine,
           trigger: { nodeId: entry.id, payload },
           secrets: secretsFor?.(found.ownerId),
-          chain: chainFactory ? await chainFactory.forUser(found.ownerId, "live") : undefined,
+          chain: chainFactory
+            ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))
+            : undefined,
         });
         await runs.create(found.ownerId, document, run, "miniapp");
         const sessionId = randomUUID();
@@ -164,7 +167,9 @@ export function createSessionRoutes({
             variables: row.variables,
           },
           secrets: secretsFor?.(found.ownerId),
-          chain: chainFactory ? await chainFactory.forUser(found.ownerId, "live") : undefined,
+          chain: chainFactory
+            ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))
+            : undefined,
         });
         await runs.create(found.ownerId, document, run, "miniapp");
         const session = toSession(row.id, document, run);

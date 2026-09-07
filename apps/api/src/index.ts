@@ -3,7 +3,7 @@ import { PrivyClient } from "@privy-io/node";
 import { createOpenRouterModel } from "./ai/client";
 import { createApp } from "./app";
 import { createPrivyIdentity, withE2eIdentity } from "./auth/privy";
-import { createChainFactory } from "./chain/provider";
+import { createChainFactory, resolveChainSettings } from "./chain/provider";
 import { readConfig } from "./config";
 import { createQuickJsSandbox } from "./sandbox/quickjs";
 import { createScheduler } from "./scheduler";
@@ -30,15 +30,8 @@ const signing =
         authorizationKey: config.privyAuthorizationKey,
       }
     : undefined;
-const chainFactory = createChainFactory(
-  {
-    chainId: config.chainId,
-    rpcUrl: config.chainRpcUrl,
-    ...(config.usdcAddress ? { usdcAddress: config.usdcAddress as `0x${string}` } : {}),
-  },
-  identity,
-  signing,
-);
+// Every registry chain, with the environment's RPC overrides; a run picks its flow's chain.
+const chainFactory = createChainFactory(resolveChainSettings(config), identity, signing);
 
 const app = createApp({
   database,
@@ -57,7 +50,7 @@ const app = createApp({
 
 console.log(`API listening on ${app.server?.url}`);
 
-// Schedule triggers run in this process; `chainFactory` is where the onchain provider plugs in.
+// Schedule and onchain-event triggers run in this process, on the flow's own chain.
 const scheduler = createScheduler({
   flows: database.flows,
   runs: database.runs,
@@ -67,6 +60,8 @@ const scheduler = createScheduler({
     secrets: createSecretsResolver({ secrets: database.secrets, crypto: secretsCrypto }, ownerId),
   }),
   chainFactory,
+  eventCursors: database.eventCursors,
+  eventReaderFor: (chainId) => chainFactory.chain(chainId)?.eventReader,
   log: (line) => console.log(line),
 });
 if (config.databaseUrl) scheduler.start();

@@ -35,6 +35,8 @@ export default defineRailway(() => {
       NODE_ENV: "production",
       PORT: "3001",
       RAILPACK_NODE_VERSION: "22",
+      CHAIN_RPC_URL_4801: preserve(),
+      CHAIN_RPC_URL_84532: preserve(),
       OPENROUTER_API_KEY: preserve(),
       OPENROUTER_MODEL: preserve(),
       PRIVY_APP_ID: preserve(),

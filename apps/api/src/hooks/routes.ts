@@ -1,4 +1,4 @@
-import { webhookTriggerContract, type WebhookPayload } from "@automator/contracts";
+import { flowChainId, webhookTriggerContract, type WebhookPayload } from "@automator/contracts";
 import { Elysia } from "elysia";
 import type { ChainFactory } from "../chain/provider";
 import { executeStoredRun, type EngineOptions, type RunStores } from "../runs/execute";
@@ -74,7 +74,9 @@ export function createHookRoutes({
         }
       }
       const shared = typeof engine === "function" ? engine(owned.ownerId) : engine;
-      const chain = chainFactory ? await chainFactory.forUser(owned.ownerId, "live") : undefined;
+      const chain = chainFactory
+        ? await chainFactory.forUser(owned.ownerId, "live", flowChainId(owned.record.flow))
+        : undefined;
       const record = await executeStoredRun(
         { flows, runs },
         {
