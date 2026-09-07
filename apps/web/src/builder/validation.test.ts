@@ -67,6 +67,42 @@ describe("findFlowProblems", () => {
     expect(countErrors(problems)).toBe(1);
   });
 
+  test("a World ID check needs an action and warns about an unwired Rejected port", () => {
+    const problems = findFlowProblems({
+      nodes: [
+        node("open", "trigger.miniapp-open"),
+        node("verify", "world.id-verify"),
+        node("ok", "screen.page"),
+      ],
+      edges: [
+        { id: "e1", source: "open", target: "verify", sourceHandle: "visitor" },
+        { id: "e2", source: "verify", target: "ok", sourceHandle: "verified" },
+      ],
+    });
+    expect(problems).toEqual([
+      { severity: "error", nodeId: "verify", message: "“verify” needs a World action id." },
+      {
+        severity: "warning",
+        nodeId: "verify",
+        message: "“verify” has nothing on Rejected, so a failed verification ends the flow.",
+      },
+    ]);
+    const wired = findFlowProblems({
+      nodes: [
+        node("open", "trigger.miniapp-open"),
+        node("verify", "world.id-verify", { action: "claim" }),
+        node("ok", "screen.page"),
+        node("no", "screen.page"),
+      ],
+      edges: [
+        { id: "e1", source: "open", target: "verify", sourceHandle: "visitor" },
+        { id: "e2", source: "verify", target: "ok", sourceHandle: "verified" },
+        { id: "e3", source: "verify", target: "no", sourceHandle: "rejected" },
+      ],
+    });
+    expect(wired).toEqual([]);
+  });
+
   test("unreadable settings and empty forms are reported", () => {
     const problems = findFlowProblems({
       nodes: [

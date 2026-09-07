@@ -37,6 +37,38 @@ describe("listVariables", () => {
     ]);
   });
 
+  test("expands an identity screen's answer and keeps the visitor in vars after a login", () => {
+    const identity = [
+      node("t", "trigger.miniapp-open"),
+      node("login", "privy.login"),
+      node("verify", "world.id-verify"),
+      node("d", "notify.discord"),
+    ];
+    const wires = [
+      { source: "t", target: "login", sourceHandle: "visitor", targetHandle: "visitor" },
+      { source: "login", target: "verify", sourceHandle: "user", targetHandle: "visitor" },
+      { source: "verify", target: "d", sourceHandle: "verified", targetHandle: "message" },
+    ];
+    expect(listVariables("verify", identity, wires).slice(0, 5)).toEqual([
+      { template: "{{input.visitor}}", source: "Node login", label: "User" },
+      { template: "{{input.visitor.userId}}", source: "Node login", label: "User id" },
+      { template: "{{input.visitor.email}}", source: "Node login", label: "Email" },
+      { template: "{{input.visitor.wallet}}", source: "Node login", label: "Wallet" },
+      { template: "{{input.visitor.loginMethod}}", source: "Node login", label: "Login method" },
+    ]);
+    const options = listVariables("d", identity, wires);
+    expect(options).toContainEqual({
+      template: "{{input.message.nullifierHash}}",
+      source: "Node verify",
+      label: "Nullifier hash",
+    });
+    expect(options).toContainEqual({
+      template: "{{vars.visitor.email}}",
+      source: "Node login",
+      label: "Email",
+    });
+  });
+
   test("is empty for a node with nothing upstream", () => {
     expect(listVariables("t", nodes, edges)).toEqual([]);
   });
