@@ -5,9 +5,27 @@ import {
   flowRunRequestSchema,
   flowRunSchema,
   flowRunSourceSchema,
+  listAllRunsContract,
+  listRunsContract,
+  parseRunListLimit,
   runFlowContract,
+  runListMaxLimit,
+  runListSchema,
+  transactionHashes,
   type FlowRun,
 } from "./flow-runs";
+
+describe("transactionHashes", () => {
+  const hash = `0x${"ab".repeat(32)}`;
+  test("finds a receipt's hash at the top level or one level down, once", () => {
+    expect(transactionHashes({ hash, status: "success" })).toEqual([hash]);
+    expect(transactionHashes({ receipt: { transactionHash: hash }, hash })).toEqual([hash]);
+    expect(transactionHashes({ token: "0xabc", hash: "not a hash" })).toEqual([]);
+    expect(transactionHashes({ deep: { deeper: { hash } } })).toEqual([]);
+    expect(transactionHashes("text")).toEqual([]);
+    expect(transactionHashes(undefined)).toEqual([]);
+  });
+});
 
 const run: FlowRun = {
   id: "run-1",
@@ -44,6 +62,36 @@ describe("run sources", () => {
     for (const source of ["manual", "webhook", "schedule", "miniapp", "event"])
       expect(Value.Check(flowRunSourceSchema, source)).toBe(true);
     expect(Value.Check(flowRunSourceSchema, "cron")).toBe(false);
+  });
+});
+
+describe("run list paging", () => {
+  test("reads a decimal limit within bounds, defaults without one, rejects the rest", () => {
+    expect(parseRunListLimit(undefined)).toBeUndefined();
+    expect(parseRunListLimit("1")).toBe(1);
+    expect(parseRunListLimit("25")).toBe(25);
+    expect(parseRunListLimit(String(runListMaxLimit))).toBe(runListMaxLimit);
+    for (const bad of ["0", "101", "-1", "1.5", "abc", "", " 5"])
+      expect(parseRunListLimit(bad)).toBeNull();
+  });
+
+  test("a page carries its runs and, only with more to come, a cursor", () => {
+    const summary = {
+      id: "run-1",
+      flowId: "flow-1",
+      flowName: "Ping",
+      status: "succeeded",
+      source: "manual",
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+    };
+    expect(Value.Check(runListSchema, { runs: [summary] })).toBe(true);
+    expect(Value.Check(runListSchema, { runs: [summary], nextCursor: "abc" })).toBe(true);
+    expect(Value.Check(runListSchema, { runs: [summary], nextCursor: "" })).toBe(false);
+    expect(Value.Check(listAllRunsContract.query, { flowId: "f", cursor: "c", limit: "10" })).toBe(
+      true,
+    );
+    expect(Value.Check(listRunsContract.query, { limit: 10 })).toBe(false);
   });
 });
 

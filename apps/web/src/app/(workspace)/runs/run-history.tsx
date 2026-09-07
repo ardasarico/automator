@@ -1,46 +1,27 @@
-import type { FlowRunSource, FlowRunStatus, FlowRunSummary } from "@automator/contracts";
+import type { FlowRunSummary } from "@automator/contracts";
 import { Badge } from "@automator/ui/badge";
 import { Button } from "@automator/ui/button";
 import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
-import { RiPlayCircleLine } from "@remixicon/react";
+import { RiFlowChart, RiPlayCircleLine } from "@remixicon/react";
 import Link from "next/link";
 import styles from "../flows/flows.module.css";
 import { LocalTime } from "./local-time";
+import { formatDuration, runSourceLabels, runStatusLabels } from "./run-labels";
 
-const statusLabels: Record<
-  FlowRunStatus,
-  { label: string; variant: "success" | "error" | "warning" }
-> = {
-  succeeded: { label: "Succeeded", variant: "success" },
-  failed: { label: "Failed", variant: "error" },
-  waiting: { label: "Waiting", variant: "warning" },
-};
-
-const sourceLabels: Record<FlowRunSource, string> = {
-  manual: "Simulate",
-  webhook: "Webhook",
-  schedule: "Schedule",
-  miniapp: "Mini-app",
-  event: "Onchain event",
-};
-
-/** "1.2s" under a minute, "1m 05s" above it. */
-export function formatDuration(startedAt: string, finishedAt: string): string {
-  const ms = Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt));
-  if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`;
-  const minutes = Math.floor(ms / 60_000);
-  const seconds = Math.round((ms % 60_000) / 1000);
-  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
-}
-
-/** The caller's recent runs, newest first; each row opens the flow with that run on the canvas. */
+/**
+ * The caller's recent runs, newest first. A row's name opens the run's detail page; the
+ * trailing button opens the flow with that run on the canvas. `nextHref` links to the next
+ * page when older runs exist, so the list stays a server component.
+ */
 export function RunHistory({
   runs,
   filtered = false,
+  nextHref,
 }: {
   runs: readonly FlowRunSummary[];
   /** True when the list is narrowed to one flow, so the empty state says so. */
   filtered?: boolean;
+  nextHref?: string;
 }) {
   if (runs.length === 0) {
     return (
@@ -76,18 +57,21 @@ export function RunHistory({
               <th scope="col">Trigger</th>
               <th scope="col">Started</th>
               <th scope="col">Duration</th>
+              <th scope="col">
+                <span className="sr-only">Canvas</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {runs.map((run) => {
-              const status = statusLabels[run.status];
+              const status = runStatusLabels[run.status];
               return (
                 <tr key={run.id}>
                   <th scope="row">
                     <Link
-                      href={`/flows/${run.flowId}?run=${encodeURIComponent(run.id)}`}
+                      href={`/runs/${encodeURIComponent(run.id)}`}
                       className={styles.tableFlow}
-                      aria-label={`Open ${run.flowName} with this run`}
+                      aria-label={`${run.flowName} run`}
                     >
                       <span className={styles.flowName}>{run.flowName}</span>
                     </Link>
@@ -95,17 +79,36 @@ export function RunHistory({
                   <td>
                     <Badge variant={status.variant}>{status.label}</Badge>
                   </td>
-                  <td>{sourceLabels[run.source]}</td>
+                  <td>{runSourceLabels[run.source]}</td>
                   <td>
                     <LocalTime value={run.startedAt} />
                   </td>
                   <td>{formatDuration(run.startedAt, run.finishedAt)}</td>
+                  <td className="text-end">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Open on canvas"
+                      render={
+                        <Link href={`/flows/${run.flowId}?run=${encodeURIComponent(run.id)}`} />
+                      }
+                    >
+                      <RiFlowChart aria-hidden="true" />
+                    </Button>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      {nextHref && (
+        <div className="mt-6 flex justify-center">
+          <Button variant="outline" render={<Link href={nextHref} />}>
+            Load older runs
+          </Button>
+        </div>
+      )}
     </section>
   );
 }

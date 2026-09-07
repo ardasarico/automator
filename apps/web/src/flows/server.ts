@@ -9,8 +9,8 @@ import {
   type FlowDocumentInput,
   type FlowRecord,
   type FlowRunRecord,
-  type FlowRunSummary,
   type FlowSummary,
+  type RunList,
 } from "@automator/contracts";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -74,16 +74,25 @@ export async function createFlow(input: FlowDocumentInput): Promise<FlowRecord> 
   return result.data;
 }
 
-/** The caller's most recent runs across every flow, newest first. */
-export async function listRuns(flowId?: string): Promise<readonly FlowRunSummary[]> {
+/**
+ * One page of the caller's runs across every flow, newest first. `cursor` is the previous
+ * page's `nextCursor`; `limit` falls back to the API default when absent.
+ */
+export async function listRuns(
+  options: { flowId?: string; cursor?: string; limit?: number } = {},
+): Promise<RunList> {
   const token = await sessionToken();
   const result = await request(process.env.API_URL, listAllRunsContract, {
     token,
-    query: { flowId },
+    query: {
+      flowId: options.flowId,
+      cursor: options.cursor,
+      limit: options.limit === undefined ? undefined : String(options.limit),
+    },
   }).catch(unavailable);
   if (result.status === 401) redirect("/login");
   if (result.status !== 200) throw new FlowApiError(result.status);
-  return result.data.runs;
+  return result.data;
 }
 
 /** `null` when the caller has no run with this id. */

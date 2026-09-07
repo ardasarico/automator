@@ -3,12 +3,14 @@ import {
   getRunContract,
   listAllRunsContract,
   listRunsContract,
+  parseRunListLimit,
   runFlowContract,
   runSavedFlowContract,
   Type,
   Value,
+  type RunListQuery,
 } from "@automator/contracts";
-import type { FlowStore, RunStore } from "@automator/db";
+import { RunCursorError, type FlowStore, type RunStore } from "@automator/db";
 import {
   runFlow,
   type RunOptions,
@@ -95,6 +97,17 @@ export function createRunRoutes({
   );
   if (!flows || !runs) return app;
   const stores = { flows, runs };
+  /** One page of the caller's runs, or `null` when the limit or cursor is not usable. */
+  const listPage = async (ownerId: string, query: RunListQuery) => {
+    const limit = parseRunListLimit(query.limit);
+    if (limit === null) return null;
+    try {
+      return await stores.runs.list(ownerId, { flowId: query.flowId, cursor: query.cursor, limit });
+    } catch (error) {
+      if (error instanceof RunCursorError) return null;
+      throw error;
+    }
+  };
   return app
     .post(
       runSavedFlowContract.path,
@@ -136,18 +149,24 @@ export function createRunRoutes({
     )
     .get(
       listRunsContract.path,
-      async ({ claims, params, status }) => {
+      async ({ claims, params, query, status }) => {
         if (!(await stores.flows.find(claims.id, params.id)))
           return status(404, { error: "not_found" });
-        return { runs: await stores.runs.list(claims.id, { flowId: params.id }) };
+        const page = await listPage(claims.id, { ...query, flowId: params.id });
+        return page ?? status(400, { error: "invalid_request" });
       },
-      { params: listRunsContract.params, response: listRunsContract.response },
+      {
+        params: listRunsContract.params,
+        query: listRunsContract.query,
+        response: listRunsContract.response,
+      },
     )
     .get(
       listAllRunsContract.path,
-      async ({ claims, query }) => ({
-        runs: await stores.runs.list(claims.id, { flowId: query.flowId }),
-      }),
+      async ({ claims, query, status }) => {
+        const page = await listPage(claims.id, query);
+        return page ?? status(400, { error: "invalid_request" });
+      },
       {
         query: listAllRunsContract.query,
         response: listAllRunsContract.response,

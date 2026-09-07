@@ -7,20 +7,45 @@ import { RunHistory } from "./run-history";
 
 export const metadata: Metadata = { title: "Runs · Automator" };
 
-/** Recent runs across the user's flows; `?flow=<id>` narrows the list to one flow. */
-export default async function RunsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ flow?: string | string[] }>;
-}) {
-  const requested = (await searchParams).flow;
-  const flowId = Array.isArray(requested) ? requested[0] : requested;
-  const [flows, runs] = await Promise.all([listFlows(), listRuns(flowId || undefined)]);
+const pageSize = 25;
+
+type SearchParams = { flow?: string | string[]; cursor?: string | string[] };
+
+function first(value: string | string[] | undefined): string | undefined {
+  const single = Array.isArray(value) ? value[0] : value;
+  return single || undefined;
+}
+
+/** The runs URL for one page: `?flow=<id>` narrows to a flow, `?cursor=` continues a list. */
+function runsHref(flowId: string | undefined, cursor: string | undefined): string {
+  const params = new URLSearchParams();
+  if (flowId) params.set("flow", flowId);
+  if (cursor) params.set("cursor", cursor);
+  const query = params.toString();
+  return query ? `/runs?${query}` : "/runs";
+}
+
+/**
+ * Recent runs across the user's flows, a page at a time; `?flow=<id>` narrows the list to
+ * one flow and `?cursor=` shows the page after the one that minted it.
+ */
+export default async function RunsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const params = await searchParams;
+  const flowId = first(params.flow);
+  const cursor = first(params.cursor);
+  const [flows, page] = await Promise.all([
+    listFlows(),
+    listRuns({ flowId, cursor, limit: pageSize }),
+  ]);
   return (
     <WorkspacePage>
       <WorkspaceBreadcrumbs current="Runs" />
       <RunFilter flows={flows} selected={flowId ?? ""} />
-      <RunHistory runs={runs} filtered={Boolean(flowId)} />
+      <RunHistory
+        runs={page.runs}
+        filtered={Boolean(flowId)}
+        nextHref={page.nextCursor ? runsHref(flowId, page.nextCursor) : undefined}
+      />
     </WorkspacePage>
   );
 }

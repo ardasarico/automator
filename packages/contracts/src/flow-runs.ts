@@ -139,18 +139,57 @@ export const runSavedFlowContract = {
   body: runSavedFlowInputSchema,
   response: { 201: flowRunRecordSchema, ...apiErrorResponses },
 } as const;
+
+/** Page size bounds for the run lists: `limit` defaults to 25 and never exceeds 100. */
+export const runListDefaultLimit = 25;
+export const runListMaxLimit = 100;
+
+/**
+ * Keyset paging over a run list. `cursor` is the `nextCursor` of the previous page: an opaque
+ * string the API mints, encoding where that page stopped, so pages never overlap or skip a
+ * run when new ones arrive in between. `limit` is a decimal string, as query values are;
+ * `parseRunListLimit` reads it. A cursor the API cannot read, or a limit outside
+ * `1..runListMaxLimit`, is a bad request.
+ */
+const runListPagingSchema = {
+  cursor: Type.Optional(Type.String({ minLength: 1 })),
+  limit: Type.Optional(Type.String({ minLength: 1 })),
+};
+
+/** The page size a `limit` query value asks for; `undefined` for the default, `null` when invalid. */
+export function parseRunListLimit(value: string | undefined): number | undefined | null {
+  if (value === undefined) return undefined;
+  if (!/^[0-9]+$/.test(value)) return null;
+  const limit = Number(value);
+  return limit >= 1 && limit <= runListMaxLimit ? limit : null;
+}
+export const runListQuerySchema = Type.Object({
+  flowId: Type.Optional(Type.String({ minLength: 1 })),
+  ...runListPagingSchema,
+});
+export type RunListQuery = Static<typeof runListQuerySchema>;
+
+/** One page of runs, newest first; `nextCursor` is present only when older runs exist. */
+export const runListSchema = Type.Object({
+  runs: Type.Array(flowRunSummarySchema),
+  nextCursor: Type.Optional(Type.String({ minLength: 1 })),
+});
+export type RunList = Static<typeof runListSchema>;
+
+/** One flow's runs, newest first, a page at a time; 404 when the caller has no such flow. */
 export const listRunsContract = {
   method: "GET",
   path: "/flows/:id/runs",
   params: flowParams,
-  response: { 200: Type.Object({ runs: Type.Array(flowRunSummarySchema) }), ...apiErrorResponses },
+  query: Type.Object(runListPagingSchema),
+  response: { 200: runListSchema, ...apiErrorResponses },
 } as const;
-/** The caller's most recent runs across every flow, newest first; `?flowId=` narrows to one. */
+/** The caller's runs across every flow, newest first, a page at a time; `?flowId=` narrows to one. */
 export const listAllRunsContract = {
   method: "GET",
   path: "/runs",
-  query: Type.Object({ flowId: Type.Optional(Type.String({ minLength: 1 })) }),
-  response: { 200: Type.Object({ runs: Type.Array(flowRunSummarySchema) }), ...apiErrorResponses },
+  query: runListQuerySchema,
+  response: { 200: runListSchema, ...apiErrorResponses },
 } as const;
 export const getRunContract = {
   method: "GET",
@@ -158,3 +197,22 @@ export const getRunContract = {
   params: flowParams,
   response: { 200: flowRunRecordSchema, ...apiErrorResponses },
 } as const;
+
+/**
+ * Transaction hashes inside one handle's output: a receipt's `hash` (or `transactionHash`),
+ * at the top level or one object deep, so a `receipt` output links to its explorer page and
+ * the wallet page can list what a run sent.
+ */
+export function transactionHashes(output: unknown): string[] {
+  const hashes: string[] = [];
+  const visit = (value: unknown, depth: number) => {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return;
+    for (const [key, item] of Object.entries(value)) {
+      if ((key === "hash" || key === "transactionHash") && typeof item === "string") {
+        if (/^0x[0-9a-fA-F]{64}$/.test(item) && !hashes.includes(item)) hashes.push(item);
+      } else if (depth < 1) visit(item, depth + 1);
+    }
+  };
+  visit(output, 0);
+  return hashes;
+}

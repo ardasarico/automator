@@ -1,0 +1,228 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-top: 8px;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 24px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--destructive-text) 24%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--destructive-surface);
+  color: var(--destructive-text);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  overflow-wrap: anywhere;
+}
+.callout > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+.section {
+  margin-top: 32px;
+}
+.sectionTitle {
+  margin-bottom: 12px;
+  font-size: var(--text-section);
+  line-height: var(--text-section--line-height);
+  font-weight: var(--text-section--font-weight);
+}
+.card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.node {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.nodeLabel {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+  overflow-wrap: anywhere;
+}
+.nodeType {
+  color: var(--muted-foreground);
+}
+.muted {
+  color: var(--muted-foreground);
+}
+.error {
+  color: var(--destructive-text);
+  overflow-wrap: anywhere;
+}
+/* Pretty JSON scrolls inside its own box; the page never scrolls sideways. */
+.json {
+  max-width: 100%;
+  margin-top: 8px;
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+.json pre {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre;
+}
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.steps > li + li {
+  border-top: 1px solid var(--border);
+}
+.step > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 12px;
+}
+.step > summary::-webkit-details-marker {
+  display: none;
+}
+.step > summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .step > summary:hover {
+    background: color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+}
+.stepIcon {
+  flex: none;
+  color: var(--muted-foreground);
+}
+.stepLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+  overflow-wrap: anywhere;
+}
+.stepElapsed {
+  flex: none;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.stepChevron {
+  flex: none;
+  color: var(--muted-foreground);
+  transition: transform 150ms var(--ease-press);
+}
+.step[open] .stepChevron {
+  transform: rotate(180deg);
+}
+.stepBody {
+  padding: 0 16px 16px 44px;
+}
+.stepBody > * + * {
+  margin-top: 10px;
+}
+.outputs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.outputs dt {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.outputs dd {
+  min-width: 0;
+}
+.explorer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 6px;
+}
+.explorer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--link);
+  text-underline-offset: 2px;
+}
+.explorer a:hover {
+  text-decoration: underline;
+}
+.explorer svg {
+  width: 12px;
+  height: 12px;
+}
+.variables {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
+  gap: 10px 16px;
+  margin: 0;
+}
+.variables dt {
+  padding-top: 10px;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.variables dd {
+  min-width: 0;
+  margin: 0;
+}
+.variables .json {
+  margin-top: 0;
+}
+@media (max-width: 600px) {
+  .stepBody {
+    padding-inline-start: 16px;
+  }
+  .variables {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .variables dt {
+    padding-top: 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stepChevron {
+    transition: none;
+  }
+}

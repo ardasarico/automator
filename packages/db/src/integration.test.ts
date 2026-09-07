@@ -3,7 +3,7 @@ import { SQL } from "bun";
 import { createEventCursorStore } from "./event-cursors";
 import { createFlowStore, FlowOwnerMissingError } from "./flows";
 import { migrate, migrations } from "./migrations";
-import { createRunStore } from "./runs";
+import { createRunStore, RunCursorError } from "./runs";
 import { createUserStore, UsernameTakenError } from "./users";
 
 const url = process.env.TEST_DATABASE_URL;
@@ -168,28 +168,127 @@ describe.skipIf(!url)("live PostgreSQL runs", () => {
       expect(await runs.latestStartedAt(flow.id, "webhook")).toBeNull();
       expect(await runs.find("did:privy:test-a", run.id)).toEqual(created);
       expect(await runs.find("did:privy:test-b", run.id)).toBeNull();
-      expect(await runs.list("did:privy:test-b")).toEqual([]);
-      expect(await runs.list("did:privy:test-a", { flowId: "other" })).toEqual([]);
-      expect(await runs.list("did:privy:test-a", { flowId: flow.id })).toEqual([
-        {
-          id: run.id,
-          flowId: flow.id,
-          flowName: "Runner",
-          status: "succeeded",
-          source: "schedule",
-          startedAt: run.startedAt,
-          finishedAt: run.finishedAt,
-        },
-      ]);
+      expect(await runs.list("did:privy:test-b")).toEqual({ runs: [] });
+      expect(await runs.list("did:privy:test-a", { flowId: "other" })).toEqual({ runs: [] });
+      expect(await runs.list("did:privy:test-a", { flowId: flow.id })).toEqual({
+        runs: [
+          {
+            id: run.id,
+            flowId: flow.id,
+            flowName: "Runner",
+            status: "succeeded",
+            source: "schedule",
+            startedAt: run.startedAt,
+            finishedAt: run.finishedAt,
+          },
+        ],
+      });
       // The list shows the flow's current name; the record keeps the executed snapshot.
       await flows.update("did:privy:test-a", flow.id, { ...input, name: "Renamed" });
-      expect((await runs.list("did:privy:test-a"))[0]?.flowName).toBe("Renamed");
+      expect((await runs.list("did:privy:test-a")).runs[0]?.flowName).toBe("Renamed");
       expect((await runs.find("did:privy:test-a", run.id))?.document.name).toBe("Runner");
+
+      // Full records come back newest first, capped, and owner-scoped like the summaries.
+      const older = { ...run, id: crypto.randomUUID(), startedAt: "2026-09-07T09:00:00.000Z" };
+      await runs.create("did:privy:test-a", flow, older, "manual");
+      const records = await runs.listRecords("did:privy:test-a", 10);
+      expect(records.map((record) => record.run.id)).toEqual([run.id, older.id]);
+      expect(records[0]).toEqual({ ...created, flowName: "Renamed" });
+      expect((await runs.listRecords("did:privy:test-a", 1)).map((r) => r.run.id)).toEqual([
+        run.id,
+      ]);
+      expect(await runs.listRecords("did:privy:test-b", 10)).toEqual([]);
 
       expect(await flows.findPublished(flow.id)).toBeNull();
       expect(await flows.delete("did:privy:test-b", flow.id)).toBe(false);
       expect(await flows.delete("did:privy:test-a", flow.id)).toBe(true);
-      expect(await runs.list("did:privy:test-a")).toEqual([]);
+      expect(await runs.list("did:privy:test-a")).toEqual({ runs: [] });
+      await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
+    } finally {
+      await sql.close({ timeout: 5 });
+    }
+  });
+
+  test.skipIf(!url)("pages through runs by keyset without overlap or gaps", async () => {
+    const sql = new SQL(url!, { max: 2, connectionTimeout: 5 });
+    try {
+      await migrate(sql);
+      const users = createUserStore(sql);
+      const flows = createFlowStore(sql);
+      const runs = createRunStore(sql);
+      await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
+      await users.sync("did:privy:test-a", "0xaaa");
+      const { flow } = await flows.create("did:privy:test-a", {
+        version: 1 as const,
+        name: "Pager",
+        description: "",
+        nodes: [
+          {
+            id: "n1",
+            type: "trigger.manual" as const,
+            position: { x: 0, y: 0 },
+            label: "Run",
+            config: {},
+          },
+        ],
+        edges: [],
+      });
+      // Seven runs at three distinct instants, so the tie-break on id is exercised too.
+      const ids = ["r-a", "r-b", "r-c", "r-d", "r-e", "r-f", "r-g"];
+      const instants = [
+        "2026-09-07T10:00:00.000Z",
+        "2026-09-07T10:00:00.000Z",
+        "2026-09-07T10:00:00.000Z",
+        "2026-09-07T10:00:01.000Z",
+        "2026-09-07T10:00:01.000Z",
+        "2026-09-07T10:00:02.000Z",
+        "2026-09-07T10:00:02.000Z",
+      ];
+      for (const [index, id] of ids.entries()) {
+        await runs.create("did:privy:test-a", flow, {
+          id: `${crypto.randomUUID().slice(0, 8)}-${id}`,
+          flowId: flow.id,
+          status: "succeeded" as const,
+          startedAt: instants[index]!,
+          finishedAt: instants[index]!,
+          trigger: { nodeId: "n1" },
+          nodes: [{ nodeId: "n1", status: "succeeded" as const }],
+          variables: {},
+        });
+      }
+      const first = await runs.list("did:privy:test-a", { flowId: flow.id, limit: 3 });
+      expect(first.runs).toHaveLength(3);
+      expect(first.nextCursor).toBeString();
+      const second = await runs.list("did:privy:test-a", {
+        flowId: flow.id,
+        limit: 3,
+        cursor: first.nextCursor,
+      });
+      expect(second.runs).toHaveLength(3);
+      expect(second.nextCursor).toBeString();
+      const third = await runs.list("did:privy:test-a", {
+        flowId: flow.id,
+        limit: 3,
+        cursor: second.nextCursor,
+      });
+      expect(third.runs).toHaveLength(1);
+      expect(third.nextCursor).toBeUndefined();
+
+      const everything = await runs.list("did:privy:test-a", { flowId: flow.id, limit: 100 });
+      expect(everything.nextCursor).toBeUndefined();
+      const walked = [...first.runs, ...second.runs, ...third.runs];
+      expect(walked.map((entry) => entry.id)).toEqual(everything.runs.map((entry) => entry.id));
+      expect(new Set(walked.map((entry) => entry.id)).size).toBe(ids.length);
+      // Newest first; equal instants fall back to the id order.
+      for (let index = 1; index < walked.length; index += 1) {
+        const previous = walked[index - 1]!;
+        const current = walked[index]!;
+        const order = Date.parse(current.startedAt) - Date.parse(previous.startedAt);
+        expect(order < 0 || (order === 0 && current.id > previous.id)).toBe(true);
+      }
+      await expect(runs.list("did:privy:test-a", { cursor: "not-a-cursor" })).rejects.toThrow(
+        RunCursorError,
+      );
       await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
     } finally {
       await sql.close({ timeout: 5 });

@@ -1,11 +1,18 @@
-import type {
-  FlowDocument,
-  FlowRecord,
-  FlowRun,
-  FlowRunRecord,
-  FlowRunSource,
+import {
+  runListDefaultLimit,
+  type FlowDocument,
+  type FlowRecord,
+  type FlowRun,
+  type FlowRunRecord,
+  type FlowRunSource,
 } from "@automator/contracts";
-import type { EventCursor, EventCursorStore, FlowStore, RunStore } from "@automator/db";
+import {
+  RunCursorError,
+  type EventCursor,
+  type EventCursorStore,
+  type FlowStore,
+  type RunStore,
+} from "@automator/db";
 
 /** An in-memory cursor store keyed like the SQL one, for scheduler tests. */
 export function memoryEventCursors(seed: EventCursor[] = []) {
@@ -70,20 +77,37 @@ export function memoryStores(seed: { ownerId: string; flow: FlowDocument; enable
         .sort((a, b) => Date.parse(b.run.startedAt) - Date.parse(a.run.startedAt))[0];
       return match ? new Date(match.run.startedAt) : null;
     },
-    list: async (ownerId, options = {}) =>
-      runRecords
+    // Same paging semantics as the SQL store; the cursor is simply the last run's id.
+    list: async (ownerId, options = {}) => {
+      const limit = options.limit ?? runListDefaultLimit;
+      const ordered = runRecords
         .filter(
           (r) => r.ownerId === ownerId && (!options.flowId || r.run.flowId === options.flowId),
         )
-        .map(({ run, flowName, source }) => ({
-          id: run.id,
-          flowId: run.flowId,
-          flowName,
-          status: run.status,
-          source,
-          startedAt: run.startedAt,
-          finishedAt: run.finishedAt,
-        })),
+        .sort(
+          (a, b) =>
+            Date.parse(b.run.startedAt) - Date.parse(a.run.startedAt) ||
+            a.run.id.localeCompare(b.run.id),
+        );
+      let start = 0;
+      if (options.cursor !== undefined) {
+        const index = ordered.findIndex((r) => r.run.id === options.cursor);
+        if (index < 0) throw new RunCursorError();
+        start = index + 1;
+      }
+      const page = ordered.slice(start, start + limit);
+      const runs = page.map(({ run, flowName, source }) => ({
+        id: run.id,
+        flowId: run.flowId,
+        flowName,
+        status: run.status,
+        source,
+        startedAt: run.startedAt,
+        finishedAt: run.finishedAt,
+      }));
+      const last = page.at(-1);
+      return start + limit < ordered.length && last ? { runs, nextCursor: last.run.id } : { runs };
+    },
     find: async (ownerId, id) => {
       const record = runRecords.find((r) => r.ownerId === ownerId && r.run.id === id);
       return record
@@ -95,6 +119,12 @@ export function memoryStores(seed: { ownerId: string; flow: FlowDocument; enable
           }
         : null;
     },
+    listRecords: async (ownerId, limit) =>
+      runRecords
+        .filter((r) => r.ownerId === ownerId)
+        .sort((a, b) => Date.parse(b.run.startedAt) - Date.parse(a.run.startedAt))
+        .slice(0, limit)
+        .map(({ run, flowName, source, document }) => ({ run, flowName, source, document })),
   };
   return { flows, runs, runRecords, flowRecords };
 }

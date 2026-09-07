@@ -5,14 +5,12 @@ import {
   parseResponse,
   runFlowContract,
   type FlowDocument,
-  type FlowRecord,
-  type FlowRun,
   type FlowRunRecord,
 } from "@automator/contracts";
-import type { FlowStore, RunStore } from "@automator/db";
 import { Elysia } from "elysia";
 import type { IdentityProvider } from "../auth/privy";
 import { createRunRoutes } from "./routes";
+import { memoryStores } from "./test-stores";
 
 const identity: IdentityProvider = {
   verify: async (token) =>
@@ -45,69 +43,11 @@ const document: FlowDocument = {
   edges: [{ id: "e", source: "t", sourceHandle: "run", target: "d", targetHandle: "message" }],
 };
 
-/** In-memory flow and run stores with the same owner scoping as the SQL ones. */
-function stores() {
-  const flowRecords = new Map<string, FlowRecord & { ownerId: string }>();
-  const runRecords: Array<FlowRunRecord & { ownerId: string }> = [];
-  const timestamp = "2026-09-07T10:00:00.000Z";
-  flowRecords.set("flow-1", {
-    ownerId: "did:privy:alice",
-    flow: document,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
-  const flows = {
-    find: async (ownerId: string, id: string) => {
-      const record = flowRecords.get(id);
-      return record && record.ownerId === ownerId
-        ? { flow: record.flow, createdAt: record.createdAt, updatedAt: record.updatedAt }
-        : null;
-    },
-  } as unknown as FlowStore;
-  const runs: RunStore = {
-    create: async (ownerId, flow, run: FlowRun, source = "manual") => {
-      const record = { ownerId, run, flowName: flow.name, source, document: flow };
-      runRecords.push(record);
-      return { run, flowName: flow.name, source, document: flow };
-    },
-    latestStartedAt: async (flowId, source) => {
-      const match = runRecords
-        .filter((r) => r.run.flowId === flowId && r.source === source)
-        .sort((a, b) => Date.parse(b.run.startedAt) - Date.parse(a.run.startedAt))[0];
-      return match ? new Date(match.run.startedAt) : null;
-    },
-    list: async (ownerId, options = {}) =>
-      runRecords
-        .filter(
-          (r) => r.ownerId === ownerId && (!options.flowId || r.run.flowId === options.flowId),
-        )
-        .map(({ run, flowName, source }) => ({
-          id: run.id,
-          flowId: run.flowId,
-          flowName,
-          status: run.status,
-          source,
-          startedAt: run.startedAt,
-          finishedAt: run.finishedAt,
-        })),
-    find: async (ownerId, id) => {
-      const record = runRecords.find((r) => r.ownerId === ownerId && r.run.id === id);
-      return record
-        ? {
-            run: record.run,
-            flowName: record.flowName,
-            source: record.source,
-            document: record.document,
-          }
-        : null;
-    },
-  };
-  return { flows, runs, runRecords };
-}
-
 function fixture(persisted = false, callsPerMinute?: number) {
   const posted: unknown[] = [];
-  const persistence = persisted ? stores() : undefined;
+  const persistence = persisted
+    ? memoryStores([{ ownerId: "did:privy:alice", flow: document }])
+    : undefined;
   let clock = 1_757_200_000_000;
   const app = new Elysia().use(
     createRunRoutes({
@@ -266,6 +206,54 @@ describe("persisted runs", () => {
     expect(((await byFlow.json()) as { runs: unknown[] }).runs).toHaveLength(1);
     const one = await call(`/runs/${record.run.id}`, "GET");
     expect(parseResponse(getRunContract, one.status, await one.json()).data).toEqual(record);
+  });
+
+  test("lists runs a page at a time and follows the cursor without overlap", async () => {
+    const { call, runRecords } = fixture(true);
+    for (let index = 0; index < 5; index += 1) {
+      expect((await call("/flows/flow-1/runs", "POST", {})).status).toBe(201);
+    }
+    expect(runRecords).toHaveLength(5);
+    const page = async (path: string) => {
+      const response = await call(path, "GET");
+      const parsed = parseResponse(listAllRunsContract, response.status, await response.json());
+      if (parsed.status !== 200) throw new Error(`expected a page, got ${parsed.status}`);
+      return parsed.data;
+    };
+    const first = await page("/runs?limit=2");
+    expect(first.runs).toHaveLength(2);
+    expect(first.nextCursor).toBeString();
+    const second = await page(`/runs?limit=2&cursor=${encodeURIComponent(first.nextCursor!)}`);
+    expect(second.runs).toHaveLength(2);
+    expect(second.nextCursor).toBeString();
+    const third = await page(`/runs?limit=2&cursor=${encodeURIComponent(second.nextCursor!)}`);
+    expect(third.runs).toHaveLength(1);
+    expect(third.nextCursor).toBeUndefined();
+    const ids = [...first.runs, ...second.runs, ...third.runs].map((run) => run.id);
+    expect(new Set(ids).size).toBe(5);
+    expect(ids).toEqual((await page("/runs")).runs.map((run) => run.id));
+    // The per-flow list pages the same way, and a whole list fits in one default page.
+    const byFlow = await page(`/flows/flow-1/runs?limit=4`);
+    expect(byFlow.runs).toHaveLength(4);
+    expect(byFlow.nextCursor).toBeString();
+  });
+
+  test("a cursor the store cannot read, or a limit out of range, is a bad request", async () => {
+    const { call } = fixture(true);
+    await call("/flows/flow-1/runs", "POST", {});
+    for (const path of [
+      "/runs?cursor=nope",
+      "/flows/flow-1/runs?cursor=nope",
+      "/runs?limit=0",
+      "/runs?limit=101",
+      "/runs?limit=abc",
+      "/runs?limit=1.5",
+      "/flows/flow-1/runs?limit=-1",
+    ]) {
+      const response = await call(path, "GET");
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "invalid_request" });
+    }
   });
 
   test("another user's flow and runs are not found", async () => {
