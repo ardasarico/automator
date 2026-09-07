@@ -79,6 +79,14 @@ describe("serializeFlow", () => {
     expect(serializeFlow(meta, nodes, edges)).toEqual(document);
   });
 
+  test("keeps the chain id in the meta and leaves it out when the document has none", () => {
+    const onWorld = { ...document, chainId: 4801 as const };
+    const { meta, nodes, edges } = hydrateFlow(onWorld);
+    expect(meta.chainId).toBe(4801);
+    expect(serializeFlow(meta, nodes, edges)).toEqual(onWorld);
+    expect("chainId" in serializeFlow(hydrateFlow(document).meta, nodes, edges)).toBe(false);
+  });
+
   test("drops canvas-only fields and null handles", () => {
     const { meta, nodes, edges } = hydrateFlow(document);
     const decorated: BuilderNode[] = nodes.map((node) => ({

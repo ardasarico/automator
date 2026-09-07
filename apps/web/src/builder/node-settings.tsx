@@ -51,7 +51,7 @@ const configSchemas: Partial<Record<FlowNodeType, TObject>> = {
 };
 
 /** Fields that read as prose get a textarea; everything else a single line. */
-const multilineKeys = new Set(["content", "body", "message", "description"]);
+const multilineKeys = new Set(["content", "body", "message", "description", "samplePayload"]);
 
 function humanize(key: string) {
   const words = key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]/g, " ");

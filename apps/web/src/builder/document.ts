@@ -11,7 +11,8 @@ export type FlowNodeData = {
 export type BuilderNode = Node<FlowNodeData, "flow">;
 export type BuilderEdge = Edge;
 
-export type FlowMeta = Pick<FlowDocument, "id" | "name" | "description">;
+/** The document's non-graph fields; `chainId` is absent until the flow settings pick a chain. */
+export type FlowMeta = Pick<FlowDocument, "id" | "name" | "description" | "chainId">;
 
 export function createEmptyFlow(id: string): FlowDocument {
   return { version: 1, id, name: "Untitled flow", description: "", nodes: [], edges: [] };
@@ -48,6 +49,7 @@ export function serializeFlow(
     id: meta.id,
     name: meta.name,
     description: meta.description,
+    ...(meta.chainId === undefined ? {} : { chainId: meta.chainId }),
     nodes: nodes.map(serializeNode),
     edges: edges.map(serializeEdge),
   };
@@ -75,7 +77,12 @@ export function hydrateFlow(document: FlowDocument): {
   edges: BuilderEdge[];
 } {
   return {
-    meta: { id: document.id, name: document.name, description: document.description },
+    meta: {
+      id: document.id,
+      name: document.name,
+      description: document.description,
+      ...(document.chainId === undefined ? {} : { chainId: document.chainId }),
+    },
     nodes: document.nodes.map(hydrateNode),
     edges: document.edges.map(hydrateEdge),
   };

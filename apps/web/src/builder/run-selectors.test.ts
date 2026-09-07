@@ -4,10 +4,40 @@ import {
   edgeRunStatus,
   elapsedMs,
   formatElapsed,
+  isInsufficientFundsError,
   nodeStatusLabel,
   outputHandles,
   simulatedAnswer,
+  transactionHashes,
 } from "./run-selectors";
+
+const hash = `0x${"ab".repeat(32)}`;
+
+describe("transactionHashes", () => {
+  test("finds a receipt's hash at the top level or one level down, once", () => {
+    expect(transactionHashes({ hash, status: "success" })).toEqual([hash]);
+    expect(transactionHashes({ receipt: { transactionHash: hash }, hash })).toEqual([hash]);
+    expect(transactionHashes({ token: "0xabc", hash: "not a hash" })).toEqual([]);
+    expect(transactionHashes({ deep: { deeper: { hash } } })).toEqual([]);
+    expect(transactionHashes("text")).toEqual([]);
+    expect(transactionHashes(undefined)).toEqual([]);
+  });
+});
+
+describe("isInsufficientFundsError", () => {
+  test.each([
+    "The total cost (gas * gas fee + value) of executing this transaction exceeds the balance of the account.",
+    "insufficient funds for gas * price + value",
+    "Reverted: Error(ERC20: transfer amount exceeds balance)",
+  ])("recognises %s", (message) => {
+    expect(isInsufficientFundsError(message)).toBe(true);
+  });
+
+  test("leaves other errors alone", () => {
+    expect(isInsufficientFundsError("Reverted: NotOwner()")).toBe(false);
+    expect(isInsufficientFundsError(undefined)).toBe(false);
+  });
+});
 
 const run: FlowRun = {
   id: "r",
