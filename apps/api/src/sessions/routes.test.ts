@@ -12,7 +12,7 @@ import {
 } from "@automator/contracts";
 import type { FlowStore, MiniAppSessionRow, RunStore, SessionStore } from "@automator/db";
 import { Elysia } from "elysia";
-import { createSessionRoutes } from "./routes";
+import { createSessionRoutes, failureCode } from "./routes";
 
 /** trigger → form → discord (webhook from a secret) → page. */
 const document: FlowDocument = {
@@ -45,9 +45,11 @@ const document: FlowDocument = {
   ],
 };
 
-function fixture(options: { secrets?: Record<string, string>; callsPerMinute?: number } = {}) {
+function fixture(
+  options: { secrets?: Record<string, string>; callsPerMinute?: number; flow?: FlowDocument } = {},
+) {
   const record: FlowRecord = {
-    flow: document,
+    flow: options.flow ?? document,
     createdAt: "2026-09-07T10:00:00.000Z",
     updatedAt: "2026-09-07T10:00:00.000Z",
   };
@@ -180,8 +182,8 @@ describe("mini-app sessions", () => {
     expect(again.status).toBe(409);
   });
 
-  test("reports a failed step to the visitor without the config", async () => {
-    const { post } = fixture({ secrets: {} });
+  test("reports a failure to the visitor without the error, the config or the secret", async () => {
+    const { post, created } = fixture({ secrets: {} });
     const session = await start(post);
     const response = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
       token: session.token,
@@ -190,10 +192,36 @@ describe("mini-app sessions", () => {
     });
     const failed = (await response.json()) as MiniAppSession;
     expect(failed.status).toBe("failed");
-    expect(failed.error).toBe('Secret "hook" is not defined');
-    expect(failed.steps).toEqual([
-      { nodeId: "d", label: "Announce", status: "failed", error: 'Secret "hook" is not defined' },
-    ]);
+    expect(failed.error).toBe("This app hit a problem and could not continue.");
+    expect(failed.code).toBe("unconfigured");
+    expect(failed.help).toBeUndefined();
+    expect(failed.steps).toEqual([{ nodeId: "d", label: "Announce", status: "failed" }]);
+    expect(JSON.stringify(failed)).not.toContain("hook");
+    // The owner's stored run keeps the real error.
+    expect(created[1]!.run.nodes.find((n) => n.nodeId === "d")?.error).toBe(
+      'Secret "hook" is not defined',
+    );
+  });
+
+  test("adds the owner's visitor message from the trigger config", async () => {
+    const flow: FlowDocument = {
+      ...document,
+      nodes: document.nodes.map((node) =>
+        node.id === "t"
+          ? { ...node, config: { visitorErrorMessage: "  Contact @ada on Telegram  " } }
+          : node,
+      ),
+    };
+    const { post } = fixture({ secrets: {}, flow });
+    const session = await start(post);
+    const response = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
+      token: session.token,
+      port: "submitted",
+      data: { email: "ada@example.com" },
+    });
+    const failed = (await response.json()) as MiniAppSession;
+    expect(failed.status).toBe("failed");
+    expect(failed.help).toBe("Contact @ada on Telegram");
   });
 
   test("calls beyond the per-address limit answer 429 on both routes", async () => {
@@ -213,6 +241,19 @@ describe("mini-app sessions", () => {
     const other = { "x-forwarded-for": "198.51.100.4" };
     expect((await post("/public/flows/flow-1/sessions", undefined, other)).status).toBe(201);
     expect((await post("/public/flows/flow-1/sessions")).status).toBe(201);
+  });
+
+  test.each([
+    [undefined, "node_failed"],
+    ["Transaction 0xabc reverted", "node_failed"],
+    ["The run was cancelled.", "cancelled"],
+    ["timed out after 1000 ms", "timeout"],
+    ["No language model is configured; set OPENROUTER_API_KEY", "unconfigured"],
+    ["No chain is configured for this run", "unconfigured"],
+    ['Secret "hook" is not defined', "unconfigured"],
+    ["Server signing is not enabled for this wallet", "unconfigured"],
+  ])("classifies %p as %s", (error, code) => {
+    expect<string>(failureCode(error)).toBe(code);
   });
 
   test("rejects a wrong token, a wrong port, an unknown flow, and a bad body", async () => {

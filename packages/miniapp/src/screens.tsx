@@ -307,6 +307,39 @@ export function FailedView({
   );
 }
 
+/**
+ * The failure screen a visitor of a published mini-app sees: one plain sentence, the owner's
+ * note when they wrote one, and a fresh start. Never a node's name or its error text.
+ */
+export function VisitorFailedView({
+  message,
+  help,
+  code,
+  onRetry,
+}: {
+  message: string;
+  help?: string;
+  /** The API's failure code, or `unavailable` when the API could not be reached. */
+  code?: string;
+  onRetry: () => void;
+}) {
+  return (
+    <ScreenFrame
+      footer={
+        <Button size="xl" onClick={onRetry}>
+          Try again
+        </Button>
+      }
+    >
+      <div className="flex flex-col gap-4" data-failure={code ?? "unavailable"}>
+        <h1 className="text-panel text-balance">Something went wrong</h1>
+        <p className="text-body text-pretty text-muted-foreground">{message}</p>
+        {help && <p className="text-body text-pretty">{help}</p>}
+      </div>
+    </ScreenFrame>
+  );
+}
+
 export function EndView({ onRestart }: { onRestart?: () => void }) {
   return (
     <ScreenFrame
