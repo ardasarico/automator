@@ -3,6 +3,7 @@
 import type { MiniAppAnswer, MiniAppScreen, MiniAppSession } from "@automator/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScreenNode } from "./engine";
+import type { IdentityAnswer } from "./identity";
 import { EndView, FailedView, ScreenView, WorkingView, type WorkingStep } from "./screens";
 
 /** How the page reaches the API: the runtime's same-origin handlers implement both. */
@@ -34,6 +35,19 @@ function toNode(screen: MiniAppScreen): ScreenNode {
   };
 }
 
+/**
+ * Why the session request did not settle, in the visitor's terms. A client that throws the
+ * API's error code (the runtime's does) lets a rejected sign-in read as such; anything else is
+ * the app being unreachable.
+ */
+export function describeUnavailable(cause: unknown): string {
+  const code = cause instanceof Error ? cause.message : "";
+  if (code === "unauthorized")
+    return "Your sign-in could not be verified. Start over and try again.";
+  if (code === "unavailable") return "The app could not be reached. Try again.";
+  return "The app could not be reached. Try again.";
+}
+
 function toSteps(session: MiniAppSession): WorkingStep[] {
   return session.steps.map((step) => ({
     id: step.nodeId,
@@ -62,9 +76,9 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
         setSteps(toSteps(session));
         setState({ kind: "session", session, token: session.token ?? token ?? "" });
       },
-      () => {
+      (cause: unknown) => {
         if (count !== requestCount.current) return;
-        setState({ kind: "unavailable", message: "The app could not be reached. Try again." });
+        setState({ kind: "unavailable", message: describeUnavailable(cause) });
       },
     );
   }, []);
@@ -79,7 +93,7 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
       titleRef.current?.focus();
   }, [state]);
 
-  const act = (port: string, data?: Record<string, string>) => {
+  const act = (port: string, data?: Record<string, string>, identity?: IdentityAnswer) => {
     if (state.kind !== "session") return;
     interacted.current = true;
     const count = ++requestCount.current;
@@ -88,7 +102,7 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
     setState({ kind: "loading" });
     settle(
       count,
-      client.answer(session.sessionId, { token, port, ...(data ? { data } : {}) }),
+      client.answer(session.sessionId, { token, port, ...(data ? { data } : {}), ...identity }),
       token,
     );
   };
