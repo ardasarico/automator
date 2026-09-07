@@ -1,11 +1,11 @@
 import {
-  parseSamplePayload,
   parseScreenConfig,
   secretTemplate,
   type FlowEdge,
   type FlowNode,
 } from "@automator/contracts";
 import { getCatalogEntry } from "./catalog";
+import { triggerSamplePayload } from "./trigger-payload";
 
 /** A `{{path}}` a node's config can use, with how to present it. */
 export type VariableOption = {
@@ -30,8 +30,8 @@ const defaultInputHandle = "input";
 const templateKey = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** The top-level keys of a trigger's sample payload, when the sample is an object. */
-function samplePayloadKeys(config: unknown): string[] {
-  const sample = parseSamplePayload(config);
+function samplePayloadKeys(trigger: Pick<FlowNode, "type" | "config">): string[] {
+  const sample = triggerSamplePayload(trigger);
   if (typeof sample !== "object" || sample === null || Array.isArray(sample)) return [];
   return Object.keys(sample).filter((key) => templateKey.test(key));
 }
@@ -142,7 +142,7 @@ export function listVariables(
         : { template: "{{trigger}}", source: trigger.label, label: "Payload" },
     );
     // The sample payload's top-level keys, so a webhook flow can pick `{{trigger.body}}`.
-    for (const key of samplePayloadKeys(trigger.config)) {
+    for (const key of samplePayloadKeys(trigger)) {
       const template = `{{trigger.${key}}}`;
       if (options.some((option) => option.template === template)) continue;
       options.push({ template, source: trigger.label, label: key });

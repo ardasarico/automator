@@ -112,7 +112,7 @@ describe("listVariables", () => {
     ]);
   });
 
-  test("falls back to the default input handle and a generic trigger payload", () => {
+  test("falls back to the default input handle and the trigger's default sample keys", () => {
     const options = listVariables(
       "x",
       [node("w", "trigger.webhook"), node("x", "notify.discord")],
@@ -121,6 +121,10 @@ describe("listVariables", () => {
     expect(options).toEqual([
       { template: "{{input.input}}", source: "Node w", label: "Output" },
       { template: "{{trigger}}", source: "Node w", label: "Payload" },
+      { template: "{{trigger.method}}", source: "Node w", label: "method" },
+      { template: "{{trigger.headers}}", source: "Node w", label: "headers" },
+      { template: "{{trigger.query}}", source: "Node w", label: "query" },
+      { template: "{{trigger.body}}", source: "Node w", label: "body" },
     ]);
   });
 });

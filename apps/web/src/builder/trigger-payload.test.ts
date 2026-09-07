@@ -27,9 +27,25 @@ describe("simulationTriggerPayload", () => {
     expect(simulationTriggerPayload(nodes, [{ target: "second" }])).toEqual({ from: "first" });
   });
 
-  test("falls back to an empty object without a trigger, a sample, or valid JSON", () => {
-    expect(simulationTriggerPayload([node("w", "logic.wait")], [])).toEqual({});
+  test("a trigger whose sample was never edited uses its schema's default sample", () => {
+    expect(simulationTriggerPayload([node("w", "trigger.webhook")], [])).toEqual({
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      query: {},
+      body: {},
+    });
     expect(simulationTriggerPayload([node("t", "trigger.manual")], [])).toEqual({});
+    expect(
+      (simulationTriggerPayload([node("e", "trigger.onchain-event")], []) as { event: string })
+        .event,
+    ).toBe("Transfer");
+  });
+
+  test("falls back to an empty object without a trigger, a blank sample, or valid JSON", () => {
+    expect(simulationTriggerPayload([node("w", "logic.wait")], [])).toEqual({});
+    expect(
+      simulationTriggerPayload([node("w", "trigger.webhook", { samplePayload: "" })], []),
+    ).toEqual({});
     expect(
       simulationTriggerPayload([node("t", "trigger.manual", { samplePayload: "{nope" })], []),
     ).toEqual({});
