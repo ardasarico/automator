@@ -11,6 +11,7 @@ import {
   marketplaceListingDetailSchema,
   marketplaceListingSchema,
   redactFlowSecrets,
+  restoreFlowSecrets,
   reservedListingSlugs,
   slugifyListingName,
   type MarketplaceListing,
@@ -144,4 +145,42 @@ test("redactFlowSecrets blanks secret config fields and leaves everything else",
     { title: "T" },
     { key: "k" },
   ]);
+});
+
+test("restoreFlowSecrets puts the canvas's secrets back into a redacted, edited document", () => {
+  const position = { x: 0, y: 0 };
+  const canvas = {
+    nodes: [
+      {
+        id: "n1",
+        type: "notify.discord" as const,
+        position,
+        label: "Post",
+        config: { webhookUrl: "https://discord.com/api/webhooks/1/abc", content: "hi" },
+      },
+      {
+        id: "n2",
+        type: "notify.discord" as const,
+        position,
+        label: "Other",
+        config: { webhookUrl: "https://discord.com/api/webhooks/2/def", content: "x" },
+      },
+    ],
+  };
+  const proposal = {
+    nodes: [
+      // Edited by the model with the secret blanked: the canvas's URL comes back.
+      { ...canvas.nodes[0]!, config: { webhookUrl: "", content: "hello" } },
+      // A secret the model filled in stays as proposed.
+      { ...canvas.nodes[1]!, config: { webhookUrl: "https://example.test/hook", content: "x" } },
+      // A node that changed type, or is new, is left alone.
+      { id: "n3", type: "notify.discord" as const, position, label: "New", config: {} },
+    ],
+  };
+  expect(restoreFlowSecrets(proposal, canvas).nodes.map((node) => node.config)).toEqual([
+    { webhookUrl: "https://discord.com/api/webhooks/1/abc", content: "hello" },
+    { webhookUrl: "https://example.test/hook", content: "x" },
+    {},
+  ]);
+  expect(restoreFlowSecrets(redactFlowSecrets(canvas), canvas)).toEqual(canvas);
 });

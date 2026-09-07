@@ -1,6 +1,6 @@
 "use client";
 
-import type { FlowNode } from "@automator/contracts";
+import { restoreFlowSecrets, type FlowNode } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import { Checkbox } from "@automator/ui/checkbox";
 import { Field, FieldLabel } from "@automator/ui/field";
@@ -153,7 +153,8 @@ export function AiPanel() {
   }
 
   function applyProposal(turn: AiTurn, proposal: AiProposal) {
-    applyDocument(proposal.document);
+    // An explanation's fix was drawn from a document with its secrets blanked; keep the canvas's.
+    applyDocument(restoreFlowSecrets(proposal.document, serializeFlow(meta, nodes, edges)));
     apply(turn.id);
     // Nodes are new to React Flow on this render; fit once they have been measured.
     setTimeout(() => void fitView({ padding: 0.2, duration: 300 }), 80);

@@ -10,7 +10,7 @@ import {
   type FlowDocument,
   type FlowNodeType,
 } from "./flows";
-import { redactSecrets, type TObject } from "./node-config";
+import { redactSecrets, secretFields, type TObject } from "./node-config";
 import { screenConfigSchemas } from "./screens";
 
 /**
@@ -132,6 +132,35 @@ export function redactFlowSecrets<T extends Pick<FlowDocument, "nodes">>(documen
     nodes: document.nodes.map((node) => {
       const schema = configSchemas[node.type];
       return schema ? { ...node, config: redactSecrets(schema, node.config) } : node;
+    }),
+  };
+}
+
+/**
+ * The reverse for a document that went out redacted and came back edited (an AI proposal
+ * drawn from an explanation): every secret field a node in `document` left blank takes the
+ * value the same node (by id and type) still holds in `source`, so applying the proposal
+ * never wipes a credential the owner set. Other fields and new nodes are left as they are.
+ */
+export function restoreFlowSecrets<T extends Pick<FlowDocument, "nodes">>(
+  document: T,
+  source: Pick<FlowDocument, "nodes">,
+): T {
+  const before = new Map(source.nodes.map((node) => [node.id, node]));
+  return {
+    ...document,
+    nodes: document.nodes.map((node) => {
+      const schema = configSchemas[node.type];
+      const previous = before.get(node.id);
+      if (!schema || !previous || previous.type !== node.type) return node;
+      const config = { ...node.config };
+      for (const name of secretFields(schema)) {
+        const kept = previous.config[name];
+        const fallback = (schema.properties[name] as { default?: unknown }).default;
+        const blank = !(name in config) || config[name] === fallback || config[name] === "";
+        if (blank && kept !== undefined && kept !== fallback && kept !== "") config[name] = kept;
+      }
+      return { ...node, config };
     }),
   };
 }
