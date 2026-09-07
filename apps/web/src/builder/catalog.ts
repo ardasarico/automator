@@ -512,16 +512,6 @@ export const catalog: readonly CatalogEntry[] = [
 
   // Integrations
   {
-    type: "world.selfie-check",
-    category: "integration",
-    group: "world",
-    label: "World Selfie Check",
-    description: "Verify the visitor with a World Selfie Check.",
-    icon: worldLogo,
-    inputs: [port("visitor", "Visitor")],
-    outputs: [port("verified", "Verified")],
-  },
-  {
     type: "world.id-verify",
     category: "integration",
     group: "world",

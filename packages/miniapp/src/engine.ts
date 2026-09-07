@@ -3,13 +3,17 @@ import {
   type FlowDocument,
   type FlowNode,
   type ScreenNodeType,
+  type WorldRequest,
 } from "@automator/contracts";
 
 /** The part of a flow the mini-app reads. */
 export type MiniAppDocument = Pick<FlowDocument, "nodes" | "edges">;
 
-/** A node whose type is one of the screen types. */
-export type ScreenNode = FlowNode & { type: ScreenNodeType };
+/**
+ * A node whose type is one of the screen types. A World ID screen served by the API also
+ * carries the signed request context IDKit needs; the in-browser preview never has one.
+ */
+export type ScreenNode = FlowNode & { type: ScreenNodeType; world?: WorldRequest };
 
 export function isScreenNode(node: FlowNode): node is ScreenNode {
   return isScreenNodeType(node.type);

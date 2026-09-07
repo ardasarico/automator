@@ -32,6 +32,7 @@ function toNode(screen: MiniAppScreen): ScreenNode {
     label: screen.label,
     config: screen.config,
     position: { x: 0, y: 0 },
+    ...(screen.world ? { world: screen.world } : {}),
   };
 }
 

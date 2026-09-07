@@ -1,6 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { apiErrorResponses } from "./contract";
-import { worldProofSchema } from "./identity";
+import { worldProofSchema, worldRequestSchema } from "./identity";
 
 /**
  * A visitor's session in a published mini-app. The API runs the flow server-side and hands
@@ -22,6 +22,8 @@ export const miniAppScreenSchema = Type.Object({
   label: Type.String(),
   /** The screen's parsed config: titles, fields, labels. Never other nodes' config. */
   config: Type.Record(Type.String(), Type.Unknown()),
+  /** `world.id-verify` only: what IDKit needs to request the proof; absent when unconfigured. */
+  world: Type.Optional(worldRequestSchema),
 });
 export type MiniAppScreen = Static<typeof miniAppScreenSchema>;
 

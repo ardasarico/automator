@@ -79,6 +79,7 @@ function toSession(
   document: FlowDocument,
   run: FlowRun,
   scope: ScreenScope,
+  world: WorldVerifier | undefined,
 ): MiniAppSession {
   const byId = new Map(document.nodes.map((node) => [node.id, node]));
   const steps: MiniAppStep[] = [];
@@ -98,6 +99,11 @@ function toSession(
     const node = waiting ? byId.get(waiting.nodeId) : undefined;
     if (node && isScreenNodeType(node.type)) {
       const type = node.type;
+      const config = screenConfig({ ...node, type }, scope);
+      // A World ID screen carries a signed request context, so the runtime can open IDKit
+      // without holding any World credential; none when the API has no World configuration.
+      const action = type === "world.id-verify" ? (config as { action: string }).action : "";
+      const request = world && action !== "" ? world.requestContext(action) : undefined;
       return {
         sessionId,
         status: "screen",
@@ -106,7 +112,8 @@ function toSession(
           nodeId: node.id,
           type,
           label: node.label,
-          config: screenConfig({ ...node, type }, scope),
+          config,
+          ...(request ? { world: request } : {}),
         },
       };
     }
@@ -228,10 +235,13 @@ export function createSessionRoutes({
         await runs.create(found.ownerId, document, run, "miniapp");
         const sessionId = randomUUID();
         const token = randomBytes(24).toString("base64url");
-        const session = toSession(sessionId, document, run, {
-          vars: run.variables,
-          trigger: payload,
-        });
+        const session = toSession(
+          sessionId,
+          document,
+          run,
+          { vars: run.variables, trigger: payload },
+          world,
+        );
         await sessions.create({
           id: sessionId,
           flowId: document.id,
@@ -288,10 +298,13 @@ export function createSessionRoutes({
           chain: chainFactory ? await chainFactory.forUser(found.ownerId, "live") : undefined,
         });
         await runs.create(found.ownerId, document, run, "miniapp");
-        const session = toSession(row.id, document, run, {
-          vars: run.variables,
-          trigger: row.payload,
-        });
+        const session = toSession(
+          row.id,
+          document,
+          run,
+          { vars: run.variables, trigger: row.payload },
+          world,
+        );
         await sessions.update(row.id, {
           status: session.status,
           nodeId: session.screen?.nodeId ?? null,

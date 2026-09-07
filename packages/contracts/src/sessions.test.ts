@@ -50,10 +50,10 @@ describe("mini-app session contracts", () => {
         token: "t",
         port: "verified",
         worldProof: {
-          merkle_root: "0x1",
-          nullifier_hash: "0x2",
-          proof: "0x3",
-          verification_level: "orb",
+          protocol_version: "3.0",
+          nonce: "0x1",
+          action: "claim",
+          responses: [{ identifier: "orb", merkle_root: "0x1", nullifier: "0x2", proof: "0x3" }],
         },
       }),
     ).toBe(true);

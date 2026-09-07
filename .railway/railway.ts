@@ -43,6 +43,9 @@ export default defineRailway(() => {
       PRIVY_VERIFICATION_KEY: preserve(),
       SECRETS_KEY: preserve(),
       WORLD_APP_ID: preserve(),
+      WORLD_ENVIRONMENT: preserve(),
+      WORLD_RP_ID: preserve(),
+      WORLD_RP_SIGNING_KEY: preserve(),
     },
     replicas: { sfo: 1 },
   });
@@ -112,7 +115,6 @@ export default defineRailway(() => {
     env: {
       API_URL: "http://${{api.RAILWAY_PRIVATE_DOMAIN}}:3001",
       NEXT_PUBLIC_PRIVY_APP_ID: preserve(),
-      NEXT_PUBLIC_WORLD_APP_ID: preserve(),
       NODE_ENV: "production",
       PORT: "3002",
       RAILPACK_NODE_VERSION: "22",

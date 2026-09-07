@@ -81,7 +81,11 @@ export function samplePrivyUser(config: PrivyLoginConfig): VisitorUser {
   return { userId, email, wallet, loginMethod };
 }
 
-/** World ID levels the Developer Portal verifies: a phone-based check or an Orb-verified one. */
+/**
+ * What the visitor must hold: `orb` asks for a World ID 4.0 proof of human (Orb-verified, with
+ * the legacy Orb credential as fallback); `device` accepts the legacy device credential any
+ * World App holder has.
+ */
 export const worldVerificationLevels = ["device", "orb"] as const;
 export type WorldVerificationLevel = (typeof worldVerificationLevels)[number];
 
@@ -105,22 +109,51 @@ export const worldIdVerifyConfigSchema = Type.Object({
 });
 export type WorldIdVerifyConfig = Static<typeof worldIdVerifyConfigSchema>;
 
-/** The proof IDKit (web) and MiniKit (World App) hand back; verified on the API, never trusted. */
-export const worldProofSchema = Type.Object(
-  {
-    merkle_root: Type.String({ minLength: 1 }),
-    nullifier_hash: Type.String({ minLength: 1 }),
-    proof: Type.String({ minLength: 1 }),
-    verification_level: Type.String({ minLength: 1 }),
-  },
-  { additionalProperties: false },
-);
+/**
+ * The result IDKit hands back (in a browser after a QR scan, or inside World App), forwarded
+ * to the Developer Portal as it is: a protocol version, the request nonce, the action, and one
+ * credential response per item. Verified on the API, never trusted.
+ */
+export const worldProofSchema = Type.Object({
+  protocol_version: Type.String({ minLength: 1 }),
+  nonce: Type.String({ minLength: 1 }),
+  action: Type.Optional(Type.String()),
+  environment: Type.Optional(Type.String()),
+  responses: Type.Array(Type.Record(Type.String(), Type.Unknown()), { minItems: 1 }),
+});
 export type WorldProof = Static<typeof worldProofSchema>;
+
+/** The relying-party signature IDKit needs on every request; the API signs it, the runtime relays it. */
+export const worldRpContextSchema = Type.Object({
+  rp_id: Type.String({ minLength: 1 }),
+  nonce: Type.String({ minLength: 1 }),
+  created_at: Type.Number(),
+  expires_at: Type.Number(),
+  signature: Type.String({ minLength: 1 }),
+});
+export type WorldRpContext = Static<typeof worldRpContextSchema>;
+
+/**
+ * Everything the runtime needs to open an IDKit request for one `world.id-verify` screen:
+ * the app, the environment the proof is made for, and a freshly signed RP context. Sent with
+ * the screen; absent when the API has no World configuration.
+ */
+export const worldRequestSchema = Type.Object({
+  appId: Type.String({ minLength: 1 }),
+  environment: Type.Union([
+    Type.Literal("production"),
+    Type.Literal("staging"),
+    Type.Literal("sandbox"),
+  ]),
+  rpContext: worldRpContextSchema,
+});
+export type WorldRequest = Static<typeof worldRequestSchema>;
 
 /** What the Verified port carries after the Developer Portal accepted the proof. */
 export const worldVerificationSchema = Type.Object({
-  /** Stable per person and action: the key for "once per human" rules. */
+  /** The nullifier the portal reports: the key for "once per human and action" rules. */
   nullifierHash: Type.String(),
+  /** The credential that verified, as the portal names it (`orb`, `device`, `proof_of_human`). */
   verificationLevel: Type.String(),
   action: Type.String(),
 });

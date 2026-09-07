@@ -16,6 +16,7 @@
     "@automator/db": "workspace:*",
     "@automator/flow-engine": "workspace:*",
     "@privy-io/node": "0.34.0",
+    "@worldcoin/idkit-server": "1.1.1",
     "elysia": "1.4.30",
     "quickjs-emscripten": "0.32.0",
     "viem": "2.56.3"

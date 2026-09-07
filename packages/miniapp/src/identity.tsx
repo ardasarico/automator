@@ -9,6 +9,7 @@ import {
   type PrivyLoginConfig,
   type WorldIdVerifyConfig,
   type WorldProof,
+  type WorldRequest,
 } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import { RiShieldCheckLine, RiUserLine } from "@remixicon/react";
@@ -30,8 +31,14 @@ export type IdentityAnswer = {
 export interface IdentityActions {
   /** Signs the visitor in with Privy and resolves with their access token. */
   privyLogin?(config: PrivyLoginConfig): Promise<{ privyToken: string }>;
-  /** Asks the visitor for a World ID proof, inside World App or through IDKit. */
-  worldVerify?(config: WorldIdVerifyConfig): Promise<{ worldProof: WorldProof }>;
+  /**
+   * Asks the visitor for a World ID proof through IDKit (a QR code in a browser, the native
+   * flow inside World App), with the request context the API signed for this screen.
+   */
+  worldVerify?(
+    config: WorldIdVerifyConfig,
+    request: WorldRequest,
+  ): Promise<{ worldProof: WorldProof }>;
   /** True when the page runs inside World App, where the verify button reads differently. */
   inWorldApp?: boolean;
 }
@@ -178,12 +185,15 @@ export function WorldIdVerifyScreen({
   const ports = screenPorts("world.id-verify");
   const actions = useIdentityActions();
   const verify = actions?.worldVerify;
+  const request = node.world;
   const { busy, error, start } = useIdentityAction(
-    verify ? () => verify(config) : undefined,
+    verify && request ? () => verify(config, request) : undefined,
     (answer) => onContinue(ports.primary, undefined, answer),
     "Verification did not complete. Try again.",
   );
   const preview = !verify;
+  // The host can verify but the API sent no request context: World ID is not set up there.
+  const unconfigured = !preview && !request;
   const playSample = () => {
     if (config.simulate === "rejected")
       onContinue(ports.secondary ?? ports.primary, { ...sampleWorldRejection });
@@ -197,6 +207,7 @@ export function WorldIdVerifyScreen({
           size="xl"
           loading={busy}
           loadingText="Verifying…"
+          disabled={unconfigured}
           onClick={preview ? playSample : start}
         >
           {config.button}
@@ -219,9 +230,11 @@ export function WorldIdVerifyScreen({
           Preview: continues as {config.simulate === "rejected" ? "rejected" : "verified"}.
         </p>
       )}
-      {!preview && !config.action && (
+      {unconfigured && (
         <p className="text-caption text-destructive-text">
-          This step has no World action configured yet.
+          {config.action
+            ? "World ID is not set up for this app yet."
+            : "This step has no World action configured yet."}
         </p>
       )}
       <ErrorNote error={error} />

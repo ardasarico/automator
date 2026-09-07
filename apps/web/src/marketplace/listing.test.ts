@@ -13,7 +13,7 @@ const curated: MarketplaceItem = {
   name: "Ticket checkout",
   description: "Verify a visitor, collect payment and issue a ticket.",
   author: { kind: "automator" },
-  nodeTypes: ["world.selfie-check", "privy.wallet"],
+  nodeTypes: ["world.id-verify", "privy.wallet"],
   steps: [],
   forkCount: 12,
 };

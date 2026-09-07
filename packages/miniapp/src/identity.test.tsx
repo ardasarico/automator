@@ -55,22 +55,17 @@ describe("identity screens", () => {
     expect(rejected).toContain("Preview: continues as rejected.");
   });
 
+  const hostActions = {
+    inWorldApp: true,
+    privyLogin: async () => ({ privyToken: "t" }),
+    worldVerify: async () => ({
+      worldProof: { protocol_version: "4.0", nonce: "0x1", action: "claim", responses: [{}] },
+    }),
+  };
+
   test("with host actions the preview note goes away and World App copy applies", () => {
     const html = renderToStaticMarkup(
-      <IdentityActionsProvider
-        actions={{
-          inWorldApp: true,
-          privyLogin: async () => ({ privyToken: "t" }),
-          worldVerify: async () => ({
-            worldProof: {
-              merkle_root: "1",
-              nullifier_hash: "2",
-              proof: "3",
-              verification_level: "orb",
-            },
-          }),
-        }}
-      >
+      <IdentityActionsProvider actions={hostActions}>
         <MiniApp document={document} startAt="verify" />
       </IdentityActionsProvider>,
     );
@@ -79,16 +74,24 @@ describe("identity screens", () => {
     expect(html).toContain("Proves you are a unique human");
   });
 
-  test("a missing action is called out only when a real verification would run", () => {
+  test("a missing action or World setup is called out only when a real verification would run", () => {
     const missing = { ...document, nodes: document.nodes.map((n) => ({ ...n, config: {} })) };
     const preview = renderToStaticMarkup(<MiniApp document={missing} startAt="verify" />);
     expect(preview).not.toContain("no World action configured");
-    const real = renderToStaticMarkup(
-      <IdentityActionsProvider actions={{ worldVerify: async () => ({ worldProof: {} as never }) }}>
+    const noAction = renderToStaticMarkup(
+      <IdentityActionsProvider actions={hostActions}>
         <MiniApp document={missing} startAt="verify" />
       </IdentityActionsProvider>,
     );
-    expect(real).toContain("no World action configured");
+    expect(noAction).toContain("no World action configured");
+    expect(noAction).toContain("disabled");
+    // An action without a request context means the API has no World configuration.
+    const notSetUp = renderToStaticMarkup(
+      <IdentityActionsProvider actions={hostActions}>
+        <MiniApp document={document} startAt="verify" />
+      </IdentityActionsProvider>,
+    );
+    expect(notSetUp).toContain("World ID is not set up for this app yet.");
   });
 });
 

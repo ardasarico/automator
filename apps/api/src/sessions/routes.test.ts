@@ -279,15 +279,30 @@ describe("mini-app sessions", () => {
 });
 
 const proof: WorldProof = {
-  merkle_root: "0x1",
-  nullifier_hash: "0x2",
-  proof: "0x3",
-  verification_level: "orb",
+  protocol_version: "4.0",
+  nonce: "0xabc",
+  action: "claim",
+  responses: [{ identifier: "proof_of_human", nullifier: "0x2", proof: ["0x1"] }],
 };
 
 function stubWorld(verdict: "accept" | "reject" | "down") {
   const calls: { action: string; signal: string; proof: WorldProof }[] = [];
+  let nonce = 0;
   const world: WorldVerifier = {
+    requestContext(action) {
+      nonce += 1;
+      return {
+        appId: "app_123",
+        environment: "staging",
+        rpContext: {
+          rp_id: "rp_456",
+          nonce: `0x${nonce}`,
+          created_at: 1,
+          expires_at: 301,
+          signature: `0xsig-${action}`,
+        },
+      };
+    },
     async verify(input) {
       calls.push(input);
       if (verdict === "down") throw new WorldVerifyError("World ID verification answered 502");
@@ -299,8 +314,8 @@ function stubWorld(verdict: "accept" | "reject" | "down") {
       return {
         ok: true,
         verification: {
-          nullifierHash: input.proof.nullifier_hash,
-          verificationLevel: input.proof.verification_level,
+          nullifierHash: "0x2",
+          verificationLevel: "proof_of_human",
           action: input.action,
         },
       };
@@ -349,6 +364,12 @@ describe("identity screens in sessions", () => {
       type: "world.id-verify",
       // The signal template resolved against vars, so the runtime binds the proof to it.
       config: { action: "claim", verificationLevel: "orb", signal: "0xAda" },
+      // A signed request context for the action, so IDKit can open without World credentials.
+      world: {
+        appId: "app_123",
+        environment: "staging",
+        rpContext: { rp_id: "rp_456", signature: "0xsig-claim" },
+      },
     });
     const row = rows.get(session.sessionId)!;
     expect(row.variables).toMatchObject({ visitor: ada });
@@ -413,7 +434,9 @@ describe("identity screens in sessions", () => {
 
     const unconfigured = fixture({ visitorToken: "good-jwt" });
     const other = await start(unconfigured.post, "flow-2");
-    await answer(unconfigured.post, other, { port: "user", privyToken: "good-jwt" });
+    const screen = await answer(unconfigured.post, other, { port: "user", privyToken: "good-jwt" });
+    // No World configuration: the screen comes without a request context.
+    expect(screen.json.screen?.world).toBeUndefined();
     const failed = await answer(unconfigured.post, other, { port: "verified", worldProof: proof });
     expect(failed.json.status).toBe("failed");
     expect(failed.json.error).toContain("World ID is not configured");

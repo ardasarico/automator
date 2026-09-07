@@ -9,6 +9,7 @@ import {
   visitorUserSchema,
   worldIdVerifyConfigSchema,
   worldProofSchema,
+  worldRequestSchema,
 } from "./identity";
 import { parseScreenConfig } from "./screens";
 
@@ -95,16 +96,28 @@ describe("world.id-verify config", () => {
     });
   });
 
-  test("a proof carries the four fields IDKit and MiniKit produce", () => {
+  test("a proof is an IDKit result: version, nonce and at least one credential response", () => {
     const proof = {
-      merkle_root: "0x1",
-      nullifier_hash: "0x2",
-      proof: "0x3",
-      verification_level: "orb",
+      protocol_version: "4.0",
+      nonce: "0xabc",
+      action: "claim",
+      environment: "staging",
+      responses: [{ identifier: "proof_of_human", nullifier: "0x2", proof: ["0x1"] }],
+      integrity_bundle: { version: 1 },
     };
     expect(Value.Check(worldProofSchema, proof)).toBe(true);
-    expect(Value.Check(worldProofSchema, { ...proof, proof: undefined })).toBe(false);
-    expect(Value.Check(worldProofSchema, { ...proof, extra: 1 })).toBe(false);
+    expect(Value.Check(worldProofSchema, { ...proof, responses: [] })).toBe(false);
+    expect(Value.Check(worldProofSchema, { ...proof, nonce: undefined })).toBe(false);
+    expect(
+      Value.Check(worldRequestSchema, {
+        appId: "app_1",
+        environment: "staging",
+        rpContext: { rp_id: "rp_1", nonce: "0x1", created_at: 1, expires_at: 2, signature: "0x" },
+      }),
+    ).toBe(true);
+    expect(
+      Value.Check(worldRequestSchema, { appId: "app_1", environment: "test", rpContext: {} }),
+    ).toBe(false);
   });
 
   test("the config schemas carry no secret fields", () => {

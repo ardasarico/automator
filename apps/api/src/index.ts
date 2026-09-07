@@ -53,7 +53,7 @@ const app = createApp({
   identity,
   model,
   chainFactory,
-  world: createWorldVerifier(config.worldAppId),
+  world: createWorldVerifier(config.world),
   log: true,
 }).listen({ hostname: "::", port: config.port });
 
