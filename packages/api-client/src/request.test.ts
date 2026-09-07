@@ -70,12 +70,7 @@ describe("contract-driven request", () => {
       fetcher: async (_url, sent) => {
         init = sent;
         return Response.json({
-          user: {
-            id: "u",
-            name: "Alice",
-            username: "alice",
-            walletAddress: "0x1",
-          },
+          user: { id: "u", name: "Alice", username: "alice", walletAddress: "0x1" },
         });
       },
     });
@@ -92,10 +87,7 @@ describe("contract-driven request", () => {
     let init: ApiRequestInit | undefined;
     await request("http://api", meContract, {
       token: "t",
-      headers: {
-        "X-Forwarded-For": "203.0.113.9, 10.0.0.1",
-        Authorization: "Bearer spoofed",
-      },
+      headers: { "X-Forwarded-For": "203.0.113.9, 10.0.0.1", Authorization: "Bearer spoofed" },
       fetcher: async (_url, sent) => {
         init = sent;
         return Response.json({ user: null });
@@ -178,18 +170,10 @@ describe("contract-driven request", () => {
   test("body and params are typed by the contract", async () => {
     const fetcher = async () => Response.json({ user: null });
     // @ts-expect-error meContract declares no body
-    await request("http://api", meContract, {
-      token: "t",
-      body: { name: "x" },
-      fetcher,
-    });
+    await request("http://api", meContract, { token: "t", body: { name: "x" }, fetcher });
     await expect(
       // @ts-expect-error profileContract requires a username in the body
-      request("http://api", profileContract, {
-        token: "t",
-        body: { name: "x" },
-        fetcher,
-      }),
+      request("http://api", profileContract, { token: "t", body: { name: "x" }, fetcher }),
     ).rejects.toBeInstanceOf(ContractError);
     await expect(
       // @ts-expect-error runContract requires both path parameters
