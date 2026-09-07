@@ -22,7 +22,7 @@ type ListingRow = {
   publishedAt: Date;
   updatedAt: Date;
 };
-type Snapshot = Pick<FlowDocument, "version" | "nodes" | "edges">;
+type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
 type ListingDetailRow = ListingRow & { document: Snapshot };
 type FlowRow = {
   id: string;
@@ -55,6 +55,7 @@ function toDetail(row: ListingDetailRow): MarketplaceListingDetail {
       id: row.id,
       name: row.name,
       description: row.description,
+      ...(row.document.chainId === undefined ? {} : { chainId: row.document.chainId }),
       nodes: row.document.nodes,
       edges: row.document.edges,
     },
@@ -125,7 +126,12 @@ export function createListingStore(sql: SQL | undefined) {
     ): Promise<MarketplaceListing> {
       const db = connection();
       const name = input.name.trim();
-      const document: Snapshot = { version: flow.version, nodes: flow.nodes, edges: flow.edges };
+      const document: Snapshot = {
+        version: flow.version,
+        ...(flow.chainId === undefined ? {} : { chainId: flow.chainId }),
+        nodes: flow.nodes,
+        edges: flow.edges,
+      };
       const nodeTypes = listingNodeTypes(flow);
       const updated = await db<ListingRow[]>`
         WITH saved AS (
@@ -197,6 +203,7 @@ export function createListingStore(sql: SQL | undefined) {
             id: flow.id,
             name: flow.name,
             description: flow.description,
+            ...(flow.document.chainId === undefined ? {} : { chainId: flow.document.chainId }),
             nodes: flow.document.nodes,
             edges: flow.document.edges,
           },

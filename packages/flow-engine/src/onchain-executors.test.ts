@@ -278,7 +278,7 @@ describe("onchain executors", () => {
       }),
     ).toEqual({ signature: "0xsigned:hello world" });
     expect(await run("privy.wallet", {}, chain)).toEqual({
-      wallet: { address: user, chainId: 84532 },
+      wallet: { address: user, chainId: 84532, chainName: "Base Sepolia" },
     });
     expect(await run("privy.sign-transaction", { to: other, value: "0", data: "" }, chain)).toEqual(
       { signed: `0xraw:${other}` },

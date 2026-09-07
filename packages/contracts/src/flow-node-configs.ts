@@ -4,7 +4,7 @@ import { filterConfigSchema, mergeConfigSchema, switchConfigSchema } from "./log
 import { forEachConfigSchema, runCodeConfigSchema } from "./loop-configs";
 import { emptyConfigSchema } from "./node-config";
 import { emailConfigSchema, telegramMessageConfigSchema } from "./notify-configs";
-import { onchainConfigSchemas } from "./onchain-configs";
+import { onchainConfigSchemas, onchainEventTriggerConfigSchema } from "./onchain-configs";
 
 /**
  * Per-type `config` schemas for the node types the flow engine runs. Every field carries a
@@ -97,6 +97,7 @@ export const flowNodeConfigSchemas = {
   "trigger.manual": emptyConfigSchema,
   "trigger.webhook": emptyConfigSchema,
   "trigger.schedule": scheduleTriggerConfigSchema,
+  "trigger.onchain-event": onchainEventTriggerConfigSchema,
   "logic.condition": conditionConfigSchema,
   "logic.set-variable": setVariableConfigSchema,
   "logic.wait": waitConfigSchema,

@@ -15,7 +15,7 @@ type FlowRow = {
   id: string;
   name: string;
   description: string;
-  document: Pick<FlowDocument, "version" | "nodes" | "edges">;
+  document: Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
   createdAt: Date;
   updatedAt: Date;
   /** Present on owner-facing reads only. */
@@ -34,6 +34,7 @@ function toRecord(row: FlowRow): FlowRecord {
       id: row.id,
       name: row.name,
       description: row.description,
+      ...(row.document.chainId === undefined ? {} : { chainId: row.document.chainId }),
       nodes: row.document.nodes,
       edges: row.document.edges,
     },
@@ -57,7 +58,12 @@ export function documentTriggerTypes(nodes: readonly { type: FlowNodeType }[]): 
 export type OwnedFlow = { ownerId: string; record: FlowRecord };
 
 function toDocument(input: FlowDocumentInput): FlowRow["document"] {
-  return { version: input.version, nodes: input.nodes, edges: input.edges };
+  return {
+    version: input.version,
+    ...(input.chainId === undefined ? {} : { chainId: input.chainId }),
+    nodes: input.nodes,
+    edges: input.edges,
+  };
 }
 
 /** Every read and write is scoped to the owner: another user's flow answers `null`. */

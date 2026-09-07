@@ -84,12 +84,16 @@ export const runFlowContract = {
   response: { 200: flowRunSchema, ...apiErrorResponses },
 } as const;
 
-/** What started a stored run: Simulate, a webhook call, the scheduler, or a mini-app visitor. */
+/**
+ * What started a stored run: Simulate, a webhook call, the scheduler, a mini-app visitor, or
+ * the onchain-event listener (`event`).
+ */
 export const flowRunSourceSchema = Type.Union([
   Type.Literal("manual"),
   Type.Literal("webhook"),
   Type.Literal("schedule"),
   Type.Literal("miniapp"),
+  Type.Literal("event"),
 ]);
 export type FlowRunSource = Static<typeof flowRunSourceSchema>;
 

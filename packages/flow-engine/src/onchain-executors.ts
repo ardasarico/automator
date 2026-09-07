@@ -200,7 +200,13 @@ export const onchainExecutors: ExecutorRegistry = {
     kind: "step",
     async run(context) {
       const chain = requireChain(context);
-      return { wallet: { address: requireAccount(chain), chainId: chain.chainId } };
+      return {
+        wallet: {
+          address: requireAccount(chain),
+          chainId: chain.chainId,
+          chainName: chain.chainName,
+        },
+      };
     },
   },
 

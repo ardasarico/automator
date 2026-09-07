@@ -1,5 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { Check } from "@sinclair/typebox/value";
+import { chainIdSchema, defaultChainId, type ChainId } from "./chains";
 import { apiErrorResponses } from "./contract";
 
 /**
@@ -111,10 +112,17 @@ export const flowDocumentSchema = Type.Object({
   id: Type.String({ minLength: 1 }),
   name: Type.String(),
   description: Type.String(),
+  /** The registry chain onchain nodes run on; absent means `defaultChainId` (older documents). */
+  chainId: Type.Optional(chainIdSchema),
   nodes: Type.Array(flowNodeSchema),
   edges: Type.Array(flowEdgeSchema),
 });
 export type FlowDocument = Static<typeof flowDocumentSchema>;
+
+/** The chain a document runs on, Base Sepolia when it names none. */
+export function flowChainId(document: Pick<FlowDocument, "chainId">): ChainId {
+  return document.chainId ?? defaultChainId;
+}
 
 /**
  * What a client sends to create or save a flow: the document without its id, which the
@@ -126,6 +134,7 @@ export const flowDocumentInputSchema = Type.Object(
     version: Type.Literal(1),
     name: Type.String({ minLength: 1, maxLength: 120, pattern: "\\S" }),
     description: Type.String({ maxLength: 1000 }),
+    chainId: Type.Optional(chainIdSchema),
     nodes: Type.Array(flowNodeSchema),
     edges: Type.Array(flowEdgeSchema),
   },
