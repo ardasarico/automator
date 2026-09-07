@@ -1,6 +1,7 @@
 import type { DatabaseStatus } from "@automator/contracts";
 import { SQL } from "bun";
 import { createAccountStore } from "./account";
+import { createEventCursorStore } from "./event-cursors";
 import { createFlowStore } from "./flows";
 import { createListingStore } from "./listings";
 import { migrate } from "./migrations";
@@ -15,6 +16,7 @@ export {
   type FlowStore,
   type OwnedFlow,
 } from "./flows";
+export { type EventCursor, type EventCursorStore } from "./event-cursors";
 export { type ListingStore } from "./listings";
 export { migrate, migrations, type Migration } from "./migrations";
 export { type RunStore } from "./runs";
@@ -33,6 +35,7 @@ export function createDatabase(url: string | undefined) {
     secrets: createSecretStore(sql),
     sessions: createSessionStore(sql),
     account: createAccountStore(sql),
+    eventCursors: createEventCursorStore(sql),
     async migrate() {
       if (sql) await migrate(sql);
     },

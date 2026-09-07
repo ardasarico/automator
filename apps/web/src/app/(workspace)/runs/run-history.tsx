@@ -28,6 +28,7 @@ const sourceLabels: Record<FlowRunSource, string> = {
   webhook: "Webhook",
   schedule: "Schedule",
   miniapp: "Mini-app",
+  event: "Onchain event",
 };
 
 /** "1.2s" under a minute, "1m 05s" above it. */
@@ -57,7 +58,7 @@ export function RunHistory({
         </h2>
         <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
           {filtered
-            ? "Runs appear here once Simulate, a webhook call or the schedule starts this flow."
+            ? "Runs appear here once Simulate, a webhook call, the schedule or an onchain event starts this flow."
             : "Save a flow and press Simulate on its canvas. Every run of a saved flow is kept here."}
         </p>
         <Button

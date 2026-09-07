@@ -106,6 +106,20 @@ export const migrations: Migration[] = [
     );
     CREATE INDEX IF NOT EXISTS automator_sessions_flow ON automator_sessions (flow_id, updated_at DESC)`,
   },
+  {
+    name: "0007_event_cursors",
+    sql: `CREATE TABLE IF NOT EXISTS automator_event_cursors (
+      flow_id TEXT NOT NULL REFERENCES automator_flows(id) ON DELETE CASCADE,
+      node_id TEXT NOT NULL,
+      chain_id INTEGER NOT NULL,
+      last_block BIGINT NOT NULL CHECK (last_block >= 0),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (flow_id, node_id)
+    );
+    ALTER TABLE automator_runs DROP CONSTRAINT IF EXISTS automator_runs_source_check;
+    ALTER TABLE automator_runs ADD CONSTRAINT automator_runs_source_check
+      CHECK (source IN ('manual', 'webhook', 'schedule', 'miniapp', 'event'))`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (

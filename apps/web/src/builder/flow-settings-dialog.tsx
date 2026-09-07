@@ -1,5 +1,6 @@
 "use client";
 
+import { chains, defaultChainId, isChainId } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import {
   Dialog,
@@ -12,6 +13,7 @@ import {
 } from "@automator/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@automator/ui/select";
 import { Switch } from "@automator/ui/switch";
 import { Textarea } from "@automator/ui/textarea";
 import { RiCheckLine, RiFileCopyLine } from "@remixicon/react";
@@ -20,9 +22,11 @@ import { FlowRequestError, setFlowEnabledRequest } from "../flows/client";
 import { EnableSigningButton } from "./enable-signing-button";
 import { useFlowActivation } from "./flow-activation";
 import { useBuilderStore } from "./store-provider";
+import { WalletFunds } from "./wallet-funds";
 import { useAccessToken } from "../auth/access-token";
 
 const nameLimit = 120;
+const chainItems = chains.map((chain) => ({ value: String(chain.id), label: chain.name }));
 const descriptionLimit = 1000;
 
 const activationFailures: Record<string, string> = {
@@ -60,9 +64,9 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 /**
- * Name and description are document state (Apply, then Save persists them). Activation and
- * the run mode are not: the Active switch saves through its own request straight away, and
- * "Send real transactions" only changes how Simulate runs on this canvas.
+ * Name, description and chain are document state (Apply, then Save persists them).
+ * Activation and the run mode are not: the Active switch saves through its own request
+ * straight away, and "Send real transactions" only changes how Simulate runs on this canvas.
  * Mount it to open it: each mount starts from the store's current meta.
  */
 export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
@@ -75,9 +79,14 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
   const hasSchedule = useBuilderStore((state) =>
     state.nodes.some((node) => node.data.type === "trigger.schedule"),
   );
+  const hasEvent = useBuilderStore((state) =>
+    state.nodes.some((node) => node.data.type === "trigger.onchain-event"),
+  );
+  const hasUnattended = hasWebhook || hasSchedule || hasEvent;
   const activation = useFlowActivation();
   const [name, setName] = useState(meta.name);
   const [description, setDescription] = useState(meta.description);
+  const [chainId, setChainId] = useState(meta.chainId ?? defaultChainId);
   const [toggling, setToggling] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
   const trimmedName = name.trim();
@@ -89,8 +98,9 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!trimmedName) return;
-    if (trimmedName !== meta.name || description !== meta.description)
-      setMeta({ name: trimmedName, description });
+    const chainChanged = chainId !== (meta.chainId ?? defaultChainId);
+    if (trimmedName !== meta.name || description !== meta.description || chainChanged)
+      setMeta({ name: trimmedName, description, ...(chainChanged ? { chainId } : {}) });
     onClose();
   }
 
@@ -142,13 +152,38 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
                 onChange={(event) => setDescription(event.target.value)}
               />
             </Field>
+            <Field>
+              <FieldLabel htmlFor="flow-chain">Chain</FieldLabel>
+              <Select
+                items={chainItems}
+                value={String(chainId)}
+                onValueChange={(next) => {
+                  const id = Number(next);
+                  if (isChainId(id)) setChainId(id);
+                }}
+              >
+                <SelectTrigger id="flow-chain" size="sm" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectPopup>
+                  {chainItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectPopup>
+              </Select>
+              <FieldDescription>
+                Where the onchain nodes read, write and listen. Save the flow to keep the change.
+              </FieldDescription>
+            </Field>
             <Field className="flex-row items-center justify-between gap-4">
               <div className="flex flex-col gap-1">
                 <FieldLabel htmlFor="flow-active">Active</FieldLabel>
                 <FieldDescription>
-                  {hasWebhook || hasSchedule
-                    ? "Lets the webhook and schedule triggers of the saved flow start runs."
-                    : "Add a Webhook or Schedule trigger, then turn this on so it runs on its own."}
+                  {hasUnattended
+                    ? "Lets the webhook, schedule and onchain-event triggers of the saved flow start runs."
+                    : "Add a Webhook, Schedule or Onchain event trigger, then turn this on so it runs on its own."}
                 </FieldDescription>
               </div>
               <Switch
@@ -186,8 +221,8 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
               <div className="flex flex-col gap-1">
                 <FieldLabel htmlFor="flow-live-mode">Send real transactions</FieldLabel>
                 <FieldDescription>
-                  Simulate runs onchain nodes for real instead of as a dry run. Webhook and
-                  scheduled runs are always live.
+                  Simulate runs onchain nodes for real instead of as a dry run. Webhook, scheduled
+                  and onchain-event runs are always live.
                 </FieldDescription>
               </div>
               <Switch
@@ -196,6 +231,7 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
                 onCheckedChange={activation.setLiveMode}
               />
             </Field>
+            <WalletFunds chainId={chainId} />
             <Field>
               <FieldLabel>Server signing</FieldLabel>
               <EnableSigningButton />

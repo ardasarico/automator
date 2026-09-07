@@ -22,3 +22,5 @@ export * from "./onchain-configs";
 export * from "./notify-configs";
 export * from "./loop-configs";
 export * from "./account";
+export * from "./chains";
+export * from "./wallet";

@@ -5,7 +5,20 @@ import type {
   FlowRunRecord,
   FlowRunSource,
 } from "@automator/contracts";
-import type { FlowStore, RunStore } from "@automator/db";
+import type { EventCursor, EventCursorStore, FlowStore, RunStore } from "@automator/db";
+
+/** An in-memory cursor store keyed like the SQL one, for scheduler tests. */
+export function memoryEventCursors(seed: EventCursor[] = []) {
+  const cursors = new Map<string, EventCursor>();
+  for (const cursor of seed) cursors.set(`${cursor.flowId}:${cursor.nodeId}`, cursor);
+  const store: EventCursorStore = {
+    find: async (flowId, nodeId) => cursors.get(`${flowId}:${nodeId}`) ?? null,
+    save: async (cursor) => {
+      cursors.set(`${cursor.flowId}:${cursor.nodeId}`, { ...cursor });
+    },
+  };
+  return { store, cursors };
+}
 
 /** In-memory flow and run stores with the same owner scoping as the SQL ones, for route tests. */
 export function memoryStores(seed: { ownerId: string; flow: FlowDocument; enabled?: boolean }[]) {

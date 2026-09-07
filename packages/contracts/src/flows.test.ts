@@ -4,6 +4,7 @@ import {
   createFlowContract,
   deleteFlowContract,
   findFlowDocumentProblem,
+  flowChainId,
   flowDocumentSchema,
   flowNodeTypes,
   getFlowContract,
@@ -42,6 +43,13 @@ describe("flow document schema", () => {
     expect(Value.Check(flowDocumentSchema, document)).toBe(true);
   });
 
+  test("accepts a registry chain id and leaves older documents without one valid", () => {
+    expect(Value.Check(flowDocumentSchema, { ...document, chainId: 4801 })).toBe(true);
+    expect(Value.Check(flowDocumentSchema, { ...document, chainId: 8453 })).toBe(false);
+    expect(flowChainId(document)).toBe(84532);
+    expect(flowChainId({ ...document, chainId: 4801 })).toBe(4801);
+  });
+
   test("accepts edges with handle ids", () => {
     const withHandles = {
       ...document,
@@ -78,6 +86,7 @@ describe("flow document input", () => {
 
   test("accepts a document without an id", () => {
     expect(isFlowDocumentInput(input)).toBe(true);
+    expect(isFlowDocumentInput({ ...input, chainId: 4801 })).toBe(true);
   });
 
   test.each([
@@ -86,6 +95,7 @@ describe("flow document input", () => {
     ["an empty name", { ...input, name: "" }],
     ["an overlong name", { ...input, name: "a".repeat(121) }],
     ["unknown keys", { ...input, ownerId: "did:privy:bob" }],
+    ["a chain off the registry", { ...input, chainId: 1 }],
   ])("rejects %s", (_name, invalid) => {
     expect(isFlowDocumentInput(invalid)).toBe(false);
   });

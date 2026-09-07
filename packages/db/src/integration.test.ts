@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { SQL } from "bun";
+import { createEventCursorStore } from "./event-cursors";
 import { createFlowStore, FlowOwnerMissingError } from "./flows";
 import { migrate, migrations } from "./migrations";
 import { createRunStore } from "./runs";
@@ -189,6 +190,98 @@ describe.skipIf(!url)("live PostgreSQL runs", () => {
       expect(await flows.delete("did:privy:test-b", flow.id)).toBe(false);
       expect(await flows.delete("did:privy:test-a", flow.id)).toBe(true);
       expect(await runs.list("did:privy:test-a")).toEqual([]);
+      await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
+    } finally {
+      await sql.close({ timeout: 5 });
+    }
+  });
+});
+
+describe.skipIf(!url)("live PostgreSQL chains and event cursors", () => {
+  test.skipIf(!url)("keeps the chain id in the document and cursors per trigger node", async () => {
+    const sql = new SQL(url!, { max: 2, connectionTimeout: 5 });
+    try {
+      await migrate(sql);
+      const users = createUserStore(sql);
+      const flows = createFlowStore(sql);
+      const runs = createRunStore(sql);
+      const cursors = createEventCursorStore(sql);
+      await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
+      await users.sync("did:privy:test-a", "0xaaa");
+      const trigger = {
+        id: "n1",
+        type: "trigger.onchain-event" as const,
+        position: { x: 0, y: 0 },
+        label: "Transfer",
+        config: { address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" },
+      };
+      const input = {
+        version: 1 as const,
+        name: "Watcher",
+        description: "",
+        nodes: [trigger],
+        edges: [],
+      };
+
+      // Without a chain id the document round-trips without one; with one it is kept.
+      const plain = await flows.create("did:privy:test-a", input);
+      expect("chainId" in plain.flow).toBe(false);
+      const created = await flows.create("did:privy:test-a", { ...input, chainId: 4801 });
+      expect(created.flow.chainId).toBe(4801);
+      expect((await flows.find("did:privy:test-a", created.flow.id))?.flow.chainId).toBe(4801);
+      const moved = await flows.update("did:privy:test-a", created.flow.id, {
+        ...input,
+        chainId: 84532,
+      });
+      expect(moved?.flow.chainId).toBe(84532);
+
+      // Event runs are a valid source, and the snapshot keeps the chain.
+      const run = {
+        id: crypto.randomUUID(),
+        flowId: created.flow.id,
+        status: "succeeded" as const,
+        startedAt: "2026-09-07T10:00:00.000Z",
+        finishedAt: "2026-09-07T10:00:01.000Z",
+        trigger: { nodeId: "n1", payload: { event: "Transfer" } },
+        nodes: [{ nodeId: "n1", status: "succeeded" as const, outputs: { event: {} } }],
+        variables: {},
+      };
+      const stored = await runs.create("did:privy:test-a", moved!.flow, run, "event");
+      expect(stored.source).toBe("event");
+      expect(stored.document.chainId).toBe(84532);
+      expect(await runs.latestStartedAt(created.flow.id, "event")).toEqual(new Date(run.startedAt));
+
+      // Cursors: one per (flow, node), block numbers beyond 2^53 survive, saves upsert.
+      expect(await cursors.find(created.flow.id, "n1")).toBeNull();
+      const big = BigInt("9007199254740993");
+      await cursors.save({ flowId: created.flow.id, nodeId: "n1", chainId: 84532, lastBlock: big });
+      expect(await cursors.find(created.flow.id, "n1")).toEqual({
+        flowId: created.flow.id,
+        nodeId: "n1",
+        chainId: 84532,
+        lastBlock: big,
+      });
+      await cursors.save({
+        flowId: created.flow.id,
+        nodeId: "n1",
+        chainId: 4801,
+        lastBlock: BigInt(10),
+      });
+      expect(await cursors.find(created.flow.id, "n1")).toMatchObject({
+        chainId: 4801,
+        lastBlock: BigInt(10),
+      });
+      await cursors.save({
+        flowId: created.flow.id,
+        nodeId: "n2",
+        chainId: 4801,
+        lastBlock: BigInt(5),
+      });
+      expect((await cursors.find(created.flow.id, "n2"))?.lastBlock).toBe(BigInt(5));
+
+      // Deleting the flow takes its cursors with it.
+      expect(await flows.delete("did:privy:test-a", created.flow.id)).toBe(true);
+      expect(await cursors.find(created.flow.id, "n1")).toBeNull();
       await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
     } finally {
       await sql.close({ timeout: 5 });

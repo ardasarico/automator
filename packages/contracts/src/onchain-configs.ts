@@ -63,6 +63,56 @@ export const usdcBalanceConfigSchema = Type.Object({
 });
 export type UsdcBalanceConfig = Static<typeof usdcBalanceConfigSchema>;
 
+/** What the API hands an onchain-event trigger per decoded log; bigints travel as decimal strings. */
+export const sampleEventPayload = {
+  event: "Transfer",
+  args: {
+    from: "0x0000000000000000000000000000000000000000",
+    to: "0x1111111111111111111111111111111111111111",
+    value: "1000000",
+  },
+  address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  blockNumber: "12345678",
+  blockHash: "0x5d8e2a1c0f7b4e9a3c6d1f2b8a7e4c3d9f0a1b2c3d4e5f60718293a4b5c6d7e8",
+  transactionHash: "0x9f0a1b2c3d4e5f60718293a4b5c6d7e85d8e2a1c0f7b4e9a3c6d1f2b8a7e4c3d",
+  logIndex: 3,
+  chainId: 84532,
+} as const;
+
+/** The payload an onchain-event trigger receives per log; bigints travel as decimal strings. */
+export interface OnchainEventPayload {
+  event: string;
+  args: Record<string, unknown>;
+  address: string;
+  blockNumber: string;
+  blockHash: string;
+  transactionHash: string;
+  logIndex: number;
+  chainId: number;
+}
+
+/**
+ * The onchain-event trigger: the API polls the flow's chain for logs of `event` emitted by
+ * `address` and starts one run per log with the decoded payload (see `sampleEventPayload`).
+ */
+export const onchainEventTriggerConfigSchema = Type.Object({
+  address: Type.String({ default: "", description: "The contract that emits the event." }),
+  event: Type.String({
+    default: "Transfer(address indexed from, address indexed to, uint256 value)",
+    description: "The event as a human-readable ABI signature.",
+  }),
+  /** Indexed argument filters as a JSON object; blank matches every log. */
+  args: Type.String({
+    default: "",
+    description: 'Indexed argument filters as JSON, such as {"to": "0x..."}; blank matches all.',
+  }),
+  samplePayload: Type.String({
+    default: JSON.stringify(sampleEventPayload, null, 2),
+    description: "Payload Simulate hands to this trigger",
+  }),
+});
+export type OnchainEventTriggerConfig = Static<typeof onchainEventTriggerConfigSchema>;
+
 export const onchainConfigSchemas = {
   "onchain.read-contract": readContractConfigSchema,
   "onchain.write-contract": writeContractConfigSchema,

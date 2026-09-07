@@ -49,6 +49,34 @@ export function edgeRunStatus(run: FlowRun | null, edge: BuilderEdge): EdgeRunSt
   return fired ? "fired" : "dead";
 }
 
+/**
+ * Transaction hashes inside one handle's output: a receipt's `hash` (or `transactionHash`),
+ * at the top level or one object deep, so a `receipt` output links to its explorer page.
+ */
+export function transactionHashes(output: unknown): string[] {
+  const hashes: string[] = [];
+  const visit = (value: unknown, depth: number) => {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return;
+    for (const [key, item] of Object.entries(value)) {
+      if ((key === "hash" || key === "transactionHash") && typeof item === "string") {
+        if (/^0x[0-9a-fA-F]{64}$/.test(item) && !hashes.includes(item)) hashes.push(item);
+      } else if (depth < 1) visit(item, depth + 1);
+    }
+  };
+  visit(output, 0);
+  return hashes;
+}
+
+/** Whether a node error says the wallet could not pay for what the node tried to send. */
+export function isInsufficientFundsError(message: string | undefined): boolean {
+  return (
+    message !== undefined &&
+    /insufficient funds|insufficient balance|exceeds (?:the )?balance|transfer amount exceeds/i.test(
+      message,
+    )
+  );
+}
+
 /** Milliseconds between a result's timestamps, or `undefined` when it never ran. */
 export function elapsedMs(
   result: Pick<FlowRunNodeResult, "startedAt" | "finishedAt">,

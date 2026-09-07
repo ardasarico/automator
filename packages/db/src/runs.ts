@@ -7,7 +7,7 @@ import type {
 } from "@automator/contracts";
 import type { SQL } from "bun";
 
-type Snapshot = Pick<FlowDocument, "version" | "nodes" | "edges">;
+type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
 
 type RunRow = {
   id: string;
@@ -30,6 +30,7 @@ function toRecord(row: RunRow): FlowRunRecord {
       id: row.flowId,
       name: row.name,
       description: row.description,
+      ...(row.document.chainId === undefined ? {} : { chainId: row.document.chainId }),
       nodes: row.document.nodes,
       edges: row.document.edges,
     },
@@ -56,6 +57,7 @@ export function createRunStore(sql: SQL | undefined) {
       const db = connection();
       const snapshot: Snapshot = {
         version: document.version,
+        ...(document.chainId === undefined ? {} : { chainId: document.chainId }),
         nodes: document.nodes,
         edges: document.edges,
       };

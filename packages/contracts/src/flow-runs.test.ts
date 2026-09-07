@@ -1,7 +1,13 @@
 import { Value } from "@sinclair/typebox/value";
 import { describe, expect, test } from "bun:test";
 import { parseResponse } from "./contract";
-import { flowRunRequestSchema, flowRunSchema, runFlowContract, type FlowRun } from "./flow-runs";
+import {
+  flowRunRequestSchema,
+  flowRunSchema,
+  flowRunSourceSchema,
+  runFlowContract,
+  type FlowRun,
+} from "./flow-runs";
 
 const run: FlowRun = {
   id: "run-1",
@@ -30,6 +36,14 @@ describe("flow run schema", () => {
   test("rejects an unknown node status", () => {
     const bad = { ...run, nodes: [{ nodeId: "n1", status: "running" }] };
     expect(Value.Check(flowRunSchema, bad)).toBe(false);
+  });
+});
+
+describe("run sources", () => {
+  test("include the onchain-event listener", () => {
+    for (const source of ["manual", "webhook", "schedule", "miniapp", "event"])
+      expect(Value.Check(flowRunSourceSchema, source)).toBe(true);
+    expect(Value.Check(flowRunSourceSchema, "cron")).toBe(false);
   });
 });
 

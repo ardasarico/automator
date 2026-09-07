@@ -47,6 +47,7 @@ describe("API configuration", () => {
       chainId: 84532,
       chainRpcUrl: "https://sepolia.base.org",
       usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      chainRpcUrls: {},
       privyAuthorizationKey: undefined,
       e2eTestToken: undefined,
       rateLimits: { runs: 30, ai: 10, secrets: 30, sessions: 60, webhooks: 60 },
@@ -147,5 +148,17 @@ describe("chain configuration", () => {
     expect(readConfig({ ...complete, PRIVY_AUTHORIZATION_KEY: "key" }).privyAuthorizationKey).toBe(
       "key",
     );
+  });
+
+  test("collects per-chain RPC overrides from CHAIN_RPC_URL_<id>", () => {
+    expect(
+      readConfig({
+        ...complete,
+        CHAIN_RPC_URL_4801: "https://world.example",
+        CHAIN_RPC_URL_84532: "https://base.example",
+        CHAIN_RPC_URL_abc: "ignored",
+        CHAIN_RPC_URL_1: "",
+      }).chainRpcUrls,
+    ).toEqual({ 4801: "https://world.example", 84532: "https://base.example" });
   });
 });

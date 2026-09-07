@@ -1,4 +1,5 @@
 import {
+  flowChainId,
   getRunContract,
   listAllRunsContract,
   listRunsContract,
@@ -65,7 +66,7 @@ export function createRunRoutes({
       if (!Value.Check(runFlowContract.body, body))
         return status(400, { error: "invalid_request" });
       const chain = chainFactory
-        ? await chainFactory.forUser(claims.id, body.mode ?? "dry-run")
+        ? await chainFactory.forUser(claims.id, body.mode ?? "dry-run", flowChainId(body.document))
         : undefined;
       // A client that disconnects (Stop in the builder) cancels the run it started.
       return runFlow(body.document, {
@@ -99,7 +100,7 @@ export function createRunRoutes({
         const record = await stores.flows.find(claims.id, params.id);
         if (!record) return status(404, { error: "not_found" });
         const chain = chainFactory
-          ? await chainFactory.forUser(claims.id, body.mode ?? "dry-run")
+          ? await chainFactory.forUser(claims.id, body.mode ?? "dry-run", flowChainId(record.flow))
           : undefined;
         const stored = await executeStoredRun(stores, {
           ownerId: claims.id,

@@ -1,8 +1,18 @@
 "use client";
 
-import type { FlowRunNodeResult } from "@automator/contracts";
+import {
+  chainName,
+  defaultChainId,
+  explorerTransactionUrl,
+  type FlowRunNodeResult,
+} from "@automator/contracts";
 import { Button } from "@automator/ui/button";
-import { RiArrowDownSLine, RiArrowUpSLine, RiCloseLine } from "@remixicon/react";
+import {
+  RiArrowDownSLine,
+  RiArrowUpSLine,
+  RiCloseLine,
+  RiExternalLinkLine,
+} from "@remixicon/react";
 import { useState } from "react";
 import { getCatalogEntry } from "./catalog";
 import { EnableSigningButton } from "./enable-signing-button";
@@ -10,13 +20,16 @@ import styles from "./flow-builder.module.css";
 import {
   elapsedMs,
   formatElapsed,
+  isInsufficientFundsError,
   nodeStatusLabel,
   outputHandles,
   simulatedAnswer,
+  transactionHashes,
 } from "./run-selectors";
 import { useRunStore } from "./run-store-provider";
 import { useSelectNode } from "./use-select-node";
 import { useBuilderStore } from "./store-provider";
+import { noFundsMessage } from "./wallet-funds";
 
 const runStatusLabels = {
   succeeded: "Succeeded",
@@ -26,7 +39,33 @@ const runStatusLabels = {
   idle: "",
 } as const;
 
-function Outputs({ result }: { result: FlowRunNodeResult }) {
+/** Links every transaction hash in a handle's output to the flow's chain explorer. */
+function ExplorerLinks({ output, chainId }: { output: unknown; chainId: number }) {
+  const hashes = transactionHashes(output);
+  if (hashes.length === 0) return null;
+  return (
+    <p className="mb-1 flex flex-wrap gap-2 text-caption">
+      {hashes.map((hash) => {
+        const url = explorerTransactionUrl(chainId, hash);
+        if (!url) return null;
+        return (
+          <a
+            key={hash}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-link underline-offset-2 hover:underline"
+          >
+            View on {chainName(chainId)}
+            <RiExternalLinkLine aria-hidden="true" className="size-3" />
+          </a>
+        );
+      })}
+    </p>
+  );
+}
+
+function Outputs({ result, chainId }: { result: FlowRunNodeResult; chainId: number }) {
   const outputs = result.outputs ?? {};
   const handles = outputHandles(result);
   const answer = simulatedAnswer(result);
@@ -36,6 +75,9 @@ function Outputs({ result }: { result: FlowRunNodeResult }) {
         <p className={styles.runDetailError} role="alert">
           {result.error}
         </p>
+        {isInsufficientFundsError(result.error) && (
+          <p className="mt-2 text-caption text-warning-foreground">{noFundsMessage(chainId)}</p>
+        )}
         {result.error.includes("Server signing is not enabled") && (
           <div className="mt-2">
             <EnableSigningButton />
@@ -63,6 +105,7 @@ function Outputs({ result }: { result: FlowRunNodeResult }) {
           <div key={handle}>
             <dt>{handle}</dt>
             <dd>
+              <ExplorerLinks output={outputs[handle]} chainId={chainId} />
               <pre>{JSON.stringify(outputs[handle], null, 2) ?? "undefined"}</pre>
             </dd>
           </div>
@@ -83,6 +126,8 @@ export function RunPanel() {
   const run = useRunStore((state) => state.run);
   const reset = useRunStore((state) => state.reset);
   const nodes = useBuilderStore((state) => state.nodes);
+  // The run executed the saved document, which shares this canvas's chain setting.
+  const chainId = useBuilderStore((state) => state.meta.chainId ?? defaultChainId);
   const selectedId = useBuilderStore((state) => {
     const selected = state.nodes.filter((node) => node.selected);
     return selected.length === 1 ? selected[0]!.id : null;
@@ -174,7 +219,7 @@ export function RunPanel() {
             {current ? (
               <>
                 <p className={styles.runDetailTitle}>{labelOf(current.nodeId)}</p>
-                <Outputs result={current} />
+                <Outputs result={current} chainId={chainId} />
               </>
             ) : (
               <p className={styles.runDetailMuted}>No node ran.</p>
