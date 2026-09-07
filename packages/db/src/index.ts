@@ -1,5 +1,6 @@
 import type { DatabaseStatus } from "@automator/contracts";
 import { SQL } from "bun";
+import { createAccountStore } from "./account";
 import { createFlowStore } from "./flows";
 import { createListingStore } from "./listings";
 import { migrate } from "./migrations";
@@ -7,6 +8,7 @@ import { createRunStore } from "./runs";
 import { createSecretStore } from "./secrets";
 import { createSessionStore } from "./sessions";
 import { createUserStore } from "./users";
+export { type AccountStore } from "./account";
 export {
   documentTriggerTypes,
   FlowOwnerMissingError,
@@ -30,6 +32,7 @@ export function createDatabase(url: string | undefined) {
     runs: createRunStore(sql),
     secrets: createSecretStore(sql),
     sessions: createSessionStore(sql),
+    account: createAccountStore(sql),
     async migrate() {
       if (sql) await migrate(sql);
     },

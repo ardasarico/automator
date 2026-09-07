@@ -2,13 +2,16 @@
 
 import { Button } from "@automator/ui/button";
 import { RiSaveLine } from "@remixicon/react";
-import { useCallback, useState } from "react";
+import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { FlowRequestError, saveFlowRequest } from "../flows/client";
 import { serializeFlow } from "./document";
 import { useBuilderStore } from "./store-provider";
 import { useAccessToken } from "../auth/access-token";
 
 type SaveState = "idle" | "saving" | "saved" | "failed";
+
+/** How one save ended; the message is what the user should read when it failed. */
+export type SaveOutcome = { ok: true } | { ok: false; message: string };
 
 const failureMessages: Record<string, string> = {
   unauthorized: "Your session expired. Reload the page and try again.",
@@ -18,7 +21,8 @@ const failureMessages: Record<string, string> = {
 
 /**
  * Sends the current document to the API. `save` is a no-op while nothing changed since the
- * last save, so the button and the Cmd+S shortcut share one rule.
+ * last save, so the button and the Cmd+S shortcut share one rule; it answers how the save
+ * ended so the unsaved-changes dialog can leave only on success.
  */
 export function useSaveFlow() {
   const getAccessToken = useAccessToken();
@@ -31,8 +35,8 @@ export function useSaveFlow() {
   const [message, setMessage] = useState<string | null>(null);
 
   const canSave = dirty || state === "failed";
-  const save = useCallback(async () => {
-    if (!canSave || state === "saving") return;
+  const save = useCallback(async (): Promise<SaveOutcome> => {
+    if (!canSave || state === "saving") return { ok: true };
     setState("saving");
     setMessage(null);
     const { id, ...input } = serializeFlow(meta, nodes, edges);
@@ -40,18 +44,37 @@ export function useSaveFlow() {
       await saveFlowRequest(id, await getAccessToken(), input);
       markSaved();
       setState("saved");
+      return { ok: true };
     } catch (error) {
       const code = error instanceof FlowRequestError ? error.code : "unavailable";
+      const failure = failureMessages[code] ?? "The flow could not be saved. Please try again.";
       setState("failed");
-      setMessage(failureMessages[code] ?? "The flow could not be saved. Please try again.");
+      setMessage(failure);
+      return { ok: false, message: failure };
     }
   }, [canSave, edges, getAccessToken, markSaved, meta, nodes, state]);
 
   return { save, state, message, canSave, dirty };
 }
 
+export type SaveFlowController = ReturnType<typeof useSaveFlow>;
+
+const SaveFlowContext = createContext<SaveFlowController | null>(null);
+
+/** One save controller per builder, shared by the Save button, Cmd+S and the leave dialog. */
+export function SaveFlowProvider({ children }: { children: ReactNode }) {
+  const controller = useSaveFlow();
+  return <SaveFlowContext.Provider value={controller}>{children}</SaveFlowContext.Provider>;
+}
+
+export function useSaveFlowController(): SaveFlowController {
+  const controller = useContext(SaveFlowContext);
+  if (!controller) throw new Error("useSaveFlowController must be used inside SaveFlowProvider");
+  return controller;
+}
+
 /** The Save button: disabled while nothing changed, so it doubles as the unsaved indicator. */
-export function SaveButton({ controller }: { controller: ReturnType<typeof useSaveFlow> }) {
+export function SaveButton({ controller }: { controller: SaveFlowController }) {
   const { save, state, message, canSave, dirty } = controller;
   return (
     <div className="ml-auto flex items-center gap-2">
@@ -70,7 +93,7 @@ export function SaveButton({ controller }: { controller: ReturnType<typeof useSa
         size="sm"
         loading={state === "saving"}
         disabled={!canSave}
-        onClick={save}
+        onClick={() => void save()}
       >
         <RiSaveLine aria-hidden="true" />
         Save

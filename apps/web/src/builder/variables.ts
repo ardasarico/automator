@@ -1,4 +1,5 @@
 import {
+  parseSamplePayload,
   parseScreenConfig,
   secretTemplate,
   type FlowEdge,
@@ -24,6 +25,16 @@ type EdgeLike = Pick<FlowEdge, "source" | "target"> & {
 
 /** Where a value lands when an edge names no target handle; mirrors the engine. */
 const defaultInputHandle = "input";
+
+/** The template path segment a key can be used as: `{{trigger.<key>}}` needs a plain name. */
+const templateKey = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** The top-level keys of a trigger's sample payload, when the sample is an object. */
+function samplePayloadKeys(config: unknown): string[] {
+  const sample = parseSamplePayload(config);
+  if (typeof sample !== "object" || sample === null || Array.isArray(sample)) return [];
+  return Object.keys(sample).filter((key) => templateKey.test(key));
+}
 
 /**
  * Everything a node's templates can reach, in the order a settings menu lists it: the
@@ -95,6 +106,12 @@ export function listVariables(
         ? { template: "{{trigger.openedAt}}", source: trigger.label, label: "Opened at" }
         : { template: "{{trigger}}", source: trigger.label, label: "Payload" },
     );
+    // The sample payload's top-level keys, so a webhook flow can pick `{{trigger.body}}`.
+    for (const key of samplePayloadKeys(trigger.config)) {
+      const template = `{{trigger.${key}}}`;
+      if (options.some((option) => option.template === template)) continue;
+      options.push({ template, source: trigger.label, label: key });
+    }
   }
 
   for (const name of secretNames) {

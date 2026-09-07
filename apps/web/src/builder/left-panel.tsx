@@ -18,6 +18,7 @@ import { NodePalette } from "./node-palette";
 import { VariablesPanel } from "./variables-panel";
 import { FlowOutline } from "./flow-outline";
 import { FlowSettingsDialog } from "./flow-settings-dialog";
+import { useLeaveGuard } from "./leave-guard";
 import { NodeSettings } from "./node-settings";
 import { useBuilderStore } from "./store-provider";
 
@@ -84,6 +85,7 @@ export function LeftPanel() {
     return selected.length === 1 ? selected[0] : undefined;
   });
   const clearSelection = useBuilderStore((state) => state.clearSelection);
+  const guardLink = useLeaveGuard();
   const open = sections.find((entry) => entry.id === section) ?? sections[0]!;
 
   return (
@@ -97,7 +99,7 @@ export function LeftPanel() {
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Leave flow"
-                  render={<Link href="/flows" />}
+                  render={<Link href="/flows" onClick={guardLink("/flows")} />}
                 />
               }
             >

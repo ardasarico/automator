@@ -47,6 +47,39 @@ describe("listVariables", () => {
     ]);
   });
 
+  test("offers the trigger's sample payload keys after the whole payload", () => {
+    const options = listVariables(
+      "x",
+      [
+        node("w", "trigger.webhook", {
+          samplePayload: '{"method":"POST","body":{"id":1},"bad key":1}',
+        }),
+        node("x", "notify.discord"),
+      ],
+      [{ source: "w", target: "x" }],
+    );
+    expect(options.slice(1)).toEqual([
+      { template: "{{trigger}}", source: "Node w", label: "Payload" },
+      { template: "{{trigger.method}}", source: "Node w", label: "method" },
+      { template: "{{trigger.body}}", source: "Node w", label: "body" },
+    ]);
+  });
+
+  test("does not repeat a sample key the trigger already offers", () => {
+    const options = listVariables(
+      "x",
+      [
+        node("t", "trigger.miniapp-open", { samplePayload: '{"openedAt":"now","ref":"qr"}' }),
+        node("x", "notify.discord"),
+      ],
+      [{ source: "t", target: "x" }],
+    );
+    expect(options.slice(1)).toEqual([
+      { template: "{{trigger.openedAt}}", source: "Node t", label: "Opened at" },
+      { template: "{{trigger.ref}}", source: "Node t", label: "ref" },
+    ]);
+  });
+
   test("falls back to the default input handle and a generic trigger payload", () => {
     const options = listVariables(
       "x",

@@ -25,6 +25,7 @@ import {
 } from "./client";
 import { CopyLinkButton } from "./copy-link-button";
 import { useAccessToken } from "../auth/access-token";
+import { useLeaveGuard } from "../builder/leave-guard";
 
 const descriptionLimit = 280;
 
@@ -57,6 +58,8 @@ export function PublishDialog({
   unsaved: boolean;
 }) {
   const getAccessToken = useAccessToken();
+  // Leaving for the listing page is a navigation away from the canvas, so it is guarded too.
+  const guardLink = useLeaveGuard();
   const [phase, setPhase] = useState<Phase>("loading");
   const [listing, setListing] = useState<MarketplaceListing | null>(null);
   const [name, setName] = useState(flowName);
@@ -138,7 +141,14 @@ export function PublishDialog({
             </DialogHeader>
             <DialogFooter>
               {listingPath && <CopyLinkButton path={listingPath} />}
-              <Button render={<Link href={listingPath ?? "/marketplace"} />}>
+              <Button
+                render={
+                  <Link
+                    href={listingPath ?? "/marketplace"}
+                    onClick={guardLink(listingPath ?? "/marketplace")}
+                  />
+                }
+              >
                 View listing
                 <RiExternalLinkLine aria-hidden="true" />
               </Button>

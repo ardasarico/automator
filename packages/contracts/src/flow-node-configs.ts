@@ -2,7 +2,6 @@ import { Type, type Static } from "@sinclair/typebox";
 import { conditionOperators } from "./condition-operators";
 import { filterConfigSchema, mergeConfigSchema, switchConfigSchema } from "./logic-configs";
 import { forEachConfigSchema, runCodeConfigSchema } from "./loop-configs";
-import { emptyConfigSchema } from "./node-config";
 import { emailConfigSchema, telegramMessageConfigSchema } from "./notify-configs";
 import { onchainConfigSchemas } from "./onchain-configs";
 
@@ -12,21 +11,79 @@ import { onchainConfigSchemas } from "./onchain-configs";
  * `{{path}}` templates, resolved at run time against `input`, `vars` and `trigger`.
  */
 
+/**
+ * The sample payload a trigger hands to Simulate, as JSON text so it survives in the saved
+ * document and travels through forks. `contentMediaType` tells the settings form to render a
+ * JSON editor. Trigger executors never read their config, so the sample never reaches a
+ * real run's output; `parseSamplePayload` is the only reader.
+ */
+function samplePayloadField(sample: unknown) {
+  return Type.String({
+    default: JSON.stringify(sample, null, 2),
+    description: "Payload Simulate hands to this trigger",
+    contentMediaType: "application/json",
+  });
+}
+
+export const manualTriggerConfigSchema = Type.Object({
+  samplePayload: samplePayloadField({}),
+});
+export type ManualTriggerConfig = Static<typeof manualTriggerConfigSchema>;
+
+/** The default sample mirrors what `POST /hooks/:flowId/:token` sends: `{ method, headers, query, body }`. */
+export const webhookTriggerConfigSchema = Type.Object({
+  samplePayload: samplePayloadField({
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    query: {},
+    body: {},
+  }),
+});
+export type WebhookTriggerConfig = Static<typeof webhookTriggerConfigSchema>;
+
 export const scheduleTriggerConfigSchema = Type.Object({
   /** How often the flow runs, as a short interval such as `10m`, `1h` or `1d`. */
   every: Type.String({ default: "1h" }),
+  samplePayload: samplePayloadField({}),
 });
 export type ScheduleTriggerConfig = Static<typeof scheduleTriggerConfigSchema>;
 
-export const miniAppOpenConfigSchema = Type.Object({
+export const miniappOpenTriggerConfigSchema = Type.Object({
   /** Shown to visitors under the generic failure notice when the app cannot continue. */
   visitorErrorMessage: Type.String({
     default: "",
     description:
       "Shown to visitors when the app hits a problem, for example how to reach you. The error itself is never shown to them.",
   }),
+  samplePayload: samplePayloadField({}),
 });
-export type MiniAppOpenConfig = Static<typeof miniAppOpenConfigSchema>;
+export type MiniappOpenTriggerConfig = Static<typeof miniappOpenTriggerConfigSchema>;
+
+/**
+ * The trigger's sample as a value: the parsed `samplePayload` of a trigger config, or `{}`
+ * when the field is absent, blank or not valid JSON, so Simulate always has a payload.
+ */
+export function parseSamplePayload(config: unknown): unknown {
+  if (typeof config !== "object" || config === null) return {};
+  const text = (config as { samplePayload?: unknown }).samplePayload;
+  if (typeof text !== "string" || text.trim() === "") return {};
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return {};
+  }
+}
+
+/** Why a sample payload cannot be used, or `null`; blank text counts as the empty payload. */
+export function samplePayloadProblem(text: string): string | null {
+  if (text.trim() === "") return null;
+  try {
+    JSON.parse(text);
+    return null;
+  } catch {
+    return "Invalid JSON";
+  }
+}
 
 export { conditionOperators, type ConditionOperator } from "./condition-operators";
 
@@ -104,10 +161,10 @@ export const agentConfigSchema = Type.Object({
 export type AgentConfig = Static<typeof agentConfigSchema>;
 
 export const flowNodeConfigSchemas = {
-  "trigger.manual": emptyConfigSchema,
-  "trigger.webhook": emptyConfigSchema,
+  "trigger.manual": manualTriggerConfigSchema,
+  "trigger.webhook": webhookTriggerConfigSchema,
   "trigger.schedule": scheduleTriggerConfigSchema,
-  "trigger.miniapp-open": miniAppOpenConfigSchema,
+  "trigger.miniapp-open": miniappOpenTriggerConfigSchema,
   "logic.condition": conditionConfigSchema,
   "logic.set-variable": setVariableConfigSchema,
   "logic.wait": waitConfigSchema,

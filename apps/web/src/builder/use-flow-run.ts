@@ -6,6 +6,7 @@ import { RunRequestError, runFlowRequest, runSavedFlowRequest } from "./run-clie
 import { useFlowActivation } from "./flow-activation";
 import { useRunStore } from "./run-store-provider";
 import { useBuilderStore } from "./store-provider";
+import { simulationTriggerPayload } from "./trigger-payload";
 import { useAccessToken } from "../auth/access-token";
 
 const failureMessages: Record<string, string> = {
@@ -50,22 +51,16 @@ export function useFlowRun() {
     start();
     try {
       const token = await getAccessToken();
+      const document = serializeFlow(meta, nodes, edges);
+      // The starting trigger's sample payload, so a webhook flow simulates with realistic input.
+      const trigger = { payload: simulationTriggerPayload(document.nodes, document.edges) };
       const result = dirty
-        ? await runFlowRequest(
-            token,
-            {
-              document: serializeFlow(meta, nodes, edges),
-              trigger: { payload: {} },
-              screens: "auto",
-              mode,
-            },
-            current.signal,
-          )
+        ? await runFlowRequest(token, { document, trigger, screens: "auto", mode }, current.signal)
         : (
             await runSavedFlowRequest(
               token,
               meta.id,
-              { trigger: { payload: {} }, screens: "auto", mode },
+              { trigger, screens: "auto", mode },
               current.signal,
             )
           ).run;
