@@ -5,14 +5,7 @@ import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { RiPlayCircleLine } from "@remixicon/react";
 import Link from "next/link";
 import styles from "../flows/flows.module.css";
-
-const dateFormat = new Intl.DateTimeFormat("en", {
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZone: "UTC",
-});
+import { LocalTime } from "./local-time";
 
 const statusLabels: Record<
   FlowRunStatus,
@@ -104,9 +97,7 @@ export function RunHistory({
                   </td>
                   <td>{sourceLabels[run.source]}</td>
                   <td>
-                    <time dateTime={run.startedAt}>
-                      {dateFormat.format(new Date(run.startedAt))}
-                    </time>
+                    <LocalTime value={run.startedAt} />
                   </td>
                   <td>{formatDuration(run.startedAt, run.finishedAt)}</td>
                 </tr>

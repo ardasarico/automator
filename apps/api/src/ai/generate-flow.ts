@@ -25,7 +25,7 @@ import {
 
 /** The model may only use types the engine or the mini-app can run today. */
 export const generatableNodeTypes = flowNodeTypes.filter(
-  (type) => defaultExecutors[type] !== undefined,
+  (type) => type === "logic.for-each" || defaultExecutors[type] !== undefined,
 );
 
 const configSchemas: Partial<Record<FlowNodeType, TObject>> = {
@@ -89,6 +89,7 @@ export function describeNodeTypes(): string {
 export const systemPrompt =
   () => `You design automation flows for Automator, a visual canvas for onchain workflows.
 A flow is a directed acyclic graph. It starts at a trigger node (a type whose inputs list is empty); every other node must have at least one incoming edge. Edges connect a source node's output handle to a target node's input handle, and each input handle takes at most one edge. Screens are pages the visitor sees in a mini-app; a run pauses there until the visitor acts.
+logic.for-each repeats the steps after its Item output for each element of its items list (a JSON string or a template resolving to a list, maxItems at most 100). Its Done output carries {items, results, count} after all iterations. Put screens after Done, never inside the Item body. Do not draw a cycle to express a loop.
 Config strings may reference upstream values with templates: {{input.<input handle>}} is the value delivered to that handle, {{vars.<name>}} a variable set earlier, {{trigger.<path>}} the trigger payload. The handle in {{input.<input handle>}} is always the receiving node's OWN input handle, never the upstream node's output handle: a notify.discord node reads what arrived on its "message" input as {{input.message}} (not {{input.result}} or {{input.text}}), a logic.condition reads {{input.value}}. A trigger hands its whole payload (an object, e.g. a webhook body) to its output handle, so a field of it is addressed as {{input.<input handle>.<field>}} on the next node, or {{trigger.<field>}} anywhere.
 
 Node types you may use, with their handles and config fields:

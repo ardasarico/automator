@@ -122,15 +122,22 @@ function fixture(
     },
   } as unknown as FlowStore;
   const created: { ownerId: string; source: FlowRunSource | undefined; run: FlowRun }[] = [];
+  const snapshots = new Map<string, FlowRunRecord & { ownerId: string }>();
   const runs = {
     create: async (ownerId: string, doc: FlowDocument, run: FlowRun, source?: FlowRunSource) => {
       created.push({ ownerId, source, run });
-      return {
+      const record = {
         run,
         flowName: doc.name,
-        document: doc,
+        document: structuredClone(doc),
         source: source ?? "manual",
       } as FlowRunRecord;
+      snapshots.set(run.id, { ...record, ownerId });
+      return record;
+    },
+    find: async (ownerId: string, id: string) => {
+      const record = snapshots.get(id);
+      return record?.ownerId === ownerId ? record : null;
     },
   } as unknown as RunStore;
   const rows = new Map<string, MiniAppSessionRow>();
@@ -179,7 +186,7 @@ function fixture(
         body: body === undefined ? undefined : JSON.stringify(body),
       }),
     );
-  return { post, created, rows, posted };
+  return { post, created, rows, posted, snapshots, records };
 }
 
 async function start(post: ReturnType<typeof fixture>["post"], flowId = "flow-1") {
@@ -190,6 +197,61 @@ async function start(post: ReturnType<typeof fixture>["post"], flowId = "flow-1"
 }
 
 describe("mini-app sessions", () => {
+  test("two screen pauses retain a sibling output without sending twice, even after republishing", async () => {
+    const branched = structuredClone(document);
+    branched.nodes.push({
+      id: "join",
+      type: "logic.merge",
+      label: "Join",
+      position: { x: 0, y: 0 },
+      config: { mode: "list" },
+    });
+    branched.nodes.find((node) => node.id === "d")!.config.content = "QA";
+    branched.edges = [
+      { id: "1", source: "t", sourceHandle: "visitor", target: "d", targetHandle: "message" },
+      { id: "2", source: "t", sourceHandle: "visitor", target: "form", targetHandle: "data" },
+      { id: "3", source: "form", sourceHandle: "submitted", target: "done", targetHandle: "data" },
+      { id: "4", source: "d", sourceHandle: "sent", target: "join", targetHandle: "a" },
+      { id: "5", source: "done", sourceHandle: "next", target: "join", targetHandle: "b" },
+    ];
+    const { post, posted, created, records } = fixture({
+      flow: branched,
+      secrets: { hook: "https://discord.com/api/webhooks/1/abc" },
+    });
+    const session = await start(post);
+    expect(posted).toHaveLength(1);
+    // A new publication must not silently alter an already-running visitor's graph.
+    records.get("flow-1")!.flow = { ...branched, nodes: [], edges: [] };
+    const answer = (port: string) =>
+      post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
+        token: session.token,
+        port,
+        data: { email: "qa@example.com" },
+      });
+    expect((await answer("submitted")).status).toBe(200);
+    const final = await answer("next");
+    expect(final.status).toBe(200);
+    expect(await final.json()).toMatchObject({ status: "end" });
+    expect(posted).toHaveLength(1);
+    expect(created.at(-1)!.run.nodes.find((n) => n.nodeId === "join")?.outputs).toEqual({
+      merged: [{ messageId: "m1", channelId: "c1" }, { email: "qa@example.com" }],
+    });
+  });
+
+  test("a missing continuation snapshot fails before running any step", async () => {
+    const { post, snapshots, posted } = fixture({
+      secrets: { hook: "https://discord.com/api/webhooks/1/abc" },
+    });
+    const session = await start(post);
+    snapshots.clear();
+    const response = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
+      token: session.token,
+      port: "submitted",
+    });
+    expect(response.status).toBe(409);
+    expect(posted).toHaveLength(0);
+  });
+
   test("starts on the first screen with only that screen's config", async () => {
     const { post, created, rows } = fixture();
     const session = await start(post);

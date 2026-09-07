@@ -19,7 +19,7 @@ export class AiRequestError extends Error {
 
 const failureMessages: Record<string, string> = {
   unauthorized: "Your session expired. Reload the page and try again.",
-  unavailable: "AI is not available right now. Check that the API has an OpenRouter key.",
+  unavailable: "AI could not complete this request right now. Please try again shortly.",
   invalid_flow: "The model could not produce a valid flow for that. Try rephrasing.",
   invalid_request: "The request was rejected. Shorten the prompt and try again.",
   rate_limited: "Too many requests. Try again in a moment.",

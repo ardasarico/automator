@@ -19,6 +19,40 @@ function fixture(answer: () => Promise<Response>) {
 }
 
 describe("OpenRouter client", () => {
+  test.each([
+    "minimax/minimax-m3:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "openrouter/free",
+  ])(
+    "%s routes through at most three distinct free models with a zero price ceiling",
+    async (primary) => {
+      let body: Record<string, unknown> = {};
+      const model = createOpenRouterModel({
+        apiKey: "sk-test",
+        model: primary,
+        fetcher: (async (_url, init) => {
+          body = JSON.parse(String(init?.body));
+          return Response.json({ choices: [{ message: { content: "ok" } }] });
+        }) as typeof fetch,
+      })!;
+      expect(await model({ messages: [{ role: "user", content: "hi" }] })).toEqual({
+        content: "ok",
+        toolCalls: [],
+      });
+      const models = body.models as string[];
+      expect(models.length).toBeLessThanOrEqual(3);
+      expect(new Set(models).size).toBe(models.length);
+      expect(models.every((id) => id.endsWith(":free") || id === "openrouter/free")).toBe(true);
+      if (primary !== "openrouter/free") expect(models[0]).toBe(primary);
+      expect(models.at(-1)).toBe("openrouter/free");
+      expect(body.provider).toEqual({
+        require_parameters: true,
+        max_price: { prompt: 0, completion: 0 },
+      });
+      expect(body.model).toBeUndefined();
+    },
+  );
+
   test("is absent without an API key", () => {
     expect(createOpenRouterModel({ apiKey: undefined, model: "m" })).toBeUndefined();
   });

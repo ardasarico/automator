@@ -175,38 +175,40 @@ export function FlowCanvas() {
   return (
     <div className={styles.canvas}>
       <NodeProblemsContext.Provider value={problemsByNode}>
-        <ReactFlow
-          nodes={nodes}
-          edges={shownEdges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          isValidConnection={canConnect}
-          defaultEdgeOptions={{ type: "smoothstep" }}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          onDragOver={onDragOver}
-          onDrop={onDrop}
-          fitView={nodes.length > 0}
-          fitViewOptions={{ padding: 0.2 }}
-          deleteKeyCode={["Backspace", "Delete"]}
-          minZoom={0.25}
-          maxZoom={2}
-          proOptions={{ hideAttribution: true }}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} />
-          <ZoomPanel />
-          {nodes.length > 0 && (
-            <MiniMap
-              position="bottom-right"
-              pannable
-              zoomable
-              ariaLabel="Flow overview"
-              className={styles.miniMap}
-            />
-          )}
-          {nodes.length === 0 && <EmptyCanvas />}
-        </ReactFlow>
+        <div className={styles.canvasViewport}>
+          <ReactFlow
+            nodes={nodes}
+            edges={shownEdges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            isValidConnection={canConnect}
+            defaultEdgeOptions={{ type: "smoothstep" }}
+            connectionLineType={ConnectionLineType.SmoothStep}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+            fitView={nodes.length > 0}
+            fitViewOptions={{ padding: 0.2 }}
+            deleteKeyCode={["Backspace", "Delete"]}
+            minZoom={0.25}
+            maxZoom={2}
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} />
+            <ZoomPanel />
+            {nodes.length > 0 && (
+              <MiniMap
+                position="bottom-right"
+                pannable
+                zoomable
+                ariaLabel="Flow overview"
+                className={styles.miniMap}
+              />
+            )}
+            {nodes.length === 0 && <EmptyCanvas />}
+          </ReactFlow>
+        </div>
       </NodeProblemsContext.Provider>
       <RunPanel />
     </div>

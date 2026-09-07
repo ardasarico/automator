@@ -59,6 +59,7 @@ export function MiniApp({
     latest.current = { document, engine };
   }, [document, engine]);
   const variables = useRef<Record<string, unknown>>({});
+  const completed = useRef<FlowRunNodeResult[]>([]);
   const payload = useRef({ openedAt: new Date().toISOString() });
   const interacted = useRef(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -84,6 +85,7 @@ export function MiniApp({
       void run.then((finished) => {
         if (count !== runCount.current) return;
         variables.current = finished.variables;
+        completed.current = finished.nodes;
         setSession(settleRun(finished));
       });
     },
@@ -115,6 +117,7 @@ export function MiniApp({
   const restart = () => {
     interacted.current = true;
     variables.current = {};
+    completed.current = [];
     open();
   };
 
@@ -125,7 +128,7 @@ export function MiniApp({
         latest.current.document,
         payload.current,
         latest.current.engine,
-        { nodeId: node.id, port, data, variables: variables.current },
+        { nodeId: node.id, port, data, variables: variables.current, completed: completed.current },
         onNodeResult,
       ),
     );

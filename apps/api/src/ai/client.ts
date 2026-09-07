@@ -18,6 +18,10 @@ export interface OpenRouterOptions {
 
 const defaultBaseUrl = "https://openrouter.ai/api/v1";
 
+// OpenRouter tries these in order on upstream errors, within our single request timeout.
+// The free router also covers catalog churn without ever selecting a paid model.
+const freeFallbacks = ["nvidia/nemotron-3-super-120b-a12b:free", "google/gemma-4-31b-it:free"];
+
 /** OpenAI-style wire shapes, only the fields this client reads or writes. */
 interface WireToolCall {
   id: string;
@@ -86,7 +90,20 @@ export function createOpenRouterModel({
   if (!apiKey) return undefined;
   return async (request) => {
     const body = {
-      model,
+      ...(model.endsWith(":free") || model === "openrouter/free"
+        ? {
+            models: [
+              ...[...new Set([model, ...freeFallbacks])]
+                .filter((candidate) => candidate !== "openrouter/free")
+                .slice(0, 2),
+              "openrouter/free",
+            ],
+            provider: {
+              require_parameters: true,
+              max_price: { prompt: 0, completion: 0 },
+            },
+          }
+        : { model }),
       messages: request.messages.map(toWire),
       ...(request.tools?.length
         ? {

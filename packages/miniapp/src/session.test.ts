@@ -74,6 +74,35 @@ describe("visitorOutput", () => {
 });
 
 describe("openSession and continueSession", () => {
+  test("continuation forwards previously completed outputs to a join", async () => {
+    const branched: FlowDocument = {
+      ...document,
+      nodes: [
+        node("t", "trigger.miniapp-open"),
+        node("a", "logic.set-variable", { name: "a", value: "A" }),
+        node("page", "screen.page"),
+        node("join", "logic.merge", { mode: "list" }),
+      ],
+      edges: [
+        { id: "1", source: "t", sourceHandle: "visitor", target: "a", targetHandle: "value" },
+        { id: "2", source: "t", sourceHandle: "visitor", target: "page", targetHandle: "data" },
+        { id: "3", source: "a", sourceHandle: "value", target: "join", targetHandle: "a" },
+        { id: "4", source: "page", sourceHandle: "next", target: "join", targetHandle: "b" },
+      ],
+    };
+    const opened = await openSession(branched, {}, engine)!;
+    const resumed = await continueSession(branched, {}, engine, {
+      nodeId: "page",
+      port: "next",
+      variables: opened.variables,
+      completed: opened.nodes,
+    });
+    expect(resumed.status).toBe("succeeded");
+    expect(resumed.nodes.find((n) => n.nodeId === "join")?.outputs).toEqual({
+      merged: ["A", { action: "next" }],
+    });
+  });
+
   test("opens at the first screen, then runs the real steps on continue", async () => {
     const opened = await openSession(document, { openedAt: "now" }, engine)!;
     expect(settleRun(opened)).toEqual({ kind: "screen", nodeId: "form" });

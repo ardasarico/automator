@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { findFlowDocumentProblem, type FlowDocumentInput } from "@automator/contracts";
-import { defaultExecutors, scriptedModel, type ChatResponse } from "@automator/flow-engine";
+import {
+  defaultExecutors,
+  runFlow,
+  scriptedModel,
+  type ChatResponse,
+} from "@automator/flow-engine";
 import {
   FlowGenerationError,
   generatableNodeTypes,
@@ -49,10 +54,42 @@ const good = {
 };
 
 describe("generateFlow", () => {
-  test("only offers node types with an executor", () => {
+  test("generates an executable For each body followed by a Done screen", async () => {
+    const draft = {
+      name: "Loop",
+      description: "QA",
+      summary: "Loop then show a page.",
+      nodes: [
+        { id: "t", type: "trigger.manual", label: "Start", config: {} },
+        { id: "loop", type: "logic.for-each", label: "Each", config: { items: "[1,2]" } },
+        {
+          id: "body",
+          type: "logic.set-variable",
+          label: "Keep",
+          config: { name: "last", value: "{{input.value}}" },
+        },
+        { id: "done", type: "screen.page", label: "Done", config: {} },
+      ],
+      edges: [
+        { source: "t", sourceHandle: "run", target: "loop", targetHandle: "items" },
+        { source: "loop", sourceHandle: "item", target: "body", targetHandle: "value" },
+        { source: "loop", sourceHandle: "done", target: "done", targetHandle: "data" },
+      ],
+    };
+    const { model, requests } = scriptedModel([text(draft)]);
+    const { document } = await flowOf(generateFlow(model, "Loop over [1,2] then show a page"));
+    expect(requests[0]!.messages[0]!.content).toContain("logic.for-each");
+    const result = await runFlow({ ...document, id: "generated" });
+    expect(result.status).toBe("waiting");
+    expect(result.variables).toEqual({ last: 2 });
+  });
+
+  test("offers executor types and the engine's built-in loop", () => {
     expect(generatableNodeTypes).toContain("notify.discord");
     expect(generatableNodeTypes).toContain("screen.form");
-    for (const type of generatableNodeTypes) expect(defaultExecutors[type]).toBeDefined();
+    expect(generatableNodeTypes).toContain("logic.for-each");
+    for (const type of generatableNodeTypes)
+      if (type !== "logic.for-each") expect(defaultExecutors[type]).toBeDefined();
   });
 
   test("turns a valid answer into a laid-out, cleaned document", async () => {

@@ -327,7 +327,11 @@ export function createSessionRoutes({
           return status(409, { error: "invalid_request" });
         const found = await flows.findPublishedWithOwner(params.id);
         if (!found) return status(404, { error: "not_found" });
-        const document = found.record.flow;
+        const previous = row.lastRunId ? await runs.find(row.ownerId, row.lastRunId) : null;
+        if (!previous || previous.run.flowId !== row.flowId)
+          return status(409, { error: "invalid_request" });
+        // Continue the session's snapshot, not a graph republished while the visitor paused.
+        const document = previous.document;
         const node = document.nodes.find((candidate) => candidate.id === row.nodeId);
         if (!node || !isScreenNodeType(node.type)) return status(409, { error: "invalid_request" });
         const ports = screenPorts(node.type);
@@ -348,7 +352,7 @@ export function createSessionRoutes({
         const run = await runFlow(document, {
           ...engine,
           trigger: { payload: row.payload },
-          resume,
+          resume: { ...resume, completed: previous.run.nodes },
           secrets: secretsFor?.(found.ownerId),
           chain: chainFactory
             ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))

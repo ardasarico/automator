@@ -57,6 +57,7 @@ export function continueSession(
     port: string;
     data?: Record<string, string>;
     variables: Record<string, unknown>;
+    completed?: readonly FlowRunNodeResult[];
   },
   onNodeResult?: RunOptions["onNodeResult"],
 ): Promise<FlowRun> {
@@ -67,6 +68,7 @@ export function continueSession(
       nodeId: step.nodeId,
       outputs: { [step.port]: visitorAnswer(step.port, step.data) },
       variables: step.variables,
+      completed: step.completed,
     },
     onNodeResult,
   });

@@ -51,6 +51,16 @@ function loopFlow(items: unknown, extra: Partial<FlowDocument> = {}): FlowDocume
 }
 
 describe("logic.for-each", () => {
+  test("results follow execution order even when canvas nodes are stored in reverse order", async () => {
+    const flow = loopFlow(null);
+    flow.nodes.reverse();
+    const run = await runFlow(flow, { trigger: { payload: { items: ["a", "b"] } } });
+    expect(run.status).toBe("succeeded");
+    expect(run.nodes.find((node) => node.nodeId === "each")?.outputs).toMatchObject({
+      done: { results: [{ false: "a" }, { true: "b" }] },
+    });
+  });
+
   test("runs the body once per item, carries vars, and fires done with the results", async () => {
     const run = await runFlow(loopFlow(["a", "b", "c"]), {
       trigger: { payload: { items: ["a", "b", "c"] } },

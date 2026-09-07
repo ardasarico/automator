@@ -31,6 +31,8 @@ export interface RunOptions {
     nodeId: string;
     outputs: Record<string, unknown>;
     variables?: Record<string, unknown>;
+    /** Results from the previous pass. Successful nodes forward their outputs without running again. */
+    completed?: readonly FlowRunNodeResult[];
     /**
      * The screen could not be answered (a sign-in the host cannot verify, say): the node is
      * recorded as failed with this message instead of producing `outputs`, and the run fails.
@@ -193,6 +195,11 @@ async function execute(
   let starting: FlowNode[];
   const requested = options.trigger?.nodeId;
   const resume = options.resume;
+  const completed = new Map(
+    (pass ? [] : (resume?.completed ?? []))
+      .filter((result) => result.status === "succeeded")
+      .map((result) => [result.nodeId, result]),
+  );
   if (pass !== undefined) {
     starting = [nodes.get(pass.nodeId)!];
   } else if (resume !== undefined) {
@@ -249,20 +256,26 @@ async function execute(
   // Nodes a loop already ran (their last pass is recorded); the main pass only forwards them.
   const loopHandled = new Set<string>();
 
-  /** Every node downstream of the for-each's `item` handle: the loop body. */
-  const loopBody = (node: FlowNode): Set<string> => {
+  const descendants = (roots: string[], stop = new Set<string>()): Set<string> => {
     const body = new Set<string>();
-    const queue = outgoing
-      .get(node.id)!
-      .filter((edge) => edge.sourceHandle === "item")
-      .map((edge) => edge.target);
+    const queue = [...roots];
     while (queue.length > 0) {
       const id = queue.shift()!;
-      if (body.has(id)) continue;
+      if (body.has(id) || stop.has(id)) continue;
       body.add(id);
       for (const edge of outgoing.get(id)!) queue.push(edge.target);
     }
     return body;
+  };
+
+  /** Done and its descendants run after the loop, including joins shared with Item. */
+  const loopBody = (node: FlowNode): Set<string> => {
+    const targets = (handle: string) =>
+      outgoing
+        .get(node.id)!
+        .filter((edge) => edge.sourceHandle === handle)
+        .map((edge) => edge.target);
+    return descendants(targets("item"), descendants(targets("done")));
   };
 
   /**
@@ -297,10 +310,29 @@ async function execute(
         return { error: "A screen cannot be inside a loop; move it after Done" };
     }
     const selected = items.slice(0, config.maxItems);
+    // Execute only the body: an Item/Done join must not run early in a sub-pass.
+    const inside = (id: string) => id === node.id || body.has(id);
+    const bodyDocument = {
+      ...document,
+      nodes: document.nodes.filter((entry) => inside(entry.id)),
+      edges: document.edges.filter((edge) => inside(edge.source) && inside(edge.target)),
+    };
     const results: unknown[] = [];
     for (const [index, item] of selected.entries()) {
       if (signal?.aborted) return { error: cancelledMessage };
-      const subRun = await execute(document, options, { nodeId: node.id, item, variables });
+      let lastOutputs: Record<string, unknown> | null = null;
+      const subRun = await execute(
+        bodyDocument,
+        {
+          ...options,
+          resume: undefined,
+          onNodeResult(result) {
+            if (body.has(result.nodeId) && result.status === "succeeded")
+              lastOutputs = result.outputs ?? null;
+          },
+        },
+        { nodeId: node.id, item, variables },
+      );
       Object.assign(variables, subRun.variables);
       for (const result of subRun.nodes) {
         if (body.has(result.nodeId)) {
@@ -315,10 +347,7 @@ async function execute(
         };
       }
       // The pass's value is what its last body node produced, in execution order.
-      const last = [...subRun.nodes]
-        .reverse()
-        .find((result) => body.has(result.nodeId) && result.status === "succeeded");
-      results.push(last?.outputs ?? null);
+      results.push(lastOutputs);
     }
     return {
       outputs: {
@@ -370,6 +399,13 @@ async function execute(
         outputs: resume.outputs,
       });
       propagate(node, resume.outputs);
+      continue;
+    }
+    const previous = completed.get(node.id);
+    if (previous) {
+      // Retain history across multiple pauses, but do not emit a new execution event.
+      results.set(node.id, previous);
+      propagate(node, previous.outputs ?? {});
       continue;
     }
     if (halted || !shouldRun) {
