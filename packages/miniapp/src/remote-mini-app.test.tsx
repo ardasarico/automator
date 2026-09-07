@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { RemoteMiniApp, type MiniAppClient } from "./remote-mini-app";
+import {
+  RemoteMiniApp,
+  signInRefusedNotice,
+  stateAfterFailure,
+  type MiniAppClient,
+} from "./remote-mini-app";
 import { VisitorFailedView } from "./screens";
 
 describe("VisitorFailedView", () => {
@@ -40,5 +45,34 @@ describe("RemoteMiniApp", () => {
     expect(html).toContain('data-session="loading"');
     expect(html).toContain("Tickets");
     expect(html).toContain("One moment");
+  });
+});
+
+describe("stateAfterFailure", () => {
+  const session = {
+    sessionId: "s1",
+    status: "screen" as const,
+    steps: [],
+    screen: { nodeId: "login", type: "privy.login" as const, label: "Sign in", config: {} },
+  };
+  const previous = { kind: "session" as const, session, token: "tok" };
+
+  test("a rejected sign-in keeps the session on its screen with a note", () => {
+    expect(stateAfterFailure(new Error("unauthorized"), previous)).toEqual({
+      ...previous,
+      notice: signInRefusedNotice,
+    });
+  });
+
+  test("anything else, or a rejection without a session to return to, is unavailable", () => {
+    expect(stateAfterFailure(new Error("rate_limited"), previous)).toEqual({
+      kind: "unavailable",
+      message: "Too many requests right now. Wait a moment and try again.",
+    });
+    expect(stateAfterFailure(new Error("unauthorized"), undefined).kind).toBe("unavailable");
+    expect(stateAfterFailure(new TypeError("fetch failed"), previous)).toEqual({
+      kind: "unavailable",
+      message: "The app could not be reached. Try again.",
+    });
   });
 });

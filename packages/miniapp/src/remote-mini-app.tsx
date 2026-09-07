@@ -24,10 +24,14 @@ export type RemoteMiniAppProps = {
   className?: string;
 };
 
-type State =
-  | { kind: "loading" }
-  | { kind: "session"; session: MiniAppSession; token: string }
-  | { kind: "unavailable"; message: string };
+type SessionState = {
+  kind: "session";
+  session: MiniAppSession;
+  token: string;
+  /** Why the last answer was refused, shown above the screen it came back to. */
+  notice?: string;
+};
+type State = { kind: "loading" } | SessionState | { kind: "unavailable"; message: string };
 
 /** A screen from the API rendered through the same views as the document-driven mini-app. */
 function toNode(screen: MiniAppScreen): ScreenNode {
@@ -54,6 +58,26 @@ export function describeUnavailable(cause: unknown): string {
   return "The app could not be reached. Try again.";
 }
 
+/** The note a screen shows when the API refused the sign-in it was answered with. */
+export const signInRefusedNotice = "Your sign-in could not be verified. Try again.";
+
+/**
+ * Where a refused answer leaves the visitor: the API keeps a session on its screen when it
+ * rejects a sign-in token (401), so the screen comes back with a note instead of a restart;
+ * every other failure is the unavailable view.
+ */
+export function stateAfterFailure(cause: unknown, previous: SessionState | undefined): State {
+  const code = cause instanceof Error ? cause.message : "";
+  if (code === "unauthorized" && previous)
+    return {
+      kind: "session",
+      session: previous.session,
+      token: previous.token,
+      notice: signInRefusedNotice,
+    };
+  return { kind: "unavailable", message: describeUnavailable(cause) };
+}
+
 function toSteps(session: MiniAppSession): WorkingStep[] {
   return session.steps.map((step) => ({ id: step.nodeId, label: step.label, status: step.status }));
 }
@@ -70,19 +94,24 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const requestCount = useRef(0);
 
-  const settle = useCallback((count: number, promise: Promise<MiniAppSession>, token?: string) => {
-    promise.then(
-      (session) => {
-        if (count !== requestCount.current) return;
-        setSteps(toSteps(session));
-        setState({ kind: "session", session, token: session.token ?? token ?? "" });
-      },
-      (cause: unknown) => {
-        if (count !== requestCount.current) return;
-        setState({ kind: "unavailable", message: describeUnavailable(cause) });
-      },
-    );
-  }, []);
+  const settle = useCallback(
+    (count: number, promise: Promise<MiniAppSession>, previous?: SessionState) => {
+      promise.then(
+        (session) => {
+          if (count !== requestCount.current) return;
+          setSteps(toSteps(session));
+          setState({ kind: "session", session, token: session.token ?? previous?.token ?? "" });
+        },
+        (cause: unknown) => {
+          if (count !== requestCount.current) return;
+          const next = stateAfterFailure(cause, previous);
+          if (next.kind === "session") setSteps(toSteps(next.session));
+          setState(next);
+        },
+      );
+    },
+    [],
+  );
 
   // The initial state is already "loading", so opening the session sets nothing synchronously.
   useEffect(() => {
@@ -104,7 +133,7 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
     settle(
       count,
       client.answer(session.sessionId, { token, port, ...(data ? { data } : {}), ...identity }),
-      token,
+      state,
     );
   };
 
@@ -122,12 +151,19 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
     body = <VisitorFailedView message={state.message} onRetry={restart} />;
   else if (state.session.status === "screen" && state.session.screen)
     body = (
-      <ScreenView
-        key={state.session.screen.nodeId}
-        node={toNode(state.session.screen)}
-        titleRef={titleRef}
-        onContinue={act}
-      />
+      <>
+        {state.notice && (
+          <p role="alert" className="px-5 pt-4 text-caption text-destructive-text">
+            {state.notice}
+          </p>
+        )}
+        <ScreenView
+          key={state.session.screen.nodeId}
+          node={toNode(state.session.screen)}
+          titleRef={titleRef}
+          onContinue={act}
+        />
+      </>
     );
   else if (state.session.status === "failed")
     body = (
