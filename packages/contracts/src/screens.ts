@@ -1,17 +1,27 @@
 import { Type, type Static, type TObject } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import type { FlowNodeType } from "./flows";
+import {
+  identityScreenPorts,
+  isIdentityScreenType,
+  privyLoginConfigSchema,
+  worldIdVerifyConfigSchema,
+} from "./identity";
 
 /**
  * Visitor-facing node types: what the mini-app renders. The visitor's choice on a screen
  * picks the output port the flow continues on (page → next, form → submitted,
- * confirmation → confirmed or cancelled, qr-code → next).
+ * confirmation → confirmed or cancelled, qr-code → next). The identity screens
+ * (`identity.ts`) pause the same way, but the API derives their answer from a verified
+ * sign-in or proof (login → user, id-verify → verified or rejected).
  */
 export const screenNodeTypes = [
   "screen.page",
   "screen.form",
   "screen.confirmation",
   "screen.qr-code",
+  "privy.login",
+  "world.id-verify",
 ] as const satisfies readonly FlowNodeType[];
 export type ScreenNodeType = (typeof screenNodeTypes)[number];
 
@@ -86,6 +96,8 @@ export const screenConfigSchemas = {
   "screen.form": screenFormConfigSchema,
   "screen.confirmation": screenConfirmationConfigSchema,
   "screen.qr-code": screenQrCodeConfigSchema,
+  "privy.login": privyLoginConfigSchema,
+  "world.id-verify": worldIdVerifyConfigSchema,
 } as const satisfies Record<ScreenNodeType, TObject>;
 
 export type ScreenConfig<T extends ScreenNodeType = ScreenNodeType> = Static<
@@ -118,6 +130,7 @@ export function visitorAnswer(port: string, data?: Record<string, string>): unkn
 
 /** The output port each visitor action on a screen continues on. */
 export function screenPorts(type: ScreenNodeType): { primary: string; secondary?: string } {
+  if (isIdentityScreenType(type)) return identityScreenPorts[type];
   switch (type) {
     case "screen.page":
     case "screen.qr-code":

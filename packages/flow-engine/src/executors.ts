@@ -33,6 +33,9 @@ export const defaultExecutors: ExecutorRegistry = {
   "screen.form": screen,
   "screen.confirmation": screen,
   "screen.qr-code": screen,
+  // Identity screens: the visitor signs in or proves personhood; the host verifies the answer.
+  "privy.login": screen,
+  "world.id-verify": screen,
 
   "logic.condition": {
     kind: "step",

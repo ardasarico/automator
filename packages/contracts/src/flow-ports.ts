@@ -45,7 +45,7 @@ export const flowNodePorts: Record<FlowNodeType, FlowNodePorts> = {
   "notify.email": ports(["message"], ["sent"]),
   "notify.discord": ports(["message"], ["sent"]),
   "world.selfie-check": ports(["visitor"], ["verified"]),
-  "world.id-verify": ports(["visitor"], ["proof"]),
+  "world.id-verify": ports(["visitor"], ["verified", "rejected"]),
   "world.verification-completed": ports([], ["proof"]),
   "privy.wallet": ports(["visitor"], ["wallet"]),
   "privy.login": ports(["visitor"], ["user"]),

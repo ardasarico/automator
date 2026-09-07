@@ -18,6 +18,12 @@ describe("mini-app session contracts", () => {
       steps: [{ nodeId: "d", label: "Discord", status: "succeeded" }],
     };
     expect(Value.Check(miniAppSessionSchema, onScreen)).toBe(true);
+    expect(
+      Value.Check(miniAppSessionSchema, {
+        ...onScreen,
+        screen: { nodeId: "n", type: "world.id-verify", label: "Verify", config: { action: "a" } },
+      }),
+    ).toBe(true);
     expect(Value.Check(miniAppSessionSchema, { sessionId: "s1", status: "end", steps: [] })).toBe(
       true,
     );
@@ -36,6 +42,24 @@ describe("mini-app session contracts", () => {
     expect(
       Value.Check(miniAppAnswerSchema, { token: "t", port: "submitted", data: { email: "a" } }),
     ).toBe(true);
+    expect(Value.Check(miniAppAnswerSchema, { token: "t", port: "user", privyToken: "jwt" })).toBe(
+      true,
+    );
+    expect(
+      Value.Check(miniAppAnswerSchema, {
+        token: "t",
+        port: "verified",
+        worldProof: {
+          merkle_root: "0x1",
+          nullifier_hash: "0x2",
+          proof: "0x3",
+          verification_level: "orb",
+        },
+      }),
+    ).toBe(true);
+    expect(Value.Check(miniAppAnswerSchema, { token: "t", port: "user", privyToken: "" })).toBe(
+      false,
+    );
     expect(Value.Check(miniAppAnswerSchema, { port: "next" })).toBe(false);
     expect(Value.Check(miniAppAnswerSchema, { token: "t", port: "next", extra: 1 })).toBe(false);
   });

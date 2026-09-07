@@ -9,14 +9,19 @@ import {
 } from "./screens";
 
 describe("screen node types", () => {
-  test("cover every screen.* id and nothing else", () => {
+  test("cover every screen.* id plus the identity screens and nothing else", () => {
     expect(screenNodeTypes).toEqual([
       "screen.page",
       "screen.form",
       "screen.confirmation",
       "screen.qr-code",
+      "privy.login",
+      "world.id-verify",
     ]);
     expect(isScreenNodeType("screen.form")).toBe(true);
+    expect(isScreenNodeType("privy.login")).toBe(true);
+    expect(isScreenNodeType("world.id-verify")).toBe(true);
+    expect(isScreenNodeType("world.verification-completed")).toBe(false);
     expect(isScreenNodeType("logic.condition")).toBe(false);
     expect(Object.keys(screenConfigSchemas)).toEqual([...screenNodeTypes]);
   });
@@ -99,5 +104,7 @@ describe("screenPorts", () => {
       secondary: "cancelled",
     });
     expect(screenPorts("screen.qr-code")).toEqual({ primary: "next" });
+    expect(screenPorts("privy.login")).toEqual({ primary: "user" });
+    expect(screenPorts("world.id-verify")).toEqual({ primary: "verified", secondary: "rejected" });
   });
 });

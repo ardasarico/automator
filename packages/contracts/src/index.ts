@@ -6,6 +6,7 @@ export * from "./contract";
 export * from "./flows";
 export * from "./health";
 export * from "./screens";
+export * from "./identity";
 export * from "./node-config";
 export * from "./flow-node-configs";
 export * from "./logic-configs";
