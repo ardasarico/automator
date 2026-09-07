@@ -1,8 +1,9 @@
 "use client";
 
+import { totalRuns, type AccountUsage } from "@automator/contracts";
+import { Badge } from "@automator/ui/badge";
 import { Button } from "@automator/ui/button";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@automator/ui/dialog";
-import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { ScrollArea } from "@automator/ui/scroll-area";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@automator/ui/tabs";
 import { ThemeSelect } from "@automator/ui/theme-select";
@@ -15,7 +16,12 @@ import {
   RiUser3Line,
 } from "@remixicon/react";
 import { type ReactNode, type RefObject, useEffect, useState, useSyncExternalStore } from "react";
+import { AccountRequestError, getAccountUsageRequest } from "../account/client";
+import { useAccessToken } from "../auth/access-token";
 import { useAuthSession } from "../auth/provider";
+import { EnableSigningButton } from "../builder/enable-signing-button";
+import { useSecrets } from "../builder/secrets-store";
+import { detectChannels } from "./connected-apps";
 
 const sections = [
   { value: "preferences", label: "Preferences", icon: RiEqualizerLine },
@@ -42,30 +48,187 @@ function PanelHeader({ title, description }: { title: string; description: strin
   );
 }
 
-function ComingSoon({
-  icon,
-  title,
+function DetailRow({
+  label,
   description,
+  children,
 }: {
-  icon: ReactNode;
-  title: string;
-  description: string;
+  label: string;
+  description?: string;
+  children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center px-2 py-14 text-center">
-      <EmptyStateIllustration icon={icon} />
-      <h3 className="mt-6 text-label">{title}</h3>
-      <p className="mt-2 text-caption text-muted-foreground">{description}</p>
+    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border py-5 last:border-b-0">
+      <div className="min-w-0">
+        <h3 className="text-label">{label}</h3>
+        {description && (
+          <p className="mt-1 text-caption text-muted-foreground text-pretty">{description}</p>
+        )}
+      </div>
+      {children}
     </div>
   );
 }
 
-function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+function shortAddress(address: string) {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+/**
+ * What the user's flows can talk to: the Privy embedded wallet (with the server signing
+ * grant) and the notification channels they have stored credentials for. Derived from the
+ * session and the secret names the Variables panel lists; nothing here is an OAuth link.
+ */
+function ConnectedApps({ open }: { open: boolean }) {
+  const { user } = useAuthSession();
+  const getAccessToken = useAccessToken();
+  const status = useSecrets((state) => state.status);
+  const error = useSecrets((state) => state.error);
+  const load = useSecrets((state) => state.load);
+  const channels = useSecrets((state) => state.secrets);
+
+  useEffect(() => {
+    if (open && status === "idle") void getAccessToken().then(load);
+  }, [open, status, getAccessToken, load]);
+
+  const detected = detectChannels(channels.map((secret) => secret.name));
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border py-5 last:border-b-0">
-      <h3 className="text-label">{label}</h3>
-      {children}
+    <div className="pt-2">
+      <DetailRow
+        label="Embedded wallet"
+        description="Created by Privy when you signed in. Server signing lets flows send transactions while you are away."
+      >
+        <div className="flex min-w-0 flex-col items-end gap-2">
+          {user?.walletAddress ? (
+            <code dir="ltr" className="text-code" title={user.walletAddress}>
+              {shortAddress(user.walletAddress)}
+            </code>
+          ) : (
+            <span className="text-caption text-muted-foreground">No wallet yet</span>
+          )}
+          <EnableSigningButton />
+        </div>
+      </DetailRow>
+      {detected.map((channel) => (
+        <DetailRow
+          key={channel.id}
+          label={channel.label}
+          description={
+            channel.connected
+              ? `Used through ${channel.secretNames.map((name) => `{{secrets.${name}}}`).join(", ")}.`
+              : `${channel.hint} Secrets live in a flow's Variables panel.`
+          }
+        >
+          {channel.connected ? (
+            <Badge variant="success">Connected</Badge>
+          ) : status === "loading" || status === "idle" ? (
+            <span className="text-caption text-muted-foreground">Checking…</span>
+          ) : (
+            <Badge variant="outline">Not connected</Badge>
+          )}
+        </DetailRow>
+      ))}
+      {status === "failed" && error && (
+        <p role="alert" className="pt-4 text-caption text-destructive-text">
+          {error}
+        </p>
+      )}
     </div>
+  );
+}
+
+const usageFailures: Record<string, string> = {
+  unauthorized: "Your session expired. Reload the page and try again.",
+};
+
+function UsageRow({
+  term,
+  detail,
+  children,
+}: {
+  term: string;
+  detail?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-baseline justify-between gap-4 border-b border-border py-5 last:border-b-0">
+      <div className="min-w-0">
+        <dt className="text-label">{term}</dt>
+        {detail && <dd className="mt-1 text-caption text-muted-foreground">{detail}</dd>}
+      </div>
+      <dd className="text-body tabular-nums">{children}</dd>
+    </div>
+  );
+}
+
+/** Counts from `GET /account/usage`, fetched each time the dialog opens. */
+function Usage({ open }: { open: boolean }) {
+  const getAccessToken = useAccessToken();
+  const [usage, setUsage] = useState<AccountUsage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const next = await getAccountUsageRequest(await getAccessToken());
+        if (cancelled) return;
+        setUsage(next);
+        setError(null);
+      } catch (caught) {
+        if (cancelled) return;
+        const code = caught instanceof AccountRequestError ? caught.code : "unavailable";
+        setError(usageFailures[code] ?? "Usage is unavailable right now. Try again shortly.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, getAccessToken]);
+
+  if (error) {
+    return (
+      <p role="alert" className="py-5 text-caption text-destructive-text">
+        {error}
+      </p>
+    );
+  }
+  if (!usage) {
+    return (
+      <p role="status" className="py-5 text-caption text-muted-foreground">
+        Loading usage…
+      </p>
+    );
+  }
+  const runs = usage.runsLast30Days;
+  const since = new Date(usage.since).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  return (
+    <>
+      <dl className="pt-2">
+        <UsageRow
+          term="Flows"
+          detail={`${usage.activeFlows} active (webhook and schedule triggers on)`}
+        >
+          {usage.flows}
+        </UsageRow>
+        <UsageRow
+          term="Runs in the last 30 days"
+          detail={`${runs.manual} Simulate · ${runs.webhook} webhook · ${runs.schedule} schedule · ${runs.miniapp} mini-app`}
+        >
+          {totalRuns(usage)}
+        </UsageRow>
+        <UsageRow term="Secrets">{usage.secrets}</UsageRow>
+        <UsageRow term="Published flows">{usage.listings}</UsageRow>
+      </dl>
+      <p className="pt-4 text-caption text-muted-foreground">
+        Runs are counted since {since}. There are no usage limits yet.
+      </p>
+    </>
   );
 }
 
@@ -165,21 +328,13 @@ export function SettingsDialog({
             <TabsPanel value="apps" className="p-7 max-sm:px-5 max-sm:py-6">
               <PanelHeader
                 title="Connected apps"
-                description="Manage the services you use in your flows."
+                description="The wallet and channels your flows can use."
               />
-              <ComingSoon
-                icon={<RiApps2Line />}
-                title="No connected apps"
-                description="App connections are coming soon."
-              />
+              <ConnectedApps open={open} />
             </TabsPanel>
             <TabsPanel value="usage" className="p-7 max-sm:px-5 max-sm:py-6">
-              <PanelHeader title="Usage" description="Keep track of your AI and flow usage." />
-              <ComingSoon
-                icon={<RiBarChartBoxLine />}
-                title="No usage to show"
-                description="Usage tracking is coming soon."
-              />
+              <PanelHeader title="Usage" description="What you have built and run." />
+              <Usage open={open} />
             </TabsPanel>
             <TabsPanel value="account" className="p-7 max-sm:px-5 max-sm:py-6">
               <PanelHeader title="Account" description="Your account and connected wallet." />
