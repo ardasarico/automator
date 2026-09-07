@@ -15,7 +15,12 @@ import type { IdentityProvider } from "../auth/privy";
 import { createRunRoutes } from "./routes";
 
 const identity: IdentityProvider = {
-  verify: async (token) => (token === "alice" ? { id: "did:privy:alice", expiresAt: 2e9 } : null),
+  verify: async (token) =>
+    token === "alice"
+      ? { id: "did:privy:alice", expiresAt: 2e9 }
+      : token === "carol"
+        ? { id: "did:privy:carol", expiresAt: 2e9 }
+        : null,
   walletAddress: async () => null,
 };
 
@@ -100,14 +105,17 @@ function stores() {
   return { flows, runs, runRecords };
 }
 
-function fixture(persisted = false) {
+function fixture(persisted = false, callsPerMinute?: number) {
   const posted: unknown[] = [];
   const persistence = persisted ? stores() : undefined;
+  let clock = 1_757_200_000_000;
   const app = new Elysia().use(
     createRunRoutes({
       identity,
       flows: persistence?.flows,
       runs: persistence?.runs,
+      callsPerMinute,
+      now: () => clock,
       engine: {
         sleep: async () => {},
         fetch: (async (_url: string | URL | Request, init?: RequestInit) => {
@@ -136,7 +144,13 @@ function fixture(persisted = false) {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       }),
     );
-  return { post, posted, call, runRecords: persistence?.runRecords ?? [] };
+  return {
+    post,
+    posted,
+    call,
+    runRecords: persistence?.runRecords ?? [],
+    advance: (ms: number) => (clock += ms),
+  };
 }
 
 describe("POST /flows/run", () => {
@@ -145,6 +159,23 @@ describe("POST /flows/run", () => {
     expect((await post({ document })).status).toBe(401);
     expect((await post({ document }, "mallory")).status).toBe(401);
     expect(posted).toEqual([]);
+  });
+
+  test("runs beyond the per-user limit answer 429 across both run routes", async () => {
+    const { post, call, runRecords, advance } = fixture(true, 2);
+    expect((await post({ document }, "alice")).status).toBe(200);
+    expect((await call("/flows/flow-1/runs", "POST", {})).status).toBe(201);
+    const limited = await call("/flows/flow-1/runs", "POST", {});
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("Retry-After")).toBe("60");
+    expect(await limited.json()).toEqual({ error: "rate_limited" });
+    expect((await post({ document }, "alice")).status).toBe(429);
+    expect(runRecords).toHaveLength(1);
+    // Another user has a window of their own, and reads are never limited.
+    expect((await post({ document }, "carol")).status).toBe(200);
+    expect((await call("/runs", "GET")).status).toBe(200);
+    advance(61_000);
+    expect((await post({ document }, "alice")).status).toBe(200);
   });
 
   test("answers screens itself when the body asks for screens: auto", async () => {

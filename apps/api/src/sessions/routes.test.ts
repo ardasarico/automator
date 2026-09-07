@@ -45,7 +45,7 @@ const document: FlowDocument = {
   ],
 };
 
-function fixture(options: { secrets?: Record<string, string> } = {}) {
+function fixture(options: { secrets?: Record<string, string>; callsPerMinute?: number } = {}) {
   const record: FlowRecord = {
     flow: document,
     createdAt: "2026-09-07T10:00:00.000Z",
@@ -94,13 +94,17 @@ function fixture(options: { secrets?: Record<string, string> } = {}) {
         }) as typeof fetch,
       },
       secretsFor: options.secrets ? () => ({ get: async () => options.secrets! }) : undefined,
+      callsPerMinute: options.callsPerMinute,
     }),
   );
-  const post = (path: string, body?: unknown) =>
+  const post = (path: string, body?: unknown, headers: Record<string, string> = {}) =>
     app.handle(
       new Request(`http://localhost${path}`, {
         method: "POST",
-        headers: body === undefined ? {} : { "Content-Type": "application/json" },
+        headers: {
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+          ...headers,
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
       }),
     );
@@ -190,6 +194,25 @@ describe("mini-app sessions", () => {
     expect(failed.steps).toEqual([
       { nodeId: "d", label: "Announce", status: "failed", error: 'Secret "hook" is not defined' },
     ]);
+  });
+
+  test("calls beyond the per-address limit answer 429 on both routes", async () => {
+    const { post, created } = fixture({ callsPerMinute: 2 });
+    const visitor = { "x-forwarded-for": "203.0.113.9, 10.0.0.1" };
+    const session = await start((path, body) => post(path, body, visitor));
+    const path = `/public/flows/flow-1/sessions/${session.sessionId}/answer`;
+    const answer = { token: session.token, port: "submitted", data: { email: "a@b.c" } };
+    expect((await post(path, answer, visitor)).status).toBe(200);
+    const limited = await post(path, answer, visitor);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("Retry-After")).toMatch(/^\d+$/);
+    expect(await limited.json()).toEqual({ error: "rate_limited" });
+    expect((await post("/public/flows/flow-1/sessions", undefined, visitor)).status).toBe(429);
+    expect(created).toHaveLength(2);
+    // Another address, forwarded or not, has a window of its own.
+    const other = { "x-forwarded-for": "198.51.100.4" };
+    expect((await post("/public/flows/flow-1/sessions", undefined, other)).status).toBe(201);
+    expect((await post("/public/flows/flow-1/sessions")).status).toBe(201);
   });
 
   test("rejects a wrong token, a wrong port, an unknown flow, and a bad body", async () => {

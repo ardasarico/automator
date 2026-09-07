@@ -1,6 +1,7 @@
 import { webhookTriggerContract, type WebhookPayload } from "@automator/contracts";
 import { Elysia } from "elysia";
 import type { ChainFactory } from "../chain/provider";
+import { createRateLimiter, defaultRateLimits } from "../rate-limit";
 import { executeStoredRun, type EngineOptions, type RunStores } from "../runs/execute";
 
 export interface HookDependencies extends RunStores {
@@ -11,24 +12,6 @@ export interface HookDependencies extends RunStores {
   /** Calls allowed per flow per minute before 429; sixty by default. */
   callsPerMinute?: number;
   now?: () => number;
-}
-
-/** A sliding one-minute window per flow, in memory: enough for one API instance. */
-export function createRateLimiter(limit: number, now: () => number = Date.now) {
-  const calls = new Map<string, number[]>();
-  return {
-    allow(key: string): boolean {
-      const cutoff = now() - 60_000;
-      const recent = (calls.get(key) ?? []).filter((at) => at > cutoff);
-      if (recent.length >= limit) {
-        calls.set(key, recent);
-        return false;
-      }
-      recent.push(now());
-      calls.set(key, recent);
-      return true;
-    },
-  };
 }
 
 /** Headers are lowercased by the runtime; the query is the first value per key. */
@@ -52,18 +35,21 @@ export function createHookRoutes({
   runs,
   engine,
   chainFactory,
-  callsPerMinute = 60,
+  callsPerMinute = defaultRateLimits.webhooks,
   now = Date.now,
 }: HookDependencies) {
   const limiter = createRateLimiter(callsPerMinute, now);
   return new Elysia({ name: "hooks" }).post(
     webhookTriggerContract.path,
-    async ({ params, request, status }) => {
+    async ({ params, request, status, set }) => {
       const owned = await flows.findForWebhook(params.flowId, params.token);
       if (!owned) return status(404, { error: "not_found" });
       const trigger = owned.record.flow.nodes.find((node) => node.type === "trigger.webhook");
       if (!trigger) return status(404, { error: "not_found" });
-      if (!limiter.allow(params.flowId)) return status(429, { error: "rate_limited" });
+      if (!limiter.allow(params.flowId)) {
+        set.headers["Retry-After"] = String(limiter.retryAfter(params.flowId));
+        return status(429, { error: "rate_limited" });
+      }
       let body: unknown = null;
       const raw = await request.text();
       if (raw) {

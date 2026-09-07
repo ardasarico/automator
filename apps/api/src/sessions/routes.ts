@@ -18,6 +18,7 @@ import { runFlow, type RunOptions, type SecretsResolver } from "@automator/flow-
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Elysia } from "elysia";
 import type { ChainFactory } from "../chain/provider";
+import { clientAddress, createRateLimiter, defaultRateLimits } from "../rate-limit";
 
 export interface SessionDependencies {
   flows: FlowStore;
@@ -28,6 +29,9 @@ export interface SessionDependencies {
   secretsFor?: (ownerId: string) => SecretsResolver;
   /** The owner's live chain access for onchain nodes; absent when chains are not configured. */
   chainFactory?: ChainFactory;
+  /** Session calls one client address may make per minute before 429; sixty by default. */
+  callsPerMinute?: number;
+  now?: () => number;
 }
 
 function hashToken(token: string): string {
@@ -98,8 +102,21 @@ export function createSessionRoutes({
   engine,
   secretsFor,
   chainFactory,
+  callsPerMinute = defaultRateLimits.sessions,
+  now = Date.now,
 }: SessionDependencies) {
+  // Visitors are anonymous, so both routes share one window per client address.
+  const limiter = createRateLimiter(callsPerMinute, now);
   return new Elysia({ name: "sessions" })
+    .onBeforeHandle(({ request, server, set, status }) => {
+      const address = clientAddress(
+        request.headers.get("x-forwarded-for"),
+        server?.requestIP(request)?.address,
+      );
+      if (limiter.allow(address)) return;
+      set.headers["Retry-After"] = String(limiter.retryAfter(address));
+      return status(429, { error: "rate_limited" });
+    })
     .post(
       startMiniAppSessionContract.path,
       async ({ params, status }) => {

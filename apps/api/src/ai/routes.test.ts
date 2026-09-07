@@ -21,8 +21,8 @@ const answer = {
   edges: [{ source: "n1", sourceHandle: "run", target: "n2", targetHandle: "message" }],
 };
 
-function fixture(model: LanguageModel | undefined) {
-  const app = new Elysia().use(createAiRoutes({ identity, model }));
+function fixture(model: LanguageModel | undefined, callsPerMinute?: number) {
+  const app = new Elysia().use(createAiRoutes({ identity, model, callsPerMinute }));
   const post = (body: unknown, token?: string) =>
     app.handle(
       new Request(`http://localhost${generateFlowContract.path}`, {
@@ -49,6 +49,17 @@ describe("POST /ai/flows", () => {
     const response = await post({ prompt: "x" }, "alice");
     expect(response.status).toBe(503);
     expect(await response.json()).toEqual({ error: "unavailable" });
+  });
+
+  test("requests beyond the per-user limit answer 429 before the handler runs", async () => {
+    const { post } = fixture(undefined, 1);
+    expect((await post({ prompt: "x" }, "alice")).status).toBe(503);
+    const limited = await post({ prompt: "x" }, "alice");
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("Retry-After")).toMatch(/^\d+$/);
+    expect(await limited.json()).toEqual({ error: "rate_limited" });
+    // An anonymous caller is refused by the guard first and never counts.
+    expect((await post({ prompt: "x" })).status).toBe(401);
   });
 
   test("returns a contract-valid generated document", async () => {

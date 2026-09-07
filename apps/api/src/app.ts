@@ -26,6 +26,7 @@ import { createHookRoutes } from "./hooks/routes";
 import { createPublicRoutes } from "./public/routes";
 import { createMarketplaceRoutes } from "./marketplace/routes";
 import { createRunRoutes } from "./runs/routes";
+import { defaultRateLimits, type RateLimits } from "./rate-limit";
 import { createQuickJsSandbox } from "./sandbox/quickjs";
 import type { SecretsCrypto } from "./secrets/crypto";
 import { createSecretsResolver } from "./secrets/resolver";
@@ -50,6 +51,8 @@ export interface AppDependencies {
   chainFactory?: ChainFactory;
   /** Server-side request and failure logging, off by default so tests stay quiet. */
   log?: boolean;
+  /** Calls per minute on the limited routes; the defaults from `rate-limit.ts` otherwise. */
+  rateLimits?: Partial<RateLimits>;
 }
 
 /** Everything a client is allowed to learn about a failure. */
@@ -82,7 +85,9 @@ export function createApp({
   log = false,
   model,
   chainFactory,
+  rateLimits,
 }: AppDependencies) {
+  const limits = { ...defaultRateLimits, ...rateLimits };
   const startedAt = new WeakMap<Request, number>();
   const secretsAccess = secrets && secretsCrypto ? { secrets, crypto: secretsCrypto } : undefined;
   const secretsFor = secretsAccess
@@ -150,14 +155,34 @@ export function createApp({
       // Published flows are readable without a session, for the runtime that hosts them.
       .use(flows ? createPublicRoutes({ flows }) : new Elysia())
       // Any signed-in user may run a document statelessly; saved runs need both stores.
-      .use(createRunRoutes({ identity, flows, runs, engine: { model }, secretsFor, chainFactory }))
+      .use(
+        createRunRoutes({
+          identity,
+          flows,
+          runs,
+          engine: { model },
+          secretsFor,
+          chainFactory,
+          callsPerMinute: limits.runs,
+        }),
+      )
       // Webhook calls carry no session: the flow's token is the credential.
       .use(
         flows && runs
-          ? createHookRoutes({ flows, runs, engine: engineFor, chainFactory })
+          ? createHookRoutes({
+              flows,
+              runs,
+              engine: engineFor,
+              chainFactory,
+              callsPerMinute: limits.webhooks,
+            })
           : new Elysia(),
       )
-      .use(secretsAccess ? createSecretRoutes({ identity, ...secretsAccess }) : new Elysia())
+      .use(
+        secretsAccess
+          ? createSecretRoutes({ identity, ...secretsAccess, callsPerMinute: limits.secrets })
+          : new Elysia(),
+      )
       // Visitors play a published flow through sessions; the API runs it as the owner.
       .use(
         flows && runs && sessions
@@ -168,10 +193,11 @@ export function createApp({
               engine: { model, sandbox },
               secretsFor,
               chainFactory,
+              callsPerMinute: limits.sessions,
             })
           : new Elysia(),
       )
-      .use(createAiRoutes({ identity, model, log }))
+      .use(createAiRoutes({ identity, model, log, callsPerMinute: limits.ai }))
       // Listings publish and fork the caller's flows, so they need both stores and the user profile.
       .use(
         listings && flows && users

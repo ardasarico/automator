@@ -49,6 +49,25 @@ describe("API configuration", () => {
       usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       privyAuthorizationKey: undefined,
       e2eTestToken: undefined,
+      rateLimits: { runs: 30, ai: 10, secrets: 30, sessions: 60, webhooks: 60 },
+    });
+  });
+
+  test("rate limits take positive integers from the environment and ignore the rest", () => {
+    const config = readConfig({
+      ...complete,
+      RATE_LIMIT_RUNS: "5",
+      RATE_LIMIT_AI: "0",
+      RATE_LIMIT_SECRETS: "lots",
+      RATE_LIMIT_SESSIONS: "2.5",
+      RATE_LIMIT_WEBHOOKS: "120",
+    });
+    expect(config.rateLimits).toEqual({
+      runs: 5,
+      ai: 10,
+      secrets: 30,
+      sessions: 60,
+      webhooks: 120,
     });
   });
 

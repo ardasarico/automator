@@ -22,6 +22,7 @@ const failureMessages: Record<string, string> = {
   unavailable: "AI is not available right now. Check that the API has an OpenRouter key.",
   invalid_flow: "The model could not produce a valid flow for that. Try rephrasing.",
   invalid_request: "The request was rejected. Shorten the prompt and try again.",
+  rate_limited: "Too many requests. Try again in a moment.",
 };
 
 /** What applying `next` would do to the canvas, node by node, in the order the canvas will show. */
