@@ -49,12 +49,15 @@ export interface ApiConfig {
   rateLimits: RateLimits;
 }
 
-/** A free model that handles tools and JSON-schema answers; paid ones can be set per environment. */
 export const defaultChainId = 84532;
 export const defaultRpcUrl = "https://sepolia.base.org";
 export const defaultUsdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
-export const defaultOpenRouterModel = "minimax/minimax-m3:free";
+/**
+ * Supports tools and JSON-schema answers and costs a few cents per million tokens; any other
+ * OpenRouter model id can be set per environment with `OPENROUTER_MODEL`.
+ */
+export const defaultOpenRouterModel = "openai/gpt-oss-120b";
 
 const required = [
   "DATABASE_URL",

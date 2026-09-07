@@ -42,7 +42,7 @@ describe("API configuration", () => {
       privyAppSecret: "secret",
       privyVerificationKey: "-----BEGIN PUBLIC KEY-----",
       openRouterApiKey: undefined,
-      openRouterModel: "minimax/minimax-m3:free",
+      openRouterModel: "openai/gpt-oss-120b",
       secretsKey: Buffer.from(secretsKey, "base64"),
       chainId: 84532,
       chainRpcUrl: "https://sepolia.base.org",
@@ -94,7 +94,7 @@ describe("API configuration", () => {
     expect(readConfig({ ...complete, OPENROUTER_API_KEY: "", OPENROUTER_MODEL: "" })).toMatchObject(
       {
         openRouterApiKey: undefined,
-        openRouterModel: "minimax/minimax-m3:free",
+        openRouterModel: "openai/gpt-oss-120b",
       },
     );
     expect(
