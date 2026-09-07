@@ -1,6 +1,7 @@
 import { request } from "@automator/api-client/server";
 import { answerMiniAppSessionContract, miniAppAnswerSchema, Value } from "@automator/contracts";
 import { NextResponse } from "next/server";
+import { visitorHeaders } from "../../../visitor-headers";
 
 /** Forwards a visitor's answer to the private API and hands back the next screen. */
 export async function POST(
@@ -19,6 +20,7 @@ export async function POST(
   try {
     const result = await request(process.env.API_URL, answerMiniAppSessionContract, {
       params: { id: flowId, sessionId },
+      headers: visitorHeaders(req),
       body,
       timeoutMs: 65_000,
     });

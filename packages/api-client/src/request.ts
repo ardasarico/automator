@@ -31,6 +31,8 @@ export interface RequestOptions<C extends EndpointContract> {
   params?: ContractParams<C>;
   /** Query-string entries; `undefined` values are skipped. */
   query?: Record<string, string | undefined>;
+  /** Extra request headers, for example a visitor's forwarded address; never the bearer token. */
+  headers?: Record<string, string>;
   body?: ContractBody<C>;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -48,7 +50,16 @@ export async function request<C extends EndpointContract>(
   options: RequestOptions<C> = {},
 ): Promise<ContractResult<C>> {
   if (!apiUrl) throw new ApiRequestError("API URL is not configured");
-  const { token, params, query, body, signal, timeoutMs = 5000, fetcher = fetch } = options;
+  const {
+    token,
+    params,
+    query,
+    headers,
+    body,
+    signal,
+    timeoutMs = 5000,
+    fetcher = fetch,
+  } = options;
   const url = new URL(buildPath(contract, params), apiUrl);
   for (const [key, value] of Object.entries(query ?? {}))
     if (value !== undefined) url.searchParams.set(key, value);
@@ -56,6 +67,7 @@ export async function request<C extends EndpointContract>(
   const init: ApiRequestInit = {
     method: contract.method,
     headers: {
+      ...headers,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
     },
