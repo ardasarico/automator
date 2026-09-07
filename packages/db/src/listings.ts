@@ -31,6 +31,8 @@ type FlowRow = {
   document: Snapshot;
   createdAt: Date;
   updatedAt: Date;
+  enabled: boolean;
+  webhookToken: string;
 };
 
 function toListing(row: ListingRow): MarketplaceListing {
@@ -192,7 +194,7 @@ export function createListingStore(sql: SQL | undefined) {
           INSERT INTO automator_flows (id, owner_id, name, description, document)
           VALUES (${crypto.randomUUID()}, ${ownerId}, ${listing.name}, ${listing.description},
             ${listing.document}::jsonb)
-          RETURNING id, name, description, document,
+          RETURNING id, name, description, document, enabled, webhook_token AS "webhookToken",
             created_at AS "createdAt", updated_at AS "updatedAt"`;
         const flow = rows[0];
         if (!flow) throw new Error("Fork creation failed");
@@ -209,6 +211,8 @@ export function createListingStore(sql: SQL | undefined) {
           },
           createdAt: flow.createdAt.toISOString(),
           updatedAt: flow.updatedAt.toISOString(),
+          enabled: flow.enabled,
+          webhookToken: flow.webhookToken,
         };
       });
     },
