@@ -25,6 +25,7 @@ import { useCallback, useMemo, type DragEvent } from "react";
 import { isFlowNodeType } from "./catalog";
 import { nodeHalfSize, nodeTypes } from "./flow-node";
 import styles from "./flow-builder.module.css";
+import { GettingStartedPanel } from "./getting-started-panel";
 import { RunPanel } from "./run-panel";
 import { edgeRunStatus } from "./run-selectors";
 import { useRunStore } from "./run-store-provider";
@@ -130,7 +131,8 @@ function EmptyCanvas() {
   );
 }
 
-export function FlowCanvas() {
+/** `gettingStarted` shows the first-flow checklist until the user dismisses it. */
+export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolean }) {
   const nodes = useBuilderStore((state) => state.nodes);
   const edges = useBuilderStore((state) => state.edges);
   const onNodesChange = useBuilderStore((state) => state.onNodesChange);
@@ -197,6 +199,7 @@ export function FlowCanvas() {
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} />
             <ZoomPanel />
+            {gettingStarted && <GettingStartedPanel />}
             {nodes.length > 0 && (
               <MiniMap
                 position="bottom-right"

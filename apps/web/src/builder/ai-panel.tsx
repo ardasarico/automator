@@ -125,6 +125,8 @@ export function AiPanel() {
   const [prompt, setPrompt] = useState("");
   const [edit, setEdit] = useState(true);
   const thread = useRef<HTMLDivElement>(null);
+  const promptField = useRef<HTMLTextAreaElement>(null);
+  const focusRequests = useAiStore((state) => state.focusRequests);
 
   // A canvas with nodes is edited unless the user unticks the box; an empty one gets a new flow.
   const editing = hasNodes && edit;
@@ -133,6 +135,11 @@ export function AiPanel() {
     const element = thread.current;
     if (element) element.scrollTop = element.scrollHeight;
   }, [turns, pending]);
+
+  // Anything asking for the AI tab also wants the cursor in the prompt.
+  useEffect(() => {
+    if (focusRequests > 0) promptField.current?.focus();
+  }, [focusRequests]);
 
   async function send() {
     const text = prompt.trim();
@@ -216,6 +223,7 @@ export function AiPanel() {
             Message
           </FieldLabel>
           <Textarea
+            ref={promptField}
             id="ai-prompt"
             className={styles.prompt}
             placeholder={

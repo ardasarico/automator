@@ -328,3 +328,65 @@ li:hover > .cardActions {
   width: 14px;
   height: 14px;
 }
+
+/* The three ways into a first flow, inside the empty-state hero. */
+.startGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: min(100%, 760px);
+  margin-top: 28px;
+  text-align: start;
+}
+.startCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  height: 100%;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  transition: border-color 150ms;
+}
+.startCard:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+@media (hover: hover) {
+  .startCard:hover {
+    border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
+  }
+}
+.startIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  background: var(--muted);
+  color: var(--foreground);
+}
+.startIcon > svg {
+  width: 18px;
+  height: 18px;
+}
+.startBody {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+@container flows (max-width: 680px) {
+  .startGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .startCard {
+    transition: none;
+  }
+}

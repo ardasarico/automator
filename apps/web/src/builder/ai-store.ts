@@ -51,11 +51,12 @@ export type AiState = {
 let sequence = 0;
 const nextId = () => `t${(sequence += 1)}`;
 
-export function createAiStore(): StoreApi<AiState> {
+/** `focusOnMount` starts with one focus request pending, so the prompt takes the cursor. */
+export function createAiStore({ focusOnMount = false } = {}): StoreApi<AiState> {
   return createStore<AiState>((set, get) => ({
     turns: [],
     pending: false,
-    focusRequests: 0,
+    focusRequests: focusOnMount ? 1 : 0,
     ask(text) {
       const id = nextId();
       set((state) => ({ turns: [...state.turns, { id, role: "user", text }], pending: true }));

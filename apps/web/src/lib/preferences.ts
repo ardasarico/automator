@@ -8,6 +8,8 @@
 export const SIDEBAR_COOKIE = "workspace_sidebar";
 /** Grid/table preference of the flow browser, read by `(workspace)/flows/page.tsx`. */
 export const FLOWS_VIEW_COOKIE = "flows_view";
+/** Set once the builder's getting-started checklist is dismissed; read by `(canvas)/flows/[id]`. */
+export const BUILDER_CHECKLIST_COOKIE = "builder_checklist";
 
 const DAY_IN_SECONDS = 24 * 60 * 60;
 

@@ -21,6 +21,8 @@ export function FlowBuilder({
   initialRun = null,
   enabled = false,
   webhookToken = null,
+  gettingStarted = false,
+  focusAi = false,
 }: {
   document: FlowDocument;
   /** A stored run to show on the canvas from the start, for links out of the run history. */
@@ -28,6 +30,10 @@ export function FlowBuilder({
   /** Whether the flow's triggers are live, and its webhook token, from the stored record. */
   enabled?: boolean;
   webhookToken?: string | null;
+  /** Show the first-flow checklist over the canvas; off once the user dismissed it. */
+  gettingStarted?: boolean;
+  /** Put the cursor in the AI prompt on open, for "Describe it to AI" from the flows page. */
+  focusAi?: boolean;
 }) {
   return (
     <BuilderStoreProvider document={document}>
@@ -35,13 +41,13 @@ export function FlowBuilder({
         <RunStoreProvider initialRun={initialRun}>
           <SaveFlowProvider>
             <LeaveGuardProvider>
-              <AiStoreProvider>
+              <AiStoreProvider focusOnMount={focusAi}>
                 <ReactFlowProvider>
                   <div className="flex min-h-0 flex-1">
                     <LeftPanel />
                     <div className="flex min-w-0 flex-1 flex-col">
                       <CanvasHeader />
-                      <FlowCanvas />
+                      <FlowCanvas gettingStarted={gettingStarted} />
                     </div>
                     <RightPanels />
                   </div>

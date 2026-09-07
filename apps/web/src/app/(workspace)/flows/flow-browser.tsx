@@ -25,6 +25,7 @@ import { CatalogIconMark } from "../../../builder/catalog-icon";
 import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
 import { FLOWS_VIEW_COOKIE, setPreferenceCookie } from "../../../lib/preferences";
 import { DeleteFlowButton } from "./delete-flow-button";
+import { FlowStartOptions } from "./flow-start-options";
 import styles from "./flows.module.css";
 
 export type FlowView = "grid" | "table";
@@ -151,17 +152,20 @@ export function FlowBrowser({
               Create your first flow
             </h2>
             <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
-              Start with a blank canvas, or make one of the examples below your own.
+              A flow starts with a trigger, runs through logic, AI and onchain steps, and can ship
+              as a mini-app. Pick how you want to begin.
             </p>
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <Button render={<Link href="/create" />}>
-                <RiAddLine aria-hidden="true" />
-                New flow
-              </Button>
-              <Button variant="outline" render={<Link href="/marketplace" />}>
-                Browse marketplace
-              </Button>
-            </div>
+            <FlowStartOptions />
+            <p className="mt-6 text-caption text-muted-foreground">
+              Or{" "}
+              <Link
+                href="/marketplace"
+                className="text-foreground underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+              >
+                browse the marketplace
+              </Link>{" "}
+              for flows other builders published.
+            </p>
           </section>
           {examples}
         </>

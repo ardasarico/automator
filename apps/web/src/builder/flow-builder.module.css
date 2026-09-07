@@ -916,3 +916,52 @@ button.outlineProblem:focus-visible {
   line-height: 18px;
   cursor: pointer;
 }
+
+/* First-flow checklist over the canvas; sits under the header, clear of the minimap. */
+.gettingStarted {
+  width: 264px;
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--popover);
+  box-shadow: 0 4px 12px var(--shadow-color);
+}
+.gettingStartedHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.gettingStartedSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.gettingStartedSteps > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.gettingStartedSteps > li > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 1px;
+  color: var(--muted-foreground);
+}
+.gettingStartedSteps > li[data-done] {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+}
+.gettingStartedSteps > li[data-done] > svg {
+  color: var(--success-foreground);
+}
+.gettingStartedHint {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
