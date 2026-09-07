@@ -2,7 +2,7 @@
 
 import { Button } from "@automator/ui/button";
 import { RiSaveLine } from "@remixicon/react";
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { FlowRequestError, saveFlowRequest } from "../flows/client";
 import { serializeFlow } from "./document";
 import { useBuilderStore } from "./store-provider";
@@ -22,7 +22,8 @@ const failureMessages: Record<string, string> = {
 /**
  * Sends the current document to the API. `save` is a no-op while nothing changed since the
  * last save, so the button and the Cmd+S shortcut share one rule; it answers how the save
- * ended so the unsaved-changes dialog can leave only on success.
+ * ended so the unsaved-changes dialog can leave only on success. A save asked for while one
+ * is still running answers that running save's outcome rather than a hopeful `ok`.
  */
 export function useSaveFlow() {
   const getAccessToken = useAccessToken();
@@ -33,26 +34,34 @@ export function useSaveFlow() {
   const markSaved = useBuilderStore((state) => state.markSaved);
   const [state, setState] = useState<SaveState>("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const inFlight = useRef<Promise<SaveOutcome> | null>(null);
 
   const canSave = dirty || state === "failed";
-  const save = useCallback(async (): Promise<SaveOutcome> => {
-    if (!canSave || state === "saving") return { ok: true };
+  const save = useCallback((): Promise<SaveOutcome> => {
+    if (inFlight.current) return inFlight.current;
+    if (!canSave) return Promise.resolve({ ok: true });
     setState("saving");
     setMessage(null);
     const { id, ...input } = serializeFlow(meta, nodes, edges);
-    try {
-      await saveFlowRequest(id, await getAccessToken(), input);
-      markSaved();
-      setState("saved");
-      return { ok: true };
-    } catch (error) {
-      const code = error instanceof FlowRequestError ? error.code : "unavailable";
-      const failure = failureMessages[code] ?? "The flow could not be saved. Please try again.";
-      setState("failed");
-      setMessage(failure);
-      return { ok: false, message: failure };
-    }
-  }, [canSave, edges, getAccessToken, markSaved, meta, nodes, state]);
+    const attempt = (async (): Promise<SaveOutcome> => {
+      try {
+        await saveFlowRequest(id, await getAccessToken(), input);
+        markSaved();
+        setState("saved");
+        return { ok: true };
+      } catch (error) {
+        const code = error instanceof FlowRequestError ? error.code : "unavailable";
+        const failure = failureMessages[code] ?? "The flow could not be saved. Please try again.";
+        setState("failed");
+        setMessage(failure);
+        return { ok: false, message: failure };
+      } finally {
+        inFlight.current = null;
+      }
+    })();
+    inFlight.current = attempt;
+    return attempt;
+  }, [canSave, edges, getAccessToken, markSaved, meta, nodes]);
 
   return { save, state, message, canSave, dirty };
 }
