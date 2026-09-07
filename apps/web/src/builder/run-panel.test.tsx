@@ -12,6 +12,8 @@ mock.module("../auth/access-token", () => ({
   e2eSession: false,
   useAccessToken: () => async () => "privy-token",
 }));
+// The signing button needs Privy's provider, and its package does not load under bun test.
+mock.module("./enable-signing-button", () => ({ EnableSigningButton: () => null }));
 
 const { RunPanel } = await import("./run-panel");
 const { AiStoreProvider, useAiStore } = await import("./ai-store-provider");
