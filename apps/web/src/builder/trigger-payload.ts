@@ -4,8 +4,12 @@ import {
   parseSamplePayload,
   type FlowEdge,
   type FlowNode,
+  type TObject,
 } from "@automator/contracts";
 import { getCatalogEntry } from "./catalog";
+
+/** The trigger schemas by type, indexable by any node type; types without one get `undefined`. */
+const configSchemas: Partial<Record<FlowNode["type"], TObject>> = flowNodeConfigSchemas;
 
 type NodeLike = Pick<FlowNode, "id" | "type" | "config">;
 type EdgeLike = Pick<FlowEdge, "target">;
@@ -30,7 +34,7 @@ export function findSimulationTrigger<T extends NodeLike>(
  * `{ method, headers, query, body }`); `{}` without a schema or when the text is not JSON.
  */
 export function triggerSamplePayload(node: Pick<FlowNode, "type" | "config">): unknown {
-  const schema = flowNodeConfigSchemas[node.type];
+  const schema = configSchemas[node.type];
   if (!schema) return parseSamplePayload(node.config);
   try {
     return parseSamplePayload(parseNodeConfig(schema, node.config));
