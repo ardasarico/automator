@@ -65,7 +65,7 @@ export const flowNodeTypeSchema = Type.Unsafe<FlowNodeType>(
 
 /**
  * A flow as it appears in a list. `updatedAt` is an ISO-8601 timestamp; `enabled` says whether
- * its webhook and schedule triggers are live; `triggerTypes` lists the distinct trigger node
+ * its unattended triggers (webhook, schedule, onchain event) are live; `triggerTypes` lists the distinct trigger node
  * types in the document (`trigger.*` and provider triggers) and `nodeCount` the node total.
  */
 export const flowSummarySchema = Type.Object({
