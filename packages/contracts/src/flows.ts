@@ -169,6 +169,11 @@ export function isFlowDocumentInput(body: unknown): body is FlowDocumentInput {
   return Check(flowDocumentInputSchema, body);
 }
 
+/** Whether a stored document still matches the schema, for reads that predate a node change. */
+export function isFlowDocument(value: unknown): value is FlowDocument {
+  return Check(flowDocumentSchema, value);
+}
+
 /**
  * Structural validation stops at the schema; this checks the references: node ids unique,
  * edge ids unique, every edge joining two existing, distinct nodes. Returns the reason the

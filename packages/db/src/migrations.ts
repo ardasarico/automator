@@ -120,6 +120,44 @@ export const migrations: Migration[] = [
     ALTER TABLE automator_runs ADD CONSTRAINT automator_runs_source_check
       CHECK (source IN ('manual', 'webhook', 'schedule', 'miniapp', 'event'))`,
   },
+  {
+    // The node type `world.selfie-check` left the catalogue; `world.id-verify` has the same
+    // handles, so only the type is rewritten and configs, positions and edges stay untouched.
+    name: "0008_retire_selfie_check",
+    sql: `UPDATE automator_flows SET document = jsonb_set(document, '{nodes}', (
+      SELECT jsonb_agg(
+        CASE WHEN node->>'type' = 'world.selfie-check'
+          THEN jsonb_set(node, '{type}', '"world.id-verify"') ELSE node END
+        ORDER BY ordinality)
+      FROM jsonb_array_elements(document->'nodes') WITH ORDINALITY AS nodes(node, ordinality)))
+    WHERE document->'nodes' @> '[{"type":"world.selfie-check"}]';
+    UPDATE automator_listings SET document = jsonb_set(document, '{nodes}', (
+      SELECT jsonb_agg(
+        CASE WHEN node->>'type' = 'world.selfie-check'
+          THEN jsonb_set(node, '{type}', '"world.id-verify"') ELSE node END
+        ORDER BY ordinality)
+      FROM jsonb_array_elements(document->'nodes') WITH ORDINALITY AS nodes(node, ordinality)))
+    WHERE document->'nodes' @> '[{"type":"world.selfie-check"}]';
+    UPDATE automator_runs SET document = jsonb_set(document, '{nodes}', (
+      SELECT jsonb_agg(
+        CASE WHEN node->>'type' = 'world.selfie-check'
+          THEN jsonb_set(node, '{type}', '"world.id-verify"') ELSE node END
+        ORDER BY ordinality)
+      FROM jsonb_array_elements(document->'nodes') WITH ORDINALITY AS nodes(node, ordinality)))
+    WHERE document->'nodes' @> '[{"type":"world.selfie-check"}]';
+    UPDATE automator_listings SET node_types = (
+      SELECT coalesce(jsonb_agg(to_jsonb(type) ORDER BY ordinality), '[]'::jsonb)
+      FROM (
+        SELECT DISTINCT ON (type) type, ordinality
+        FROM (
+          SELECT CASE WHEN type = 'world.selfie-check' THEN 'world.id-verify' ELSE type END AS type,
+            ordinality
+          FROM jsonb_array_elements_text(node_types) WITH ORDINALITY AS types(type, ordinality)
+        ) renamed
+        ORDER BY type, ordinality
+      ) distinct_types)
+    WHERE node_types @> '["world.selfie-check"]'`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (

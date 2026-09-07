@@ -39,7 +39,7 @@ const profiles: Record<string, AuthUser> = {
 };
 
 /** In-memory flows and listings with the same scoping as the SQL stores. */
-function fixture() {
+function fixture(listingOverrides: Partial<ListingStore> = {}) {
   const flowRecords = new Map<string, FlowRecord & { ownerId: string }>();
   const listingRows = new Map<
     string,
@@ -120,6 +120,7 @@ function fixture() {
       const { id: _id, ...body } = row.document;
       return flows.create(ownerId, body);
     },
+    ...listingOverrides,
   };
   const identity: IdentityProvider = {
     verify: async (token) =>
@@ -291,6 +292,29 @@ describe("marketplace routes", () => {
       webhookUrl: "https://discord.com/api/webhooks/1/abc",
       content: "hi",
     });
+  });
+
+  test("a snapshot that no longer matches the document schema is a 422, not a 500", async () => {
+    const stale: MarketplaceListingDetail = {
+      slug: "stale",
+      name: "Stale",
+      description: "",
+      author: { name: "Alice", username: "alice" },
+      nodeTypes: [],
+      forkCount: 0,
+      publishedAt: "2026-09-07T10:00:00.000Z",
+      updatedAt: "2026-09-07T10:00:00.000Z",
+      document: {
+        ...input,
+        id: "listing-stale",
+        nodes: [{ ...input.nodes[1]!, type: "world.retired" as never }],
+        edges: [],
+      },
+    };
+    const { request } = fixture({ find: async () => stale });
+    const response = await request("/marketplace/stale", "GET", "bob");
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "invalid_flow" });
   });
 
   test("slugs that fail the contract pattern answer 400 before storage", async () => {

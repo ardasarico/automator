@@ -279,6 +279,20 @@ describe("persisted runs", () => {
     expect((await call(`/runs/${id}x`, "GET")).status).toBe(404);
   });
 
+  test("a run whose snapshot no longer matches the document schema is a 422, not a 500", async () => {
+    const { call, runRecords } = fixture(true);
+    await call("/flows/flow-1/runs", "POST", {});
+    const record = runRecords[0]!;
+    record.document = {
+      ...document,
+      nodes: [{ ...document.nodes[0]!, type: "world.retired" as never }],
+      edges: [],
+    };
+    const response = await call(`/runs/${record.run.id}`, "GET");
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "invalid_flow" });
+  });
+
   test("a body that is not a trigger choice is a bad request and stores nothing", async () => {
     const { call, runRecords } = fixture(true);
     const response = await call("/flows/flow-1/runs", "POST", { document });

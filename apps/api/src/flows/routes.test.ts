@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import {
   getFlowContract,
   listFlowsContract,
@@ -27,7 +27,7 @@ const input: FlowDocumentInput = {
 };
 
 /** In-memory stand-in for the flow store, with the same owner scoping as the SQL one. */
-function fixture(overrides: Partial<FlowStore> = {}, users?: UserStore) {
+function fixture(overrides: Partial<FlowStore> = {}, users?: UserStore, log = false) {
   const records = new Map<string, FlowRecord & { ownerId: string }>();
   let clock = 0;
   const stamp = () => new Date(1_757_200_000_000 + clock++ * 1000).toISOString();
@@ -108,7 +108,7 @@ function fixture(overrides: Partial<FlowStore> = {}, users?: UserStore) {
         : null,
     walletAddress: async () => null,
   };
-  const app = createApp({ database: { check: async () => "up" }, users, flows, identity });
+  const app = createApp({ database: { check: async () => "up" }, users, flows, identity, log });
   const request = (path: string, method = "GET", token?: string, body?: unknown) =>
     app.handle(
       new Request(`http://localhost${path}`, {
@@ -274,6 +274,31 @@ describe("flow routes", () => {
     expect((await request("/flows", "GET")).status).toBe(401);
     expect((await request("/flows", "GET", "alice")).status).toBe(200);
     expect((await request("/auth/me", "GET")).status).toBe(401);
+  });
+
+  test("a stored document that no longer matches the schema is a 422, not a 500", async () => {
+    const stale: FlowRecord = {
+      flow: {
+        ...input,
+        id: "flow-stale",
+        nodes: [{ ...input.nodes[1]!, type: "world.retired" as never }],
+        edges: [],
+      },
+      createdAt: "2026-09-07T10:00:00.000Z",
+      updatedAt: "2026-09-07T10:00:00.000Z",
+      enabled: false,
+      webhookToken: "token-flow-stale",
+    };
+    const warn = spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { request } = fixture({ find: async () => stale }, undefined, true);
+      const response = await request("/flows/flow-stale", "GET", "alice");
+      expect(response.status).toBe(422);
+      expect(await response.json()).toEqual({ error: "invalid_flow" });
+      expect(warn.mock.calls.map(String).join(" ")).toContain("flow-stale");
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test("storage failures are a controlled 503", async () => {

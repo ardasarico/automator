@@ -161,7 +161,7 @@ export function createApp({
         { response: healthContract.response },
       )
       .use(users ? createAuthRoutes({ users, identity }) : new Elysia())
-      .use(flows ? createFlowRoutes({ flows, identity }) : new Elysia())
+      .use(flows ? createFlowRoutes({ flows, identity, log }) : new Elysia())
       // Published flows are readable without a session, for the runtime that hosts them.
       .use(flows ? createPublicRoutes({ flows }) : new Elysia())
       // Any signed-in user may run a document statelessly; saved runs need both stores.
@@ -174,6 +174,7 @@ export function createApp({
           secretsFor,
           chainFactory,
           callsPerMinute: limits.runs,
+          log,
         }),
       )
       // Webhook calls carry no session: the flow's token is the credential.
@@ -216,7 +217,7 @@ export function createApp({
       // Listings publish and fork the caller's flows, so they need both stores and the user profile.
       .use(
         listings && flows && users
-          ? createMarketplaceRoutes({ listings, flows, users, identity })
+          ? createMarketplaceRoutes({ listings, flows, users, identity, log })
           : new Elysia(),
       )
   );

@@ -17,6 +17,7 @@ import {
 } from "@automator/flow-engine";
 import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
+import { isStoredDocumentValid } from "../flows/stored";
 import { createQuickJsSandbox } from "../sandbox/quickjs";
 import type { IdentityProvider } from "../auth/privy";
 import type { ChainFactory } from "../chain/provider";
@@ -39,6 +40,8 @@ export interface RunDependencies {
   /** Without both stores only the stateless run exists. */
   flows?: FlowStore;
   runs?: RunStore;
+  /** Names stored documents that fail the schema on the server log; off in tests. */
+  log?: boolean;
 }
 
 /**
@@ -56,6 +59,7 @@ export function createRunRoutes({
   sandbox = createQuickJsSandbox(),
   callsPerMinute = defaultRateLimits.runs,
   now = Date.now,
+  log = false,
 }: RunDependencies) {
   // Both run routes share one per-user window; the read routes are not limited.
   const limiter = createRateLimiter(callsPerMinute, now);
@@ -99,6 +103,7 @@ export function createRunRoutes({
           return status(400, { error: "invalid_request" });
         const record = await stores.flows.find(claims.id, params.id);
         if (!record) return status(404, { error: "not_found" });
+        if (!isStoredDocumentValid(record.flow, log)) return status(422, { error: "invalid_flow" });
         const chain = chainFactory
           ? await chainFactory.forUser(claims.id, body.mode ?? "dry-run", flowChainId(record.flow))
           : undefined;
@@ -150,8 +155,14 @@ export function createRunRoutes({
     )
     .get(
       getRunContract.path,
-      async ({ claims, params, status }) =>
-        (await stores.runs.find(claims.id, params.id)) ?? status(404, { error: "not_found" }),
+      async ({ claims, params, status }) => {
+        const record = await stores.runs.find(claims.id, params.id);
+        if (!record) return status(404, { error: "not_found" });
+        // The run keeps the document it executed; an old snapshot must still read as a run.
+        if (!isStoredDocumentValid(record.document, log))
+          return status(422, { error: "invalid_flow" });
+        return record;
+      },
       { params: getRunContract.params, response: getRunContract.response },
     );
 }

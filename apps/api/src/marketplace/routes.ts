@@ -13,12 +13,15 @@ import type { FlowStore, ListingStore, UserStore } from "@automator/db";
 import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
 import type { IdentityProvider } from "../auth/privy";
+import { isStoredDocumentValid } from "../flows/stored";
 
 export interface MarketplaceDependencies {
   listings: ListingStore;
   flows: FlowStore;
   users: UserStore;
   identity: IdentityProvider | undefined;
+  /** Names stored documents that fail the schema on the server log; off in tests. */
+  log?: boolean;
 }
 
 /**
@@ -31,6 +34,7 @@ export function createMarketplaceRoutes({
   flows,
   users,
   identity,
+  log = false,
 }: MarketplaceDependencies) {
   return new Elysia({ name: "marketplace" })
     .use(createAuthGuard(identity))
@@ -41,7 +45,11 @@ export function createMarketplaceRoutes({
       getListingContract.path,
       async ({ params, status }) => {
         const listing = await listings.find(params.slug);
-        return listing ? { listing } : status(404, { error: "not_found" });
+        if (!listing) return status(404, { error: "not_found" });
+        // A snapshot published before a node type was retired must not take the route down.
+        if (!isStoredDocumentValid(listing.document, log))
+          return status(422, { error: "invalid_flow" });
+        return { listing };
       },
       { params: getListingContract.params, response: getListingContract.response },
     )

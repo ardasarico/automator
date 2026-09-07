@@ -14,17 +14,20 @@ import { FlowOwnerMissingError, type FlowStore } from "@automator/db";
 import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
 import type { IdentityProvider } from "../auth/privy";
+import { isStoredDocumentValid } from "./stored";
 
 export interface FlowDependencies {
   flows: FlowStore;
   identity: IdentityProvider | undefined;
+  /** Names stored documents that fail the schema on the server log; off in tests. */
+  log?: boolean;
 }
 
 /**
  * Every route is owner-scoped through the auth guard: a flow that exists but belongs to
  * someone else is indistinguishable from a missing one and answers 404.
  */
-export function createFlowRoutes({ flows, identity }: FlowDependencies) {
+export function createFlowRoutes({ flows, identity, log = false }: FlowDependencies) {
   return new Elysia({ name: "flows" })
     .use(createAuthGuard(identity))
     .get(listFlowsContract.path, async ({ claims }) => ({ flows: await flows.list(claims.id) }), {
@@ -50,7 +53,10 @@ export function createFlowRoutes({ flows, identity }: FlowDependencies) {
       getFlowContract.path,
       async ({ claims, params, status }) => {
         const record = await flows.find(claims.id, params.id);
-        return record ?? status(404, { error: "not_found" });
+        if (!record) return status(404, { error: "not_found" });
+        // A document saved before a node type was retired must not take the route down.
+        if (!isStoredDocumentValid(record.flow, log)) return status(422, { error: "invalid_flow" });
+        return record;
       },
       { params: getFlowContract.params, response: getFlowContract.response },
     )
