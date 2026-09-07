@@ -1,7 +1,12 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { exportSPKI, generateKeyPair, SignJWT } from "jose";
 import { InvalidAuthTokenError, type PrivyClient } from "@privy-io/node";
-import { createIdentity, createPrivyIdentity, type IdentityProvider } from "./privy";
+import {
+  createIdentity,
+  createPrivyIdentity,
+  describeVisitor,
+  type IdentityProvider,
+} from "./privy";
 
 describe("Privy token verification", () => {
   let identity: IdentityProvider;
@@ -106,6 +111,79 @@ describe("verification without a local key", () => {
     expect(await identity.verify(forged)).toBeNull();
     // The rejection came from the JWKS path, which is exactly what a key avoids.
     expect(fetches).toBeGreaterThan(0);
+  });
+});
+
+describe("visitor identity", () => {
+  const accounts = [
+    { type: "email", address: "ada@example.com", latest_verified_at: 100 },
+    {
+      type: "wallet",
+      chain_type: "ethereum",
+      wallet_client_type: "metamask",
+      address: "0xExternal",
+      latest_verified_at: 200,
+    },
+    {
+      type: "wallet",
+      chain_type: "ethereum",
+      wallet_client_type: "privy",
+      address: "0xEmbedded",
+      latest_verified_at: 50,
+    },
+  ];
+  const client = (user: unknown, valid = true) =>
+    ({
+      utils: () => ({
+        auth: () => ({
+          verifyAccessToken: async () => {
+            if (!valid) throw new InvalidAuthTokenError("nope");
+            return { user_id: "did:privy:ada", expiration: 1 };
+          },
+        }),
+      }),
+      users: () => ({ _get: async () => user }),
+    }) as unknown as PrivyClient;
+
+  test("derives the visitor from the verified token and the user's linked accounts", async () => {
+    const identity = createIdentity(client({ linked_accounts: accounts }));
+    expect(await identity.visitor!("token")).toEqual({
+      userId: "did:privy:ada",
+      wallet: "0xEmbedded",
+      email: "ada@example.com",
+      loginMethod: "wallet",
+    });
+  });
+
+  test("rejects an invalid token before looking the user up", async () => {
+    const identity = createIdentity(client({ linked_accounts: accounts }, false));
+    expect(await identity.visitor!("token")).toBeNull();
+  });
+
+  test("describes a visitor with an external wallet, a Google account, a passkey, or nothing", () => {
+    expect(
+      describeVisitor("did:privy:x", [
+        { type: "wallet", chain_type: "ethereum", wallet_client_type: "rainbow", address: "0xE" },
+        { type: "google_oauth", email: "g@example.com", latest_verified_at: 9 },
+      ]),
+    ).toEqual({
+      userId: "did:privy:x",
+      wallet: "0xE",
+      email: "g@example.com",
+      loginMethod: "google",
+    });
+    expect(describeVisitor("did:privy:y", [{ type: "passkey", latest_verified_at: 1 }])).toEqual({
+      userId: "did:privy:y",
+      wallet: "",
+      email: "",
+      loginMethod: "passkey",
+    });
+    expect(describeVisitor("did:privy:z", [])).toEqual({
+      userId: "did:privy:z",
+      wallet: "",
+      email: "",
+      loginMethod: "",
+    });
   });
 });
 

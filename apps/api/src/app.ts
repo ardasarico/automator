@@ -31,6 +31,7 @@ import type { SecretsCrypto } from "./secrets/crypto";
 import { createSecretsResolver } from "./secrets/resolver";
 import { createSecretRoutes } from "./secrets/routes";
 import { createSessionRoutes } from "./sessions/routes";
+import type { WorldVerifier } from "./world/verify";
 
 export interface AppDependencies {
   database: Pick<ReturnType<typeof createDatabase>, "check">;
@@ -48,6 +49,8 @@ export interface AppDependencies {
   model?: LanguageModel;
   /** Chains for onchain nodes, per user and mode; absent when the API has no chain provider. */
   chainFactory?: ChainFactory;
+  /** World ID proof verification for mini-app sessions; absent without `WORLD_APP_ID`. */
+  world?: WorldVerifier;
   /** Server-side request and failure logging, off by default so tests stay quiet. */
   log?: boolean;
 }
@@ -82,6 +85,7 @@ export function createApp({
   log = false,
   model,
   chainFactory,
+  world,
 }: AppDependencies) {
   const startedAt = new WeakMap<Request, number>();
   const secretsAccess = secrets && secretsCrypto ? { secrets, crypto: secretsCrypto } : undefined;
@@ -168,6 +172,8 @@ export function createApp({
               engine: { model, sandbox },
               secretsFor,
               chainFactory,
+              identity,
+              world,
             })
           : new Elysia(),
       )

@@ -48,6 +48,7 @@ describe("API configuration", () => {
       chainRpcUrl: "https://sepolia.base.org",
       usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       privyAuthorizationKey: undefined,
+      worldAppId: undefined,
       e2eTestToken: undefined,
     });
   });

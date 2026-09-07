@@ -27,6 +27,11 @@ export interface ApiConfig {
   /** Privy authorization key (base64 PKCS8) that signs with users' delegated embedded wallets. */
   privyAuthorizationKey: string | undefined;
   /**
+   * World Developer Portal app id (`app_...`) whose proofs `world.id-verify` nodes verify.
+   * Optional in every environment; without it those nodes fail their run as unconfigured.
+   */
+  worldAppId: string | undefined;
+  /**
    * A bearer token the API accepts as a fixed test user, for end-to-end tests only. Refused
    * in production, since it bypasses Privy.
    */
@@ -89,6 +94,7 @@ export function readConfig(env: Record<string, string | undefined> = process.env
         ? env.USDC_ADDRESS || defaultUsdcAddress
         : undefined,
     privyAuthorizationKey: env.PRIVY_AUTHORIZATION_KEY || undefined,
+    worldAppId: env.WORLD_APP_ID || undefined,
     e2eTestToken: env.E2E_TEST_TOKEN || undefined,
     secretsKey,
   };
