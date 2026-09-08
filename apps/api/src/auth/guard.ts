@@ -6,12 +6,6 @@ export interface Claims {
   expiresAt: number;
 }
 
-/**
- * Turns a bearer token into `claims` for every route of the plugin that mounts
- * this guard. Routes never see an unauthenticated request: a missing or invalid
- * token answers 401 here, and an identity provider that is not configured or
- * fails upstream answers 503 rather than pretending the user is logged out.
- */
 export function createAuthGuard(identity: IdentityProvider | undefined) {
   return new Elysia({ name: "auth-guard" }).resolve(
     { as: "scoped" },

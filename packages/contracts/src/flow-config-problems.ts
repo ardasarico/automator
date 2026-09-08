@@ -7,7 +7,6 @@ export interface FlowConfigProblem {
   message: string;
 }
 
-/** Template references in nested configs, with the setting that contains each reference. */
 export function templateReferences(
   value: unknown,
   path = "config",
@@ -24,7 +23,6 @@ export function templateReferences(
   return [];
 }
 
-/** Semantic checks shared by AI generation and the builder; incomplete editor configs remain editable. */
 export function findFlowConfigProblems(
   document: Pick<FlowDocument, "nodes" | "edges">,
 ): FlowConfigProblem[] {
@@ -69,7 +67,6 @@ export function findFlowConfigProblems(
         continue;
       }
       if (root !== "input") continue;
-      // The whole input object is a supported template value, including when it is empty.
       if (reference === "input") continue;
       const edge = document.edges.find(
         (edge) => edge.target === node.id && (edge.targetHandle ?? "input") === handle,

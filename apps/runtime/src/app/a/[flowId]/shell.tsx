@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-/** Edge to edge on a phone; a phone-sized card on anything wider. */
 export function MiniAppShell({ children }: { children: ReactNode }) {
   return (
     <main className="flex min-h-dvh flex-col sm:items-center sm:justify-center sm:bg-muted sm:p-6">

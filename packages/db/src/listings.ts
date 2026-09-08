@@ -41,7 +41,6 @@ function toListing(row: ListingRow): MarketplaceListing {
     slug: row.slug,
     name: row.name,
     description: row.description,
-    // The API only lets onboarded users publish, so a listing's author has a username.
     author: { name: row.authorName ?? row.authorUsername, username: row.authorUsername },
     nodeTypes: row.nodeTypes,
     forkCount: row.forkCount,
@@ -75,12 +74,7 @@ function isSlugTaken(error: unknown) {
   );
 }
 
-/**
- * Listings are public snapshots of a flow. Reads join the owner for the byline; writes are
- * scoped to the owner, so another user's flow or listing behaves as if it did not exist.
- * Queries stay tagged templates: Bun does not decode JSONB columns from parameterized
- * `unsafe` queries.
- */
+/* Keep queries as tagged templates: Bun does not decode JSONB from parameterized unsafe queries. */
 export function createListingStore(sql: SQL | undefined) {
   function connection() {
     if (!sql) throw new Error("Database is not configured");
@@ -107,7 +101,6 @@ export function createListingStore(sql: SQL | undefined) {
         WHERE l.slug = ${slug}`;
       return rows[0] ? toDetail(rows[0]) : null;
     },
-    /** The owner's listing for one of their flows, if they published it. */
     async findByFlow(ownerId: string, flowId: string): Promise<MarketplaceListing | null> {
       const db = connection();
       const rows = await db<ListingRow[]>`
@@ -118,10 +111,6 @@ export function createListingStore(sql: SQL | undefined) {
         WHERE l.owner_id = ${ownerId} AND l.flow_id = ${flowId}`;
       return rows[0] ? toListing(rows[0]) : null;
     },
-    /**
-     * Publishes the flow as a new listing, or refreshes its existing listing in place. The
-     * caller passes the flow it already loaded for the owner, so ownership is settled here.
-     */
     async publish(
       ownerId: string,
       flow: FlowRecord["flow"],
@@ -177,17 +166,12 @@ export function createListingStore(sql: SQL | undefined) {
       }
       throw new Error("Could not find a free listing slug");
     },
-    /** Removes the owner's listing; `false` when the slug is not theirs or does not exist. */
     async unpublish(ownerId: string, slug: string): Promise<boolean> {
       const db = connection();
       const rows = await db<{ id: string }[]>`
         DELETE FROM automator_listings WHERE owner_id = ${ownerId} AND slug = ${slug} RETURNING id`;
       return rows.length > 0;
     },
-    /**
-     * Copies the listing's snapshot into a new flow for `ownerId` and counts the fork, in one
-     * transaction. `null` when no listing has this slug.
-     */
     async fork(ownerId: string, slug: string): Promise<FlowRecord | null> {
       const db = connection();
       return db.begin(async (tx) => {

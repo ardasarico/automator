@@ -1,10 +1,4 @@
-/**
- * Checks a value against the subset of JSON Schema that extraction schemas use: `type`
- * (single or list), `enum`, `const`, `properties` + `required` + `additionalProperties: false`,
- * `items`, and `nullable`. Anything else in the schema is ignored rather than rejected, so an
- * unknown keyword never blocks a run; the model is asked for the same schema, so the check is
- * a guard against wrong shapes, not a full validator.
- */
+/* Validates only the extraction schema subset below; unsupported JSON Schema keywords are ignored. */
 export type JsonSchema = Record<string, unknown>;
 
 function hasType(schema: JsonSchema, value: unknown): boolean {

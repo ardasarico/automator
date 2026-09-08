@@ -45,13 +45,11 @@ import { listVariables, type VariableOption } from "./variables";
 
 const selectGraph = (state: BuilderState) => ({ nodes: state.nodes, edges: state.edges });
 
-/** Every config schema the builder knows, by node type; types without one have no settings. */
 const configSchemas: Partial<Record<FlowNodeType, TObject>> = {
   ...flowNodeConfigSchemas,
   ...screenConfigSchemas,
 };
 
-/** Fields that read as prose get a textarea; everything else a single line. */
 const multilineKeys = new Set(["content", "body", "message", "description", "samplePayload"]);
 
 function humanize(key: string) {
@@ -59,19 +57,15 @@ function humanize(key: string) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** "Fields" → "field": the noun on an array's add button. */
 function singular(label: string) {
   return label.endsWith("s") ? label.slice(0, -1) : label;
 }
 
-/** The JSON Schema keywords the generic form reads off a TypeBox property. */
 type Property = {
   type?: string;
   anyOf?: { const?: unknown }[];
   description?: string;
-  /** Marks credentials; the field suggests a `{{secrets.*}}` reference and stays plain otherwise. */
   secret?: boolean;
-  /** `application/json` marks JSON text, edited in a monospace textarea with parse feedback. */
   contentMediaType?: string;
   minimum?: number;
   maximum?: number;
@@ -85,11 +79,9 @@ type FieldProps = {
   property: Property;
   value: unknown;
   onChange(value: unknown): void;
-  /** What `{{path}}` templates in this node's strings can reach; empty hides the picker. */
   variables?: VariableOption[];
 };
 
-/** Appends one of the reachable `{{path}}` templates to a string field. */
 function VariablePicker({
   options,
   onPick,
@@ -279,10 +271,6 @@ function ConfigField({ id, name, property, value, onChange, variables = [] }: Fi
   return <p className="text-caption text-muted-foreground">{label} is not editable here yet.</p>;
 }
 
-/**
- * JSON text in a monospace textarea, such as a trigger's sample payload. The text is stored
- * as typed, so a half-written value survives; the inline error says when it does not parse.
- */
 function JsonField({
   id,
   label,
@@ -319,7 +307,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** A list of short strings, typed as one comma-separated line; blanks are dropped. */
 function StringListField({
   id,
   label,
@@ -352,7 +339,6 @@ function StringListField({
   );
 }
 
-/** A labelled box around related controls: an object property, or one item of an array. */
 function Group({
   label,
   description,
@@ -378,7 +364,6 @@ function Group({
   );
 }
 
-/** One field per property of an object schema, patching the object as a whole. */
 function ObjectFields({
   id,
   properties,
@@ -410,7 +395,6 @@ function ObjectFields({
   );
 }
 
-/** The name an array item shows in its header: its label or id when it has one. */
 function itemTitle(item: unknown, index: number, noun: string) {
   if (isRecord(item)) {
     for (const key of ["label", "name", "id"]) {
@@ -421,10 +405,6 @@ function itemTitle(item: unknown, index: number, noun: string) {
   return `${noun} ${index + 1}`;
 }
 
-/**
- * Object items as groups with move up, move down and remove, and an add button that creates
- * an item from the item schema's defaults. Items have no ids, so their index is their key.
- */
 function ArrayField({
   id,
   label,
@@ -449,7 +429,7 @@ function ArrayField({
     <div className="flex flex-col gap-2">
       <div>
         <span className="text-label">{label}</span>
-        {/* Not a Field, so plain help text rather than FieldDescription. */}
+        {}
         {property.description && (
           <p className="text-xs text-muted-foreground">{property.description}</p>
         )}
@@ -511,13 +491,6 @@ function ArrayField({
   );
 }
 
-/**
- * The left panel body while one node is selected: the node's label, then one field per
- * property of its config schema, written to the store as it is typed. Arrays of objects get
- * an item editor, string arrays a comma-separated line, and a property's schema description
- * renders as its help text. String fields offer an "Insert variable" menu of the `{{path}}`
- * templates reachable from upstream nodes. Types without a schema only offer the label.
- */
 export function NodeSettings({ node, onBack }: { node: BuilderNode; onBack(): void }) {
   const renameNode = useBuilderStore((state) => state.renameNode);
   const setNodeConfig = useBuilderStore((state) => state.setNodeConfig);

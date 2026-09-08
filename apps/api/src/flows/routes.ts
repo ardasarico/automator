@@ -19,16 +19,10 @@ import { isStoredDocumentValid } from "./stored";
 export interface FlowDependencies {
   flows: FlowStore;
   identity: IdentityProvider | undefined;
-  /** Save history: version 1 on create, one more per save that changes the graph. */
   versions?: FlowVersionStore;
-  /** Names stored documents that fail the schema on the server log; off in tests. */
   log?: boolean;
 }
 
-/**
- * Every route is owner-scoped through the auth guard: a flow that exists but belongs to
- * someone else is indistinguishable from a missing one and answers 404.
- */
 export function createFlowRoutes({ flows, identity, versions, log = false }: FlowDependencies) {
   return new Elysia({ name: "flows" })
     .use(createAuthGuard(identity))
@@ -57,7 +51,6 @@ export function createFlowRoutes({ flows, identity, versions, log = false }: Flo
       async ({ claims, params, status }) => {
         const record = await flows.find(claims.id, params.id);
         if (!record) return status(404, { error: "not_found" });
-        // A document saved before a node type was retired must not take the route down.
         if (!isStoredDocumentValid(record.flow, log)) return status(422, { error: "invalid_flow" });
         return record;
       },
@@ -68,7 +61,6 @@ export function createFlowRoutes({ flows, identity, versions, log = false }: Flo
       async ({ claims, params, body, status }) => {
         if (!isFlowDocumentInput(body) || findFlowDocumentProblem(body))
           return status(422, { error: "invalid_flow" });
-        // The store saves the graph and its version together under the same flow lock.
         const record = await flows.update(claims.id, params.id, body, {
           recordVersion: Boolean(versions),
         });

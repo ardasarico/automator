@@ -4,11 +4,6 @@ import { Badge } from "@automator/ui/badge";
 import { RiShieldCheckLine } from "@remixicon/react";
 import { EnableSigningButton } from "../../../builder/enable-signing-button";
 
-/**
- * Whether the API's signer is granted on the wallet. `signing` is what the API reported
- * (absent when it cannot tell); the enable button re-checks the Privy session itself, so a
- * grant made moments ago shows without a reload.
- */
 export function SigningStatus({ signing }: { signing: boolean | undefined }) {
   if (signing) {
     return (

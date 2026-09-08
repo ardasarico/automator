@@ -10,7 +10,6 @@ import {
 } from "@automator/contracts";
 import type { ExecutionOutputs } from "./executor";
 
-/** A value Simulate types into a form field when the field names no `sample`. */
 function sampleValue(field: ScreenFormField): string {
   if (field.sample !== "") return field.sample;
   switch (field.type) {
@@ -23,14 +22,6 @@ function sampleValue(field: ScreenFormField): string {
   }
 }
 
-/**
- * What a screen produces when Simulate answers it instead of a visitor. The shape matches the
- * real mini-app (form values keyed by field id; `{ action: port }` for a button; the sample
- * visitor for a Privy login; a sample verification or rejection for a World ID check), so
- * the nodes after it see the same input either way, plus a `simulated` key naming the port
- * taken. That key is never a handle id, so no edge fires on it. Null for a node that is not
- * a screen.
- */
 export function autoAnswer(node: FlowNode): ExecutionOutputs | null {
   if (!isScreenNodeType(node.type)) return null;
   if (node.type === "screen.form") {

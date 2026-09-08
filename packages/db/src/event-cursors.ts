@@ -1,19 +1,13 @@
 import type { SQL } from "bun";
 import { lockCurrentPoll } from "./polling-fence";
 
-/** Where the onchain-event listener got to for one trigger node of one flow. */
 export interface EventCursor {
   flowId: string;
   nodeId: string;
   chainId: number;
-  /** The last block whose logs were handled; polling resumes at the next one. */
   lastBlock: bigint;
 }
 
-/**
- * One row per (flow, trigger node), deleted with the flow. Block numbers are stored as
- * BIGINT and travel as text so they never pass through a JavaScript number.
- */
 export function createEventCursorStore(sql: SQL | undefined) {
   function connection() {
     if (!sql) throw new Error("Database is not configured");
@@ -35,7 +29,6 @@ export function createEventCursorStore(sql: SQL | undefined) {
         FROM automator_event_cursors WHERE flow_id = ${flowId} AND node_id = ${nodeId}`;
       return rows[0] ? toCursor(rows[0]) : null;
     },
-    /** Creates or moves the cursor; a chain change replaces the block outright. */
     async save(cursor: EventCursor, pollingRevision: string): Promise<boolean> {
       const db = connection();
       return db.begin(async (tx) => {

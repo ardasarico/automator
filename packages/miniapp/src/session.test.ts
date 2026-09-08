@@ -6,7 +6,6 @@ function node(id: string, type: FlowNode["type"], config: Record<string, unknown
   return { id, type, position: { x: 0, y: 0 }, label: id, config };
 }
 
-/** trigger → form → discord → page. */
 const document: FlowDocument = {
   version: 1,
   id: "f",

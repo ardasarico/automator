@@ -10,11 +10,6 @@ import {
 } from "@automator/contracts";
 import { createStore, useStore } from "zustand";
 
-/**
- * The signed-in user's secret names, shared by the Variables panel and the node settings
- * picker. Loaded per account through the same-origin proxy; SessionProvider clears the
- * list and invalidates captured actions when accounts change. Values are never returned.
- */
 export type SecretsStatus = "idle" | "loading" | "ready" | "failed";
 
 type SecretsState = {
@@ -132,7 +127,6 @@ export function useSecrets<T>(selector: (state: SecretsState) => T): T {
   return useStore(secretsStore, selector);
 }
 
-/** A message for the user from a failed save or delete. */
 export function describeSecretError(caught: unknown): string {
   const code = caught instanceof SecretRequestError ? caught.code : "unavailable";
   return messages[code] ?? messages.unavailable!;

@@ -75,7 +75,6 @@ describe.skipIf(!url)("polling configuration fence", () => {
       });
       expect(await flows.isCurrentPoll(flowId, original)).toBe(true);
       expect(await revision()).toBe(original);
-      // Restoring the exact configuration must not revive a poll from its earlier incarnation.
       await flows.update(ownerId, flowId, { ...input, chainId: 4801 });
       await flows.update(ownerId, flowId, input);
       expect(await flows.isCurrentPoll(flowId, original)).toBe(false);
@@ -87,7 +86,6 @@ describe.skipIf(!url)("polling configuration fence", () => {
       const active = await revision();
       await flows.setEnabled(ownerId, flowId, true);
       expect(await revision()).toBe(active);
-      // A changed downstream effect also invalidates the old executable snapshot.
       await flows.update(ownerId, flowId, {
         ...input,
         nodes: [
@@ -148,7 +146,6 @@ describe.skipIf(!url)("polling configuration fence", () => {
       await events.save(cursor, revision);
       await events.save({ ...cursor, lastBlock: 100n }, revision);
       expect((await events.find(flowId, "watch"))?.lastBlock).toBe(200n);
-      // A state write racing a graph edit either commits first and is cleared, or is rejected.
       const latestObservation = (await watches.find(flowId, "watch"))!.observationId;
       await Promise.all([
         flows.update(ownerId, flowId, { ...input, nodes: [] }),

@@ -3,7 +3,6 @@ import { unpublishListingContract } from "@automator/contracts";
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../auth/http";
 
-/** Removes the caller's listing for the browser, forwarding its bearer token. */
 export async function DELETE(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);

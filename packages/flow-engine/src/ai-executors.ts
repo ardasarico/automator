@@ -16,7 +16,6 @@ export function requireModel(context: ExecutionContext): LanguageModel {
   return context.model;
 }
 
-/** A system message when there are instructions, then the user turn. */
 export function chat(instructions: string, user: string): ChatMessage[] {
   const messages: ChatMessage[] = [];
   if (instructions.trim()) messages.push({ role: "system", content: instructions });
@@ -74,7 +73,6 @@ export const aiExecutors: ExecutorRegistry = {
         throw new NodeExecutionError(
           `The model answered with an unknown label: ${asText(parsed.label)}`,
         );
-      // The label also fires a handle of its own name, so per-label ports can be added later.
       return { [label]: content, label };
     },
   },

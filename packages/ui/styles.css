@@ -9,7 +9,7 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
   --font-heading: var(--font-sans);
-  /* Coss uses these only for its inset highlights and shadows. */
+
   --color-black: #000;
   --color-white: #fff;
   /* Base UI appends nested portals after their parent surface. Equal levels keep

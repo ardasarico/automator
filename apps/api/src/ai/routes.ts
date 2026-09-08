@@ -15,20 +15,12 @@ import { FlowGenerationError, generateFlow } from "./generate-flow";
 
 export interface AiDependencies {
   identity: IdentityProvider | undefined;
-  /** Absent when no OpenRouter key is configured; the routes then answer 503. */
   model: LanguageModel | undefined;
   log?: boolean;
-  /** AI requests a user may make per minute before 429; ten by default. */
   callsPerMinute?: number;
   now?: () => number;
 }
 
-/**
- * `POST /ai/flows` designs or edits a flow document from a prompt and the conversation so
- * far; `POST /ai/runs/explain` explains a failed run. Both sit behind the auth guard and
- * answer 503 without a model, 422 when the model cannot produce a valid answer. Every
- * route of this plugin shares one per-user rate limit, applied before the handler.
- */
 export function createAiRoutes({
   identity,
   model,

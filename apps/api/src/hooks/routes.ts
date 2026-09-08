@@ -5,16 +5,12 @@ import { createRateLimiter, defaultRateLimits } from "../rate-limit";
 import { executeStoredRun, type EngineOptions, type RunStores } from "../runs/execute";
 
 export interface HookDependencies extends RunStores {
-  /** Engine options every hook run shares (model, fetch, executors, secrets factory). */
   engine?: EngineOptions | ((ownerId: string) => EngineOptions);
-  /** Trigger-driven runs are live: real chains, never dry runs. */
   chainFactory?: ChainFactory;
-  /** Calls allowed per flow per minute before 429; sixty by default. */
   callsPerMinute?: number;
   now?: () => number;
 }
 
-/** Headers are lowercased by the runtime; the query is the first value per key. */
 export function webhookPayload(request: Request, body: unknown): WebhookPayload {
   const url = new URL(request.url);
   return {
@@ -25,11 +21,6 @@ export function webhookPayload(request: Request, body: unknown): WebhookPayload 
   };
 }
 
-/**
- * The public webhook entry: no session, the flow's token is the credential. The flow runs
- * synchronously from its webhook trigger with the request as payload, stops at screens, and
- * the stored run's id and status come back. Every refusal is a 404 so tokens cannot be probed.
- */
 export function createHookRoutes({
   flows,
   runs,

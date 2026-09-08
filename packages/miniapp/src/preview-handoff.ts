@@ -9,7 +9,6 @@ function message(data: unknown): Record<string, unknown> | null {
   return typeof data === "object" && data !== null ? (data as Record<string, unknown>) : null;
 }
 
-/** Only an opaque request id enters history. The snapshot stays in the opening tab's memory. */
 export function openPreview(
   runtimeUrl: string,
   document: FlowDocument,
@@ -53,7 +52,6 @@ export function openPreview(
   return close;
 }
 
-/** Receive only from the actual opener at the configured builder origin, within 30 seconds. */
 export function receivePreview(
   flowId: string,
   builderUrl: string | undefined,

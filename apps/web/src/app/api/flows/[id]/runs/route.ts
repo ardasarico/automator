@@ -3,7 +3,6 @@ import { runSavedFlowContract, runSavedFlowInputSchema, Value } from "@automator
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../../auth/http";
 
-/** Runs the caller's saved flow and records the run; the API executes the stored document. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);

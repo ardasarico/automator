@@ -114,7 +114,6 @@ describe("server-side logging", () => {
     console.error = (...args: unknown[]) => lines.push(["error", ...args]);
     try {
       await run();
-      // `onAfterResponse` runs once the response has been handed back.
       await new Promise((resolve) => setTimeout(resolve, 5));
     } finally {
       console.log = log;

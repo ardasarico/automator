@@ -83,7 +83,7 @@ test("sender keeps exact unsaved credentials out of URL and binds origin, window
     origin: "https://runtime.test",
   });
   sender.emit(ready, "https://runtime.test", popup.window);
-  expect(popup.sent).toHaveLength(2); // Reload gets the same captured snapshot.
+  expect(popup.sent).toHaveLength(2);
   close();
   expect(sender.listeners.size).toBe(0);
   expect(sender.timers.size).toBe(0);

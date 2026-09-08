@@ -17,10 +17,6 @@ export class AuthApiError extends Error {
   }
 }
 
-/**
- * Server-side view of the auth endpoints: success is returned, every other
- * outcome becomes an `AuthApiError` carrying a code the web layer can act on.
- */
 export async function requestAuth<C extends AuthContract>(
   apiUrl: string | undefined,
   token: string | undefined,

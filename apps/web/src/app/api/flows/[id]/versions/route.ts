@@ -3,7 +3,6 @@ import { listFlowVersionsContract } from "@automator/contracts";
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../../auth/http";
 
-/** Lists the caller's saved versions of one flow for the browser, newest first. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);

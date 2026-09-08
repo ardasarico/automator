@@ -6,7 +6,6 @@ import type {
 } from "@automator/contracts";
 import type { SQL } from "bun";
 
-/** How many versions a flow keeps; older ones are pruned as new ones are recorded. */
 export const flowVersionLimit = 50;
 
 type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
@@ -21,7 +20,6 @@ type VersionRow = {
   createdAt: Date;
 };
 
-/** What a version captures: the document as saved, without the flow id the row already names. */
 export type FlowVersionInput = Pick<
   FlowDocumentInput,
   "version" | "chainId" | "name" | "description" | "nodes" | "edges"
@@ -75,22 +73,12 @@ export async function recordFlowVersion(
   return toRecord(rows[0]);
 }
 
-/**
- * Save history per flow: every recorded version is an immutable snapshot of the document,
- * numbered from 1 in save order. Reads are owner-scoped like flows, and a flow that is gone
- * takes its versions with it.
- */
 export function createFlowVersionStore(sql: SQL | undefined) {
   function connection() {
     if (!sql) throw new Error("Database is not configured");
     return sql;
   }
   return {
-    /**
-     * Appends a version with the next number for the flow and prunes anything older than the
-     * newest `flowVersionLimit`, in one transaction. Answers `null` when the owner has no
-     * such flow, so nothing is recorded for a flow that is not theirs.
-     */
     async record(
       ownerId: string,
       flowId: string,
@@ -104,7 +92,6 @@ export function createFlowVersionStore(sql: SQL | undefined) {
         return recordFlowVersion(tx, ownerId, flowId, input);
       });
     },
-    /** Newest first; empty for a flow the owner does not have. */
     async list(ownerId: string, flowId: string): Promise<FlowVersionSummary[]> {
       const db = connection();
       const rows = await db<(Omit<FlowVersionSummary, "createdAt"> & { createdAt: Date })[]>`

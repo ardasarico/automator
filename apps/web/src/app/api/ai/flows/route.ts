@@ -3,7 +3,6 @@ import { aiRequestTimeoutMs, generateFlowContract, Value } from "@automator/cont
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../auth/http";
 
-/** Generates or edits a flow for the browser, forwarding its bearer token to the private API. */
 export async function POST(req: Request) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);

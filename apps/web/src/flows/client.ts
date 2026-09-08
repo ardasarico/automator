@@ -14,7 +14,6 @@ export class FlowRequestError extends Error {
   }
 }
 
-/** Saves a flow through the same-origin proxy, which forwards the bearer token to the API. */
 export async function saveFlowRequest(
   id: string,
   token: string | null,
@@ -33,7 +32,6 @@ export async function saveFlowRequest(
   return result.data;
 }
 
-/** Deletes a flow through the proxy; its listing and runs go with it. */
 export async function deleteFlowRequest(id: string, token: string | null): Promise<void> {
   if (!token) throw new FlowRequestError("unauthorized");
   const response = await fetch(`/api/flows/${encodeURIComponent(id)}`, {
@@ -46,7 +44,6 @@ export async function deleteFlowRequest(id: string, token: string | null): Promi
   if (result.status !== 200) throw new FlowRequestError(result.data.error);
 }
 
-/** Turns the flow's triggers on or off through the proxy; answers the updated record. */
 export async function setFlowEnabledRequest(
   id: string,
   token: string | null,

@@ -54,7 +54,6 @@ describe("builder store", () => {
     expect(store.getState().edges).toHaveLength(1);
     expect(store.getState().edges[0]).toMatchObject({ source: a, target: b });
     expect(store.getState().canConnect(connection)).toBe(false);
-    // Reversing the pair would close a cycle (a -> b -> a), so it is rejected too.
     expect(store.getState().canConnect({ ...connection, source: b, target: a })).toBe(false);
   });
 
@@ -368,7 +367,6 @@ describe("history", () => {
     store.getState().undo();
     store.getState().undo();
     expect(store.getState().nodes).toHaveLength(0);
-    // Nothing left to undo: a no-op rather than an error.
     store.getState().undo();
     expect(store.getState().past).toEqual([]);
 
@@ -476,7 +474,6 @@ describe("history", () => {
     const b = store.getState().addNode("screen.page", { x: 300, y: 0 });
     store.getState().onConnect({ source: a, target: b, sourceHandle: null, targetHandle: null });
     const edgeId = store.getState().edges[0]!.id;
-    // React Flow removes the edges of a deleted node first, then the node.
     store.getState().onEdgesChange([{ type: "remove", id: edgeId }]);
     store.getState().onNodesChange([{ type: "remove", id: b }]);
     expect(store.getState().nodes).toHaveLength(1);
@@ -531,7 +528,6 @@ describe("duplicateNodes", () => {
       label: "Screen",
       config: { title: "Hello" },
     });
-    // Only the a -> b edge is inside the copied set; b -> c is not duplicated.
     expect(state.edges).toHaveLength(3);
     expect(state.edges.at(-1)).toMatchObject({ source: copies[0], target: copies[1] });
 

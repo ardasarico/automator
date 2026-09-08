@@ -13,11 +13,6 @@ const failures: Record<string, string> = {
   unavailable: "Balances are unavailable right now.",
 };
 
-/**
- * The embedded wallet's balances on one chain, fetched when the chain changes and cached for
- * as long as the component is mounted (one dialog open). Says plainly when the wallet holds
- * nothing on that chain, without pointing at faucets.
- */
 export function WalletFunds({ chainId }: { chainId: number }) {
   const { user } = usePrivy();
   const embeddedWallet = user?.linkedAccounts.find(

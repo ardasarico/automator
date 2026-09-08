@@ -41,7 +41,6 @@ describe("reduceLeaveGuard", () => {
     const [saving, effect] = reduceLeaveGuard(confirming, { type: "choose", choice: "save" });
     expect(saving).toEqual({ ...confirming, saving: true });
     expect(effect).toEqual({ type: "save" });
-    // Choices are ignored while the save is in flight.
     expect(reduceLeaveGuard(saving, { type: "choose", choice: "leave" })).toEqual([saving, null]);
     expect(reduceLeaveGuard(saving, { type: "saved" })).toEqual([
       idleLeaveGuard,

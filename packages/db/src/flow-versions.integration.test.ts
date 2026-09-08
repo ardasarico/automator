@@ -48,7 +48,6 @@ describe.skipIf(!url)("flow versions store", () => {
         const flow = await flows.create("did:privy:test-a", input);
         const other = await flows.create("did:privy:test-a", { ...input, name: "Other" });
 
-        // Another owner cannot record against the flow, and nothing is stored for them.
         expect(await versions.record("did:privy:test-b", flow.flow.id, input)).toBeNull();
         expect(await versions.list("did:privy:test-a", flow.flow.id)).toEqual([]);
 
@@ -64,7 +63,6 @@ describe.skipIf(!url)("flow versions store", () => {
         const trimmed = { ...input, name: "Trimmed", nodes: [input.nodes[0]!], edges: [] };
         const second = await versions.record("did:privy:test-a", flow.flow.id, trimmed);
         expect(second?.number).toBe(2);
-        // Numbers count per flow, not globally.
         expect((await versions.record("did:privy:test-a", other.flow.id, input))?.number).toBe(1);
 
         expect(await versions.list("did:privy:test-a", flow.flow.id)).toEqual([
@@ -84,7 +82,6 @@ describe.skipIf(!url)("flow versions store", () => {
         expect(await versions.find("did:privy:test-a", flow.flow.id, 3)).toBeNull();
         expect(await versions.find("did:privy:test-b", flow.flow.id, 1)).toBeNull();
 
-        // A chain id survives the round trip and is absent when the document names none.
         const chained = await versions.record("did:privy:test-a", flow.flow.id, {
           ...input,
           chainId: 4801,
@@ -94,7 +91,6 @@ describe.skipIf(!url)("flow versions store", () => {
         ).toEqual({ ...input, id: flow.flow.id, chainId: 4801 });
         expect("chainId" in first!.document).toBe(false);
 
-        // Deleting the flow removes its versions with it.
         await flows.delete("did:privy:test-a", flow.flow.id);
         expect(await versions.list("did:privy:test-a", flow.flow.id)).toEqual([]);
 
@@ -149,7 +145,6 @@ describe.skipIf(!url)("flow versions store", () => {
       expect(listed[0]?.number).toBe(flowVersionLimit + 3);
       expect(listed.at(-1)?.number).toBe(4);
       expect(await versions.find("did:privy:test-a", flow.flow.id, 3)).toBeNull();
-      // Numbering keeps counting from the newest, pruned rows included.
       const next = await versions.record("did:privy:test-a", flow.flow.id, input);
       expect(next?.number).toBe(flowVersionLimit + 4);
 

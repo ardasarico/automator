@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 const allFlows = "";
 
-/** Narrows the run history to one flow through the `flow` query parameter. */
 export function RunFilter({
   flows,
   selected,

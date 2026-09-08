@@ -8,13 +8,6 @@ import {
   worldIdVerifyConfigSchema,
 } from "./identity";
 
-/**
- * Visitor-facing node types: what the mini-app renders. The visitor's choice on a screen
- * picks the output port the flow continues on (page → next, form → submitted,
- * confirmation → confirmed or cancelled, qr-code → next). The identity screens
- * (`identity.ts`) pause the same way, but the API derives their answer from a verified
- * sign-in or proof (login → user, id-verify → verified or rejected).
- */
 export const screenNodeTypes = [
   "screen.page",
   "screen.form",
@@ -29,7 +22,6 @@ export function isScreenNodeType(type: string): type is ScreenNodeType {
   return (screenNodeTypes as readonly string[]).includes(type);
 }
 
-/** Every field defaults, so an untouched node (`config: {}`) still renders. A blank title falls back to the node label. */
 const text = (fallback = "", description?: string) =>
   Type.String(
     description === undefined ? { default: fallback } : { default: fallback, description },
@@ -71,12 +63,10 @@ export const screenFormConfigSchema = Type.Object({
 });
 export type ScreenFormConfig = Static<typeof screenFormConfigSchema>;
 
-/** Matches the browser email control's single-address syntax. */
 const emailAnswer =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 const numberAnswer = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
-/** Checks visitor values before the server runs any nodes following a form. */
 export function findScreenFormAnswerProblem(
   config: ScreenFormConfig,
   data: Record<string, string> | undefined,
@@ -132,11 +122,6 @@ export type ScreenConfig<T extends ScreenNodeType = ScreenNodeType> = Static<
   (typeof screenConfigSchemas)[T]
 >;
 
-/**
- * Reads a node's `config` as its screen's settings. Rendering must never throw, so this is
- * lenient: missing fields take their defaults, unknown keys are dropped, and a wrongly typed
- * value is replaced rather than rejected. The input is not mutated.
- */
 export function parseScreenConfig<T extends ScreenNodeType>(
   type: T,
   config: unknown,
@@ -148,15 +133,10 @@ export function parseScreenConfig<T extends ScreenNodeType>(
   return Value.Cast(schema, cleaned) as ScreenConfig<T>;
 }
 
-/**
- * The visitor's value for a screen's port: a form hands over what was typed, keyed by field
- * id; any other action hands over which port was taken, so a condition can read it.
- */
 export function visitorAnswer(port: string, data?: Record<string, string>): unknown {
   return data ?? { action: port };
 }
 
-/** The output port each visitor action on a screen continues on. */
 export function screenPorts(type: ScreenNodeType): { primary: string; secondary?: string } {
   if (isIdentityScreenType(type)) return identityScreenPorts[type];
   switch (type) {

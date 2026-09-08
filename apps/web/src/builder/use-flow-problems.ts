@@ -5,7 +5,6 @@ import { serializeFlow } from "./document";
 import { useBuilderStore } from "./store-provider";
 import { findFlowProblems, type FlowProblem } from "./validation";
 
-/** The problems of the document on the canvas, recomputed when the graph or configs change. */
 export function useFlowProblems(): FlowProblem[] {
   const meta = useBuilderStore((state) => state.meta);
   const nodes = useBuilderStore((state) => state.nodes);
@@ -13,7 +12,6 @@ export function useFlowProblems(): FlowProblem[] {
   return useMemo(() => findFlowProblems(serializeFlow(meta, nodes, edges)), [meta, nodes, edges]);
 }
 
-/** Problems by node id, provided once above the canvas so every card reads its own. */
 export const NodeProblemsContext = createContext<ReadonlyMap<string, FlowProblem[]>>(new Map());
 
 export function groupProblemsByNode(problems: readonly FlowProblem[]): Map<string, FlowProblem[]> {

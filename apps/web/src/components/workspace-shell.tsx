@@ -35,10 +35,7 @@ function SidebarHeader() {
   }
   return (
     <header className={styles.header}>
-      {/*
-        Mark and wordmark share one link, so /flows is a single tab stop. The expand control
-        overlays the mark slot when collapsed, where the link is inert and its mark hidden.
-      */}
+      {}
       <Link href="/flows" className={styles.brand} aria-label="Automator flows" inert={!isOpen}>
         <span className={styles.markSlot}>
           <LogoMark markColor="var(--primary)" aria-hidden="true" />
@@ -149,10 +146,7 @@ function WorkspaceFrame({ children }: { children: ReactNode }) {
               <AccountMenu />
             </div>
           </motion.aside>
-          {/*
-            Content inset and corner radius are CSS transitions keyed on the shell's
-            data-state, so the sidebar width spring stays the only per-frame JS layout write.
-          */}
+          {}
           <div className={styles.contentArea}>
             <main id="workspace-content" tabIndex={-1} className={styles.content}>
               {children}

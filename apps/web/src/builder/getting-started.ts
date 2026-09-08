@@ -1,15 +1,7 @@
-/**
- * The first-flow checklist shown over the canvas until the user dismisses it. Each step is
- * derived from builder state rather than recorded, so reloading the page keeps it honest.
- */
 export type GettingStartedSignals = {
-  /** At least one edge exists: a trigger is connected to a node. */
   built: boolean;
-  /** The canvas has edits not yet saved. */
   dirty: boolean;
-  /** A run has been shown on the canvas, from Simulate or the run history. */
   simulated: boolean;
-  /** The flow's triggers are active or it is published to the marketplace. */
   live: boolean;
 };
 

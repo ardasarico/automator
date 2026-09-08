@@ -16,7 +16,6 @@ export class RunRequestError extends Error {
   }
 }
 
-/** Runs a flow through the same-origin proxy, which forwards the bearer token to the API. */
 export async function runFlowRequest(
   token: string | null,
   input: FlowRunRequest,
@@ -38,7 +37,6 @@ export async function runFlowRequest(
   return result.data;
 }
 
-/** Runs the saved flow through the proxy; the API executes its stored document and keeps the run. */
 export async function runSavedFlowRequest(
   token: string | null,
   flowId: string,

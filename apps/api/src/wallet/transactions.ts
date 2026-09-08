@@ -1,10 +1,8 @@
 import { flowChainId, type FlowRunRecord, type WalletTransaction } from "@automator/contracts";
 
-/** How many stored runs the wallet scans, newest first, and how many transactions it lists. */
 export const transactionScanLimit = 200;
 export const transactionListLimit = 20;
 
-/** Only these executors broadcast and return an API-produced `receipt`. */
 const transactionNodeTypes = new Set([
   "onchain.write-contract",
   "onchain.transfer-token",
@@ -20,11 +18,6 @@ function sentHash(receipt: unknown): string | undefined {
     : undefined;
 }
 
-/**
- * Confirmed live writes in stored runs, newest first. The engine executes every node on the
- * document's chain; arbitrary output hashes, including observed events and simulation
- * results, are not evidence of a wallet send. A hash is unique within its execution chain.
- */
 export function collectWalletTransactions(
   records: readonly FlowRunRecord[],
   limit = transactionListLimit,

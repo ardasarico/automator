@@ -6,6 +6,7 @@ import {
   flowNodeConfigSchemas,
   flowNodePorts,
   flowNodeTypes,
+  layoutFlowPositions,
   parseNodeConfig,
   screenConfigSchemas,
   Value,
@@ -28,7 +29,6 @@ import {
 
 import { verifyFlow } from "./verify-flow";
 
-/** The model may only use types the engine or the mini-app can run today. */
 export const generatableNodeTypes = flowNodeTypes.filter(
   (type) => type === "logic.for-each" || defaultExecutors[type] !== undefined,
 );
@@ -38,7 +38,6 @@ const configSchemas: Partial<Record<FlowNodeType, TObject>> = {
   ...screenConfigSchemas,
 };
 
-/** The model produced something that is not a usable flow; the message says why. */
 export class FlowGenerationError extends Error {
   constructor(message: string) {
     super(message);
@@ -66,18 +65,12 @@ interface Draft {
   edges: DraftEdge[];
 }
 
-function describeSchema(schema: TObject): string {
-  // JSON Schema preserves nested array items, required fields, enums, descriptions and defaults.
-  return JSON.stringify(schema);
-}
-
-/** What the model is told about each node type: id, handles, and the config fields it can set. */
 export function describeNodeTypes(): string {
   return generatableNodeTypes
     .map((type) => {
       const { inputs, outputs } = flowNodePorts[type];
       const schema = configSchemas[type];
-      return `- ${type}: inputs [${inputs.join(", ")}], outputs [${outputs.join(", ")}], config ${schema ? describeSchema(schema) : "{}"}`;
+      return `- ${type}: inputs [${inputs.join(", ")}], outputs [${outputs.join(", ")}], config ${JSON.stringify(schema ?? {})}`;
     })
     .join("\n");
 }
@@ -109,7 +102,6 @@ A nodeId-only expectation asserts that the node was reached. Use output/path/equ
 Use short unique ids such as "n1", "n2". Labels are short and human. Only set config fields listed above; leave secrets such as webhook URLs empty for the user to fill in. "summary" is one or two sentences for the user about what the flow does or what you changed.
 When the request is a question, asks for an explanation, or needs one clarification before you can build anything, answer {"message": string} instead, in plain prose; never propose a flow for a message that does not ask to build or change one. The user decides what lands on the canvas.`;
 
-/** The document as the model sees it: no positions or edge ids, which it neither reads nor sets. */
 export function withoutPositions(document: FlowDocumentInput) {
   return {
     name: document.name,
@@ -181,7 +173,6 @@ function readDraft(answer: unknown): Draft {
   };
 }
 
-/** A `{"message": ...}` answer: the model chose prose over a flow. */
 function readMessage(answer: unknown): string | undefined {
   if (!isRecord(answer) || "nodes" in answer || "edges" in answer) return undefined;
   return typeof answer.message === "string" && answer.message.trim()
@@ -189,62 +180,39 @@ function readMessage(answer: unknown): string | undefined {
     : undefined;
 }
 
-const columnGap = 300;
-const rowGap = 140;
-const startX = 80;
-const startY = 120;
-
-/** Columns by longest path from a trigger, rows in answer order within a column. */
-function layout(nodes: DraftNode[], edges: DraftEdge[]): Map<string, { x: number; y: number }> {
-  const depth = new Map<string, number>(nodes.map((node) => [node.id, 0]));
-  // Relax edges |nodes| times; the graph is checked to be acyclic before this runs.
-  for (let round = 0; round < nodes.length; round += 1) {
-    for (const edge of edges) {
-      const candidate = depth.get(edge.source)! + 1;
-      if (candidate > depth.get(edge.target)!) depth.set(edge.target, candidate);
-    }
-  }
-  const rows = new Map<number, number>();
-  const positions = new Map<string, { x: number; y: number }>();
-  for (const node of nodes) {
-    const column = depth.get(node.id)!;
-    const row = rows.get(column) ?? 0;
-    rows.set(column, row + 1);
-    positions.set(node.id, { x: startX + column * columnGap, y: startY + row * rowGap });
-  }
-  return positions;
-}
-
 function hasCycle(nodes: DraftNode[], edges: DraftEdge[]): boolean {
   const pending = new Map(nodes.map((node) => [node.id, 0]));
-  for (const edge of edges) pending.set(edge.target, pending.get(edge.target)! + 1);
+  const outgoing = new Map(nodes.map((node) => [node.id, [] as string[]]));
+  for (const edge of edges) {
+    pending.set(edge.target, pending.get(edge.target)! + 1);
+    outgoing.get(edge.source)!.push(edge.target);
+  }
   const ready = nodes.filter((node) => pending.get(node.id) === 0).map((node) => node.id);
   let seen = 0;
   while (ready.length > 0) {
     const id = ready.pop()!;
     seen += 1;
-    for (const edge of edges) {
-      if (edge.source !== id) continue;
-      const left = pending.get(edge.target)! - 1;
-      pending.set(edge.target, left);
-      if (left === 0) ready.push(edge.target);
+    for (const target of outgoing.get(id)!) {
+      const left = pending.get(target)! - 1;
+      pending.set(target, left);
+      if (left === 0) ready.push(target);
     }
   }
   return seen < nodes.length;
 }
 
-/** Turns a draft into a valid document input or throws the first problem found. */
 export function materialize(draft: Draft): FlowDocumentInput {
   if (draft.nodes.length === 0) throw new FlowGenerationError("The flow has no nodes");
-  const ids = new Set<string>();
+  const nodesById = new Map<string, DraftNode>();
   for (const node of draft.nodes) {
-    if (ids.has(node.id)) throw new FlowGenerationError(`Duplicate node id "${node.id}"`);
-    ids.add(node.id);
+    if (nodesById.has(node.id)) throw new FlowGenerationError(`Duplicate node id "${node.id}"`);
+    nodesById.set(node.id, node);
   }
   const incoming = new Set<string>();
+  const targets = new Set<string>();
   for (const edge of draft.edges) {
-    const source = draft.nodes.find((node) => node.id === edge.source);
-    const target = draft.nodes.find((node) => node.id === edge.target);
+    const source = nodesById.get(edge.source);
+    const target = nodesById.get(edge.target);
     if (!source) throw new FlowGenerationError(`Edge starts at unknown node "${edge.source}"`);
     if (!target) throw new FlowGenerationError(`Edge ends at unknown node "${edge.target}"`);
     if (!flowNodePorts[source.type].outputs.includes(edge.sourceHandle))
@@ -257,18 +225,19 @@ export function materialize(draft: Draft): FlowDocumentInput {
         `Input "${edge.targetHandle}" of "${edge.target}" has two edges`,
       );
     incoming.add(slot);
+    targets.add(edge.target);
   }
   if (!draft.nodes.some((node) => flowNodePorts[node.type].inputs.length === 0))
     throw new FlowGenerationError("The flow needs a trigger node");
   for (const node of draft.nodes) {
     const isTrigger = flowNodePorts[node.type].inputs.length === 0;
-    if (!isTrigger && !draft.edges.some((edge) => edge.target === node.id))
+    if (!isTrigger && !targets.has(node.id))
       throw new FlowGenerationError(`Node "${node.id}" has no incoming edge`);
   }
   if (hasCycle(draft.nodes, draft.edges))
     throw new FlowGenerationError("The flow contains a cycle");
 
-  const positions = layout(draft.nodes, draft.edges);
+  const positions = layoutFlowPositions(draft.nodes, draft.edges);
   const nodes: FlowNode[] = draft.nodes.map((node) => {
     const schema = configSchemas[node.type];
     let config = node.config;
@@ -327,7 +296,6 @@ export function materialize(draft: Draft): FlowDocumentInput {
   return document;
 }
 
-/** Prior turns the model actually sees: the most recent ones, each cut to a readable length. */
 const modelHistoryLimit = 12;
 const modelHistoryTurnLength = 1500;
 
@@ -338,11 +306,6 @@ export function historyMessages(history: readonly AiHistoryTurn[] = []): ChatMes
     .map((turn) => ({ role: turn.role, content: turn.text.slice(0, modelHistoryTurnLength) }));
 }
 
-/**
- * Sends the conversation and validates the answer: a flow is materialized, a message is
- * passed through. An invalid first answer is sent back once with the problem; a second
- * invalid answer throws `FlowGenerationError`. Model failures throw `LanguageModelError`.
- */
 export async function askForFlow(
   model: LanguageModel,
   messages: ChatMessage[],
@@ -401,11 +364,6 @@ export async function askForFlow(
   throw new FlowGenerationError(lastProblem ?? "The model did not produce a valid flow");
 }
 
-/**
- * Asks the model for a new flow, or for a changed version of `current`, after the earlier
- * turns in `history`. The model may answer with a message instead when the prompt asks a
- * question rather than for a change.
- */
 export async function generateFlow(
   model: LanguageModel,
   prompt: string,

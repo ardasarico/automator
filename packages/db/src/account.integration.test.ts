@@ -90,14 +90,12 @@ describe.skipIf(!url)("account store", () => {
           run(second.flow.id, "2026-08-20T11:00:00.000Z"),
           "webhook",
         );
-        // Older than thirty days: outside the window.
         await runs.create(
           "did:privy:test-a",
           second.flow,
           run(second.flow.id, "2026-07-01T11:00:00.000Z"),
           "schedule",
         );
-        // Another owner's run never counts.
         await runs.create(
           "did:privy:test-b",
           other.flow,

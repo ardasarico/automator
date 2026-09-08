@@ -195,7 +195,6 @@ describe("runFlow", () => {
   });
 
   test("fails on a node type without an executor", async () => {
-    // A registry with triggers only, so the step type has no executor whatever the defaults grow into.
     const executors: ExecutorRegistry = {
       "trigger.manual": { kind: "trigger", run: async ({ trigger }) => ({ run: trigger }) },
     };
@@ -663,7 +662,6 @@ describe("runFlow secrets", () => {
 
   test("leaves the placeholder literal without a resolver", async () => {
     const run = await runFlow(hook, { now: fixedNow, sleep: noSleep, fetch: okDiscord });
-    // The literal placeholder is not a Discord URL, so the executor rejects it.
     expect(run.nodes[1]).toMatchObject({
       status: "failed",
       error: "Discord message needs a Discord webhook URL",

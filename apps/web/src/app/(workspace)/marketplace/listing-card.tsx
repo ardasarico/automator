@@ -8,7 +8,6 @@ import styles from "./marketplace.module.css";
 
 const forkCountFormat = new Intl.NumberFormat("en");
 
-/** One marketplace listing: marks, name, description, then who published it and a fork action. */
 export function ListingCard({ listing }: { listing: MarketplaceItem }) {
   const titleId = `listing-${listing.author.kind}-${listing.slug}-title`;
   const forks = listing.author.kind === "user" ? listing.forkCount : null;

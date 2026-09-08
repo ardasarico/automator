@@ -8,13 +8,6 @@ import type { ChainReader } from "@automator/flow-engine";
 import { isAddress, type Address } from "viem";
 import { WatchConfigError, formatDecimal, validateDecimals, type Reading } from "./threshold";
 
-/**
- * Chainlink price feeds. The trigger reads the aggregator the flow's chain publishes for the
- * configured pair (or the address typed in for `custom`) through the same read-only chain
- * reader the onchain nodes use, so a price watcher needs no wallet and no extra provider.
- */
-
-/** `AggregatorV3Interface`, narrowed to what the trigger reads. */
 export const aggregatorAbi = [
   {
     type: "function",
@@ -40,11 +33,9 @@ export const aggregatorAbi = [
 
 export interface PriceReading extends Reading {
   roundId: bigint;
-  /** Seconds since the epoch, as the feed reports them. */
   updatedAt: bigint;
 }
 
-/** The feed address and its published decimals for a trigger config on a chain. */
 export function resolveFeed(
   config: { pair: string; feed: string },
   chainId: number,
@@ -64,10 +55,6 @@ export function resolveFeed(
   return { address };
 }
 
-/**
- * The feed's latest answer. `decimals` comes from the registry when the pair is known and
- * from the contract otherwise, which keeps the common case to one call.
- */
 export async function readPrice(
   reader: ChainReader,
   address: Address,
@@ -97,7 +84,6 @@ export async function readPrice(
   return { raw: answer, decimals, roundId, updatedAt };
 }
 
-/** The trigger payload for a crossing. */
 export function pricePayload(
   config: { pair: string; comparison: PriceTriggerPayload["comparison"]; threshold: string },
   address: Address,

@@ -66,7 +66,6 @@ describe("explainRun", () => {
     expect(system!.content).toContain("Node types you may use");
     expect(system!.content).toContain("why the node failed");
     expect(user!.content).not.toContain("discord.com/api/webhooks");
-    // A secret reference by name is not a value, so the model may see which secret is used.
     expect(user!.content).toContain("{{secrets.discord}}");
     expect(user!.content).not.toContain("k-123");
     expect(user!.content).toContain('"webhookUrl":""');

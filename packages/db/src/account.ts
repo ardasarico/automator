@@ -3,17 +3,12 @@ import type { SQL } from "bun";
 
 const windowMs = 30 * 24 * 60 * 60 * 1000;
 
-/**
- * Per-owner counts across the existing tables for the Settings dialog's Usage section. Reads
- * only; every count is scoped to the owner like the stores it summarises.
- */
 export function createAccountStore(sql: SQL | undefined) {
   function connection() {
     if (!sql) throw new Error("Database is not configured");
     return sql;
   }
   return {
-    /** Counts as of `now`; runs are those started within the last thirty days before it. */
     async usage(ownerId: string, now: Date = new Date()): Promise<AccountUsage> {
       const db = connection();
       const since = new Date(now.getTime() - windowMs);

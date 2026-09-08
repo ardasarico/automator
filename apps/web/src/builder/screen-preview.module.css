@@ -1,4 +1,3 @@
-/* Screen preview: a tools row on the panel rhythm, then the phone centred in what is left. */
 .preview {
   display: flex;
   min-height: 0;
@@ -35,8 +34,6 @@
   padding: 16px;
 }
 
-/* Sized from the available height so the whole phone stays visible; the bezel mixes the
-   foreground in so it reads as chrome in both themes rather than a faint border. */
 .phone {
   display: flex;
   height: min(100%, 640px);

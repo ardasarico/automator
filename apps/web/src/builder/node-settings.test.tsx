@@ -13,7 +13,6 @@ const { BuilderStoreProvider, useBuilderStore } = await import("./store-provider
 const { createBuilderStore } = await import("./store");
 const { hydrateFlow } = await import("./document");
 
-/** trigger → form (one field) → discord. */
 const document: FlowDocument = {
   version: 1,
   id: "f",
@@ -82,8 +81,6 @@ describe("NodeSettings", () => {
 
   test("offers the variable picker on every string field of a node with upstream nodes", async () => {
     await mount("d");
-    // webhookUrl, content and username are strings; every one gets a picker. What the menu
-    // lists is listVariables' job (variables.test.ts); opening it is Base UI's.
     expect(container.querySelectorAll('[aria-label="Insert variable"]').length).toBe(3);
     await act(async () => root.unmount());
     container.remove();
@@ -97,8 +94,6 @@ describe("NodeSettings", () => {
   });
 
   test("edits a trigger's sample payload as JSON with inline feedback", async () => {
-    // Like the left panel, re-read the node from the store so an edit re-renders the form.
-    // The "type" button stands in for the textarea's onChange, which writes the text as is.
     let typed = "";
     function Live() {
       const node = useBuilderStore((state) => state.nodes.find((n) => n.id === "t")!);
@@ -134,7 +129,6 @@ describe("NodeSettings", () => {
     };
     const textarea = container.querySelector<HTMLTextAreaElement>("textarea#t-samplePayload");
     expect(textarea).not.toBeNull();
-    // The Textarea primitive styles its wrapper; the font cascades to the control.
     expect(textarea!.parentElement!.className).toContain("font-mono");
     expect(container.textContent).toContain("Payload Simulate hands to this trigger");
     expect(container.textContent).not.toContain("Invalid JSON");

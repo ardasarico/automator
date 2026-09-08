@@ -42,7 +42,6 @@ import {
   type RemixiconComponentType,
 } from "@remixicon/react";
 
-/** What kind of step a node is. Integrations are provider actions; their triggers are triggers. */
 export type FlowNodeCategory =
   | "trigger"
   | "logic"
@@ -52,7 +51,6 @@ export type FlowNodeCategory =
   | "notify"
   | "integration";
 
-/** The palette's first level: one group per core kind, one per integration provider. */
 export type CatalogGroupId =
   | "triggers"
   | "logic"
@@ -66,10 +64,8 @@ export type CatalogGroupId =
 
 export type CatalogIcon =
   | { kind: "remix"; icon: RemixiconComponentType }
-  /** An integration logo from `public/integrations`. `onWhite` gives dark marks a white plate. */
   | { kind: "logo"; src: string; onWhite?: boolean };
 
-/** One handle on a node card: `id` is the React Flow handle id the document records. */
 export type CatalogPort = { id: string; label: string };
 
 export type CatalogEntry = {
@@ -79,9 +75,7 @@ export type CatalogEntry = {
   label: string;
   description: string;
   icon: CatalogIcon;
-  /** Handles on the left edge; triggers have none. */
   inputs: readonly CatalogPort[];
-  /** Handles on the right edge; every type has at least one. */
   outputs: readonly CatalogPort[];
 };
 
@@ -95,7 +89,6 @@ export const catalogCategories: Record<FlowNodeCategory, string> = {
   integration: "Integrations",
 };
 
-/** Singular names for one node's eyebrow and the inspector; the palette groups use `catalogCategories`. */
 export const categoryLabels: Record<FlowNodeCategory, string> = {
   trigger: "Trigger",
   logic: "Logic",
@@ -106,7 +99,6 @@ export const categoryLabels: Record<FlowNodeCategory, string> = {
   integration: "Integration",
 };
 
-/** One icon per category, for the palette's category filter. */
 export const categoryIcons: Record<FlowNodeCategory, RemixiconComponentType> = {
   trigger: RiFlashlightLine,
   logic: RiGitBranchLine,
@@ -122,7 +114,6 @@ export type CatalogGroupDefinition = {
   label: string;
   description: string;
   icon: CatalogIcon;
-  /** Core groups are kinds of step; integration groups are providers, listed after them. */
   kind: "core" | "integration";
 };
 
@@ -141,7 +132,6 @@ const worldLogo: CatalogIcon = { kind: "logo", src: "/integrations/world.svg", o
 const privyLogo: CatalogIcon = { kind: "logo", src: "/integrations/privy.svg" };
 const port = (id: string, label: string): CatalogPort => ({ id, label });
 
-/** Palette groups in display order: core kinds first, then one entry per provider. */
 export const catalogGroups: readonly CatalogGroupDefinition[] = [
   {
     id: "triggers",
@@ -208,9 +198,7 @@ export const catalogGroups: readonly CatalogGroupDefinition[] = [
   },
 ];
 
-/** Dummy entries: every type is a card with ports and no config until the runtime defines it. */
 export const catalog: readonly CatalogEntry[] = [
-  // Triggers
   {
     type: "trigger.schedule",
     category: "trigger",
@@ -292,7 +280,6 @@ export const catalog: readonly CatalogEntry[] = [
     outputs: [port("proof", "Proof")],
   },
 
-  // Logic
   {
     type: "logic.condition",
     category: "logic",
@@ -374,7 +361,6 @@ export const catalog: readonly CatalogEntry[] = [
     outputs: [port("output", "Output")],
   },
 
-  // Onchain
   {
     type: "onchain.read-contract",
     category: "onchain",
@@ -416,7 +402,6 @@ export const catalog: readonly CatalogEntry[] = [
     outputs: [port("signature", "Signature")],
   },
 
-  // AI
   {
     type: "ai.agent",
     category: "ai",
@@ -458,7 +443,6 @@ export const catalog: readonly CatalogEntry[] = [
     outputs: [port("text", "Text")],
   },
 
-  // Screens
   {
     type: "screen.page",
     category: "screen",
@@ -500,7 +484,6 @@ export const catalog: readonly CatalogEntry[] = [
     outputs: [port("next", "Next")],
   },
 
-  // Notifications
   {
     type: "notify.telegram",
     category: "notify",
@@ -532,7 +515,6 @@ export const catalog: readonly CatalogEntry[] = [
     outputs: [port("sent", "Sent")],
   },
 
-  // Integrations
   {
     type: "world.id-verify",
     category: "integration",
@@ -613,14 +595,12 @@ export function getCatalogEntry(type: FlowNodeType): CatalogEntry {
   return entry;
 }
 
-/** Narrow an arbitrary string, such as a drag payload, to a known node type. */
 export function isFlowNodeType(value: string): value is FlowNodeType {
   return (flowNodeTypes as readonly string[]).includes(value);
 }
 
 export type CatalogGroupSummary = CatalogGroupDefinition & { count: number };
 
-/** The palette's first level: every group with how many entries it holds, in display order. */
 export function listCatalogGroups(): CatalogGroupSummary[] {
   return catalogGroups.map((group) => ({
     ...group,
@@ -630,11 +610,6 @@ export function listCatalogGroups(): CatalogGroupSummary[] {
 
 export type CatalogSection = { key: string; label: string; entries: CatalogEntry[] };
 
-/**
- * One group's entries split by category in category order, so a provider shows its triggers
- * before its actions. Inside a provider the integration category reads as "Actions". A group
- * with a single category comes back as one unlabelled section.
- */
 export function getCatalogGroupSections(group: CatalogGroupId): CatalogSection[] {
   const entries = catalog.filter((entry) => entry.group === group);
   const sections = categoryOrder.flatMap((category) => {
@@ -645,11 +620,6 @@ export function getCatalogGroupSections(group: CatalogGroupId): CatalogSection[]
   return sections.length === 1 ? [{ key: "all", label: "", entries }] : sections;
 }
 
-/**
- * Search across every group, case-insensitively on labels and descriptions, ignoring
- * surrounding space. Results come back grouped by palette group in display order; a blank
- * query matches nothing, since the group list is the palette's resting state.
- */
 export function searchCatalog(query: string): CatalogSection[] {
   const needle = query.trim().toLowerCase();
   if (needle === "") return [];

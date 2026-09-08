@@ -2,11 +2,6 @@ import { getPublicFlowContract } from "@automator/contracts";
 import type { FlowStore } from "@automator/db";
 import { Elysia } from "elysia";
 
-/**
- * Reads that need no session: once its owner published a flow to the marketplace, anyone
- * may learn its name to host it, but the document itself stays with the API; visitors play
- * the flow through mini-app sessions. Everything else stays behind the auth guard.
- */
 export function createPublicRoutes({ flows }: { flows: FlowStore }) {
   return new Elysia({ name: "public" }).get(
     getPublicFlowContract.path,

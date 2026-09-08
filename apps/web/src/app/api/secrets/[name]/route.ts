@@ -11,7 +11,6 @@ import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../auth/h
 
 type Params = { params: Promise<{ name: string }> };
 
-/** Creates or replaces one secret. The value goes straight to the API and is never logged. */
 export async function PUT(req: Request, { params }: Params) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);

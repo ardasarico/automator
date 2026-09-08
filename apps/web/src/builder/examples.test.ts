@@ -7,10 +7,6 @@ import { exampleToFlowDocument, findFlowExample } from "./examples";
 
 const slugs = flowExamples.map((example) => example.id);
 
-/**
- * The AI examples run against a scripted model (a label for Classify's JSON-schema request,
- * prose otherwise) and the USDC examples against a stub chain.
- */
 const model: LanguageModel = async (request) => ({
   content:
     request.responseFormat?.type === "json_schema"
@@ -18,7 +14,6 @@ const model: LanguageModel = async (request) => ({
       : "Two sentences.",
   toolCalls: [],
 });
-/** What a trigger receives in the simulation; the payout webhook needs a recipient. */
 const payloads: Record<string, unknown> = {
   "usdc-payout": { to: "0x2222222222222222222222222222222222222222", amount: "1.5" },
 };
@@ -29,7 +24,6 @@ describe("exampleToFlowDocument", () => {
     expect(document.id).toBe("flow");
     expect(Value.Check(flowDocumentSchema, document)).toBe(true);
     expect(findFlowDocumentProblem(document)).toBeNull();
-    // Two forks never share an id.
     const again = exampleToFlowDocument(findFlowExample(slug)!, "flow");
     for (const node of document.nodes)
       expect(again.nodes.some((other) => other.id === node.id)).toBe(false);
@@ -60,7 +54,6 @@ describe("exampleToFlowDocument", () => {
       expect(["succeeded", "waiting"]).toContain(run.status);
       return;
     }
-    // The one failure a fresh fork may show: the Discord node waiting for its own webhook.
     expect(failed).toHaveLength(1);
     const node = document.nodes.find((entry) => entry.id === failed[0]!.nodeId)!;
     expect(node.type).toBe("notify.discord");
@@ -88,7 +81,6 @@ describe("exampleToFlowDocument", () => {
     expect(reminderRun.status).toBe("succeeded");
     expect(reminderRun.variables).toEqual({ dryRun: "yes" });
 
-    // The balance alert takes the low branch on the stub's 5 USDC, so it reaches Discord.
     const alert = exampleToFlowDocument(findFlowExample("usdc-balance-alert")!, "flow");
     const alertRun = await runFlow(alert, { trigger: { payload: {} }, chain: createStubChain() });
     expect(alertRun.nodes.map((node) => node.status)).toEqual([

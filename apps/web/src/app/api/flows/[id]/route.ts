@@ -9,7 +9,6 @@ import {
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../auth/http";
 
-/** Saves one flow for the browser, forwarding its bearer token to the private API. */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);
@@ -39,7 +38,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-/** Deletes one flow for the browser; the API removes its listing and runs with it. */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);
@@ -59,7 +57,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   }
 }
 
-/** Turns the flow's webhook and schedule triggers on or off; the API answers the record. */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);

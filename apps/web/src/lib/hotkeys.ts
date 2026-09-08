@@ -2,28 +2,15 @@
 
 import { useEffect, useRef } from "react";
 
-/**
- * One window `keydown` listener for the whole app.
- *
- * Scopes are a priority ladder rather than an explicit activation stack: when a combo has
- * handlers in more than one scope, only the handlers in the highest-priority scope run.
- * Open dialogs suspend canvas and global shortcuts, including events from their portaled
- * controls. Dialog handlers can still claim a combo by registering in the dialog scope.
- */
 export type HotkeyScope = "global" | "canvas" | "dialog";
 
 const scopePriority: Record<HotkeyScope, number> = { global: 0, canvas: 1, dialog: 2 };
 
 export type HotkeyOptions = {
   scope?: HotkeyScope;
-  /** Fire even when the event comes from an input, textarea, select or contenteditable. */
   allowInEditable?: boolean;
 };
 
-/**
- * A combo is `+`-separated modifiers followed by a key, for example `mod+shift+s` or
- * `escape`. `mod` matches Command or Control, so one combo covers macOS and the rest.
- */
 type ParsedCombo = { key: string; mod: boolean; shift: boolean; alt: boolean };
 
 type Registration = {
@@ -73,7 +60,6 @@ const registrations = new Set<Registration>();
 let listening = false;
 
 function onKeyDown(event: KeyboardEvent) {
-  // A field can own a shortcut, such as sending the AI prompt with Cmd/Ctrl+Enter.
   if (event.defaultPrevented || event.isComposing) return;
   const editable = isEditable(event.target);
   // Base UI portals may put a dialog's select/menu popup outside the dialog element.
@@ -109,7 +95,6 @@ function stopListening() {
   listening = false;
 }
 
-/** Register a hotkey and get back the function that removes it. */
 export function registerHotkey({
   combo,
   handler,

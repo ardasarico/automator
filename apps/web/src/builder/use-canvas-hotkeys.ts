@@ -3,10 +3,6 @@
 import { useHotkey } from "../lib/hotkeys";
 import { useBuilderStore } from "./store-provider";
 
-/**
- * Canvas shortcuts are suspended while a dialog is open. Undo/redo and duplicate stay quiet
- * while typing in a field; save also works in fields when the canvas shortcuts are active.
- */
 export function useCanvasHotkeys({ save, run }: { save: () => void; run: () => void }) {
   const undo = useBuilderStore((state) => state.undo);
   const redo = useBuilderStore((state) => state.redo);

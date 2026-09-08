@@ -4,7 +4,6 @@ import { Button } from "@automator/ui/button";
 import { RiCheckLine, RiLinkM } from "@remixicon/react";
 import { useEffect, useState } from "react";
 
-/** Copies the current page URL; the label confirms for two seconds, then reverts. */
 export function CopyLinkButton({ path }: { path: string }) {
   const [copied, setCopied] = useState(false);
 

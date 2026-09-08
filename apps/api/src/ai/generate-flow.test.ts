@@ -19,7 +19,6 @@ const text = (content: unknown): ChatResponse => ({
   toolCalls: [],
 });
 
-/** The flow of an answer, failing the test on a message. */
 async function flowOf(answer: ReturnType<typeof generateFlow>) {
   const result = await answer;
   if (result.kind !== "flow") throw new Error(`expected a flow, got ${result.kind}`);
@@ -103,7 +102,6 @@ describe("generateFlow", () => {
       ["n3", { x: 680, y: 120 }],
       ["n4", { x: 680, y: 260 }],
     ]);
-    // Unknown config keys are dropped and defaults filled, so the canvas gets a complete config.
     expect(document.nodes[2]!.config).toEqual({
       webhookUrl: "",
       content: "Big: {{input.message.amount}}",
@@ -154,7 +152,6 @@ describe("generateFlow", () => {
     const messages = requests[0]!.messages;
     expect(messages[0]!.role).toBe("system");
     expect(messages[0]!.content).toContain("Earlier turns of the conversation");
-    // The last 12 turns, the blank one dropped, then the request itself.
     expect(messages.slice(1, -1).map((message) => message.content)).toEqual(
       history.slice(-12, -1).map((turn) => turn.text),
     );
@@ -173,7 +170,6 @@ describe("generateFlow", () => {
       kind: "message",
       text: "Which chain should the payout use?",
     });
-    // An empty message is not an answer; the retry gets the problem.
     const empty = scriptedModel([text({ message: "  " }), text(good)]);
     await expect(flowOf(generateFlow(empty.model, "x"))).resolves.toMatchObject({
       summary: good.summary,

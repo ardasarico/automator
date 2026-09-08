@@ -3,7 +3,6 @@ import { isPublishListingInput, publishListingContract } from "@automator/contra
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../auth/http";
 
-/** Publishes one of the caller's flows for the browser, forwarding its bearer token. */
 export async function POST(req: Request) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);

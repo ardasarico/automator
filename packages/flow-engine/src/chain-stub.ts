@@ -4,11 +4,6 @@ import type { ChainProvider } from "./chain";
 const stubUser: Address = "0x1111111111111111111111111111111111111111";
 const stubHash: Hex = "0xabc0000000000000000000000000000000000000000000000000000000000abc";
 
-/**
- * A chain for tests and examples: no network, a fixed USDC balance of 5, every read answers a
- * small value, every simulation succeeds, live writes "mine" instantly. Override any part
- * through `overrides`.
- */
 export function createStubChain(overrides: Partial<ChainProvider> = {}): ChainProvider {
   return {
     chainId: 84532,

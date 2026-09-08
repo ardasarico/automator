@@ -37,7 +37,6 @@ export function LoginForm() {
   const codeRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const requestInFlight = useRef(false);
-  // Typing is allowed before Privy loads; only submitting has to wait for it.
   const inputsDisabled = busy || oauthLoading || modalOpen;
   const disabled = !ready || inputsDisabled;
 
@@ -65,7 +64,6 @@ export function LoginForm() {
       setCode("");
       setCooldown(30);
     } catch {
-      // No code was sent, so there is nothing to wait for before retrying.
       setCooldown(0);
       setError("We couldn’t send a code. Check your email address and try again.");
     } finally {

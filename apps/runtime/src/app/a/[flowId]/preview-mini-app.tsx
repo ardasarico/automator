@@ -5,7 +5,6 @@ import { receivePreview, MiniApp } from "@automator/miniapp";
 import { useEffect, useState } from "react";
 import { MiniAppShell } from "./shell";
 
-/** The unsaved snapshot comes only from the builder tab that opened this preview. */
 export function PreviewMiniApp({ flowId, builderUrl }: { flowId: string; builderUrl?: string }) {
   const [loaded, setLoaded] = useState<{ flowId: string; document: FlowDocument | null } | null>(
     null,

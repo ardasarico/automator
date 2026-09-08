@@ -19,11 +19,6 @@ const selectDocumentParts = (state: BuilderState) => ({
   edges: state.edges,
 });
 
-/**
- * The mini-app played in a phone frame from the canvas as it is now. Selecting one screen
- * node opens the preview on that screen. Adding, removing or rewiring nodes restarts the
- * session; editing a node's config does not, so copy changes show in place.
- */
 export function ScreenPreview() {
   const { meta, nodes, edges } = useBuilderStore(useShallow(selectDocumentParts));
   const selected = useBuilderStore(useShallow(selectSelectedNodes));

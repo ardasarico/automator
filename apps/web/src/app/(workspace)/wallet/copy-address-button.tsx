@@ -4,7 +4,6 @@ import { Button } from "@automator/ui/button";
 import { RiCheckLine, RiFileCopyLine } from "@remixicon/react";
 import { useEffect, useState } from "react";
 
-/** Reports clipboard success or failure, including when browser permissions prevent copying. */
 export function CopyAddressButton({ address }: { address: string }) {
   const [state, setState] = useState<"idle" | "pending" | "copied" | "failed">("idle");
 

@@ -28,7 +28,6 @@ const filters = Object.keys(listingFilterLabels) as ListingFilter[];
 const categories = Object.keys(listingCategoryLabels) as ListingCategory[];
 const sorts = Object.keys(listingSortLabels) as ListingSort[];
 
-/** What an empty result means for each filter, so the copy names the real situation. */
 const emptyCopy: Record<ListingFilter, { title: string; description: string }> = {
   all: {
     title: "No flows yet",
@@ -53,7 +52,6 @@ export function MarketplaceBrowser({
   username,
 }: {
   listings: readonly MarketplaceItem[];
-  /** The signed-in user's username, for the "Yours" filter. */
   username: string | null;
 }) {
   const [query, setQuery] = useState("");

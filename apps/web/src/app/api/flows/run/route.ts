@@ -3,10 +3,7 @@ import { flowRunRequestSchema, runFlowContract, Value } from "@automator/contrac
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../auth/http";
 
-/**
- * Runs a flow document for the browser, forwarding its bearer token to the private API.
- * The timeout leaves room for waits inside the flow, which the engine caps per node.
- */
+/* Leave time for the engine's per-node waits before the proxy times out. */
 export async function POST(req: Request) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);
@@ -20,7 +17,6 @@ export async function POST(req: Request) {
   if (!Value.Check(flowRunRequestSchema, body))
     return authErrorResponse(req, new AuthApiError(400, "invalid_request"));
   try {
-    // Stop in the builder aborts this request; forwarding the signal cancels the API's run too.
     const result = await request(process.env.API_URL, runFlowContract, {
       token,
       body,

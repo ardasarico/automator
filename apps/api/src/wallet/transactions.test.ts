@@ -25,7 +25,6 @@ const document: FlowDocument = {
         abi: "function transfer(address to, uint256 amount) returns ((bytes32 hash) receipt)",
         functionName: "transfer",
         args: JSON.stringify([address, "1"]),
-        // A node cannot override the run's chain, even if its saved config carries this key.
         chainId: 84532,
       },
     },

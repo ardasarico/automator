@@ -62,7 +62,6 @@ describe("logic.switch", () => {
 
 describe("logic.merge", () => {
   function merging(mode: string, payload: unknown) {
-    // Two conditions split the trigger payload into A (always) and B (only when `b` is set).
     return runFlow(
       flow(
         [

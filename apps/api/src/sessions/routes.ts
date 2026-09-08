@@ -43,16 +43,11 @@ export interface SessionDependencies {
   runs: RunStore;
   sessions: SessionStore;
   engine?: Pick<RunOptions, "fetch" | "sleep" | "executors" | "model" | "sandbox" | "chain">;
-  /** The flow owner's `{{secrets.*}}`; absent when secrets are not configured. */
   secretsFor?: (ownerId: string) => SecretsResolver;
-  /** The owner's live chain access for onchain nodes; absent when chains are not configured. */
   chainFactory?: ChainFactory;
-  /** Session calls one client address may make per minute before 429; sixty by default. */
   callsPerMinute?: number;
   now?: () => number;
-  /** Verifies a visitor's Privy token for `privy.login`; absent leaves that node unconfigured. */
   identity?: Pick<IdentityProvider, "visitor">;
-  /** Verifies World ID proofs for `world.id-verify`; absent leaves that node unconfigured. */
   world?: WorldVerifier;
 }
 
@@ -66,16 +61,12 @@ function tokenMatches(row: MiniAppSessionRow, token: string): boolean {
   return expected.length === given.length && timingSafeEqual(expected, given);
 }
 
-/** A screen sees only its incoming values, session variables and opening payload; never secrets. */
 type ScreenScope = {
   input?: Record<string, unknown>;
   vars: Record<string, unknown>;
   trigger: unknown;
 };
 
-/**
- * Resolve screen templates before rendering, consistently with preview and identity verification.
- */
 function screenConfig(node: FlowNode & { type: ScreenNodeType }, scope: ScreenScope) {
   const parsed = parseScreenConfig(node.type, node.config);
   return resolveTemplates(parsed, {
@@ -85,10 +76,6 @@ function screenConfig(node: FlowNode & { type: ScreenNodeType }, scope: ScreenSc
   });
 }
 
-/**
- * What kind of failure the engine's error text describes. The text itself (which can name
- * URLs, addresses, revert data or secret names) never leaves the owner's stored run.
- */
 export function failureCode(error: string | undefined): MiniAppFailureCode {
   if (!error) return "node_failed";
   if (error === "The run was cancelled.") return "cancelled";
@@ -102,7 +89,6 @@ export function failureCode(error: string | undefined): MiniAppFailureCode {
   return "node_failed";
 }
 
-/** The owner's note to visitors from the mini-app trigger, or nothing when unset or unreadable. */
 function visitorHelp(document: FlowDocument): string {
   const entry = document.nodes.find((node) => node.type === "trigger.miniapp-open");
   if (!entry) return "";
@@ -116,12 +102,6 @@ function visitorHelp(document: FlowDocument): string {
   }
 }
 
-/**
- * What the visitor may see of a finished run: the screen to show next (its own config
- * only), the steps worked through, or that it stopped. Never the document, other config,
- * or a node's error text: a failure answers one generic sentence, a code, and the owner's
- * own note when they wrote one.
- */
 function toSession(
   sessionId: string,
   document: FlowDocument,
@@ -146,8 +126,6 @@ function toSession(
         { ...node, type },
         { ...scope, input: screenScope(document, run, node.id).input },
       );
-      // A World ID screen carries a signed request context, so the runtime can open IDKit
-      // without holding any World credential; none when the API has no World configuration.
       const action = type === "world.id-verify" ? (config as { action: string }).action : "";
       const request = world && action !== "" ? world.requestContext(action) : undefined;
       return {
@@ -179,17 +157,10 @@ function toSession(
 
 type Resume = NonNullable<RunOptions["resume"]>;
 
-/** How an answer to an identity screen turns into the node's outputs, or why it cannot. */
 type IdentityOutcome =
   | { resume: Resume }
   | { status: 400 | 401 | 503; error: "invalid_request" | "unauthorized" | "unavailable" };
 
-/**
- * Answers an identity screen from what the API verified, never from what the visitor sent:
- * a Privy token becomes the visitor Privy describes; a World proof becomes the portal's
- * verdict. A host without the provider fails the node as unconfigured, like an AI node
- * without a model, so the owner sees it in the run history.
- */
 async function answerIdentityScreen(
   node: FlowNode,
   body: MiniAppAnswer,
@@ -251,12 +222,6 @@ async function answerIdentityScreen(
   return { status: 400, error: "invalid_request" };
 }
 
-/**
- * Sessions of a published mini-app. The API runs the flow as its owner, with the owner's
- * secrets, and stores every run in the owner's history; the visitor holds a session id and
- * a token, and only ever receives the current screen. Publishing is the owner's consent, so
- * a session runs whether or not the flow's unattended triggers are enabled.
- */
 export function createSessionRoutes({
   flows,
   runs,
@@ -269,7 +234,6 @@ export function createSessionRoutes({
   identity,
   world,
 }: SessionDependencies) {
-  // Visitors are anonymous, so both routes share one window per client address.
   const limiter = createRateLimiter(callsPerMinute, now);
   return new Elysia({ name: "sessions" })
     .onBeforeHandle(({ request, server, set, status }) => {
@@ -335,7 +299,6 @@ export function createSessionRoutes({
         if (!Value.Check(miniAppAnswerSchema, body))
           return status(400, { error: "invalid_request" });
         const row = await sessions.find(params.id, params.sessionId);
-        // A wrong token and an unknown session look the same, so the id alone leaks nothing.
         if (!row || !tokenMatches(row, body.token)) return status(404, { error: "not_found" });
         if (row.status !== "screen" || row.nodeId === null)
           return status(409, { error: "invalid_request" });
@@ -345,7 +308,6 @@ export function createSessionRoutes({
         const previous = row.lastRunId ? await runs.find(row.ownerId, row.lastRunId) : null;
         if (!previous || previous.run.flowId !== row.flowId)
           return status(409, { error: "invalid_request" });
-        // Continue the session's snapshot, not a graph republished while the visitor paused.
         const document = previous.document;
         const node = document.nodes.find((candidate) => candidate.id === row.nodeId);
         if (!node || !isScreenNodeType(node.type)) return status(409, { error: "invalid_request" });

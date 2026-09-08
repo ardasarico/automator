@@ -26,7 +26,6 @@ import styles from "./flow-builder.module.css";
 
 type View = "list" | "grid";
 
-/** Click adds at the viewport centre; drag drops at the pointer. Both call the same store action. */
 function usePaletteItem(entry: CatalogEntry) {
   const addAtCenter = useAddNodeAtCenter();
   return {
@@ -71,7 +70,6 @@ function GridItem({ entry }: { entry: CatalogEntry }) {
   );
 }
 
-/** Entries in sections; a section with no label renders its entries without a heading. */
 function EntrySections({ sections, view }: { sections: CatalogSection[]; view: View }) {
   return sections.map((section) => (
     <section
@@ -111,7 +109,6 @@ function GroupRow({ group, onOpen }: { group: CatalogGroupSummary; onOpen: () =>
   );
 }
 
-/** The resting state: core groups, then integration providers, each a row that drills in. */
 function GroupList({ onOpen }: { onOpen: (group: CatalogGroupId) => void }) {
   const groups = listCatalogGroups();
   const kinds = [
@@ -153,11 +150,6 @@ function SearchResults({
   return <EntrySections sections={sections} view={view} />;
 }
 
-/**
- * The Nodes section of the left panel, in three states: the group list, one open group, or
- * search results across every group. Search wins while it has text; clearing it returns to
- * wherever the palette was. Everything here is component state and resets with the page.
- */
 export function NodePalette() {
   const [query, setQuery] = useState("");
   const [openGroup, setOpenGroup] = useState<CatalogGroupId | null>(null);

@@ -91,7 +91,6 @@ function readPath(value: unknown, path: string): unknown {
   return current;
 }
 
-/** Runs sample paths and optional behavioral assertions without secrets, writes, network, or model calls. */
 export async function verifyFlow(
   input: FlowDocumentInput,
   rawTests?: unknown,

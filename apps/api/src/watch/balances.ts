@@ -6,20 +6,12 @@ import {
 import { isAddress } from "viem";
 import { WatchConfigError, formatDecimal, validateDecimals, type Reading } from "./threshold";
 
-/**
- * The Graph's Token API, the balance trigger's data source. One GET returns a wallet's ERC-20
- * and native balances on a mainnet; the trigger picks the watched token out of that page.
- * `fetch` is injected so the poller is testable without the network.
- */
-
 export const tokenApiUrl = "https://api.pinax.network";
 
-/** The native coin, as the config spells it and as the API labels its own entry. */
 export const nativeToken = "native";
 
 export interface BalanceReading extends Reading {
   symbol: string;
-  /** The ERC-20 contract, or `native`. */
   token: string;
 }
 
@@ -27,7 +19,6 @@ export interface BalanceReader {
   read(request: { network: string; address: string; token: string }): Promise<BalanceReading>;
 }
 
-/** One entry of the Token API's `data` array, narrowed to the fields the trigger reads. */
 interface BalanceRow {
   contract?: unknown;
   amount?: unknown;
@@ -39,11 +30,6 @@ function isRow(value: unknown): value is BalanceRow {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Reads balances through the Token API. Failures raise a plain `Error` (the poll retries next
- * tick); a config the API cannot serve raises `WatchConfigError`, which the scheduler logs
- * as a configuration problem.
- */
 export function createBalanceReader({
   apiKey,
   baseUrl = tokenApiUrl,
@@ -110,7 +96,6 @@ export function createBalanceReader({
   };
 }
 
-/** The watched wallet, validated; the API only serves checksum-shaped addresses. */
 export function parseWatchedAddress(text: string): string {
   const trimmed = text.trim();
   if (!isAddress(trimmed))
@@ -118,7 +103,6 @@ export function parseWatchedAddress(text: string): string {
   return trimmed;
 }
 
-/** The token the trigger watches: an ERC-20 address, or `native`. */
 export function parseWatchedToken(text: string): string {
   const trimmed = text.trim();
   if (!trimmed || trimmed.toLowerCase() === nativeToken) return nativeToken;

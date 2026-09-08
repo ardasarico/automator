@@ -78,11 +78,6 @@ function shortAddress(address: string) {
 
 const connectedAppsUnavailable = "Connected apps are unavailable right now. Try again shortly.";
 
-/**
- * What the user's flows can talk to: the Privy embedded wallet (with the server signing
- * grant) and the notification channels they have stored credentials for. Derived from the
- * session and the secret names the Variables panel lists; nothing here is an OAuth link.
- */
 function ConnectedApps({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
   const { user } = useAuthSession();
   const getAccessToken = useAccessToken();
@@ -210,7 +205,6 @@ function UsageRow({
   );
 }
 
-/** Counts from `GET /account/usage`, fetched each time the dialog opens. */
 function Usage({ open }: { open: boolean }) {
   const getAccessToken = useAccessToken();
   const [usage, setUsage] = useState<AccountUsage | null>(null);

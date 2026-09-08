@@ -11,7 +11,6 @@ export interface SecretsCrypto {
 
 const version = "v1";
 
-/** Decodes `SECRETS_KEY`: 32 bytes, base64 or base64url. Null when absent or the wrong size. */
 export function parseSecretsKey(encoded: string | undefined): Buffer | null {
   if (!encoded) return null;
   const key = Buffer.from(encoded, "base64");

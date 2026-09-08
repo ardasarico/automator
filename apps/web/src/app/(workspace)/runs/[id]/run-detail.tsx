@@ -32,10 +32,6 @@ import styles from "./run-detail.module.css";
 
 type NodeFacts = { label: string; type?: string; icon?: CatalogIcon };
 
-/**
- * How the page names a node: its title on the canvas, or the catalog label without one, from
- * the snapshot the run executed. A result can outlive its node when a snapshot is edited.
- */
 function nodeFacts(document: FlowDocument, nodeId: string): NodeFacts {
   const node = document.nodes.find((item) => item.id === nodeId);
   if (!node) return { label: "Removed node" };
@@ -62,7 +58,6 @@ function Section({ title, id, children }: { title: string; id: string; children:
   );
 }
 
-/** Links every transaction hash in a handle's output to the flow's chain explorer. */
 function ExplorerLinks({ output, chainId }: { output: unknown; chainId: number }) {
   const hashes = transactionHashes(output);
   if (hashes.length === 0) return null;
@@ -118,7 +113,6 @@ function StepBody({ result, chainId }: { result: FlowRunNodeResult; chainId: num
   );
 }
 
-/** One node's row: a native disclosure, so the page stays server-rendered. */
 function Step({
   result,
   facts,
@@ -156,10 +150,6 @@ function Step({
   );
 }
 
-/**
- * A stored run, read from its snapshot: the outcome and timing up top, then what started it,
- * every node in execution order with its outputs or error, and the final variables.
- */
 export function RunDetail({ record }: { record: FlowRunRecord }) {
   const { run, document, flowName, source } = record;
   const status = runStatusLabels[run.status];

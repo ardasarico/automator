@@ -1,6 +1,5 @@
 import { BaseError, ContractFunctionRevertedError } from "viem";
 
-/** A node error from a viem failure: the decoded revert when there is one, else the short message. */
 export function describeChainError(error: unknown): string {
   if (error instanceof BaseError) {
     const reverted = error.walk((item) => item instanceof ContractFunctionRevertedError);

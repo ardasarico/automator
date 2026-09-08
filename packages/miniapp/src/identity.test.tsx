@@ -85,7 +85,6 @@ describe("identity screens", () => {
     );
     expect(noAction).toContain("no World action configured");
     expect(noAction).toContain("disabled");
-    // An action without a request context means the API has no World configuration.
     const notSetUp = renderToStaticMarkup(
       <IdentityActionsProvider actions={hostActions}>
         <MiniApp document={document} startAt="verify" />

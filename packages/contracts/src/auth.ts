@@ -8,16 +8,8 @@ import {
   type ApiError,
 } from "./contract";
 
-/**
- * Unicode "other" characters rejected in a display name: control (Cc), format (Cf),
- * private use (Co) and line/paragraph separators (Zl, Zp). Written as explicit code
- * unit ranges because TypeBox compiles `pattern` without the `u` flag, so `\p{C}`
- * would silently match the literal text "p{C}" instead.
- *
- * This includes the zero width joiner (U+200D), so a name built from a ZWJ emoji
- * sequence such as a multi-person family is rejected by design. Single-code-point
- * emoji and every non-BMP script are accepted.
- */
+/* TypeBox compiles patterns without the u flag, so Unicode properties require explicit ranges.
+ * ZWJ sequences are rejected; single-code-point emoji and non-BMP scripts remain valid. */
 const forbiddenNameCharacters =
   "\\u0000-\\u001F\\u007F-\\u009F" +
   "\\u00AD\\u0600-\\u0605\\u061C\\u06DD\\u070F\\u0890\\u0891\\u08E2\\u180E" +
@@ -27,7 +19,6 @@ const forbiddenNameCharacters =
 export const nameSchema = Type.String({
   minLength: 1,
   maxLength: 60,
-  // At least one visible character, and no "other" Unicode characters anywhere.
   pattern: `^(?=[^${forbiddenNameCharacters}]*[^\\s${forbiddenNameCharacters}])[^${forbiddenNameCharacters}]*$`,
 });
 export const usernameSchema = Type.String({
@@ -78,7 +69,6 @@ export type ProfileResponse = Static<(typeof profileContract.response)[200]>;
 export type AuthContract = typeof sessionContract | typeof meContract | typeof profileContract;
 export type AuthResponse<C extends AuthContract> = Static<C["response"][200]>;
 
-/** Success-only view of `parseResponse`, kept for the browser and Next.js call sites. */
 export function parseAuthResponse<C extends AuthContract>(
   contract: C,
   body: unknown,

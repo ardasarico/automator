@@ -10,7 +10,6 @@ import { WatchConfigError } from "./threshold";
 const vitalik = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
 const usdcOnBase = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
-/** Records the requests and answers them with the given body and status. */
 function stubFetch(body: unknown, status = 200) {
   const requests: { url: string; authorization: string | null }[] = [];
   const fetchImpl = (async (input: URL | string, init?: RequestInit) => {

@@ -11,7 +11,6 @@ type Props = {
   searchParams: Promise<{ preview?: string }>;
 };
 
-/** The published flow's summary, or null when unpublished, missing, or the API is unreachable. */
 async function loadPublishedFlow(id: string): Promise<PublicFlow | null> {
   try {
     const result = await request(process.env.API_URL, getPublicFlowContract, { params: { id } });
@@ -26,11 +25,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: flow ? `${flow.name} · Automator Apps` : "Automator Apps" };
 }
 
-/**
- * A flow played as its visitor sees it. A published flow runs on the API through mini-app
- * sessions, so the visitor only ever receives the current screen. Otherwise, and always with
- * `?preview`, an unsaved snapshot is handed off in memory by the opening builder tab.
- */
 export default async function MiniAppPage({ params, searchParams }: Props) {
   const { flowId } = await params;
   const hasPreviewFlag = (await searchParams).preview !== undefined;

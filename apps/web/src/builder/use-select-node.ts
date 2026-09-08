@@ -3,7 +3,6 @@
 import { useCallback } from "react";
 import { useBuilderStore } from "./store-provider";
 
-/** Selects exactly one node on the canvas, through the same change path React Flow uses. */
 export function useSelectNode() {
   const onNodesChange = useBuilderStore((state) => state.onNodesChange);
   const onEdgesChange = useBuilderStore((state) => state.onEdgesChange);

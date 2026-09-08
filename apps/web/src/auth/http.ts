@@ -5,11 +5,7 @@ export function bearerToken(request: Request) {
   return request.headers.get("authorization")?.match(/^Bearer ([^\s]+)$/i)?.[1];
 }
 
-/**
- * These routes exist only for our own pages. Browsers send `Origin` on every
- * request that can change state, so a missing one there is treated as foreign;
- * safe methods, which browsers may send without it, are unaffected.
- */
+/* Reject missing Origin on writes; browsers may omit it on safe methods. */
 export function isSameOrigin(request: Request) {
   if (request.headers.get("sec-fetch-site") === "cross-site") return false;
   const origin = request.headers.get("origin");
@@ -33,7 +29,6 @@ export function isSameOrigin(request: Request) {
 
 export function authErrorResponse(request: Request, error: unknown) {
   const failure = error instanceof AuthApiError ? error : new AuthApiError(503, "unavailable");
-  // Diagnostics only: never log tokens, headers or request bodies.
   console.warn(
     `Auth proxy failed ${JSON.stringify({
       path: new URL(request.url).pathname,

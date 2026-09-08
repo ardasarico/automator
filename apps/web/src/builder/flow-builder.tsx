@@ -17,7 +17,6 @@ import { RunStoreProvider } from "./run-store-provider";
 import { SaveFlowProvider } from "./save-button";
 import { BuilderStoreProvider } from "./store-provider";
 
-/** The whole builder for one flow: left panel, a header over the canvas, right panels. */
 export function FlowBuilder({
   document,
   initialRun = null,
@@ -28,16 +27,11 @@ export function FlowBuilder({
   focusAi = false,
 }: {
   document: FlowDocument;
-  /** A stored run to show on the canvas from the start, for links out of the run history. */
   initialRun?: FlowRun | null;
-  /** The historical document executed by initialRun. */
   initialRunDocument?: FlowDocument | null;
-  /** Whether the flow's triggers are live, and its webhook token, from the stored record. */
   enabled?: boolean;
   webhookToken?: string | null;
-  /** Show the first-flow checklist over the canvas; off once the user dismissed it. */
   gettingStarted?: boolean;
-  /** Put the cursor in the AI prompt on open, for "Describe it to AI" from the flows page. */
   focusAi?: boolean;
 }) {
   return (

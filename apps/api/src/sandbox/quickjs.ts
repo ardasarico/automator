@@ -1,12 +1,6 @@
 import type { Sandbox } from "@automator/flow-engine";
 import { getQuickJS, shouldInterruptAfterDeadline } from "quickjs-emscripten";
 
-/**
- * The API's sandbox for `logic.run-code`: QuickJS compiled to WebAssembly, a fresh VM per
- * evaluation with no host bindings at all (no fetch, timers, files or process), a memory
- * limit and a wall-clock deadline enforced by the interpreter's interrupt handler. Input and
- * vars cross the boundary as JSON text, so the code sees copies, never host objects.
- */
 export function createQuickJsSandbox(): Sandbox {
   const loading = getQuickJS();
   return {
@@ -49,7 +43,6 @@ export function createQuickJsSandbox(): Sandbox {
   };
 }
 
-/** QuickJS reports errors as `{ name, message }` dumps; interrupts as an InternalError. */
 function describe(error: unknown, timeoutMs: number): string {
   const record = error as { name?: string; message?: string } | null;
   const name = record?.name ?? "";

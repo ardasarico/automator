@@ -2,13 +2,11 @@ import type { SecretStore } from "@automator/db";
 import type { SecretsResolver } from "@automator/flow-engine";
 import type { SecretsCrypto } from "./crypto";
 
-/** Everything the resolver needs; the API builds one per run for the flow's owner. */
 export interface SecretsAccess {
   secrets: SecretStore;
   crypto: SecretsCrypto;
 }
 
-/** Decrypts the owner's secrets for the names a node references, right before it runs. */
 export function createSecretsResolver(
   { secrets, crypto }: SecretsAccess,
   ownerId: string,

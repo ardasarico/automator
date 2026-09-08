@@ -1,7 +1,6 @@
 import { emailConfigSchema, telegramMessageConfigSchema } from "@automator/contracts";
 import { NodeExecutionError, type ExecutorRegistry } from "./executor";
 
-/** A secret the API did not resolve (the browser preview, or a missing secret) still reads as a template. */
 const unresolvedSecret = /\{\{\s*secrets\./;
 
 function requireResolved(value: string, what: string): string {
@@ -10,14 +9,12 @@ function requireResolved(value: string, what: string): string {
   return value;
 }
 
-/** Telegram bot tokens look like `123456789:AAF…`, at least 30 characters after the colon. */
 const telegramToken = /^\d+:[\w-]{30,}$/;
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : JSON.stringify(value);
 }
 
-/** Notification nodes beyond Discord; each fires `sent` with what the provider acknowledged. */
 export const notifyExecutors: ExecutorRegistry = {
   "notify.telegram": {
     kind: "step",

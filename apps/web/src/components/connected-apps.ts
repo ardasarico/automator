@@ -1,15 +1,7 @@
-/**
- * Which notification channels the user has set up, read off their secret names: a channel
- * counts as connected when a secret whose name contains its keyword exists, since that is
- * what a Discord, Telegram or Email node references as `{{secrets.<name>}}`. There is no
- * OAuth; this is an honest view of the credentials the user stored.
- */
 export type NotificationChannel = {
   id: "discord" | "telegram" | "email";
   label: string;
-  /** The word a secret name must contain to count. */
   keyword: string;
-  /** What the channel is used for, for the hint under a channel that is not connected. */
   hint: string;
 };
 
@@ -36,7 +28,6 @@ export const notificationChannels: readonly NotificationChannel[] = [
 
 export type ChannelStatus = NotificationChannel & {
   connected: boolean;
-  /** The secret names that make it connected, alphabetically. */
   secretNames: string[];
 };
 

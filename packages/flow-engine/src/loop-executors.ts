@@ -2,12 +2,10 @@ import { runCodeConfigSchema } from "@automator/contracts";
 import { NodeExecutionError, type ExecutionContext, type ExecutorRegistry } from "./executor";
 import { defaultSandboxLimits, type Sandbox } from "./sandbox";
 
-/** The sandbox the run was given, if any; the engine sets it on the context when it has one. */
 export function sandboxOf(context: ExecutionContext): Sandbox | undefined {
   return (context as ExecutionContext & { sandbox?: Sandbox }).sandbox;
 }
 
-/** Code nodes; `logic.for-each` is handled by the engine itself (see `kind: "loop"`). */
 export const loopExecutors: ExecutorRegistry = {
   "logic.run-code": {
     kind: "step",
@@ -28,7 +26,6 @@ export const loopExecutors: ExecutorRegistry = {
         throw new NodeExecutionError(`Run code failed: ${message}`);
       }
       if (output === undefined) return { output: null };
-      // Only JSON crosses a node boundary: functions, symbols and undefined fields drop out.
       const json = JSON.stringify(output);
       if (json === undefined) throw new NodeExecutionError("Run code must return a JSON value");
       return { output: JSON.parse(json) as unknown };

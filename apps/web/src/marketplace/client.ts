@@ -14,7 +14,6 @@ export class MarketplaceRequestError extends Error {
   }
 }
 
-/** Browser calls go through the same-origin proxy routes, which forward the bearer token. */
 async function proxy(path: string, method: string, token: string | null, body?: unknown) {
   if (!token) throw new MarketplaceRequestError("unauthorized");
   const response = await fetch(path, {

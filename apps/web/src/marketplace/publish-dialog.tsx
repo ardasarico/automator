@@ -38,11 +38,6 @@ const failureMessages: Record<string, string> = {
 
 type Phase = "loading" | "editing" | "published" | "confirm-unpublish";
 
-/**
- * Publishes the flow's last saved version as a marketplace listing, or updates and removes an
- * existing one. The listing is a snapshot: later edits stay private until published again.
- * Mount it to open it: each mount starts from the server's view of the flow's listing.
- */
 export function PublishDialog({
   onClose,
   flowId,
@@ -54,11 +49,9 @@ export function PublishDialog({
   flowId: string;
   flowName: string;
   flowDescription: string;
-  /** True while the canvas has changes the server has not seen. */
   unsaved: boolean;
 }) {
   const getAccessToken = useAccessToken();
-  // Leaving for the listing page is a navigation away from the canvas, so it is guarded too.
   const guardLink = useLeaveGuard();
   const [phase, setPhase] = useState<Phase>("loading");
   const [listing, setListing] = useState<MarketplaceListing | null>(null);

@@ -8,7 +8,6 @@ import {
   type WorldConfig,
 } from "./verify";
 
-/** A throwaway secp256k1 key: signing only needs a 32-byte hex scalar. */
 const signingKey = "1".repeat(64);
 
 const config: WorldConfig = {
@@ -116,7 +115,6 @@ describe("createWorldVerifier", () => {
     expect(request.rpContext.nonce).toMatch(/^0x[0-9a-f]+$/);
     expect(request.rpContext.signature).toMatch(/^0x[0-9a-f]+$/);
     expect(request.rpContext.expires_at - request.rpContext.created_at).toBe(300);
-    // Every context is fresh, so a nonce is never reused.
     expect(verifier.requestContext("claim").rpContext.nonce).not.toBe(request.rpContext.nonce);
   });
 
@@ -166,7 +164,6 @@ describe("createWorldVerifier", () => {
       rejection: { code: "signal_mismatch", detail: "The proof is bound to another signal." },
     });
     expect(asked).toBe(0);
-    // Without a configured signal the binding is not checked.
     expect((await verifier.verify(verifyInput)).ok).toBe(true);
   });
 

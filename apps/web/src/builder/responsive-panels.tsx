@@ -21,7 +21,6 @@ const ResponsivePanelsContext = createContext<{
   setPanel: (panel: "left" | "right" | null) => void;
 } | null>(null);
 
-/** Narrow viewports overlay one inspector at a time without resizing the canvas. */
 export function ResponsivePanelsProvider({ children }: { children: ReactNode }) {
   const compact = useSyncExternalStore(
     subscribe,
@@ -42,7 +41,6 @@ export function useResponsivePanels() {
   return context;
 }
 
-/** Escape dismisses the nonmodal inspector and returns focus to its opening control. */
 export function usePanelEscape(open: boolean, close: () => void) {
   useEffect(() => {
     if (!open) return;

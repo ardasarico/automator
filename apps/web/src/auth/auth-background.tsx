@@ -13,8 +13,6 @@ const GodRays = dynamic(
 const darkColors = ["#00ceff", "#80d5f4", "#156a83"];
 const lightColors = ["#156a83"];
 
-// WebGL support never changes after the browser starts, so the snapshot is
-// computed once and cached; the store never notifies of a change.
 let webglSupported: boolean | null = null;
 function getWebglSnapshot() {
   if (webglSupported !== null) return webglSupported;
@@ -30,8 +28,6 @@ function subscribeToNothing() {
   return () => {};
 }
 
-// Animation should pause for reduced-motion preferences and hidden tabs;
-// both can change after mount, so this snapshot is re-read on each event.
 function getAnimateSnapshot() {
   return !window.matchMedia("(prefers-reduced-motion: reduce)").matches && !document.hidden;
 }
@@ -50,7 +46,6 @@ function subscribeToAnimatePreferences(onStoreChange: () => void) {
 
 export function AuthBackground() {
   const { resolvedTheme } = useTheme();
-  // Keep the form usable on devices without WebGL; CSS supplies the fallback glow.
   const supported = useSyncExternalStore(
     subscribeToNothing,
     getWebglSnapshot,

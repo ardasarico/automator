@@ -90,7 +90,6 @@ describe.skipIf(!url)("live PostgreSQL schema", () => {
         },
       ]);
 
-      // Activation gates the webhook and schedule lookups; the token stays the same.
       expect(await flows.findForWebhook(created.flow.id, created.webhookToken!)).toBeNull();
       expect(await flows.setEnabled("did:privy:test-b", created.flow.id, true)).toBeNull();
       const enabled = await flows.setEnabled("did:privy:test-a", created.flow.id, true);
@@ -117,7 +116,6 @@ describe.skipIf(!url)("live PostgreSQL schema", () => {
         FlowOwnerMissingError,
       );
 
-      // Deleting the owner removes their flows with them.
       await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
       expect(await flows.list("did:privy:test-a")).toEqual([]);
     } finally {
@@ -184,12 +182,10 @@ describe.skipIf(!url)("live PostgreSQL runs", () => {
           },
         ],
       });
-      // The list shows the flow's current name; the record keeps the executed snapshot.
       await flows.update("did:privy:test-a", flow.id, { ...input, name: "Renamed" });
       expect((await runs.list("did:privy:test-a")).runs[0]?.flowName).toBe("Renamed");
       expect((await runs.find("did:privy:test-a", run.id))?.document.name).toBe("Runner");
 
-      // Full records come back newest first, capped, and owner-scoped like the summaries.
       const older = { ...run, id: crypto.randomUUID(), startedAt: "2026-09-07T09:00:00.000Z" };
       await runs.create("did:privy:test-a", flow, older, "manual");
       const records = await runs.listRecords("did:privy:test-a", 10);
@@ -234,7 +230,6 @@ describe.skipIf(!url)("live PostgreSQL runs", () => {
         ],
         edges: [],
       });
-      // Seven runs at three distinct instants, so the tie-break on id is exercised too.
       const ids = ["r-a", "r-b", "r-c", "r-d", "r-e", "r-f", "r-g"];
       const instants = [
         "2026-09-07T10:00:00.000Z",
@@ -280,7 +275,6 @@ describe.skipIf(!url)("live PostgreSQL runs", () => {
       const walked = [...first.runs, ...second.runs, ...third.runs];
       expect(walked.map((entry) => entry.id)).toEqual(everything.runs.map((entry) => entry.id));
       expect(new Set(walked.map((entry) => entry.id)).size).toBe(ids.length);
-      // Newest first; equal instants fall back to the id order.
       for (let index = 1; index < walked.length; index += 1) {
         const previous = walked[index - 1]!;
         const current = walked[index]!;
@@ -323,7 +317,6 @@ describe.skipIf(!url)("live PostgreSQL chains and event cursors", () => {
         edges: [],
       };
 
-      // Without a chain id the document round-trips without one; with one it is kept.
       const plain = await flows.create("did:privy:test-a", input);
       expect("chainId" in plain.flow).toBe(false);
       const created = await flows.create("did:privy:test-a", { ...input, chainId: 4801 });
@@ -335,7 +328,6 @@ describe.skipIf(!url)("live PostgreSQL chains and event cursors", () => {
       });
       expect(moved?.flow.chainId).toBe(84532);
 
-      // Event runs are a valid source, and the snapshot keeps the chain.
       const run = {
         id: crypto.randomUUID(),
         flowId: created.flow.id,
@@ -355,7 +347,6 @@ describe.skipIf(!url)("live PostgreSQL chains and event cursors", () => {
       const pollingRevision = (await flows.listEnabled()).find(
         (entry) => entry.record.flow.id === created.flow.id,
       )!.pollingRevision;
-      // Cursors: one per (flow, node), block numbers beyond 2^53 survive, saves upsert.
       expect(await cursors.find(created.flow.id, "n1")).toBeNull();
       const big = BigInt("9007199254740993");
       await cursors.save(
@@ -392,7 +383,6 @@ describe.skipIf(!url)("live PostgreSQL chains and event cursors", () => {
       );
       expect((await cursors.find(created.flow.id, "n2"))?.lastBlock).toBe(BigInt(5));
 
-      // Deleting the flow takes its cursors with it.
       expect(await flows.delete("did:privy:test-a", created.flow.id)).toBe(true);
       expect(await cursors.find(created.flow.id, "n1")).toBeNull();
       await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;

@@ -14,12 +14,6 @@ import { useFlowProblems } from "./use-flow-problems";
 import { useFlowRun } from "./use-flow-run";
 import { countErrors } from "./validation";
 
-/**
- * The row above the canvas, between the two panels: Simulate on the left, joined by Stop and
- * Restart while a simulation is running, and Save and Publish on the right. Simulate runs the
- * canvas document through the API; the node cards and the run panel show the results. With
- * validation errors on the canvas, the first click warns and the second runs anyway.
- */
 export function CanvasHeader() {
   const { running, error, run, stop: stopSimulation } = useFlowRun();
   const { liveMode } = useFlowActivation();

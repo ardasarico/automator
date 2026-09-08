@@ -11,7 +11,6 @@ function comparable(value: unknown): string {
   return typeof value === "string" ? value : (JSON.stringify(value) ?? "");
 }
 
-/** The comparison behind conditions and filters: loose on scalars, structural on objects. */
 export function compare(left: unknown, operator: ConditionOperator, right: unknown): boolean {
   switch (operator) {
     case "equals":

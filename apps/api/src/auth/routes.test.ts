@@ -178,7 +178,6 @@ describe("authenticated API boundary", () => {
   test("stores the name in composed form", async () => {
     const { request, records } = fixture();
     await request("/auth/session", "POST", "alice");
-    // "e" plus a combining acute accent must be stored as the single character.
     await request("/auth/profile", "PUT", "alice", { name: "Zoé", username: "alice" });
     expect(records.get("did:privy:alice")?.name).toBe("Zoé");
   });

@@ -23,13 +23,6 @@ function isPanelId(value: unknown): value is PanelId {
   return panels.some((panel) => panel.id === value);
 }
 
-/**
- * The right side of the builder: one panel open at a time. Open, the title row holds a
- * minimize control and the tabs that switch between panels; the AI body designs or edits
- * the flow from a prompt, the preview plays the flow as a mini-app. Minimized, only
- * a rail with one toggle per panel remains. The choice is not persisted. An explanation asked
- * from the run panel brings the AI tab in front.
- */
 export function RightPanels() {
   const { compact, panel, setPanel } = useResponsivePanels();
   const [active, setActive] = useState<PanelId | null>("ai");
@@ -45,7 +38,6 @@ export function RightPanels() {
   useEffect(() => {
     if (compact && focusRequests > 0) setPanel("right");
   }, [compact, focusRequests, setPanel]);
-  // Each new focus request opens the AI tab once; the user may switch away afterwards.
   const [seenFocusRequests, setSeenFocusRequests] = useState(focusRequests);
   if (focusRequests !== seenFocusRequests) {
     setSeenFocusRequests(focusRequests);
@@ -76,7 +68,7 @@ export function RightPanels() {
               >
                 <Icon aria-hidden="true" />
               </TooltipTrigger>
-              {/* The rail hugs the window edge, so tooltips open inward instead of over the next toggle. */}
+              {}
               <TooltipPopup side="left">{label}</TooltipPopup>
             </Tooltip>
           ))}
@@ -114,7 +106,7 @@ export function RightPanels() {
                 </TooltipTrigger>
                 <TooltipPopup side="bottom">Minimize</TooltipPopup>
               </Tooltip>
-              {/* 24 px tabs in a 2 px frame, so the list is as tall as the 28 px buttons beside it. */}
+              {}
               <TabsList size="sm" aria-label="Panels" className="ml-auto">
                 {panels.map(({ id, label, icon: Icon }) => (
                   <TabsTab key={id} value={id} className="h-6 sm:h-6">

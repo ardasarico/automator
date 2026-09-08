@@ -11,11 +11,6 @@ import { nodeTypes } from "../builder/flow-node";
 import { RunStoreProvider } from "../builder/run-store-provider";
 import previewStyles from "./flow-preview.module.css";
 
-/**
- * A read-only rendering of a flow's graph with the builder's node cards: pan and zoom only,
- * no selection, dragging or connecting. The node cards read a run store, so an empty one is
- * mounted for them.
- */
 export function FlowPreview({ document, label }: { document: FlowDocument; label: string }) {
   const { nodes, edges } = useMemo(() => hydrateFlow(document), [document]);
   return (

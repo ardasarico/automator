@@ -1,19 +1,10 @@
-/**
- * The unsaved-changes guard as a pure state machine, so the dialog's decisions are testable
- * without React: the hook feeds it events and carries out the effects it answers with.
- */
-
 export type LeaveGuardState =
   | { status: "idle" }
   | {
       status: "confirming";
-      /** Where the user was going. */
       href: string;
-      /** Existing browser entry to traverse to, instead of pushing a new link. */
       historyKey?: string;
-      /** True while "Save and leave" is saving. */
       saving: boolean;
-      /** Why the last save failed, shown in the dialog. */
       error: string | null;
     };
 
@@ -38,11 +29,6 @@ function destination(value: { href: string; historyKey?: string }) {
 
 export const idleLeaveGuard: LeaveGuardState = { status: "idle" };
 
-/**
- * A clean document navigates straight away; a dirty one asks. Leave navigates without saving,
- * Stay closes the dialog, Save runs the save path and only navigates once it succeeds; a
- * failed save keeps the dialog open with the message so the user can retry or leave anyway.
- */
 export function reduceLeaveGuard(
   state: LeaveGuardState,
   event: LeaveGuardEvent,
@@ -68,10 +54,6 @@ export function reduceLeaveGuard(
   }
 }
 
-/**
- * Whether a link click should be intercepted: plain left clicks only. Modified clicks open a
- * new tab or window, which leaves the canvas where it is, so they pass through untouched.
- */
 export function isPlainNavigation(event: {
   button?: number;
   metaKey?: boolean;

@@ -10,12 +10,6 @@ import { useRunStore } from "./run-store-provider";
 import { useBuilderStore } from "./store-provider";
 import { useAccessToken } from "../auth/access-token";
 
-/**
- * "Explain with AI" for the last run: posts the canvas document (secret fields blanked) and
- * the run's results (outputs, errors and trigger payload redacted) to the API, as a turn of
- * the AI thread, and brings the AI tab in front. `nodeId` names the failed node to explain;
- * without it the API picks the first failed node or the run-wide error.
- */
 export function useExplainRun() {
   const getAccessToken = useAccessToken();
   const run = useRunStore((state) => state.run);

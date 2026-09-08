@@ -12,11 +12,6 @@ type Props = {
   searchParams: Promise<{ run?: string | string[]; ai?: string | string[] }>;
 };
 
-/**
- * The canonical flow URL: the builder opens on the stored document. `?run=<id>` shows one of
- * the flow's stored runs on the canvas; a run that is not the caller's is ignored. `?ai=1`
- * focuses the AI prompt. The getting-started checklist shows until its cookie says dismissed.
- */
 export default async function FlowPage({ params, searchParams }: Props) {
   const [{ id }, { run: requestedRun, ai }] = await Promise.all([params, searchParams]);
   const runId = Array.isArray(requestedRun) ? requestedRun[0] : requestedRun;

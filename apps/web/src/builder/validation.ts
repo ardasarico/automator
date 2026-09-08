@@ -12,13 +12,8 @@ import {
 } from "@automator/contracts";
 import { getCatalogEntry } from "./catalog";
 
-/**
- * Something the builder should point out before a run. Errors stop a simulation from being
- * useful (the engine would fail or skip everything); warnings are worth a look but run.
- */
 export type FlowProblem = {
   severity: "error" | "warning";
-  /** The node at fault, or none for a problem of the whole graph. */
   nodeId?: string;
   message: string;
 };
@@ -28,10 +23,6 @@ const configSchemas: Partial<Record<FlowNodeType, TObject>> = {
   ...screenConfigSchemas,
 };
 
-/**
- * Config fields the engine refuses to run without, beyond what the schema can express: every
- * schema field has a default, so "required" here means the executor throws on the default.
- */
 const requiredConfig: Partial<Record<FlowNodeType, readonly string[]>> = {
   "logic.set-variable": ["name"],
   "notify.discord": ["webhookUrl", "content"],
@@ -50,12 +41,6 @@ function isBlank(value: unknown): boolean {
   return value === undefined || value === null || (typeof value === "string" && !value.trim());
 }
 
-/**
- * Every problem in the document, graph-wide ones first, then per node in document order:
- * the referential checks, a missing trigger, nodes no trigger can reach, and configs the
- * engine would reject. A blank secret is a warning that reads "set your own", since a fork
- * blanks them and the node only fails if the run reaches it.
- */
 export function findFlowProblems(document: Pick<FlowDocument, "nodes" | "edges">): FlowProblem[] {
   const problems: FlowProblem[] = [];
   const structural = findFlowDocumentProblem(document);
@@ -64,10 +49,8 @@ export function findFlowProblems(document: Pick<FlowDocument, "nodes" | "edges">
   const triggers = document.nodes.filter(
     (node) => getCatalogEntry(node.type).category === "trigger",
   );
-  const incoming = new Map(document.nodes.map((node) => [node.id, 0]));
-  for (const edge of document.edges)
-    incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
-  const starting = triggers.filter((node) => incoming.get(node.id) === 0);
+  const targets = new Set(document.edges.map((edge) => edge.target));
+  const starting = triggers.filter((node) => !targets.has(node.id));
 
   if (document.nodes.length === 0) {
     problems.push({
@@ -84,15 +67,14 @@ export function findFlowProblems(document: Pick<FlowDocument, "nodes" | "edges">
     });
   }
 
-  // Reachability from the starting triggers, following edge direction.
   const reachable = new Set(starting.map((node) => node.id));
-  const queue = [...reachable];
-  while (queue.length > 0) {
-    const current = queue.shift()!;
+  const stack = [...reachable];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
     for (const edge of document.edges) {
       if (edge.source === current && !reachable.has(edge.target)) {
         reachable.add(edge.target);
-        queue.push(edge.target);
+        stack.push(edge.target);
       }
     }
   }

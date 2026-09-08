@@ -3,11 +3,6 @@ import { visitorAnswer } from "@automator/contracts";
 import { runFlow, screenScope, type TemplateScope, type RunOptions } from "@automator/flow-engine";
 import { findEntry } from "./engine";
 
-/**
- * What the mini-app shows. A screen is held by id and looked up in the document at render
- * time, so edits to that node's config show without restarting. `running` lists the results
- * recorded so far in the run in progress, in execution order.
- */
 export type SessionState =
   | { kind: "no-entry" }
   | { kind: "running"; results: FlowRunNodeResult[] }
@@ -15,10 +10,8 @@ export type SessionState =
   | { kind: "end" }
   | { kind: "failed"; nodeId: string | null; error: string };
 
-/** Engine settings the host may override: tests replace network and timers. */
 export type EngineOptions = Pick<RunOptions, "fetch" | "sleep" | "executors" | "model">;
 
-/** Where the flow stopped, as the state to show next. */
 export function settleRun(run: FlowRun, document?: FlowDocument): SessionState {
   if (run.status === "waiting") {
     const waiting = run.nodes.find((result) => result.status === "waiting");
@@ -41,7 +34,6 @@ export function settleRun(run: FlowRun, document?: FlowDocument): SessionState {
 
 export { visitorAnswer as visitorOutput } from "@automator/contracts";
 
-/** Runs the flow from its mini-app trigger; null when the document has none. */
 export function openSession(
   document: FlowDocument,
   payload: unknown,
@@ -59,7 +51,6 @@ export function openSession(
   });
 }
 
-/** Continues the flow after the visitor acted on `nodeId` through `port`. */
 export function continueSession(
   document: FlowDocument,
   payload: unknown,

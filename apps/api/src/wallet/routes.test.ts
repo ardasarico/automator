@@ -177,7 +177,6 @@ function identity(wallet: { id: string; address: string; delegated: boolean } | 
   return provider;
 }
 
-/** Balances per chain id: native in wei, USDC in its six-decimal units. */
 function factory(
   wallet: { id: string; address: string; delegated: boolean } | null,
   balances: Record<number, { native: bigint; usdc: bigint }>,

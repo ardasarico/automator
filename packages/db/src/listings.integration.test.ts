@@ -120,7 +120,6 @@ describe.skipIf(!url)("listings store", () => {
       });
       expect(published.publishedAt).toBe(published.updatedAt);
 
-      // A name that slugifies to a reserved slug (a curated example's) skips past it.
       const curatedName = await flows.create("did:privy:test-b", {
         ...input,
         name: "Approval request",
@@ -132,7 +131,6 @@ describe.skipIf(!url)("listings store", () => {
       expect(curated.slug).toBe("approval-request-2");
       expect(await listings.unpublish("did:privy:test-b", "approval-request-2")).toBe(true);
 
-      // A second flow with the same name gets the next free slug.
       const other = await flows.create("did:privy:test-b", input);
       const second = await listings.publish("did:privy:test-b", other.flow, {
         name: "Airdrop gate",
@@ -140,7 +138,6 @@ describe.skipIf(!url)("listings store", () => {
       });
       expect(second.slug).toBe("airdrop-gate-2");
 
-      // Re-publishing the same flow keeps its slug and refreshes the snapshot.
       const edited = await flows.update("did:privy:test-a", flow.flow.id, {
         ...input,
         nodes: input.nodes.slice(0, 2),
@@ -170,7 +167,6 @@ describe.skipIf(!url)("listings store", () => {
       const all = await listings.list();
       expect(all.map((item) => item.slug)).toEqual(["airdrop-gate-2", "airdrop-gate"]);
 
-      // Forking copies the snapshot into the forker's flows and counts it.
       const forked = await listings.fork("did:privy:test-b", "airdrop-gate");
       expect(forked?.flow).toMatchObject({
         name: "Airdrop gate v2",
@@ -182,7 +178,6 @@ describe.skipIf(!url)("listings store", () => {
       expect((await listings.find("airdrop-gate"))?.forkCount).toBe(1);
       expect(await listings.fork("did:privy:test-b", "nope")).toBeNull();
 
-      // Only the owner can unpublish.
       expect(await listings.unpublish("did:privy:test-b", "airdrop-gate")).toBe(false);
       expect(await listings.unpublish("did:privy:test-a", "airdrop-gate")).toBe(true);
       expect(await listings.find("airdrop-gate")).toBeNull();

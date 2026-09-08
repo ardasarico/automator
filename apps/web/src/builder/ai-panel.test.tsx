@@ -20,7 +20,6 @@ const { BuilderStoreProvider, useBuilderStore } = await import("./store-provider
 
 const webhookUrl = "https://discord.com/api/webhooks/1/abc";
 
-/** trigger → discord, with a webhook URL the model must never see. */
 const document: FlowDocument = {
   version: 1,
   id: "f",
@@ -39,7 +38,6 @@ const document: FlowDocument = {
   edges: [{ id: "e", source: "t", target: "d", sourceHandle: "run", targetHandle: "message" }],
 };
 
-/** What the model answers: the same flow with the content changed and the secret still blank. */
 const proposal = {
   kind: "flow",
   summary: "Changed the message.",
@@ -112,11 +110,7 @@ async function mount() {
   });
 }
 
-/**
- * Types into a controlled textarea. happy-dom does not deliver React's synthetic change event
- * for a dispatched input event (React decides at load time whether `input` exists), so the
- * change goes straight to the props React attached to the element, with the real value set.
- */
+/* Happy DOM may initialize after React disables input events; drive the attached React props directly. */
 function type(textarea: HTMLTextAreaElement, text: string) {
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
     textarea,

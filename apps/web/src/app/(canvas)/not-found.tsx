@@ -4,7 +4,6 @@ import { UnavailablePanel } from "../../components/unavailable-panel";
 
 export const metadata: Metadata = { title: "Flow not found · Automator" };
 
-/** Shown when the visitor has no flow with the requested id. */
 export default function CanvasNotFound() {
   return (
     <UnavailablePanel

@@ -1,6 +1,3 @@
-/* Builder canvas: React Flow re-skinned with the builder tokens. Both themes come from the
-   tokens, so React Flow's own colorMode stays unused. */
-
 .canvas {
   position: relative;
   display: flex;
@@ -33,7 +30,6 @@
   --xy-selection-border-default: 1px solid var(--ring);
 }
 
-/* Custom nodes get no default chrome; the card styles itself. */
 .canvas :global(.react-flow__node-flow) {
   padding: 0;
   border: 0;
@@ -155,8 +151,6 @@
   white-space: nowrap;
 }
 
-/* Two columns of port rows. No horizontal padding, so a row's own edge is the card's edge and
-   React Flow's absolutely positioned handle lands on the border. */
 .nodePorts {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -169,7 +163,6 @@
   flex-direction: column;
 }
 
-/* Always the right column, so a node with no inputs still shows its outputs on the right. */
 .nodePortColumnOutputs {
   grid-column: 2;
 }
@@ -231,9 +224,6 @@
   background: var(--card);
 }
 
-/* Every bar shares one rhythm: 44 px of content, 8 px inset, 28 px controls with 4 px between
-   them, plus a 1 px border outside that content box so every control lands on the same pixel.
-   The left panel title, the canvas header, the right panel title, and the rail all use it. */
 .panelHeader {
   display: flex;
   flex: none;
@@ -265,8 +255,6 @@
   background: var(--card);
 }
 
-/* A narrow bar on a window edge: the permanent left sidebar, or the stand-in for the minimized
-   right panel. Its inset matches the bars, so its first control sits on the header row. */
 .rail {
   display: flex;
   width: 45px;
@@ -283,7 +271,6 @@
   border-right: 1px solid var(--border);
 }
 
-/* The sidebar's header slot: one control under the same line as every other header. */
 .railHeader {
   display: flex;
   width: 100%;
@@ -294,7 +281,6 @@
   border-bottom: 1px solid var(--border);
 }
 
-/* The sidebar below its header: section toggles at the top, settings pushed to the bottom. */
 .railBody {
   display: flex;
   min-height: 0;
@@ -310,7 +296,6 @@
   border-left: 1px solid var(--border);
 }
 
-/* Node palette: a search row above the group list, one open group, or search results. */
 .paletteTools {
   display: flex;
   flex: none;
@@ -320,7 +305,6 @@
   border-bottom: 1px solid var(--border);
 }
 
-/* Inside a group: the way back and the group's name, on the same rhythm as the tools row. */
 .paletteCrumb {
   display: flex;
   flex: none;
@@ -339,7 +323,6 @@
   color: var(--muted-foreground);
 }
 
-/* A group row on the first level: like an item, plus a count and a chevron. */
 .paletteGroupRow {
   display: flex;
   width: 100%;
@@ -525,7 +508,6 @@
   text-align: center;
 }
 
-/* The last run's outcome on a card: a pill in the header, a tinted border, and the error text. */
 .nodeRunStatus {
   margin-left: auto;
   flex-shrink: 0;
@@ -565,7 +547,6 @@
   overflow-wrap: anywhere;
 }
 
-/* The selected node's settings in the left panel: a back row, then the form. */
 .nodeSettings {
   display: flex;
   min-height: 0;
@@ -590,7 +571,6 @@
   padding: 12px;
 }
 
-/* Canvas header notes: the aggregate run error, or the validation warning before a run. */
 .headerNote {
   min-width: 0;
   overflow: hidden;
@@ -606,7 +586,6 @@
   color: var(--warning-foreground);
 }
 
-/* Edges after a run: the ones that fired carry the flow, the dead ones fade. */
 .canvas :global(.react-flow__edge).edge-fired :global(.react-flow__edge-path) {
   stroke: var(--chart-2);
   stroke-width: 2;
@@ -616,7 +595,6 @@
   opacity: 0.5;
 }
 
-/* A validation mark on a card: a small badge in the header slot the run status uses. */
 .nodeProblem {
   margin-left: auto;
   display: inline-flex;
@@ -642,7 +620,6 @@
   border-color: color-mix(in oklab, var(--destructive-text) 60%, var(--border));
 }
 
-/* Outline problems: a list above the node list, on the palette rhythm. */
 .outlineProblems {
   flex: none;
   max-height: 40%;
@@ -690,7 +667,6 @@ button.outlineProblem:focus-visible {
   background: var(--accent);
 }
 
-/* The run panel: docked to the bottom of the canvas, on the panel surface. */
 .runPanel {
   flex: none;
   display: flex;
@@ -846,7 +822,6 @@ button.outlineProblem:focus-visible {
   overflow-wrap: anywhere;
 }
 
-/* The minimap, on the popover surface like the zoom panel; nodes take the edge colour. */
 .canvas :global(.react-flow) {
   --xy-minimap-background-color-default: var(--popover);
   --xy-minimap-mask-background-color-default: color-mix(in srgb, var(--canvas) 55%, transparent);
@@ -864,7 +839,6 @@ button.outlineProblem:focus-visible {
   overflow: hidden;
 }
 
-/* The empty canvas: a centred note over the dots, out of the way of drops. */
 .canvasEmpty {
   position: absolute;
   inset: 0;
@@ -901,7 +875,6 @@ button.outlineProblem:focus-visible {
   text-wrap: pretty;
 }
 
-/* A checkbox group for fixed-choice arrays in the node settings. */
 .multiSelect {
   display: flex;
   width: 100%;
@@ -917,7 +890,6 @@ button.outlineProblem:focus-visible {
   cursor: pointer;
 }
 
-/* First-flow checklist over the canvas; sits under the header, clear of the minimap. */
 .gettingStarted {
   width: 264px;
   padding: 12px 12px 12px 14px;

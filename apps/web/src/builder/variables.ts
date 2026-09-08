@@ -7,12 +7,9 @@ import {
 import { getCatalogEntry } from "./catalog";
 import { triggerSamplePayload } from "./trigger-payload";
 
-/** A `{{path}}` a node's config can use, with how to present it. */
 export type VariableOption = {
   template: string;
-  /** Where the value comes from: a node label, or the trigger. */
   source: string;
-  /** What it is: an output port, a form field, a variable name. */
   label: string;
 };
 
@@ -26,17 +23,14 @@ type EdgeLike = Pick<FlowEdge, "source" | "target"> & {
 /** Where a value lands when an edge names no target handle; mirrors the engine. */
 const defaultInputHandle = "input";
 
-/** The template path segment a key can be used as: `{{trigger.<key>}}` needs a plain name. */
 const templateKey = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/** The top-level keys of a trigger's sample payload, when the sample is an object. */
 function samplePayloadKeys(trigger: Pick<FlowNode, "type" | "config">): string[] {
   const sample = triggerSamplePayload(trigger);
   if (typeof sample !== "object" || sample === null || Array.isArray(sample)) return [];
   return Object.keys(sample).filter((key) => templateKey.test(key));
 }
 
-/** The fields an identity screen's answer carries, per output port, for the picker. */
 const identityFields: Partial<Record<FlowNode["type"], Record<string, [string, string][]>>> = {
   "privy.login": {
     user: [
@@ -59,12 +53,6 @@ const identityFields: Partial<Record<FlowNode["type"], Record<string, [string, s
   },
 };
 
-/**
- * Everything a node's templates can reach, in the order a settings menu lists it: the
- * values arriving on its input ports (one per incoming edge, plus one per field when the
- * source is a form), the variables set by nodes upstream of it, the trigger's payload, and
- * the user's secrets by name.
- */
 export function listVariables(
   nodeId: string,
   nodes: readonly NodeLike[],
@@ -101,7 +89,6 @@ export function listVariables(
     }
   }
 
-  // Everything upstream, nearest first, for variables and the trigger.
   const upstream: NodeLike[] = [];
   const visited = new Set<string>([nodeId]);
   const queue = [nodeId];
@@ -120,7 +107,6 @@ export function listVariables(
   const names = new Set<string>();
   for (const node of upstream) {
     if (node.type === "privy.login" && !names.has("visitor")) {
-      // The API keeps the signed-in visitor in `vars.visitor` for every node after the login.
       names.add("visitor");
       for (const [key, label] of identityFields["privy.login"]!.user!) {
         options.push({ template: `{{vars.visitor.${key}}}`, source: node.label, label });
@@ -141,7 +127,6 @@ export function listVariables(
         ? { template: "{{trigger.openedAt}}", source: trigger.label, label: "Opened at" }
         : { template: "{{trigger}}", source: trigger.label, label: "Payload" },
     );
-    // The sample payload's top-level keys, so a webhook flow can pick `{{trigger.body}}`.
     for (const key of samplePayloadKeys(trigger)) {
       const template = `{{trigger.${key}}}`;
       if (options.some((option) => option.template === template)) continue;

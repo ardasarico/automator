@@ -10,12 +10,6 @@ import {
 import { parsePriceConfig, pricePayload, readPrice, resolveFeed } from "./price";
 import { WatchConfigError, formatDecimal, thresholdMet } from "./threshold";
 
-/**
- * The watch triggers, which the scheduler polls the way it polls onchain events: this module
- * takes the reading and says whether the condition holds, the scheduler decides whether that
- * is a crossing worth a run.
- */
-
 export const watchTriggerTypes = ["trigger.price", "trigger.balance"] as const;
 export type WatchTriggerType = (typeof watchTriggerTypes)[number];
 
@@ -23,18 +17,14 @@ export function isWatchTrigger(node: FlowNode): boolean {
   return (watchTriggerTypes as readonly string[]).includes(node.type);
 }
 
-/** Where a watch trigger's reading comes from; each is absent until its provider is configured. */
 export interface WatchSources {
   chainReaderFor?: (chainId: number) => ChainReader | undefined;
   balances?: BalanceReader;
 }
 
 export interface WatchReading {
-  /** Whether the comparison holds right now. */
   met: boolean;
-  /** The reading as a decimal string, stored so the log can show what changed. */
   value: string;
-  /** What the flow receives if this reading turns out to be a crossing. */
   payload: PriceTriggerPayload | BalanceTriggerPayload;
 }
 
@@ -69,7 +59,6 @@ async function readBalanceTrigger(node: FlowNode, sources: WatchSources): Promis
   };
 }
 
-/** One watch trigger's reading. Config problems raise `WatchConfigError`; the rest retry. */
 export function readWatchTrigger(
   node: FlowNode,
   chainId: number,

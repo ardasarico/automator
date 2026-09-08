@@ -1,17 +1,11 @@
 import type { FlowDocument, FlowNodeType, MarketplaceListing } from "@automator/contracts";
 
-/** Who published a listing: Automator for the curated examples, otherwise a workspace user. */
 export type ListingAuthor =
   | { kind: "automator" }
   | { kind: "user"; name: string; username: string };
 
 export type ListingStep = { name: string; description: string };
 
-/**
- * A flow as it appears in the marketplace. `nodeTypes` are the highlighted node types
- * shown as marks on the card; `steps` is the prose overview on the detail page.
- * `publishedAt` is an ISO-8601 timestamp and is absent for curated examples.
- */
 export type MarketplaceItem = {
   slug: string;
   name: string;
@@ -21,11 +15,9 @@ export type MarketplaceItem = {
   steps: readonly ListingStep[];
   forkCount: number;
   publishedAt?: string;
-  /** The flow graph, for the detail page's preview; absent on cards. */
   document?: FlowDocument;
 };
 
-/** What a listing is about, read off its node types; a listing can be in several. */
 export type ListingCategory = "mini-app" | "ai" | "onchain" | "notifications" | "logic";
 
 export const listingCategoryLabels: Record<ListingCategory, string> = {
@@ -55,7 +47,6 @@ export function listingCategories(item: Pick<MarketplaceItem, "nodeTypes">): Lis
   return (Object.keys(listingCategoryLabels) as ListingCategory[]).filter((c) => found.has(c));
 }
 
-/** A published listing from the API as a marketplace item; `steps` come from its document. */
 export function fromListing(
   listing: MarketplaceListing,
   steps: readonly ListingStep[] = [],
@@ -136,7 +127,6 @@ function compare(a: MarketplaceItem, b: MarketplaceItem, sort: ListingSort): num
     case "forks":
       return b.forkCount - a.forkCount || a.name.localeCompare(b.name);
     case "newest": {
-      // Curated examples have no publish date and sort after every published flow.
       const at = (listing: MarketplaceItem) =>
         listing.publishedAt ? Date.parse(listing.publishedAt) : Number.NEGATIVE_INFINITY;
       return at(b) - at(a) || a.name.localeCompare(b.name);
@@ -144,7 +134,6 @@ function compare(a: MarketplaceItem, b: MarketplaceItem, sort: ListingSort): num
   }
 }
 
-/** The listings a browse view shows: filtered by author, matched by text, then sorted. */
 export function browseListings(
   listings: readonly MarketplaceItem[],
   options: {
@@ -152,7 +141,6 @@ export function browseListings(
     sort: ListingSort;
     query: string;
     username: string | null;
-    /** Keeps only listings in this category; `null` keeps every category. */
     category?: ListingCategory | null;
   },
 ): MarketplaceItem[] {

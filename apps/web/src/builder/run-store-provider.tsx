@@ -7,7 +7,6 @@ import { createRunStore, type RunState } from "./run-store";
 
 const RunStoreContext = createContext<StoreApi<RunState> | null>(null);
 
-/** One run store per mounted builder, alongside the document store; `initialRun` shows a stored run. */
 export function RunStoreProvider({
   initialRun = null,
   initialDocument = null,

@@ -1,7 +1,6 @@
 import { toFunctionSignature, parseAbi, type Abi, type AbiFunction, type AbiParameter } from "viem";
 import { NodeExecutionError } from "./executor";
 
-/** Reads an ABI typed into a config: a JSON array, or human-readable signatures one per line. */
 export function parseAbiText(text: string): Abi {
   const trimmed = text.trim();
   if (!trimmed) throw new NodeExecutionError("The node needs an ABI");
@@ -42,7 +41,6 @@ export function findFunction(abi: Abi, functionName: string, argumentCount: numb
   return entry;
 }
 
-/** Reads the args typed into a config as a JSON array; templates have already been resolved. */
 export function parseArgsText(text: unknown): unknown[] {
   if (Array.isArray(text)) return text;
   if (typeof text !== "string") throw new NodeExecutionError("Arguments must be a JSON array");
@@ -57,11 +55,7 @@ export function parseArgsText(text: unknown): unknown[] {
   return parsed;
 }
 
-/**
- * JSON cannot carry bigints, so integers arrive as strings or numbers; this turns them into
- * what the ABI expects, recursing into arrays and tuples. Anything else passes through for
- * viem to validate.
- */
+/* JSON integers arrive as strings or numbers; coerce nested ABI integers before viem validation. */
 export function coerceArgs(
   parameters: readonly AbiParameter[],
   args: readonly unknown[],
@@ -111,7 +105,6 @@ function coerceValue(parameter: AbiParameter, value: unknown): unknown {
   return value;
 }
 
-/** Run outputs travel as JSON: bigints become decimal strings, recursively. */
 export function jsonSafe(value: unknown): unknown {
   if (typeof value === "bigint") return value.toString();
   if (Array.isArray(value)) return value.map(jsonSafe);
@@ -123,7 +116,6 @@ export function jsonSafe(value: unknown): unknown {
   return value;
 }
 
-/** The ERC-20 surface the token nodes use. */
 export const erc20Abi = parseAbi([
   "function balanceOf(address owner) view returns (uint256)",
   "function decimals() view returns (uint8)",

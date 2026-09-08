@@ -8,7 +8,6 @@ const nextConfig: NextConfig = {
     "@automator/contracts",
     "@automator/miniapp",
   ],
-  // Bottom-left is where the account menu lives, so the dev indicator moves to the other corner.
   devIndicators: { position: "bottom-right" },
 };
 

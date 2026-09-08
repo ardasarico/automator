@@ -42,7 +42,6 @@ const dateFormat = new Intl.DateTimeFormat("en", {
   timeZone: "UTC",
 });
 
-/** How a flow starts and how big it is: one mark per trigger kind, then the node count. */
 function FlowFacts({ flow }: { flow: FlowSummary }) {
   const triggers = flow.triggerTypes.map((type) => getCatalogEntry(type));
   return (
@@ -63,7 +62,6 @@ function FlowFacts({ flow }: { flow: FlowSummary }) {
   );
 }
 
-/** A flow summary carries no graph yet, so the preview is a placeholder mark. */
 function FlowPreview({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`${styles.flowPreview} ${compact ? styles.thumbnail : ""}`} aria-hidden="true">
@@ -113,7 +111,6 @@ export function FlowBrowser({
 }: {
   flows: readonly FlowSummary[];
   initialView?: FlowView;
-  /** Server-rendered example gallery, shown next to the empty state. */
   examples?: ReactNode;
 }) {
   const [view, setView] = useState(initialView);

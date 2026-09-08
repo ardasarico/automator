@@ -38,7 +38,6 @@ const profiles: Record<string, AuthUser> = {
   "did:privy:newbie": { id: "did:privy:newbie", name: null, username: null, walletAddress: "0xc" },
 };
 
-/** In-memory flows and listings with the same scoping as the SQL stores. */
 function fixture(listingOverrides: Partial<ListingStore> = {}) {
   const flowRecords = new Map<string, FlowRecord & { ownerId: string }>();
   const listingRows = new Map<
@@ -215,7 +214,6 @@ describe("marketplace routes", () => {
     };
     expect(afterFork.listing).toMatchObject({ forkCount: 1 });
 
-    // Re-publishing keeps the slug; the flow's own listing lookup finds it.
     const again = await request("/marketplace", "POST", "alice", {
       flowId: flow.flow.id,
       name: "Airdrop gate v2",
@@ -230,7 +228,6 @@ describe("marketplace routes", () => {
       "airdrop-gate",
     );
 
-    // Only the owner can unpublish.
     expect((await request("/marketplace/airdrop-gate", "DELETE", "bob")).status).toBe(404);
     const removed = await request("/marketplace/airdrop-gate", "DELETE", "alice");
     expect(await removed.json()).toEqual({ slug: "airdrop-gate" });
@@ -287,7 +284,6 @@ describe("marketplace routes", () => {
       listing: MarketplaceListingDetail;
     };
     expect(detail.listing.document.nodes.at(-1)?.config).toEqual({ webhookUrl: "", content: "hi" });
-    // The owner's flow itself keeps the webhook.
     expect((await flows.find("did:privy:alice", flow.flow.id))?.flow.nodes.at(-1)?.config).toEqual({
       webhookUrl: "https://discord.com/api/webhooks/1/abc",
       content: "hi",

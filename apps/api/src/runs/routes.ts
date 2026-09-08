@@ -28,29 +28,17 @@ import { executeStoredRun } from "./execute";
 
 export interface RunDependencies {
   identity: IdentityProvider | undefined;
-  /** Runs a user may start per minute before 429; thirty by default. */
   callsPerMinute?: number;
   now?: () => number;
-  /** Engine overrides, used by tests to replace network and timers. */
   engine?: Pick<RunOptions, "fetch" | "sleep" | "executors" | "model">;
-  /** The caller's `{{secrets.*}}`, decrypted per run; absent when secrets are not configured. */
   secretsFor?: (ownerId: string) => SecretsResolver;
-  /** Chains for onchain nodes, per user and mode; absent when no provider is configured. */
   chainFactory?: ChainFactory;
-  /** Where `logic.run-code` evaluates; the QuickJS sandbox unless a test replaces it. */
   sandbox?: Sandbox;
-  /** Without both stores only the stateless run exists. */
   flows?: FlowStore;
   runs?: RunStore;
-  /** Names stored documents that fail the schema on the server log; off in tests. */
   log?: boolean;
 }
 
-/**
- * `POST /flows/run` runs any document the caller sends and stores nothing: the canvas uses it
- * for unsaved work. `POST /flows/:id/runs` runs the caller's saved flow and records the run,
- * and the read routes list and fetch those records, all owner-scoped.
- */
 export function createRunRoutes({
   identity,
   engine,
@@ -63,7 +51,6 @@ export function createRunRoutes({
   now = Date.now,
   log = false,
 }: RunDependencies) {
-  // Both run routes share one per-user window; the read routes are not limited.
   const limiter = createRateLimiter(callsPerMinute, now);
   const app = new Elysia({ name: "runs" }).use(createAuthGuard(identity)).post(
     runFlowContract.path,
@@ -74,7 +61,6 @@ export function createRunRoutes({
       const chain = chainFactory
         ? await chainFactory.forUser(claims.id, body.mode ?? "dry-run", flowChainId(body.document))
         : undefined;
-      // A client that disconnects (Stop in the builder) cancels the run it started.
       return runFlow(body.document, {
         ...engine,
         trigger: body.trigger,
@@ -97,7 +83,6 @@ export function createRunRoutes({
   );
   if (!flows || !runs) return app;
   const stores = { flows, runs };
-  /** One page of the caller's runs, or `null` when the limit or cursor is not usable. */
   const listPage = async (ownerId: string, query: RunListQuery) => {
     const limit = parseRunListLimit(query.limit);
     if (limit === null) return null;

@@ -3,7 +3,6 @@ import { getFlowListingContract } from "@automator/contracts";
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../../auth/http";
 
-/** The caller's listing for one of their flows, so the builder can offer update or unpublish. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);

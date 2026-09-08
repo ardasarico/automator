@@ -17,7 +17,6 @@ const identity: IdentityProvider = {
   walletAddress: async () => null,
 };
 
-/** An in-memory store keyed by owner, holding whatever ciphertext the routes hand it. */
 export function memorySecretStore() {
   const rows = new Map<string, { ciphertext: string; createdAt: string; updatedAt: string }>();
   const key = (owner: string, name: string) => `${owner} ${name}`;

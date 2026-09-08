@@ -1,13 +1,5 @@
 import type { WatchComparison } from "@automator/contracts";
 
-/**
- * The arithmetic behind the watch triggers. Prices and balances arrive as an integer and a
- * decimal count, never as a JavaScript number: an 18-decimal balance loses precision as a
- * float long before it reaches the threshold. Thresholds are typed as decimal strings and
- * scaled to the same integer basis, so a comparison is an exact bigint comparison.
- */
-
-/** Raised for a watch config the scheduler cannot poll with; the message reaches the log. */
 export class WatchConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -15,7 +7,6 @@ export class WatchConfigError extends Error {
   }
 }
 
-/** One reading: `raw` is the integer the source reports, scaled by `decimals`. */
 export interface Reading {
   raw: bigint;
   decimals: number;
@@ -26,10 +17,7 @@ export function validateDecimals(decimals: number): void {
     throw new WatchConfigError("The reading has an invalid decimal count");
 }
 
-/**
- * A decimal string to the integer at `decimals` scale. Extra fraction digits are truncated
- * rather than rounded, which keeps "below" honest: a threshold never grows by rounding.
- */
+/* Truncate excess fractional digits so rounding never raises a threshold. */
 export function parseDecimal(text: string, decimals: number, field = "threshold"): bigint {
   validateDecimals(decimals);
   const trimmed = text.trim();
@@ -42,7 +30,6 @@ export function parseDecimal(text: string, decimals: number, field = "threshold"
   return negative ? -value : value;
 }
 
-/** The reading as a decimal string, trailing zeroes of the fraction trimmed. */
 export function formatDecimal({ raw, decimals }: Reading): string {
   validateDecimals(decimals);
   const negative = raw < BigInt(0);
@@ -52,7 +39,6 @@ export function formatDecimal({ raw, decimals }: Reading): string {
   return `${negative ? "-" : ""}${whole}${fraction ? `.${fraction}` : ""}`;
 }
 
-/** Compare at a common scale, preserving threshold digits finer than the source reading. */
 export function thresholdMet(
   comparison: WatchComparison,
   reading: Reading,
@@ -66,7 +52,6 @@ export function thresholdMet(
   return comparisonMet(comparison, value, scaledThreshold);
 }
 
-/** Whether the reading satisfies the comparison against the threshold, both at the same scale. */
 export function comparisonMet(
   comparison: WatchComparison,
   value: bigint,
@@ -84,11 +69,6 @@ export function comparisonMet(
   }
 }
 
-/**
- * Whether this poll starts a run: only the crossing does. A watcher that has never been
- * polled counts as unmet, so a condition already true when the flow is enabled fires once on
- * the first poll; it then stays quiet until the condition goes false and true again.
- */
 export function crossed(previous: boolean | undefined, met: boolean): boolean {
   return met && previous !== true;
 }

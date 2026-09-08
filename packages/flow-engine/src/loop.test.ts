@@ -2,7 +2,6 @@ import type { FlowDocument } from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
 import { runFlow } from "./engine";
 
-/** manual -> for-each -> (item) set-variable "last" -> condition; (done) set-variable "after". */
 function loopFlow(items: unknown, extra: Partial<FlowDocument> = {}): FlowDocument {
   return {
     version: 1,
@@ -76,7 +75,6 @@ describe("logic.for-each", () => {
         count: 3,
       },
     });
-    // The canvas keeps the last pass of every body node.
     expect(run.nodes.find((node) => node.nodeId === "keep")?.outputs).toEqual({ value: "c" });
     expect(run.nodes.find((node) => node.nodeId === "check")?.outputs).toEqual({ false: "c" });
     expect(run.nodes.find((node) => node.nodeId === "after")?.status).toBe("succeeded");

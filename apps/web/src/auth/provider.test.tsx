@@ -214,7 +214,6 @@ test("a server-verified user renders immediately and an unchanged sync keeps it"
     expect(view.container.textContent).toContain("test_user");
     expect(view.container.textContent).toContain("idle");
     expect(sessionCalls).toBe(1);
-    // The synchronized user is equal, so the seeded object is never replaced.
     expect(seenUsers.size).toBe(1);
   } finally {
     await view.unmount();

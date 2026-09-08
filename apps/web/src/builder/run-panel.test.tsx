@@ -20,7 +20,6 @@ const { AiStoreProvider, useAiStore } = await import("./ai-store-provider");
 const { BuilderStoreProvider } = await import("./store-provider");
 const { RunStoreProvider, useRunStore } = await import("./run-store-provider");
 
-/** trigger → discord, with a webhook URL the explanation must not leak. */
 const document: FlowDocument = {
   version: 1,
   id: "f",
@@ -132,7 +131,6 @@ describe("RunPanel", () => {
       run: { trigger: { payload: unknown } };
     };
     expect(body.nodeId).toBe("d");
-    // The document travels with its secret fields blanked and the payload redacted.
     expect(body.document.nodes[1]!.config.webhookUrl).toBe("");
     expect(body.run.trigger.payload).toEqual({ token: "[redacted]" });
     expect(JSON.stringify(body)).not.toContain("discord.com/api/webhooks");

@@ -7,7 +7,6 @@ import {
 import type { ChatMessage, LanguageModel } from "@automator/flow-engine";
 import { askForFlow, systemPrompt, withoutPositions } from "./generate-flow";
 
-/** How much of one node's outputs, or the trigger payload, the model gets to read. */
 const outputLength = 600;
 
 function excerpt(value: unknown): string {
@@ -19,12 +18,6 @@ const explainInstructions = `You are now helping the user understand a run of th
 Answer {"message": string}: two to four plain sentences saying why the node failed and the one concrete thing the user should do to fix it (which node, which field, what value, or which edge). Name nodes by their labels.
 Only when the fix is a change to node config or wiring you can make yourself, answer with the complete corrected flow instead (the flow JSON format, with "summary" holding the same explanation and fix); keep every id and every setting you do not need to change, and leave secret fields such as webhook URLs as they are for the user to fill in. A missing secret, a wallet without funds, an unreachable service or a model that is not configured are not fixes you can make: explain them in a message.`;
 
-/**
- * Asks the model why a run failed and how to fix it. The answer is a message, or a proposed
- * document validated exactly like `generateFlow` answers when the fix is a config or wiring
- * change. The document's secret fields and the run's outputs are redacted again here, so the
- * model never sees a credential even when a client forgot to.
- */
 export async function explainRun(
   model: LanguageModel,
   request: ExplainRunRequest,

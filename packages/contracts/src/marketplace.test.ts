@@ -169,11 +169,8 @@ test("restoreFlowSecrets puts the canvas's secrets back into a redacted, edited 
   };
   const proposal = {
     nodes: [
-      // Edited by the model with the secret blanked: the canvas's URL comes back.
       { ...canvas.nodes[0]!, config: { webhookUrl: "", content: "hello" } },
-      // A secret the model filled in stays as proposed.
       { ...canvas.nodes[1]!, config: { webhookUrl: "https://example.test/hook", content: "x" } },
-      // A node that changed type, or is new, is left alone.
       { id: "n3", type: "notify.discord" as const, position, label: "New", config: {} },
     ],
   };

@@ -21,10 +21,6 @@ const failureMessages: Record<string, string> = {
   not_found: "This flow was already deleted.",
 };
 
-/**
- * Deletes one flow after confirmation; its marketplace listing and run history go with it.
- * The list refreshes from the server afterwards, so a flow that was already gone disappears too.
- */
 export function DeleteFlowButton({ id, name }: { id: string; name: string }) {
   const getAccessToken = useAccessToken();
   const router = useRouter();

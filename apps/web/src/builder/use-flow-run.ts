@@ -16,12 +16,6 @@ const failureMessages: Record<string, string> = {
   rate_limited: "Too many requests. Try again in a moment.",
 };
 
-/**
- * Runs the flow through the API and keeps the result in the run store. A saved canvas runs
- * the stored flow, which the API records in the run history; a canvas with unsaved changes
- * runs the document as it is, statelessly. Stop aborts the request; the proxy and the API
- * forward the abort, so the engine stops at the node in flight.
- */
 export function useFlowRun() {
   const getAccessToken = useAccessToken();
   const status = useRunStore((state) => state.status);
@@ -53,7 +47,6 @@ export function useFlowRun() {
       const token = await getAccessToken();
       if (controller.current !== current) return;
       const document = serializeFlow(meta, nodes, edges);
-      // The starting trigger's sample payload, so a webhook flow simulates with realistic input.
       const starting = findSimulationTrigger(document.nodes, document.edges);
       const trigger = starting
         ? { nodeId: starting.id, payload: triggerSamplePayload(starting) }

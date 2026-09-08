@@ -11,12 +11,7 @@ import { selectNodeResult } from "./run-store";
 import { useRunStore } from "./run-store-provider";
 import { useNodeProblems } from "./use-flow-problems";
 
-/**
- * Half of a typical card, used to centre a click-added node on the drop point. The card is
- * 240 px wide; seven of the nine types render a single port row, so the typical height is
- * 55 px of header (32 px icon square in 10 px padding) plus one 24 px row and 8 px of bottom
- * padding, about 87 px. The two-row types land 12 px high, which is not worth a measurement.
- */
+/* Approximate half-card dimensions keep click-added nodes centered without measuring a mounted node. */
 export const nodeHalfSize = { x: 120, y: 44 };
 
 function PortRow({ port, side }: { port: CatalogPort; side: "input" | "output" }) {

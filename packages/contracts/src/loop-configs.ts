@@ -1,10 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-/** Config schemas for the loop and code nodes. */
-
-/** Runs the steps after `item` once per element of the list, up to `maxItems` of them. */
 export const forEachConfigSchema = Type.Object({
-  /** The list to loop over: a template that resolves to an array, or JSON text. */
   items: Type.String({
     default: "{{input.items}}",
     description: "A template that resolves to a list, such as {{input.items}}.",
@@ -18,7 +14,6 @@ export const forEachConfigSchema = Type.Object({
 });
 export type ForEachConfig = Static<typeof forEachConfigSchema>;
 
-/** The body of `function (input, vars) { … }`, run in an isolated interpreter. */
 export const runCodeConfigSchema = Type.Object({
   code: Type.String({
     default: "return input;",

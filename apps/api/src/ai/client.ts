@@ -12,7 +12,6 @@ export interface OpenRouterOptions {
   baseUrl?: string;
   timeoutMs?: number;
   fetcher?: typeof fetch;
-  /** Sent as the referer and title OpenRouter shows in its dashboard. */
   appUrl?: string;
 }
 
@@ -31,7 +30,6 @@ const openAiBaseUrl = "https://api.openai.com/v1";
 // The free router also covers catalog churn without ever selecting a paid model.
 const freeFallbacks = ["nvidia/nemotron-3-super-120b-a12b:free", "google/gemma-4-31b-it:free"];
 
-/** OpenAI-style wire shapes, only the fields this client reads or writes. */
 interface WireToolCall {
   id: string;
   type: "function";
@@ -92,7 +90,6 @@ function responseFormat(format: ChatRequest["responseFormat"]) {
   };
 }
 
-/** The OpenRouter body picks a free router when the model is free; OpenAI takes the id as is. */
 function modelSelection(provider: "OpenRouter" | "OpenAI", model: string) {
   if (provider === "OpenRouter" && (model.endsWith(":free") || model === "openrouter/free"))
     return {
@@ -120,11 +117,6 @@ interface ChatCompletionsOptions {
   headers?: Record<string, string>;
 }
 
-/**
- * A `LanguageModel` over OpenRouter's OpenAI-compatible chat completions. Returns `undefined`
- * without an API key, so callers can pass "no model" through unchanged. Failures become
- * `LanguageModelError`s by kind; the upstream message never reaches API clients.
- */
 export function createOpenRouterModel({
   apiKey,
   model,
@@ -145,10 +137,6 @@ export function createOpenRouterModel({
   });
 }
 
-/**
- * The same `LanguageModel` over OpenAI's own chat completions, for a paid fallback behind the
- * free OpenRouter models (see `withFallbackModel`). Absent without an API key.
- */
 export function createOpenAiModel({
   apiKey,
   model,
@@ -167,11 +155,6 @@ export function createOpenAiModel({
   });
 }
 
-/**
- * Asks `fallback` when `primary` fails with a `LanguageModelError` of any kind: an unreachable
- * or erroring upstream, a timeout, or an unreadable answer. Anything else is a bug and passes
- * through. When both fail, the fallback's error is the one reported.
- */
 export function withFallbackModel(
   primary: LanguageModel,
   fallback: LanguageModel,

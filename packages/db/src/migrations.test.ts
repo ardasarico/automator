@@ -2,10 +2,6 @@ import { describe, expect, test } from "bun:test";
 import type { SQL } from "bun";
 import { migrate, migrations, type Migration } from "./migrations";
 
-/**
- * Stands in for a Postgres connection: records every statement and keeps the
- * ledger in memory, so ordering and "apply once" can be asserted without a server.
- */
 function fakeSql() {
   const statements: string[] = [];
   const ledger = new Set<string>();

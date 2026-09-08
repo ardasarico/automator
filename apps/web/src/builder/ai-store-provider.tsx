@@ -6,7 +6,6 @@ import { createAiStore, type AiState } from "./ai-store";
 
 const AiStoreContext = createContext<StoreApi<AiState> | null>(null);
 
-/** One AI thread per mounted builder, beside the document and run stores; never persisted. */
 export function AiStoreProvider({
   children,
   focusOnMount = false,

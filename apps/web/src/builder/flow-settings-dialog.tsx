@@ -35,7 +35,6 @@ const activationFailures: Record<string, string> = {
   not_found: "This flow no longer exists.",
 };
 
-/** Copies text to the clipboard; the icon confirms for two seconds. */
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -64,12 +63,6 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-/**
- * Name, description and chain are document state (Apply, then Save persists them).
- * Activation and the run mode are not: the Active switch saves through its own request
- * straight away, and "Send real transactions" only changes how Simulate runs on this canvas.
- * Mount it to open it: each mount starts from the store's current meta.
- */
 export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
   const getAccessToken = useAccessToken();
   const meta = useBuilderStore((state) => state.meta);
@@ -83,7 +76,6 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
   const hasEvent = useBuilderStore((state) =>
     state.nodes.some((node) => node.data.type === "trigger.onchain-event"),
   );
-  // Price and balance watchers run on the scheduler's ticks, so they activate like the rest.
   const hasWatch = useBuilderStore((state) =>
     state.nodes.some(
       (node) => node.data.type === "trigger.price" || node.data.type === "trigger.balance",

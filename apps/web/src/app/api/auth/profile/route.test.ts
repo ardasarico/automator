@@ -1,7 +1,6 @@
 /// <reference types="bun" />
 import { afterAll, beforeAll, beforeEach, expect, mock, test } from "bun:test";
 
-// The routes and the API client are server modules; the marker has no meaning here.
 mock.module("server-only", () => ({}));
 
 const saved = {

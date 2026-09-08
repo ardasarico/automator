@@ -15,15 +15,10 @@ import type { SecretsAccess } from "./resolver";
 
 export interface SecretDependencies extends SecretsAccess {
   identity: IdentityProvider | undefined;
-  /** Secret writes a user may make per minute before 429; thirty by default. */
   callsPerMinute?: number;
   now?: () => number;
 }
 
-/**
- * The caller's secrets: names in, names out. A value is encrypted on the way in and only
- * ever decrypted inside a run of the caller's own flow; no route returns one.
- */
 export function createSecretRoutes({
   identity,
   secrets,

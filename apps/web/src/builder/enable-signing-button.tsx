@@ -9,12 +9,6 @@ import { fetchWallet } from "./wallet-client";
 
 const signerId = process.env.NEXT_PUBLIC_PRIVY_SIGNER_ID;
 
-/**
- * Lets the user grant the API's signer on their embedded wallet once, so runs can send
- * transactions with no one in the browser (Simulate in live mode, webhook and schedule
- * triggers). The API verifies the configured signer before showing enabled status.
- * Renders nothing without a signer id or embedded wallet. Revoke in Privy wallet settings.
- */
 export function EnableSigningButton() {
   const { user } = usePrivy();
   const wallet = user?.linkedAccounts.find(

@@ -1,6 +1,4 @@
 // Adapted from Dither Kit by ripgrim: https://www.tripwire.sh/r/avatar.json
-// Standalone pixel primitives for the Dither Kit avatar. Deliberately free of
-// the chart engine — only palette.ts is shared.
 
 import type { Rgb } from "./palette";
 
@@ -37,7 +35,6 @@ export function xorshift32(seed: number): () => number {
   };
 }
 
-/** Hue (0–360) → an rgb fill. */
 export function hueFill(hue: number): Rgb {
   const h = ((hue % 360) + 360) % 360;
   const s = 0.85;
@@ -60,8 +57,6 @@ export function hueFill(hue: number): Rgb {
   return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
 }
 
-// Bloom — a blurred copy of the crisp canvas, composited additively so the
-// glow stays in the dither's own colour.
 export type PixelBloom = "off" | "low" | "high" | "aura";
 
 const BLOOM_PRESET: Record<
@@ -80,7 +75,6 @@ type PixelBloomStyle = {
   imageRendering: "auto";
 };
 
-/** Style for the bloom layer canvas. null when off. */
 export function pixelBloomStyle(bloom: PixelBloom): PixelBloomStyle | null {
   if (bloom === "off") return null;
   const cfg = BLOOM_PRESET[bloom];
@@ -92,7 +86,6 @@ export function pixelBloomStyle(bloom: PixelBloom): PixelBloomStyle | null {
   };
 }
 
-/** Whether the OS asks for reduced motion (skip entrances). */
 export function pixelPrefersReducedMotion(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
 }

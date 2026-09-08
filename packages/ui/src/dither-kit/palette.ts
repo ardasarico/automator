@@ -1,5 +1,4 @@
 // Adapted from Dither Kit by ripgrim: https://www.tripwire.sh/r/avatar.json
-// Colour helpers shared by the Dither Kit pieces.
 
 export type Rgb = [number, number, number];
 

@@ -18,72 +18,45 @@ import {
   type FlowMeta,
 } from "./document";
 
-/** What undo restores: the document-bearing part of the state, selection flags included. */
 export type HistoryEntry = { meta: FlowMeta; nodes: BuilderNode[]; edges: BuilderEdge[] };
 
-/**
- * Consecutive edits to the same field coalesce into one history entry, so typing a label or a
- * config value undoes as one step rather than one per keystroke.
- */
 type EditKey = string | null;
 
 export type BuilderState = {
   meta: FlowMeta;
   nodes: BuilderNode[];
   edges: BuilderEdge[];
-  /** True once the graph or meta differs from the last hydrated document. */
   dirty: boolean;
-  /** How many saves this builder has confirmed; the History panel refetches when it grows. */
   saveCount: number;
-  /** Undo stack, oldest first, capped at `historyLimit`; `future` holds what redo restores. */
   past: HistoryEntry[];
   future: HistoryEntry[];
-  /** True while a node drag is in progress; one history entry covers the whole drag. */
   dragging: boolean;
-  /** Which field the latest history entry was opened for, so repeats coalesce. */
   lastEdit: EditKey;
-  /** When that entry was opened (ms since epoch), for edits that only coalesce briefly. */
   lastEditAt: number;
   undo(): void;
   redo(): void;
-  /**
-   * Copies the given nodes (and the edges between them) with fresh ids, offset a little,
-   * selects the copies, and returns their ids in the same order.
-   */
   duplicateNodes(ids: readonly string[]): string[];
-  /** Moves the listed nodes at once (auto-layout), as one history entry; unknown ids are ignored. */
   setNodePositions(positions: ReadonlyMap<string, XYPosition>): void;
   onNodesChange(changes: NodeChange<BuilderNode>[]): void;
   onEdgesChange(changes: EdgeChange<BuilderEdge>[]): void;
   onConnect(connection: Connection): void;
-  /**
-   * Rejects self-loops, a second edge between the same handles, a second edge into an
-   * already-occupied input, and a connection that would create a cycle.
-   */
   canConnect(connection: Connection | BuilderEdge): boolean;
-  /** Adds a node with the catalog label, selects it, and returns its id. */
   addNode(type: FlowNodeType, position: XYPosition): string;
   renameNode(id: string, label: string): void;
-  /** Merges `patch` into the node's config; a settings form writes one field at a time. */
   setNodeConfig(id: string, patch: Record<string, unknown>): void;
   removeNode(id: string): void;
-  /** Deselects every node and edge. Selection is canvas state, so this never marks the store dirty. */
   clearSelection(): void;
   setMeta(patch: Partial<Omit<FlowMeta, "id">>): void;
   hydrate(document: FlowDocument): void;
-  /** Replaces the whole graph and meta with a generated document, keeping the flow id; dirty. */
   applyDocument(input: FlowDocumentInput): void;
-  /** Records a save; only clears dirty if the canvas still matches the saved document. */
   markSaved(document?: FlowDocument): boolean;
 };
 
-/** Node changes that only affect how the canvas looks, not the document. */
 const cosmeticNodeChanges = new Set<NodeChange["type"]>(["select", "dimensions"]);
 const cosmeticEdgeChanges = new Set<EdgeChange["type"]>(["select"]);
 
 export const historyLimit = 50;
 
-/** How far a duplicate lands from its original, so the copy is visibly a new card. */
 const duplicateOffset = 40;
 
 type HistoryFields = Pick<BuilderState, "past" | "future" | "lastEdit" | "lastEditAt">;
@@ -98,10 +71,6 @@ function snapshot(state: BuilderState): HistoryEntry {
   return { meta: state.meta, nodes: state.nodes, edges: state.edges };
 }
 
-/**
- * Opens a history entry for an edit: the current document goes on the undo stack and redo
- * is cleared. With an `editKey`, a repeat of the same key extends the open entry instead.
- */
 function remember(state: BuilderState, editKey: EditKey = null, windowMs?: number): HistoryFields {
   const now = Date.now();
   const open = editKey !== null && state.lastEdit === editKey;
@@ -132,7 +101,6 @@ function sameTargetHandle(edge: BuilderEdge, connection: Connection | BuilderEdg
   );
 }
 
-/** Iterative DFS: can `from` reach `to` by following edges' source -> target direction? */
 function canReach(edges: BuilderEdge[], from: string, to: string): boolean {
   const stack = [from];
   const visited = new Set<string>();
@@ -162,7 +130,6 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     onNodesChange(changes) {
       const documentChanged = changes.some((change) => !cosmeticNodeChanges.has(change.type));
       set((state) => {
-        // A drag reports a position on every pointer move; only its first move opens an entry.
         const positions = changes.filter((change) => change.type === "position");
         const dragStarted = !state.dragging && positions.some((change) => change.dragging);
         const dragEnded = positions.length > 0 && positions.every((change) => !change.dragging);
@@ -358,7 +325,6 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     hydrate(document) {
-      // A freshly loaded document has nothing to undo back to.
       set({
         ...hydrateFlow(document),
         dirty: false,

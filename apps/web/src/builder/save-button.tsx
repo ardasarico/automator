@@ -10,7 +10,6 @@ import { useAccessToken } from "../auth/access-token";
 
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
-/** How one save ended; the message is what the user should read when it failed. */
 export type SaveOutcome = { ok: true } | { ok: false; message: string };
 
 const failureMessages: Record<string, string> = {
@@ -19,12 +18,6 @@ const failureMessages: Record<string, string> = {
   invalid_flow: "The flow could not be saved: fix the highlighted problems and try again.",
 };
 
-/**
- * Sends the current document to the API. `save` is a no-op while nothing changed since the
- * last save, so the button and the Cmd+S shortcut share one rule; it answers how the save
- * ended so the unsaved-changes dialog can leave only on success. A save asked for while one
- * is still running answers that running save's outcome rather than a hopeful `ok`.
- */
 export function useSaveFlow() {
   const getAccessToken = useAccessToken();
   const store = useBuilderStoreApi();
@@ -74,7 +67,6 @@ export type SaveFlowController = ReturnType<typeof useSaveFlow>;
 
 const SaveFlowContext = createContext<SaveFlowController | null>(null);
 
-/** One save controller per builder, shared by the Save button, Cmd+S and the leave dialog. */
 export function SaveFlowProvider({ children }: { children: ReactNode }) {
   const controller = useSaveFlow();
   return <SaveFlowContext.Provider value={controller}>{children}</SaveFlowContext.Provider>;
@@ -86,7 +78,6 @@ export function useSaveFlowController(): SaveFlowController {
   return controller;
 }
 
-/** The Save button: disabled while nothing changed, so it doubles as the unsaved indicator. */
 export function SaveButton({ controller }: { controller: SaveFlowController }) {
   const { save, state, message, canSave, dirty } = controller;
   return (

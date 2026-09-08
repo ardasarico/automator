@@ -28,11 +28,6 @@ import { useBuilderStore, useBuilderStoreApi } from "./store-provider";
 
 type SectionId = "nodes" | "variables" | "outline" | "history";
 
-/**
- * The panel's sections, in sidebar order: the node catalog; the flow's inputs, constants and
- * secret references that node configs read; a node list with search for large canvases; and
- * the flow's saved versions with restore.
- */
 const sections: readonly { id: SectionId; label: string; icon: RemixiconComponentType }[] = [
   { id: "nodes", label: "Nodes", icon: RiStackLine },
   { id: "variables", label: "Variables", icon: RiBracesLine },
@@ -73,16 +68,6 @@ function SidebarButton({
   );
 }
 
-/**
- * The left side of the builder: a permanent sidebar on the window edge and a 260 px panel
- * beside it. The sidebar's header slot holds the leave link under the same line as every other
- * header; below it, one toggle per panel section, and at the bottom a settings control that
- * opens the flow settings dialog (name and description). The panel shows the flow name over the section's body: the node
- * palette for Nodes, replaced by the selected node's settings while exactly one node is
- * selected; Outline lists the flow's problems and its nodes; Variables holds the user's
- * secrets (names only) for `{{secrets.*}}` references; History lists the flow's saved
- * versions and restores one onto the canvas.
- */
 export function LeftPanel() {
   const { compact, panel, setPanel } = useResponsivePanels();
   const panelOpen = !compact || panel === "left";
@@ -95,7 +80,6 @@ export function LeftPanel() {
   const [section, setSection] = useState<SectionId>("nodes");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const name = useBuilderStore((state) => state.meta.name);
-  // Returns the node object itself, so an unchanged selection yields a stable snapshot.
   const selectedNode = useBuilderStore((state) => {
     const selected = state.nodes.filter((node) => node.selected);
     return selected.length === 1 ? selected[0] : undefined;

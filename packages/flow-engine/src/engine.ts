@@ -20,64 +20,34 @@ import { secretsScope, type SecretsResolver } from "./secrets";
 import { resolveTemplates } from "./template";
 
 export interface RunOptions {
-  /** Which trigger fires and what it receives. Without `nodeId`, every unconnected trigger fires. */
   trigger?: { nodeId?: string; payload?: unknown };
-  /**
-   * Continue an earlier run from the screen it stopped at: that node counts as having just
-   * produced `outputs` (the visitor's choice, keyed by output handle), `vars` starts from
-   * `variables`, and nothing upstream of it runs again. `trigger.payload` still feeds templates.
-   */
+  /* Resume at the answered screen using prior outputs and variables; completed nodes must not rerun. */
   resume?: {
     nodeId: string;
     outputs: Record<string, unknown>;
     variables?: Record<string, unknown>;
     /** Results from the previous pass. Successful nodes forward their outputs without running again. */
     completed?: readonly FlowRunNodeResult[];
-    /**
-     * The screen could not be answered (a sign-in the host cannot verify, say): the node is
-     * recorded as failed with this message instead of producing `outputs`, and the run fails.
-     */
     error?: string;
   };
-  /** Called as each node's result is recorded, skipped ones included, in execution order. */
   onNodeResult?: (result: FlowRunNodeResult) => void;
-  /**
-   * What a screen does when the run reaches it: `wait` stops the run for a visitor (the
-   * default); `auto` answers it the way Simulate does, with `autoAnswer`'s synthetic output.
-   */
   screens?: "wait" | "auto";
-  /**
-   * Answers `{{secrets.<name>}}` in node config. Only a server passes one; without it the
-   * placeholders stay literal, so the builder's in-browser preview never sees a value.
-   */
   secrets?: SecretsResolver;
   /** Maximum node starts across this run and all loop passes (default 10,000). Replays do not count. */
   maxNodeExecutions?: number;
   executors?: ExecutorRegistry;
   fetch?: typeof fetch;
-  /** The chat model for AI nodes; without it they fail as unconfigured. */
   model?: LanguageModel;
-  /** The chain onchain nodes use; without it they fail as unconfigured. */
   chain?: ChainProvider;
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;
   runId?: string;
-  /**
-   * Cancels the run: no further node starts once it fires, the node in flight has its fetch
-   * and sleep aborted, and the run finishes `failed` with a cancellation error.
-   */
   signal?: AbortSignal;
-  /** Where `logic.run-code` evaluates; without it those nodes fail as unavailable. */
   sandbox?: Sandbox;
 }
 
-/** The node type the engine loops over itself; see `runLoop`. */
 const forEachType = "logic.for-each";
 
-/**
- * A pass of a loop: the run starts at the for-each node as if it had just produced `item`,
- * with `vars` carried over from the previous pass. Internal to `runFlow`.
- */
 type LoopPass = { nodeId: string; item: unknown; variables: Record<string, unknown> };
 
 const cancelledMessage = "The run was cancelled.";
@@ -86,7 +56,6 @@ function isAbort(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
 
-/** Settles with `promise`, or rejects as soon as the signal fires. */
 function withAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
   if (!signal) return promise;
   if (signal.aborted) {
@@ -103,7 +72,6 @@ function withAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Pro
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-/** Where a value lands when an edge names no target handle. */
 const defaultInputHandle = "input";
 
 function describeError(error: unknown): string {
@@ -113,17 +81,8 @@ function describeError(error: unknown): string {
   return String(error);
 }
 
-/**
- * Runs one flow document to completion, in memory. Nodes run in a topological order: a node
- * runs once every incoming edge has either fired (its source produced that output handle) or
- * gone dead (the source skipped, failed, or did not produce it), and only if at least one edge
- * fired. Unconnected triggers start the run (or, with `resume`, the answered screen does); a
- * failure or a screen stops it (unless `screens` is `auto`), and every node not yet run is
- * reported as skipped. The graph must be acyclic. A `logic.for-each` node is run by the engine:
- * the nodes downstream of its `item` handle run once per item as sequential sub-runs (at most
- * `maxItems`, capped at 100; `vars` carry across; screens are not allowed inside), the canvas
- * keeps each body node's last pass, and `done` then fires with the items and per-pass results.
- */
+/* A node runs once all incoming edges resolve and at least one fires. Failures and screens stop the run.
+ * Loops execute isolated item sub-runs sequentially, carry vars across passes, then fire done. */
 export function runFlow(document: FlowDocument, options: RunOptions = {}): Promise<FlowRun> {
   const limit = options.maxNodeExecutions ?? 10_000;
   if (!Number.isSafeInteger(limit) || limit < 1)
@@ -243,7 +202,6 @@ async function execute(
     resume === undefined && pass === undefined && starting.length === 1 ? starting[0]!.id : null;
   const startingIds = new Set(starting.map((node) => node.id));
 
-  // Edges still unresolved per node, and the values delivered by the ones that fired.
   const pending = new Map<string, number>();
   const inputs = new Map<string, Record<string, unknown>>();
   for (const node of document.nodes) {
@@ -267,7 +225,6 @@ async function execute(
     const keys = Object.keys(outputs);
     for (const edge of outgoing.get(node.id)!) {
       if (edge.sourceHandle === undefined) {
-        // An edge without a handle carries whatever the node produced, if anything.
         resolveEdge(edge, keys.length > 0, keys.length === 1 ? outputs[keys[0]!] : outputs);
       } else {
         resolveEdge(edge, Object.hasOwn(outputs, edge.sourceHandle), outputs[edge.sourceHandle]);
@@ -276,7 +233,6 @@ async function execute(
   };
 
   let halted: { status: "failed" | "waiting"; error?: string } | undefined;
-  // Nodes a loop already ran (their last pass is recorded); the main pass only forwards them.
   const loopHandled = new Set<string>();
 
   const descendants = (roots: string[], stop = new Set<string>()): Set<string> => {
@@ -291,7 +247,6 @@ async function execute(
     return body;
   };
 
-  /** Done and its descendants run after the loop, including joins shared with Item. */
   const loopBody = (node: FlowNode): Set<string> => {
     const targets = (handle: string) =>
       outgoing
@@ -316,10 +271,6 @@ async function execute(
       );
   }
 
-  /**
-   * Runs the loop body once per item as a sub-run seeded at the for-each node, sequentially,
-   * carrying `vars` across passes. Returns the for-each node's outputs, or the pass that failed.
-   */
   const runLoop = async (
     node: FlowNode,
     nodeInputs: Record<string, unknown>,
@@ -386,7 +337,6 @@ async function execute(
           error: `Item ${index + 1} of ${selected.length} failed${failed?.error ? `: ${failed.error}` : ""}`,
         };
       }
-      // The pass's value is what its last body node produced, in execution order.
       results.push(lastOutputs);
     }
     return {
@@ -404,7 +354,6 @@ async function execute(
     const hasIncoming = incoming.get(node.id)!.length > 0;
     const shouldRun = hasIncoming ? Object.keys(nodeInputs).length > 0 : startingIds.has(node.id);
     if (pass !== undefined && node.id === pass.nodeId) {
-      // One pass of a loop: the for-each stands for its current item and nothing else fires.
       const at = now().toISOString();
       const outputs = { item: pass.item };
       record({ nodeId: node.id, status: "succeeded", startedAt: at, finishedAt: at, outputs });
@@ -412,12 +361,10 @@ async function execute(
       continue;
     }
     if (loopHandled.has(node.id)) {
-      // Already run by the loop: forward the last pass's outputs so edges and successors resolve.
       propagate(node, results.get(node.id)?.outputs ?? {});
       continue;
     }
     if (!halted && resume !== undefined && node.id === resume.nodeId) {
-      // The visitor already answered this screen: its outputs are given, not computed.
       const finishedAt = now().toISOString();
       if (resume.error !== undefined) {
         record({
@@ -528,7 +475,6 @@ async function execute(
     const nodeStartedAt = now().toISOString();
     let partialOutputs: Record<string, unknown> | undefined;
     try {
-      // Resolved per node, so a missing secret fails the node that names it.
       const secrets = await withAbort(secretsScope(node.config, options.secrets), signal);
       signal?.throwIfAborted();
       const scope = {

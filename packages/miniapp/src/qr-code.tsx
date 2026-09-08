@@ -1,10 +1,6 @@
 import { create } from "qrcode";
 import type React from "react";
 
-/**
- * A QR code as one SVG path over a white plate, so it scans in both themes. The matrix is
- * computed synchronously; an unencodable value (empty, or too long) renders nothing.
- */
 export function QrCode({
   value,
   label,

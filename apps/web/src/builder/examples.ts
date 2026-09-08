@@ -3,7 +3,6 @@ import { flowExamples } from "../app/(workspace)/marketplace/examples";
 
 export type FlowExample = (typeof flowExamples)[number];
 
-/** Hand-authored graph for one example, with short local node ids the document minting replaces. */
 type Fixture = { nodes: FlowNode[]; edges: FlowEdge[] };
 
 const columnGap = 300;
@@ -42,14 +41,6 @@ function edge(
   };
 }
 
-/**
- * Every fixture uses only node types the engine runs or the mini-app renders today, and each
- * simulates from a fresh fork: either every node succeeds, or the run stops at a screen that
- * waits for a visitor. Discord nodes ship with an empty webhook, marked as a secret to set
- * after forking, so they sit behind a screen or a dry-run branch and never fail a simulation.
- * The AI example needs a configured model and the USDC examples a chain provider; both are
- * exercised in tests with stubs.
- */
 const fixtures: Record<FlowExample["id"], () => Fixture> = {
   "approval-request": () => ({
     nodes: [
@@ -369,10 +360,6 @@ export function findFlowExample(slug: string | undefined): FlowExample | undefin
   return slug ? flowExamples.find((example) => example.id === slug) : undefined;
 }
 
-/**
- * Seeds a canvas from a curated example: the example's fixture with fresh node and edge ids,
- * so two forks of the same example never share an id.
- */
 export function exampleToFlowDocument(example: FlowExample, id: string): FlowDocument {
   const fixture = fixtures[example.id]();
   const ids = new Map(fixture.nodes.map((entry) => [entry.id, crypto.randomUUID()]));

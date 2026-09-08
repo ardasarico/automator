@@ -8,7 +8,6 @@ import { createBuilderStore, type BuilderState } from "./store";
 
 const BuilderStoreContext = createContext<StoreApi<BuilderState> | null>(null);
 
-/** One store per mounted builder, so two flows never share state. */
 export function BuilderStoreProvider({
   document,
   children,
@@ -24,7 +23,6 @@ export function BuilderStoreProvider({
   );
 }
 
-/** Read the latest snapshot inside asynchronous actions without waiting for a React render. */
 export function useBuilderStoreApi(): StoreApi<BuilderState> {
   const store = useContext(BuilderStoreContext);
   if (!store) throw new Error("useBuilderStore must be used inside BuilderStoreProvider");

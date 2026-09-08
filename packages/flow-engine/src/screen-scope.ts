@@ -1,7 +1,6 @@
 import type { FlowDocument, FlowRun } from "@automator/contracts";
 import type { TemplateScope } from "./template";
 
-/** Reconstructs a screen's inputs from the fired edges, including results retained across pauses. */
 export function screenScope(
   document: Pick<FlowDocument, "edges">,
   run: Pick<FlowRun, "nodes" | "variables" | "trigger">,

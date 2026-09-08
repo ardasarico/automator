@@ -16,7 +16,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE } from "../auth/server";
 
-/** Raised for any API answer other than the one a page can render. */
 export class FlowApiError extends Error {
   constructor(public readonly status: number) {
     super(`Flow request failed with ${status}`);
@@ -24,11 +23,6 @@ export class FlowApiError extends Error {
   }
 }
 
-/**
- * The mirrored session cookie carries the Privy token, so server pages call the API as the
- * signed-in user. A missing or rejected token sends the visitor to sign in again rather
- * than rendering a half-empty page.
- */
 async function sessionToken() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) redirect("/login");
@@ -49,7 +43,6 @@ export async function listFlows(): Promise<readonly FlowSummary[]> {
   return result.data.flows;
 }
 
-/** `null` when the caller has no flow with this id. */
 export async function getFlow(id: string): Promise<FlowRecord | null> {
   const token = await sessionToken();
   const result = await request(process.env.API_URL, getFlowContract, {
@@ -74,10 +67,6 @@ export async function createFlow(input: FlowDocumentInput): Promise<FlowRecord> 
   return result.data;
 }
 
-/**
- * One page of the caller's runs across every flow, newest first. `cursor` is the previous
- * page's `nextCursor`; `limit` falls back to the API default when absent.
- */
 export async function listRuns(
   options: { flowId?: string; cursor?: string; limit?: number } = {},
 ): Promise<RunList> {
@@ -95,7 +84,6 @@ export async function listRuns(
   return result.data;
 }
 
-/** `null` when the caller has no run with this id. */
 export async function getRun(id: string): Promise<FlowRunRecord | null> {
   const token = await sessionToken();
   const result = await request(process.env.API_URL, getRunContract, {

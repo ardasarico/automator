@@ -8,55 +8,24 @@ export interface ApiConfig {
   databaseUrl: string | undefined;
   privyAppId: string | undefined;
   privyAppSecret: string | undefined;
-  /**
-   * Public verification key from the Privy dashboard. When set, the SDK verifies
-   * tokens locally and never fetches JWKS. A failed JWKS fetch is indistinguishable
-   * from a forged token, so without this key an upstream outage logs users out.
-   */
+  /* Local verification avoids JWKS outages, which Privy reports like invalid signatures. */
   privyVerificationKey: string | undefined;
-  /** OpenRouter credentials for AI nodes and flow generation; optional in every environment. */
   openRouterApiKey: string | undefined;
   openRouterModel: string;
-  /**
-   * OpenAI credentials for a paid fallback behind OpenRouter (or the only model without an
-   * OpenRouter key); optional in every environment.
-   */
   openAiApiKey: string | undefined;
   openAiModel: string;
-  /** The Graph's Token API key; without it the balance trigger stays idle. */
   tokenApiKey: string | undefined;
-  /** Overrides the Token API origin, for tests and self-hosted gateways. */
   tokenApiUrl: string | undefined;
-  /**
-   * 32-byte base64 key that encrypts user secrets at rest. Required in production;
-   * development without one gets a key generated at startup, so stored secrets do not
-   * survive a restart there.
-   */
+  /* 32-byte base64 encryption key. Development generates an ephemeral key when absent. */
   secretsKey: Buffer;
-  /**
-   * The legacy single-chain override: `CHAIN_RPC_URL` and `USDC_ADDRESS` apply to the registry
-   * chain `CHAIN_ID` names (Base Sepolia by default); see `resolveChainSettings`.
-   */
   chainId: number;
   chainRpcUrl: string;
   usdcAddress: string | undefined;
-  /** Per-chain RPC overrides from `CHAIN_RPC_URL_<chain id>`, keyed by chain id. */
   chainRpcUrls: Record<string, string>;
-  /** Privy authorization key (base64 PKCS8) that signs with users' delegated embedded wallets. */
   privyAuthorizationKey: string | undefined;
   privySignerId: string | undefined;
-  /**
-   * World ID for `world.id-verify` nodes: the Developer Portal app, its relying party and
-   * signing key, and the environment proofs are made in. Optional in every environment;
-   * without it those nodes fail their run as unconfigured.
-   */
   world: WorldConfig | undefined;
-  /**
-   * A bearer token the API accepts as a fixed test user, for end-to-end tests only. Refused
-   * in production, since it bypasses Privy.
-   */
   e2eTestToken: string | undefined;
-  /** Calls per minute before 429, per user, client address or flow; see `rate-limit.ts`. */
   rateLimits: RateLimits;
 }
 
@@ -64,16 +33,8 @@ export const defaultChainId = 84532;
 export const defaultRpcUrl = "https://sepolia.base.org";
 export const defaultUsdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
-/**
- * Supports tools and JSON-schema answers and costs a few cents per million tokens; any other
- * OpenRouter model id can be set per environment with `OPENROUTER_MODEL`.
- */
 export const defaultOpenRouterModel = "openai/gpt-oss-120b";
 
-/**
- * Cheap, supports tools and JSON-schema answers, and accepts the engine's `temperature: 0`
- * (the gpt-5 family rejects it); any other id can be set per environment with `OPENAI_MODEL`.
- */
 export const defaultOpenAiModel = "gpt-4.1-mini";
 
 const required = [
@@ -84,10 +45,6 @@ const required = [
   "SECRETS_KEY",
 ] as const;
 
-/**
- * Reads the environment once. Production refuses to start without its
- * credentials; development runs degraded so the UI can be worked on offline.
- */
 export function readConfig(env: Record<string, string | undefined> = process.env): ApiConfig {
   const missing = required.filter((name) => !env[name]);
   if (missing.length > 0) {
@@ -127,7 +84,6 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     tokenApiUrl: env.TOKEN_API_URL || undefined,
     openAiModel: env.OPENAI_MODEL || defaultOpenAiModel,
     chainId: Number(env.CHAIN_ID) || defaultChainId,
-    // Without CHAIN_RPC_URL the named chain keeps its own public RPC, never Base Sepolia's.
     chainRpcUrl:
       env.CHAIN_RPC_URL ||
       getChain(Number(env.CHAIN_ID) || defaultChainId)?.rpcUrl ||
@@ -152,7 +108,6 @@ export function readConfig(env: Record<string, string | undefined> = process.env
   };
 }
 
-/** `CHAIN_RPC_URL_4801=https://...` overrides one chain's RPC; blank or non-numeric ids are ignored. */
 function readChainRpcUrls(env: Record<string, string | undefined>): Record<string, string> {
   const urls: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {

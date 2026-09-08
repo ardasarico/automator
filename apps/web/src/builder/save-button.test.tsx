@@ -14,7 +14,6 @@ mock.module("../auth/access-token", () => ({
   useAccessToken: () => async () => "privy-token",
 }));
 
-/** Each save waits on a gate the test opens, so two saves can overlap. */
 let gates: Array<{ resolve(): void; reject(error: Error): void }> = [];
 let savedNames: string[] = [];
 class FlowRequestError extends Error {
@@ -44,7 +43,6 @@ const document: FlowDocument = {
   edges: [],
 };
 
-/** The controller and the store action the test drives, published from an effect. */
 const handles: { controller?: SaveFlowController; setMeta?: (patch: { name: string }) => void } =
   {};
 function Probe() {

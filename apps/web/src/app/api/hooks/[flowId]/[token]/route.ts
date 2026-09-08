@@ -2,11 +2,7 @@ import { ApiRequestError } from "@automator/api-client/server";
 import { webhookTriggerContract, buildPath } from "@automator/contracts";
 import { NextResponse } from "next/server";
 
-/**
- * The public face of a flow's webhook: the API is private, so callers hit this URL on the
- * web origin and it forwards the request as-is. No session and no origin check on purpose;
- * the token in the path is the credential and the API answers 404 for anything it rejects.
- */
+/* Public webhooks intentionally skip session/origin checks: the path token authorizes execution. */
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ flowId: string; token: string }> },

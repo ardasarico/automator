@@ -1,24 +1,17 @@
 import type { MiniAppSessionStatus } from "@automator/contracts";
 import type { SQL } from "bun";
 
-/** A visitor's place in a published mini-app between two answers. */
 export interface MiniAppSessionRow {
   id: string;
   flowId: string;
   ownerId: string;
-  /** SHA-256 of the token the visitor holds; the token itself is never stored. */
   tokenHash: string;
   status: MiniAppSessionStatus;
-  /** The screen the session waits on; null once it ended. */
   nodeId: string | null;
-  /** The engine's `vars` after the last run, seeded into the next resume. */
   variables: Record<string, unknown>;
-  /** The trigger payload the session opened with, carried into every resume. */
   payload: unknown;
   lastRunId: string | null;
-  /** Nonce of the World request issued for this waiting screen; absent for other screens. */
   worldNonce: string | null;
-  /** Expiry of that request as Unix seconds. */
   worldExpiresAt: number | null;
 }
 
@@ -45,11 +38,7 @@ export function createSessionStore(sql: SQL | undefined) {
         SELECT ${db.unsafe(columns)} FROM automator_sessions WHERE flow_id = ${flowId} AND id = ${id}`;
       return rows[0] ?? null;
     },
-    /**
-     * Consumes one waiting screen before running side effects. The compare-and-set also
-     * works across API processes. A process lost after claiming leaves a terminal failure,
-     * rather than a retryable screen whose effects may already have happened.
-     */
+    /* Claim before effects. A lost worker must leave a terminal failure, never a replayable screen. */
     async claim(row: MiniAppSessionRow): Promise<boolean> {
       const db = connection();
       const rows = await db<{ id: string }[]>`

@@ -98,7 +98,6 @@ describe("event signatures and filters", () => {
 describe("event reader", () => {
   const event = parseEventSignature(transfer);
 
-  /** A raw JSON-RPC log the way a node returns it. */
   function rawLog(from: Address, to: Address, value: bigint, block: number, index: number) {
     return {
       address: usdc,
@@ -145,10 +144,8 @@ describe("event reader", () => {
     expect(filter.address).toBe(usdc);
     expect(filter.fromBlock).toBe(numberToHex(100));
     expect(filter.toBlock).toBe(numberToHex(120));
-    // Topic 0 is the event, topic 1 (from) is open, topic 2 (to) is the filter value.
     expect(filter.topics[1]).toBeNull();
     expect(filter.topics[2]).toBe(pad(bob, { size: 32 }));
-    // The second log (to alice) does not match the filter; viem drops it client-side too.
     expect(logs).toEqual([
       {
         address: usdc,

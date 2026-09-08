@@ -4,7 +4,6 @@ import { postDiscordMessage } from "./discord";
 import { NodeExecutionError, type ExecutionContext, type ExecutionOutputs } from "./executor";
 import type { ChatMessage, ToolDefinition } from "./language-model";
 
-/** One tool call as the run records it: what the model asked for and what it got back. */
 export interface AgentStep {
   step: number;
   tool: string;
@@ -49,7 +48,6 @@ const toolDefinitions: Record<AgentTool, ToolDefinition> = {
 const maxBodyChars = 4000;
 const maxToolCalls = 100;
 
-/** Read only a bounded prefix, cancelling even a streaming response once the budget is used. */
 async function responsePrefix(response: Response, signal?: AbortSignal): Promise<string> {
   if (!response.body) return "";
   const reader = response.body.getReader();
@@ -94,11 +92,6 @@ function argument(args: Record<string, unknown>, name: string): string {
   return value;
 }
 
-/**
- * Runs a tool-using loop: the model answers with tool calls until it answers with text or
- * runs out of steps. Only tools named in the config exist for the model, `http_get` only
- * reaches allowed hosts, and every call lands in `steps` so a run can be audited or tested.
- */
 export async function runAgent(context: ExecutionContext): Promise<ExecutionOutputs> {
   const model = requireModel(context);
   const config = context.config(agentConfigSchema);

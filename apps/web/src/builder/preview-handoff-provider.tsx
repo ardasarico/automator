@@ -7,7 +7,6 @@ import { createContext, useCallback, useContext, useEffect, useRef, type ReactNo
 const runtimeUrl = process.env.NEXT_PUBLIC_RUNTIME_URL ?? "http://localhost:3002";
 const PreviewHandoffContext = createContext<((document: FlowDocument) => boolean) | null>(null);
 
-/** External previews belong to the builder, independently of which panel is visible. */
 export function PreviewHandoffProvider({ children }: { children: ReactNode }) {
   const pending = useRef(new Set<() => void>());
   useEffect(() => {

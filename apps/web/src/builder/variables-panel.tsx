@@ -10,11 +10,6 @@ import { useEffect, useState } from "react";
 import { describeSecretError, useSecrets } from "./secrets-store";
 import { useAccessToken } from "../auth/access-token";
 
-/**
- * The Variables section: the user's secrets by name. A secret is written once and only ever
- * read by the API while it runs the user's flows; node config references it as
- * `{{secrets.<name>}}`. Values are never shown again.
- */
 export function VariablesPanel() {
   const getAccessToken = useAccessToken();
   const status = useSecrets((state) => state.status);

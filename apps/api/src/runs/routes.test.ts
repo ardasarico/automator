@@ -129,7 +129,6 @@ describe("POST /flows/run", () => {
     expect(await limited.json()).toEqual({ error: "rate_limited" });
     expect((await post({ document }, "alice")).status).toBe(429);
     expect(runRecords).toHaveLength(1);
-    // Another user has a window of their own, and reads are never limited.
     expect((await post({ document }, "carol")).status).toBe(200);
     expect((await call("/runs", "GET")).status).toBe(200);
     advance(61_000);
@@ -261,7 +260,6 @@ describe("persisted runs", () => {
     const ids = [...first.runs, ...second.runs, ...third.runs].map((run) => run.id);
     expect(new Set(ids).size).toBe(5);
     expect(ids).toEqual((await page("/runs")).runs.map((run) => run.id));
-    // The per-flow list pages the same way, and a whole list fits in one default page.
     const byFlow = await page(`/flows/flow-1/runs?limit=4`);
     expect(byFlow.runs).toHaveLength(4);
     expect(byFlow.nextCursor).toBeString();

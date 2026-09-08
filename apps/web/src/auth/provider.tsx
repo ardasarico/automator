@@ -36,7 +36,6 @@ function setupError(stage: "session" | "wallet" | "account", cause: unknown) {
           typeof cause.privyErrorCode === "string"
         ? cause.privyErrorCode
         : "unknown";
-  // Only diagnostic codes are logged; never log tokens, credentials or user data.
   console.warn(`Auth setup failed ${JSON.stringify({ stage, code })}`);
   if (code === "too_many_requests")
     return new Error("Sign-in requests are temporarily limited. Wait a minute, then try again.");
@@ -70,7 +69,6 @@ function hasEmbeddedWallet(user: User) {
       account.walletClientType === "privy",
   );
 }
-/** Every field the UI renders, so an unchanged synchronization keeps the same object. */
 function sameUser(current: AuthUser | null, next: AuthUser) {
   return (
     current !== null &&
@@ -80,17 +78,11 @@ function sameUser(current: AuthUser | null, next: AuthUser) {
     current.walletAddress === next.walletAddress
   );
 }
-/** Routes that render for signed-out visitors; every other path needs a session. */
 const signedOutPaths = ["/login", "/onboarding"];
 function needsSession(pathname: string) {
   return !signedOutPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
-/**
- * Holds the Automator session for one route group. `initialUser` is the
- * server-verified user from the layout, so a hard load renders the account
- * straight away and the background synchronization only corrects it.
- */
 export function SessionProvider({
   children,
   initialUser,
@@ -238,8 +230,6 @@ export function SessionProvider({
   useEffect(() => {
     if (!ready) return;
     if (!authenticated || !userId) {
-      // Privy finished loading and reports the visitor as authenticated, but the user
-      // record has no id yet: there is nothing to synchronize, so stop waiting.
       if (authenticated) {
         void (async () => {
           setPending(false);
@@ -309,9 +299,6 @@ export function SessionProvider({
     }
   }, [clearSessionCookie, privyLogout]);
 
-  // Privy is the source of truth: once it reports a signed-out visitor, the
-  // mirrored cookie is stale and private routes must send them to sign in.
-  // The end-to-end suite has no Privy session in the browser; its token stands in instead.
   const signedOut = ready && !authenticated && !e2eSession;
   const signOutHandled = useRef(false);
   useEffect(() => {
@@ -329,7 +316,6 @@ export function SessionProvider({
     })();
   }, [clearSessionCookie, identity, signedOut, pathname, router]);
 
-  // A session loaded for another Privy user is stale until the next sync lands.
   const stale = user !== null && userId !== undefined && user.id !== userId;
   return (
     <SessionContext

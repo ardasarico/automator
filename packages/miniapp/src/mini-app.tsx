@@ -22,24 +22,14 @@ import {
 
 export type MiniAppProps = {
   document: FlowDocument;
-  /** Shown in the top bar; omit for no bar. */
   name?: string;
-  /** A screen node id to open on instead of running from the trigger. */
   startAt?: string;
-  /** Engine overrides; the defaults run the real executors in this browser. */
   engine?: EngineOptions;
   className?: string;
 };
 
 const noEngineOverrides: EngineOptions = {};
 
-/**
- * A flow played as its visitor sees it, on the real flow engine in the browser. Opening runs
- * the flow from its mini-app trigger to the first screen; each visitor action resumes it from
- * that screen with the visitor's choice as the screen's output, so form values reach the nodes
- * wired after it. The session starts once, on mount; remount with a new `key` to restart from
- * a changed document or start node.
- */
 export function MiniApp({
   document,
   name,
@@ -120,7 +110,6 @@ export function MiniApp({
     [launch],
   );
 
-  // Runs once per mount unless the session opened directly on a screen.
   const startedOnScreen = useRef(session.kind === "screen");
   useEffect(() => {
     if (!startedOnScreen.current) open();
@@ -196,7 +185,6 @@ export function MiniApp({
   );
 }
 
-/** The screen node the session is on, fresh from the document; null once it was removed. */
 function currentScreen(document: FlowDocument, session: SessionState): ScreenNode | null {
   if (session.kind !== "screen") return null;
   const node = document.nodes.find((candidate) => candidate.id === session.nodeId);
@@ -204,7 +192,6 @@ function currentScreen(document: FlowDocument, session: SessionState): ScreenNod
   return session.scope ? { ...node, config: resolveTemplates(node.config, session.scope) } : node;
 }
 
-/** The steps worth showing while a run is in progress: what ran, in order, minus the skipped and the screens. */
 function workingSteps(document: FlowDocument, results: FlowRunNodeResult[]): WorkingStep[] {
   const steps: WorkingStep[] = [];
   for (const result of results) {

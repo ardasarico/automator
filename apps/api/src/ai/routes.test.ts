@@ -58,7 +58,6 @@ describe("POST /ai/flows", () => {
     expect(limited.status).toBe(429);
     expect(limited.headers.get("Retry-After")).toMatch(/^\d+$/);
     expect(await limited.json()).toEqual({ error: "rate_limited" });
-    // An anonymous caller is refused by the guard first and never counts.
     expect((await post({ prompt: "x" })).status).toBe(401);
   });
 

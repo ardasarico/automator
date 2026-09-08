@@ -1,7 +1,6 @@
 import type { FlowDocument, FlowEdge, FlowNode, FlowNodeType } from "@automator/contracts";
 import type { Edge, Node } from "@xyflow/react";
 
-/** Per-node data carried by the canvas. The catalog type lives here; React Flow's own `type` is always `flow`. */
 export type FlowNodeData = {
   type: FlowNodeType;
   label: string;
@@ -11,7 +10,6 @@ export type FlowNodeData = {
 export type BuilderNode = Node<FlowNodeData, "flow">;
 export type BuilderEdge = Edge;
 
-/** The document's non-graph fields; `chainId` is absent until the flow settings pick a chain. */
 export type FlowMeta = Pick<FlowDocument, "id" | "name" | "description" | "chainId">;
 
 export function createEmptyFlow(id: string): FlowDocument {
@@ -35,10 +33,6 @@ function serializeEdge(edge: BuilderEdge): FlowEdge {
   return serialized;
 }
 
-/**
- * The document the API will store. Canvas-only state (selection, dragging, measured size,
- * null handle ids) is dropped; node and edge order is kept as the canvas holds it.
- */
 export function serializeFlow(
   meta: FlowMeta,
   nodes: readonly BuilderNode[],

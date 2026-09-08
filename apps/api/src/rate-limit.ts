@@ -1,14 +1,8 @@
-/** Calls per minute a caller may make before the API answers 429 `rate_limited`. */
 export interface RateLimits {
-  /** `POST /flows/run` and `POST /flows/:id/runs`, per user. */
   runs: number;
-  /** Every `/ai/*` route, per user. */
   ai: number;
-  /** `PUT /secrets/:name`, per user. */
   secrets: number;
-  /** The public mini-app session routes, per client address. */
   sessions: number;
-  /** The public webhook route, per flow. */
   webhooks: number;
 }
 
@@ -23,13 +17,10 @@ export const defaultRateLimits: RateLimits = {
 const windowMs = 60_000;
 
 export interface RateLimiter {
-  /** Records a call and says whether it is within the limit; refusals are not recorded. */
   allow(key: string): boolean;
-  /** Whole seconds until the key's oldest call leaves the window; at least one. */
   retryAfter(key: string): number;
 }
 
-/** A sliding one-minute window per key, in memory: enough for one API instance. */
 export function createRateLimiter(limit: number, now: () => number = Date.now): RateLimiter {
   const calls = new Map<string, number[]>();
   const recent = (key: string, at: number) => {
@@ -64,10 +55,7 @@ export function createRateLimiter(limit: number, now: () => number = Date.now): 
   };
 }
 
-/**
- * The caller's address for a per-client limit: the first entry of `X-Forwarded-For` (Railway's
- * proxy sets it), else the socket address, else a shared bucket for callers without either.
- */
+/* Railway supplies the first X-Forwarded-For address; requests without an address share a bucket. */
 export function clientAddress(
   forwardedFor: string | null | undefined,
   socketAddress: string | null | undefined,

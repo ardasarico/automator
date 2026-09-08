@@ -1,9 +1,5 @@
 import { ThemeSelect } from "@automator/ui/theme-select";
 
-/**
- * The runtime's front door. Visitors only ever arrive here by trimming a shared link, so the
- * page explains what those links are and points them back to whoever shared one.
- */
 export default function Home() {
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-6 p-8">

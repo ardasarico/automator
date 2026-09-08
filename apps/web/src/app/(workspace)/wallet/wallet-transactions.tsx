@@ -11,12 +11,10 @@ export function shortHash(hash: string): string {
   return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
 }
 
-/** The catalog's label for the node that sent the transaction; the raw type off the catalog. */
 export function nodeTypeLabel(type: string): string {
   return isFlowNodeType(type) ? getCatalogEntry(type).label : type;
 }
 
-/** What the caller's stored runs sent, newest first; each row opens the run on its canvas. */
 export function WalletTransactions({
   transactions,
 }: {

@@ -1,7 +1,6 @@
 import { flowChainId, type FlowDocumentInput } from "@automator/contracts";
 import type { SQL } from "bun";
 
-/** Layout and copy do not invalidate work; executable nodes and wiring do. */
 export function executionConfiguration(flow: FlowDocumentInput) {
   return {
     version: flow.version,

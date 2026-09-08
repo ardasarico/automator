@@ -1,17 +1,8 @@
 import type { FlowRun, FlowRunNodeResult } from "@automator/contracts";
 import type { BuilderEdge } from "./document";
 
-/**
- * What a run did with an edge: `fired` when its source produced the edge's output handle,
- * `dead` when the source finished (or was skipped) without producing it. Edges of a node that
- * never got a result, and edges outside any run, have no status.
- */
 export type EdgeRunStatus = "fired" | "dead";
 
-/**
- * A screen node that Simulate answered on the visitor's behalf carries this marker in its
- * outputs, naming the port it took. It is bookkeeping, never an output handle.
- */
 export type SimulatedAnswer = { port: string };
 
 export function simulatedAnswer(
@@ -24,12 +15,10 @@ export function simulatedAnswer(
   return typeof port === "string" ? { port } : undefined;
 }
 
-/** The output handles a result produced, without the bookkeeping keys. */
 export function outputHandles(result: Pick<FlowRunNodeResult, "outputs">): string[] {
   return Object.keys(result.outputs ?? {}).filter((handle) => handle !== "simulated");
 }
 
-/** The status word a card or a run row shows for a result. */
 export function nodeStatusLabel(result: Pick<FlowRunNodeResult, "status" | "outputs">): string {
   if (simulatedAnswer(result)) return "Auto-answered";
   return { succeeded: "Ran", failed: "Failed", skipped: "Skipped", waiting: "Waiting" }[
@@ -49,10 +38,8 @@ export function edgeRunStatus(run: FlowRun | null, edge: BuilderEdge): EdgeRunSt
   return fired ? "fired" : "dead";
 }
 
-/** Shared with the API's wallet route, which lists the same hashes per run. */
 export { transactionHashes } from "@automator/contracts";
 
-/** Whether a node error says the wallet could not pay for what the node tried to send. */
 export function isInsufficientFundsError(message: string | undefined): boolean {
   return (
     message !== undefined &&
@@ -62,7 +49,6 @@ export function isInsufficientFundsError(message: string | undefined): boolean {
   );
 }
 
-/** Milliseconds between a result's timestamps, or `undefined` when it never ran. */
 export function elapsedMs(
   result: Pick<FlowRunNodeResult, "startedAt" | "finishedAt">,
 ): number | undefined {
@@ -71,7 +57,6 @@ export function elapsedMs(
   return Number.isNaN(elapsed) ? undefined : Math.max(0, elapsed);
 }
 
-/** `12 ms`, `1.4 s`, or `2 min 5 s`, for the inspector. */
 export function formatElapsed(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)} ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;

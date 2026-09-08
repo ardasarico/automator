@@ -73,7 +73,6 @@ function Probe() {
   );
 }
 
-/** Stands in for the Save button, which calls `markSaved` once the API accepted the document. */
 function SaveTap() {
   const markSaved = useBuilderStore((state) => state.markSaved);
   return (

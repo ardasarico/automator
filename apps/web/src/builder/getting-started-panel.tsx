@@ -14,7 +14,6 @@ import { completedSteps, gettingStartedSteps } from "./getting-started";
 import { useRunStore } from "./run-store-provider";
 import { useBuilderStore } from "./store-provider";
 
-/** Whether the flow has a marketplace listing; unknown answers count as "not published". */
 function usePublished(flowId: string): boolean {
   const getAccessToken = useAccessToken();
   const [published, setPublished] = useState(false);
@@ -24,9 +23,7 @@ function usePublished(flowId: string): boolean {
       try {
         const listing = await getFlowListingRequest(await getAccessToken(), flowId);
         if (!cancelled) setPublished(listing !== null);
-      } catch {
-        // The checklist is a hint; a failed lookup leaves the step open.
-      }
+      } catch {}
     })();
     return () => {
       cancelled = true;
@@ -35,10 +32,6 @@ function usePublished(flowId: string): boolean {
   return published;
 }
 
-/**
- * A four-step checklist over the canvas for someone's first flow. Every step reads the
- * builder's own state, so it ticks itself; Dismiss hides it for good through a cookie.
- */
 export function GettingStartedPanel() {
   const flowId = useBuilderStore((state) => state.meta.id);
   const built = useBuilderStore((state) => state.edges.length > 0);

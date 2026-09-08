@@ -1,13 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-/**
- * End-to-end tests for the core demo path. They start their own web and API dev servers on
- * ports 3100 and 3101, so a developer's servers on 3000/3001 keep running untouched; the API
- * gets `E2E_TEST_TOKEN`, which it accepts as the fixed user did:privy:e2e (never in
- * production). TEST_DATABASE_URL must identify an isolated test database; never inherit
- * the API's usual DATABASE_URL, which can point at production. The public Privy app id
- * can still come from apps/web/.env.local.
- */
+/* TEST_DATABASE_URL must name an isolated database; DATABASE_URL can point at production. */
 export const e2eToken = process.env.E2E_TEST_TOKEN ?? "automator-e2e-token";
 const apiPort = process.env.E2E_API_PORT ?? "3101";
 const webPort = process.env.E2E_WEB_PORT ?? "3100";

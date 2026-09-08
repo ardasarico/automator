@@ -16,7 +16,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Routing and collection nodes; every handle they fire carries plain data, never a pause. */
 export const logicExecutors: ExecutorRegistry = {
   "logic.switch": {
     kind: "step",

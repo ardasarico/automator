@@ -12,7 +12,6 @@ export class AccountRequestError extends Error {
   }
 }
 
-/** Reads the signed-in user's usage counts through the same-origin proxy. */
 export async function getAccountUsageRequest(token: string | null): Promise<AccountUsage> {
   if (!token) throw new AccountRequestError("unauthorized");
   const response = await fetch(`/api${accountUsageContract.path}`, {

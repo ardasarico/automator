@@ -9,7 +9,6 @@ export async function PUT(request: Request) {
   try {
     body = await request.json();
   } catch {
-    // Not JSON at all: the same answer the API gives for an unreadable request.
     return authErrorResponse(request, new AuthApiError(400, "invalid_request"));
   }
   if (!isProfileInput(body))

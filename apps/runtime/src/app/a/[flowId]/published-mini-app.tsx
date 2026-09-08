@@ -12,7 +12,6 @@ import { useMemo } from "react";
 import { IdentityHost } from "./identity-host";
 import { MiniAppShell } from "./shell";
 
-/** The same-origin handlers under /api/a mirror the API's public session paths one to one. */
 async function post(
   path: string,
   body?: unknown,

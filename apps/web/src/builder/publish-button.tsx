@@ -6,7 +6,6 @@ import { useState } from "react";
 import { PublishDialog } from "../marketplace/publish-dialog";
 import { useBuilderStore } from "./store-provider";
 
-/** Opens the marketplace publish dialog for the flow on the canvas. */
 export function PublishButton() {
   const meta = useBuilderStore((state) => state.meta);
   const dirty = useBuilderStore((state) => state.dirty);

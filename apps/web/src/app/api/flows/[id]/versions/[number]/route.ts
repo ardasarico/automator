@@ -3,7 +3,6 @@ import { getFlowVersionContract } from "@automator/contracts";
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../../../auth/http";
 
-/** Reads one saved version of the caller's flow, document included, for a restore. */
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string; number: string }> },

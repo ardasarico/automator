@@ -56,18 +56,15 @@ export const buttonVariants = cva(
 type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>["size"]>;
 type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>["variant"]>;
 
-/** Sizes that render an icon with no visible label. */
 type IconButtonSize = Extract<ButtonSize, `icon${string}`>;
 type TextButtonSize = Exclude<ButtonSize, IconButtonSize>;
 
 export interface ButtonOwnProps extends useRender.ComponentProps<"button"> {
   variant?: ButtonVariant;
   loading?: boolean;
-  /** Optional label shown beside the spinner. Its space is reserved to avoid layout shifts. */
   loadingText?: string;
 }
 
-/** Icon-only buttons carry no text, so they have to name themselves. */
 type IconButtonProps = ButtonOwnProps & { size: IconButtonSize } & (
     | { "aria-label": string }
     | { "aria-labelledby": string }

@@ -89,10 +89,7 @@
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
-/*
-  No semantic hover-border token exists yet; this strengthens --border toward the
-  foreground so it inverts with the theme. Replace with --border-hover if one is added.
-*/
+
 .exampleCard:has(.exampleLink:hover) {
   border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
 }
@@ -185,7 +182,7 @@
 .flowDetails {
   padding: 14px 16px;
 }
-/* Sits over the card's link, on the preview's corner, so the card stays one big link. */
+
 .cardActions {
   position: absolute;
   top: 8px;
@@ -310,7 +307,6 @@ li:hover > .cardActions {
   }
 }
 
-/* Trigger kinds and node count under a flow's name. */
 .flowFacts {
   display: inline-flex;
   align-items: center;
@@ -329,7 +325,6 @@ li:hover > .cardActions {
   height: 14px;
 }
 
-/* The three ways into a first flow, inside the empty-state hero. */
 .startGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

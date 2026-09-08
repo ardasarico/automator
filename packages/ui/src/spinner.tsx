@@ -3,7 +3,6 @@ import type React from "react";
 import { cn } from "./utils";
 
 export type SpinnerProps = React.ComponentProps<typeof RiLoader4Line> & {
-  /** Announce the spinner under this name. Omit to keep it decorative. */
   label?: string;
 };
 

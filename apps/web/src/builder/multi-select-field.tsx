@@ -4,11 +4,6 @@ import { Checkbox } from "@automator/ui/checkbox";
 import { Field, FieldDescription, FieldLabel } from "@automator/ui/field";
 import styles from "./flow-builder.module.css";
 
-/**
- * A checkbox group for a config array whose items are a fixed set of literals (the agent's
- * `tools`). The stored value keeps the schema's order, so two selections of the same tools
- * compare equal whatever order they were ticked in.
- */
 export function MultiSelectField({
   id,
   label,
@@ -58,7 +53,6 @@ export function MultiSelectField({
   );
 }
 
-/** `http_get` → `Http get`, matching the settings form's other labels. */
 export function humanizeOption(option: string) {
   const words = option.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);

@@ -18,7 +18,6 @@ import { Elysia } from "elysia";
 import { WorldVerifyError, type WorldVerifier } from "../world/verify";
 import { createSessionRoutes, failureCode } from "./routes";
 
-/** trigger → form → discord (webhook from a secret) → page. */
 const document: FlowDocument = {
   version: 1,
   id: "flow-1",
@@ -49,7 +48,6 @@ const document: FlowDocument = {
   ],
 };
 
-/** trigger → Privy login → World ID verify → discord (verified) / page (rejected). */
 const gated: FlowDocument = {
   version: 1,
   id: "flow-2",
@@ -102,13 +100,9 @@ function fixture(
   options: {
     secrets?: Record<string, string>;
     callsPerMinute?: number;
-    /** The published document served as `flow-1`; the fixture document by default. */
     flow?: FlowDocument;
-    /** Stubbed visitor identity: the token it accepts; absent leaves sign-in unconfigured. */
     visitorToken?: string;
-    /** Stubbed World verifier; absent leaves World ID unconfigured. */
     world?: WorldVerifier;
-    /** Replaces a waiting node's timer for cancellation tests. */
     sleep?: (ms: number) => Promise<void>;
   } = {},
 ) {
@@ -325,7 +319,6 @@ describe("mini-app sessions", () => {
       );
       await waiting.promise;
       controller.abort();
-      // The original timer may finish after the caller leaves; downstream effects must not.
       timer.resolve();
       const result = await response;
       expect(result.status).toBe(phase === "start" ? 201 : 200);
@@ -479,7 +472,6 @@ describe("mini-app sessions", () => {
     });
     const session = await start(post);
     expect(posted).toHaveLength(1);
-    // A new publication must not silently alter an already-running visitor's graph.
     records.get("flow-1")!.flow = { ...branched, nodes: [], edges: [] };
     const answer = (port: string) =>
       post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
@@ -593,7 +585,6 @@ describe("mini-app sessions", () => {
     expect(failed.help).toBeUndefined();
     expect(failed.steps).toEqual([{ nodeId: "d", label: "Announce", status: "failed" }]);
     expect(JSON.stringify(failed)).not.toContain("hook");
-    // The owner's stored run keeps the real error.
     expect(created[1]!.run.nodes.find((n) => n.nodeId === "d")?.error).toBe(
       'Secret "hook" is not defined',
     );
@@ -639,7 +630,6 @@ describe("mini-app sessions", () => {
     expect(await limited.json()).toEqual({ error: "rate_limited" });
     expect((await post("/public/flows/flow-1/sessions", undefined, visitor)).status).toBe(429);
     expect(created).toHaveLength(2);
-    // Another address, forwarded or not, has a window of its own.
     const other = { "x-forwarded-for": "198.51.100.4" };
     expect((await post("/public/flows/flow-1/sessions", undefined, other)).status).toBe(201);
     expect((await post("/public/flows/flow-1/sessions")).status).toBe(201);
@@ -817,7 +807,6 @@ describe("identity screens in sessions", () => {
     const next = await answer(post, session, {
       port: "user",
       privyToken: "good-jwt",
-      // A visitor cannot smuggle an identity through the form data.
       data: { userId: "did:privy:mallory", email: "mallory@example.com" },
     });
     expect(next.status).toBe(200);
@@ -825,9 +814,7 @@ describe("identity screens in sessions", () => {
     expect(next.json.screen).toMatchObject({
       nodeId: "verify",
       type: "world.id-verify",
-      // The signal template resolved against vars, so the runtime binds the proof to it.
       config: { action: "claim", verificationLevel: "orb", signal: "0xAda" },
-      // A signed request context for the action, so IDKit can open without World credentials.
       world: {
         appId: "app_123",
         environment: "staging",
@@ -854,7 +841,6 @@ describe("identity screens in sessions", () => {
     const failed = await answer(post, session, { port: "user", privyToken: "jwt" });
     expect(failed.status).toBe(200);
     expect(failed.json.status).toBe("failed");
-    // The visitor sees the generic sentence and a code; the real reason stays in the stored run.
     expect(failed.json.error).toBe(miniAppFailureMessage);
     expect(failed.json.code).toBe("unconfigured");
     expect(created.at(-1)!.run.nodes[1]).toMatchObject({ nodeId: "login", status: "failed" });
@@ -901,7 +887,6 @@ describe("identity screens in sessions", () => {
     const unconfigured = fixture({ visitorToken: "good-jwt" });
     const other = await start(unconfigured.post, "flow-2");
     const screen = await answer(unconfigured.post, other, { port: "user", privyToken: "good-jwt" });
-    // No World configuration: the screen comes without a request context.
     expect(screen.json.screen?.world).toBeUndefined();
     const failed = await answer(unconfigured.post, other, { port: "verified", worldProof: proof });
     expect(failed.json.status).toBe("failed");

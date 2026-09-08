@@ -1,10 +1,5 @@
 import type { FlowNodeType } from "./flows";
 
-/**
- * Input and output handle ids per node type. The builder's catalog renders these as port
- * rows (with labels and icons of its own); the engine keys inputs and outputs by them; the
- * flow generator validates edges against them.
- */
 export interface FlowNodePorts {
   inputs: readonly string[];
   outputs: readonly string[];

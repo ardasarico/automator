@@ -1,13 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-/**
- * Config schemas for the watch triggers: `trigger.price` reads a Chainlink price feed on the
- * flow's chain, `trigger.balance` reads a wallet's token balance through The Graph's Token
- * API. Both compare the reading against a threshold and start the flow when the comparison
- * turns true, so a watcher fires once per crossing rather than on every poll.
- */
-
-/** How a watch trigger compares its reading against the threshold. */
 export const watchComparisons = ["below", "at_or_below", "above", "at_or_above"] as const;
 export type WatchComparison = (typeof watchComparisons)[number];
 
@@ -15,18 +7,12 @@ const comparisonSchema = Type.Unsafe<WatchComparison>(
   Type.Union(watchComparisons.map((comparison) => Type.Literal(comparison))),
 );
 
-/** One Chainlink aggregator: `decimals` is the feed's own, not the quoted asset's. */
 export interface PriceFeed {
   pair: string;
   address: string;
   decimals: number;
 }
 
-/**
- * The Chainlink price feeds the builder offers per chain, from Chainlink's published
- * directory. World Chain Sepolia has none, so a flow on that chain needs a `feed` address of
- * its own.
- */
 export const chainlinkFeeds: Record<number, readonly PriceFeed[]> = {
   84532: [
     { pair: "ETH / USD", address: "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1", decimals: 8 },
@@ -41,18 +27,15 @@ export const chainlinkFeeds: Record<number, readonly PriceFeed[]> = {
   ],
 };
 
-/** The pair the trigger watches, or `custom` to read the address typed into `feed`. */
 export const priceFeedPairs = [
   ...new Set(Object.values(chainlinkFeeds).flatMap((feeds) => feeds.map((feed) => feed.pair))),
   "custom",
 ] as const;
 
-/** The feed for a pair on a chain, or `undefined` when the chain does not publish it. */
 export function findPriceFeed(chainId: number, pair: string): PriceFeed | undefined {
   return chainlinkFeeds[chainId]?.find((feed) => feed.pair === pair);
 }
 
-/** The networks The Graph's Token API reads balances on; all are mainnets. */
 export const tokenApiNetworks = ["mainnet", "base", "arbitrum-one"] as const;
 export type TokenApiNetwork = (typeof tokenApiNetworks)[number];
 
@@ -68,17 +51,14 @@ export const samplePricePayload = {
   chainId: 84532,
 } as const;
 
-/** The payload a price trigger hands the flow when its comparison turns true. */
 export interface PriceTriggerPayload {
   pair: string;
   feed: string;
-  /** The reading in the quote unit, as a decimal string. */
   price: string;
   threshold: string;
   comparison: WatchComparison;
   decimals: number;
   roundId: string;
-  /** When the feed last updated, ISO 8601. */
   updatedAt: string;
   chainId: number;
 }
@@ -94,24 +74,17 @@ export const sampleBalancePayload = {
   decimals: 18,
 } as const;
 
-/** The payload a balance trigger hands the flow when its comparison turns true. */
 export interface BalanceTriggerPayload {
   address: string;
   network: string;
-  /** The ERC-20 contract watched, or `native` for the chain's own coin. */
   token: string;
   symbol: string;
-  /** The balance in the token's own unit, as a decimal string. */
   balance: string;
   threshold: string;
   comparison: WatchComparison;
   decimals: number;
 }
 
-/**
- * The price trigger. `pair` picks one of the chain's published feeds; `custom` reads `feed`
- * instead, which is also how a chain without published feeds is watched.
- */
 export const priceTriggerConfigSchema = Type.Object({
   pair: Type.Unsafe<(typeof priceFeedPairs)[number]>(
     Type.Union(

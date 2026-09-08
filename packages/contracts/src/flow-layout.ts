@@ -1,16 +1,11 @@
 export type FlowPosition = { x: number; y: number };
 
-/** One grid for every generated or tidied flow, so the AI's and the canvas's layouts look alike. */
 export const layoutGrid = { columnGap: 300, rowGap: 140, startX: 80, startY: 120 } as const;
 
 type LayoutNode = { id: string };
 type LayoutEdge = { source: string; target: string };
 
-/**
- * Left-to-right layout: a node's column is the longest path from any node without incoming
- * edges (a trigger, normally), and rows follow node order within a column. Cycles are ignored:
- * relaxation stops after |nodes| rounds, so a cyclic graph still gets finite positions.
- */
+/* Longest-path columns, node-order rows. Bound relaxation to |nodes| rounds for cyclic input. */
 export function layoutFlowPositions(
   nodes: readonly LayoutNode[],
   edges: readonly LayoutEdge[],

@@ -26,7 +26,6 @@ const input: FlowDocumentInput = {
   edges: [{ id: "e1", source: "n1", target: "n2", sourceHandle: "out", targetHandle: "in" }],
 };
 
-/** In-memory stand-in for the flow store, with the same owner scoping as the SQL one. */
 function fixture(overrides: Partial<FlowStore> = {}, users?: UserStore, log = false) {
   const records = new Map<string, FlowRecord & { ownerId: string }>();
   let clock = 0;
@@ -204,7 +203,6 @@ describe("flow routes", () => {
       ...input,
       id: "someone-elses",
     });
-    // An id is not part of the input schema at all, so the whole document is refused.
     expect(response.status).toBe(422);
     expect(await response.json()).toEqual({ error: "invalid_flow" });
   });

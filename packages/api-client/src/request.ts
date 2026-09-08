@@ -7,14 +7,10 @@ import {
   type EndpointContract,
 } from "@automator/contracts";
 
-/**
- * Next.js reads `cache` off the init to opt out of its own fetch cache, but the
- * ambient `RequestInit` this workspace compiles against does not declare it.
- */
+/* Next reads cache from RequestInit, but Bun's ambient type omits it. */
 export type ApiRequestInit = RequestInit & { cache?: "no-store" };
 export type Fetcher = (url: URL, init: ApiRequestInit) => Promise<Response>;
 
-/** Raised when the API could not be reached at all: no URL, network failure or timeout. */
 export class ApiRequestError extends Error {
   constructor(
     message: string,
@@ -26,12 +22,9 @@ export class ApiRequestError extends Error {
 }
 
 export interface RequestOptions<C extends EndpointContract> {
-  /** Bearer token forwarded to the API. Omitted for public endpoints. */
   token?: string;
   params?: ContractParams<C>;
-  /** Query-string entries; `undefined` values are skipped. */
   query?: Record<string, string | undefined>;
-  /** Extra request headers, for example a visitor's forwarded address; never the bearer token. */
   headers?: Record<string, string>;
   body?: ContractBody<C>;
   signal?: AbortSignal;
@@ -39,11 +32,6 @@ export interface RequestOptions<C extends EndpointContract> {
   fetcher?: Fetcher;
 }
 
-/**
- * Performs one contract-described call and validates the answer against that
- * contract. Any status the contract declares comes back as data; anything else
- * throws, so callers never see an unvalidated payload.
- */
 export async function request<C extends EndpointContract>(
   apiUrl: string | undefined,
   contract: C,
@@ -75,7 +63,6 @@ export async function request<C extends EndpointContract>(
     headers: requestHeaders,
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
-    // A caller's signal never replaces the timeout: whichever fires first wins.
     signal: signal
       ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
       : AbortSignal.timeout(timeoutMs),

@@ -1,22 +1,14 @@
 import type { SQL } from "bun";
 import { lockCurrentPoll } from "./polling-fence";
 
-/** What a watch trigger saw on its last poll, so the next one can spot the crossing. */
 export interface WatchState {
   flowId: string;
   nodeId: string;
-  /** Whether the comparison held at the last poll. */
   met: boolean;
-  /** The reading as a decimal string, for the log and the run panel. */
   value: string;
-  /** Identifies this observation for compare-and-set crossing consumption. */
   observationId: string;
 }
 
-/**
- * One row per (flow, watch trigger node), deleted with the flow. The row is the whole memory
- * of a watcher: without it every poll of a true condition would start another run.
- */
 export function createWatchStateStore(sql: SQL | undefined) {
   function connection() {
     if (!sql) throw new Error("Database is not configured");

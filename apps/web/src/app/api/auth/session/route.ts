@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../auth/http";
 import { SESSION_COOKIE } from "../../../../auth/server";
 
-/** Read per call so the flag follows the environment the handler runs in. */
 function cookieOptions() {
   return {
     httpOnly: true,

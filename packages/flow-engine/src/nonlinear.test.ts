@@ -30,7 +30,6 @@ const flow = (nodes: FlowNode[], edges: FlowEdge[]): FlowDocument => ({
   edges,
 });
 
-// One branch sends once, the other pauses twice; the final join needs both branches.
 const pausedJoin = flow(
   [
     node("start", "trigger.miniapp-open"),

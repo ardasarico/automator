@@ -58,7 +58,6 @@ describe.skipIf(!url)("session claims", () => {
         worldExpiresAt: null,
       });
 
-      // Inserts written before the additive migration keep working and receive null bindings.
       const legacyId = crypto.randomUUID();
       await sql`INSERT INTO automator_sessions (id, flow_id, owner_id, token_hash, status)
         VALUES (${legacyId}, ${flow.id}, ${ownerId}, 'legacy-token-hash', 'end')`;

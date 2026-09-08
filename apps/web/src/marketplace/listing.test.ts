@@ -106,9 +106,7 @@ test("listingCategories reads categories off node types and the browser filters 
     username: null,
     category: "onchain",
   });
-  // Privy and USDC nodes both count as onchain.
   expect(onchain.map((item) => item.slug)).toEqual(["arda/airdrop-gate", "ticket-checkout"]);
-  // Search also matches node types and category names.
   expect(
     browseListings(all, {
       filter: "all",

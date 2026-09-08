@@ -7,14 +7,9 @@ import {
 } from "@automator/contracts";
 import { createStore, type StoreApi } from "zustand";
 
-/**
- * A document the assistant proposed. `pending` until the user applies or discards it;
- * `stale` once another proposal was applied, since it was drawn from an older canvas.
- */
 export type AiProposal = {
   document: FlowDocumentInput;
   verification?: AiVerification;
-  /** True when the answer was asked as a new flow rather than an edit of the canvas. */
   replaces: boolean;
   state: "pending" | "applied" | "discarded" | "stale";
 };
@@ -24,7 +19,6 @@ export type AiTurn =
   | {
       id: string;
       role: "assistant";
-      /** The model's message, or its summary of the proposal; a failure message when `error`. */
       text: string;
       proposal?: AiProposal;
       error?: true;
@@ -32,20 +26,13 @@ export type AiTurn =
 
 export type AiState = {
   turns: AiTurn[];
-  /** True from `ask` until the answer or failure for that request lands. */
   pending: boolean;
-  /** Bumped by anything outside the panel that wants the AI tab in front. */
   focusRequests: number;
-  /** Adds the user's turn and marks a request in flight; returns the turn id. */
   ask(text: string): string;
-  /** Adds the assistant's answer to the request `askId` started; ignored once the thread was cleared. */
   answer(askId: string, answer: GenerateFlowResponse, options?: { replaces?: boolean }): void;
-  /** Adds a failure as an assistant turn; ignored once the thread was cleared. */
   fail(askId: string, text: string): void;
-  /** Marks the proposal applied and every other pending one stale. */
   apply(id: string): void;
   discard(id: string): void;
-  /** Start over: drops the thread and any answer still on its way. */
   clear(): void;
   requestFocus(): void;
 };
@@ -53,7 +40,6 @@ export type AiState = {
 let sequence = 0;
 const nextId = () => `t${(sequence += 1)}`;
 
-/** `focusOnMount` starts with one focus request pending, so the prompt takes the cursor. */
 export function createAiStore({ focusOnMount = false } = {}): StoreApi<AiState> {
   return createStore<AiState>((set, get) => ({
     turns: [],
@@ -118,10 +104,6 @@ export function createAiStore({ focusOnMount = false } = {}): StoreApi<AiState> 
   }));
 }
 
-/**
- * The thread as the API takes it: user turns and the assistant's messages or summaries,
- * failures left out, capped at the newest turns the contract allows.
- */
 export function historyOf(turns: readonly AiTurn[]): AiHistoryTurn[] {
   return turns
     .filter((turn) => turn.role === "user" || !turn.error)

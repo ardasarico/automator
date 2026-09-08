@@ -2,7 +2,6 @@
 import { afterAll, beforeAll, beforeEach, expect, mock, test } from "bun:test";
 import { navigationModule } from "./test-navigation";
 
-// `server.ts` and the API client are server modules; the marker has no meaning here.
 mock.module("server-only", () => ({}));
 
 const user = { id: "did:privy:test", name: "Test", username: "test_user", walletAddress: "0xabc" };

@@ -9,7 +9,6 @@ import { createUserStore } from "./users";
 
 const url = process.env.TEST_DATABASE_URL;
 
-/** A document as the builder stored it before `world.selfie-check` was retired. */
 const legacy = {
   version: 1,
   nodes: [
@@ -36,7 +35,6 @@ const legacy = {
   ],
 };
 
-/** The same document after the migration; typed loosely because it is compared, not used. */
 const migrated: { version: number; nodes: unknown[]; edges: unknown[] } = {
   ...legacy,
   nodes: legacy.nodes.map((node) =>
@@ -91,7 +89,6 @@ describe.skipIf(!url)("migration 0008 retires world.selfie-check", () => {
       const record = await flows.find("did:privy:test-a", flowId);
       expect(record).not.toBeNull();
       expect(isFlowDocument(record!.flow)).toBe(true);
-      // Only the type changes: config, labels, positions and edges stay as they were.
       expect<unknown>(record!.flow.nodes).toEqual(migrated.nodes);
       expect(record!.flow.edges).toEqual(legacy.edges);
 
@@ -104,7 +101,6 @@ describe.skipIf(!url)("migration 0008 retires world.selfie-check", () => {
       expect(isFlowDocument(run!.document)).toBe(true);
       expect<unknown>(run!.document.nodes).toEqual(migrated.nodes);
 
-      // Running the migration again is a no-op that leaves the rewritten rows alone.
       await sql`DELETE FROM automator_migrations WHERE name = '0008_retire_selfie_check'`;
       await migrate(sql);
       const stored = await sql<{ document: unknown }[]>`

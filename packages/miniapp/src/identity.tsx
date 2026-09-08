@@ -17,29 +17,17 @@ import type React from "react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ScreenNode } from "./engine";
 
-/** What an answer to an identity screen carries besides its port; the API verifies it. */
 export type IdentityAnswer = {
   privyToken?: string;
   worldProof?: WorldProof;
 };
 
-/**
- * What the host can do for an identity screen. The runtime provides both, backed by Privy
- * and by World's IDKit or MiniKit; the builder's preview and the in-browser engine provide
- * none, and the screens then play their configured sample answer instead.
- */
 export interface IdentityActions {
-  /** Signs the visitor in with Privy and resolves with their access token. */
   privyLogin?(config: PrivyLoginConfig): Promise<{ privyToken: string }>;
-  /**
-   * Asks the visitor for a World ID proof through IDKit (a QR code in a browser, the native
-   * flow inside World App), with the request context the API signed for this screen.
-   */
   worldVerify?(
     config: WorldIdVerifyConfig,
     request: WorldRequest,
   ): Promise<{ worldProof: WorldProof }>;
-  /** True when the page runs inside World App, where the verify button reads differently. */
   inWorldApp?: boolean;
 }
 
@@ -61,10 +49,8 @@ export function useIdentityActions(): IdentityActions | null {
 
 export type IdentityScreenProps = {
   node: ScreenNode;
-  /** The visitor acted: continue on `port`, with a sample record or the host's verified answer. */
   onContinue(port: string, data?: Record<string, string>, identity?: IdentityAnswer): void;
   titleRef?: React.Ref<HTMLHeadingElement>;
-  /** The screen layout, passed in so this file does not depend on screens.tsx. */
   frame: React.ComponentType<{ children: React.ReactNode; footer?: React.ReactNode }>;
   title: React.ComponentType<{
     children: React.ReactNode;
@@ -77,7 +63,6 @@ function describeFailure(error: unknown, fallback: string): string {
   return fallback;
 }
 
-/** Runs the host action and continues, or shows why it did not work and lets the visitor retry. */
 function useIdentityAction<T extends IdentityAnswer>(
   run: (() => Promise<T>) | undefined,
   onDone: (answer: T) => void,
@@ -210,7 +195,6 @@ export function WorldIdVerifyScreen({
     "Verification did not complete. Try again.",
   );
   const preview = !verify;
-  // The host can verify but the API sent no request context: World ID is not set up there.
   const unconfigured = !preview && !request;
   const playSample = () => {
     if (config.simulate === "rejected")

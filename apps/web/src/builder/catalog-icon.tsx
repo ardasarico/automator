@@ -1,14 +1,12 @@
 import Image from "next/image";
 import type { CatalogIcon } from "./catalog";
 
-/** A catalog entry's icon: a Remix icon or an integration logo, decorative by default. */
 export function CatalogIconMark({
   icon,
   label,
   className = "size-4",
 }: {
   icon: CatalogIcon;
-  /** Accessible name; omit when the surrounding text already names the entry. */
   label?: string;
   className?: string;
 }) {

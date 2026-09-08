@@ -27,7 +27,6 @@ import { useAccessToken } from "../auth/access-token";
 type ChangeKind = "added" | "removed" | "changed" | "kept";
 type Change = { kind: ChangeKind; id: string; label: string; type: string };
 
-/** What applying `next` would do to the canvas, node by node, in the order the canvas will show. */
 export function diffNodes(current: readonly FlowNode[], next: readonly FlowNode[]): Change[] {
   const before = new Map(current.map((node) => [node.id, node]));
   const changes: Change[] = next.map((node) => {
@@ -79,7 +78,6 @@ const proposalStates: Record<Exclude<AiProposal["state"], "pending">, string> = 
   stale: "Superseded by a later change",
 };
 
-/** A proposed document: the node-by-node preview with Apply and Discard while it is pending. */
 function ProposalCard({
   turn,
   proposal,
@@ -177,13 +175,6 @@ function ProposalCard({
   );
 }
 
-/**
- * The AI panel: a conversation with the model about the flow. Each request sends the
- * canvas as it is now (after any applied proposals) with the thread's earlier turns, so a
- * follow-up edits the current flow. An answer is a message, or a proposal previewed as a
- * node-by-node list of changes that only lands on the canvas when applied. Explanations of a
- * failed run arrive in the same thread from the run panel.
- */
 export function AiPanel() {
   const getAccessToken = useAccessToken();
   const { fitView } = useReactFlow();
@@ -206,7 +197,6 @@ export function AiPanel() {
   const promptField = useRef<HTMLTextAreaElement>(null);
   const focusRequests = useAiStore((state) => state.focusRequests);
 
-  // A canvas with nodes is edited unless the user unticks the box; an empty one gets a new flow.
   const editing = hasNodes && edit;
 
   useEffect(() => {
@@ -214,7 +204,6 @@ export function AiPanel() {
     if (element) element.scrollTop = element.scrollHeight;
   }, [turns, pending]);
 
-  // Anything asking for the AI tab also wants the cursor in the prompt.
   useEffect(() => {
     if (focusRequests > 0) promptField.current?.focus();
   }, [focusRequests]);
@@ -226,7 +215,6 @@ export function AiPanel() {
     setPrompt("");
     const { id: _id, ...document } = serializeFlow(meta, nodes, edges);
     try {
-      // The model never sees a credential: secret fields go out blank and come back on Apply.
       const result = await generateFlowRequest(await getAccessToken(), {
         prompt: text,
         ...(editing ? { document: redactFlowSecrets(document) } : {}),

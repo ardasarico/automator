@@ -15,12 +15,7 @@ import { QrCode } from "./qr-code";
 
 export type ScreenViewProps = {
   node: ScreenNode;
-  /**
-   * The visitor acted: continue on `port`; a form passes its values, an identity screen the
-   * host's verified answer (or a sample record in the preview).
-   */
   onContinue(port: string, data?: Record<string, string>, identity?: IdentityAnswer): void;
-  /** Focused after a visitor action, so screen readers land on the new screen. */
   titleRef?: React.Ref<HTMLHeadingElement>;
 };
 
@@ -38,7 +33,6 @@ function Title({
   );
 }
 
-/** Screen layout: scrolling content above a footer that keeps its actions reachable. */
 export function ScreenFrame({
   children,
   footer,
@@ -160,7 +154,6 @@ function FormField({ field, formId }: { field: ScreenFormField; formId: string }
   );
 }
 
-/** Fields keep their own value; the form reads everything back on submit. */
 function UncontrolledField({ field, id }: { field: ScreenFormField; id: string }) {
   const [value, setValue] = useState("");
   return <FormFieldControl field={field} id={id} value={value} onChange={setValue} />;
@@ -228,7 +221,6 @@ function QrCodeScreen({ node, onContinue, titleRef }: ScreenViewProps) {
   );
 }
 
-/** One screen node, rendered by its type. */
 export function ScreenView(props: ScreenViewProps): React.ReactElement {
   switch (props.node.type) {
     case "screen.page":
@@ -253,7 +245,6 @@ export type WorkingStep = {
   error?: string;
 };
 
-/** The interstitial while the engine runs the steps between two screens, one row per result. */
 export function WorkingView({ steps }: { steps: WorkingStep[] }) {
   return (
     <ScreenFrame>
@@ -291,7 +282,6 @@ export function WorkingView({ steps }: { steps: WorkingStep[] }) {
   );
 }
 
-/** A node failed: name it and the error, and offer a fresh start. */
 export function FailedView({
   label,
   error,
@@ -317,10 +307,6 @@ export function FailedView({
   );
 }
 
-/**
- * The failure screen a visitor of a published mini-app sees: one plain sentence, the owner's
- * note when they wrote one, and a fresh start. Never a node's name or its error text.
- */
 export function VisitorFailedView({
   message,
   help,
@@ -329,7 +315,6 @@ export function VisitorFailedView({
 }: {
   message: string;
   help?: string;
-  /** The API's failure code, or `unavailable` when the API could not be reached. */
   code?: string;
   onRetry: () => void;
 }) {

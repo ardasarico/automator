@@ -10,11 +10,6 @@ import { useBuilderStore } from "./store-provider";
 import { useFlowProblems } from "./use-flow-problems";
 import { useSelectNode } from "./use-select-node";
 
-/**
- * The Outline section of the left panel: the flow's problems first, so a run is not a
- * surprise, then every node with search for large canvases. Choosing a problem or a node
- * selects that node on the canvas.
- */
 export function FlowOutline() {
   const nodes = useBuilderStore((state) => state.nodes);
   const problems = useFlowProblems();

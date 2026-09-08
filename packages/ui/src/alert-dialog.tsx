@@ -47,10 +47,6 @@ export function AlertDialogViewport({
   );
 }
 
-/**
- * An alert dialog asks for a decision before going on: no close button, no dismissal by
- * clicking outside, and the footer's buttons are the only way out (Escape still cancels).
- */
 export function AlertDialogPopup({
   className,
   bottomStickOnMobile = true,

@@ -13,14 +13,12 @@ import { onchainExecutors } from "./onchain-executors";
 import { postDiscordMessage } from "./discord";
 import { NodeExecutionError, type ExecutorRegistry, type NodeExecutor } from "./executor";
 
-/** A trigger hands its payload to its single output handle. */
 function trigger(outputHandle: string): NodeExecutor {
   return { kind: "trigger", run: async ({ trigger }) => ({ [outputHandle]: trigger }) };
 }
 
 const screen: NodeExecutor = { kind: "screen" };
 
-/** Executors for every node type the engine runs today. Absent types fail as not implemented. */
 export const defaultExecutors: ExecutorRegistry = {
   "trigger.schedule": trigger("tick"),
   "trigger.onchain-event": trigger("event"),
@@ -35,7 +33,6 @@ export const defaultExecutors: ExecutorRegistry = {
   "screen.form": screen,
   "screen.confirmation": screen,
   "screen.qr-code": screen,
-  // Identity screens: the visitor signs in or proves personhood; the host verifies the answer.
   "privy.login": screen,
   "world.id-verify": screen,
 
@@ -82,5 +79,4 @@ export const defaultExecutors: ExecutorRegistry = {
   ...loopExecutors,
 };
 
-/** Kept for callers that import `compare` from here; it lives in ./compare. */
 export { compare } from "./compare";

@@ -6,7 +6,6 @@ function node(id: string, type: FlowNode["type"], config: Record<string, unknown
   return { id, type, position: { x: 0, y: 0 }, label: `Node ${id}`, config };
 }
 
-/** trigger → form → set-variable → discord, with an unrelated node wired after discord. */
 const nodes = [
   node("t", "trigger.miniapp-open"),
   node("form", "screen.form", { fields: [{ id: "email", label: "Email" }, { id: "" }] }),

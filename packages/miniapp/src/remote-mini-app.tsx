@@ -11,7 +11,6 @@ import type { ScreenNode } from "./engine";
 import type { IdentityAnswer } from "./identity";
 import { EndView, ScreenView, VisitorFailedView, WorkingView, type WorkingStep } from "./screens";
 
-/** How the page reaches the API: the runtime's same-origin handlers implement both. */
 export interface MiniAppClient {
   start(signal?: AbortSignal): Promise<MiniAppSession>;
   answer(sessionId: string, answer: MiniAppAnswer, signal?: AbortSignal): Promise<MiniAppSession>;
@@ -19,7 +18,6 @@ export interface MiniAppClient {
 
 export type RemoteMiniAppProps = {
   client: MiniAppClient;
-  /** Shown in the top bar; omit for no bar. */
   name?: string;
   className?: string;
 };
@@ -28,7 +26,6 @@ type SessionState = {
   kind: "session";
   session: MiniAppSession;
   token: string;
-  /** Why the last answer was refused, shown above the screen it came back to. */
   notice?: string;
 };
 type State = { kind: "loading" } | SessionState | { kind: "unavailable"; message: string };
@@ -41,7 +38,6 @@ type ClientRequests = {
   promise?: Promise<MiniAppSession>;
 };
 
-/** A screen from the API rendered through the same views as the document-driven mini-app. */
 function toNode(screen: MiniAppScreen): ScreenNode {
   return {
     id: screen.nodeId,
@@ -53,11 +49,6 @@ function toNode(screen: MiniAppScreen): ScreenNode {
   };
 }
 
-/**
- * Why the session request did not settle, in the visitor's terms. A client that throws the
- * API's error code (the runtime's does) lets a rejected sign-in or a rate limit read as such;
- * anything else is the app being unreachable.
- */
 export function describeUnavailable(cause: unknown): string {
   const code = cause instanceof Error ? cause.message : "";
   if (code === "unauthorized")
@@ -66,14 +57,8 @@ export function describeUnavailable(cause: unknown): string {
   return "The app could not be reached. Try again.";
 }
 
-/** The note a screen shows when the API refused the sign-in it was answered with. */
 export const signInRefusedNotice = "Your sign-in could not be verified. Try again.";
 
-/**
- * Where a refused answer leaves the visitor: the API keeps a session on its screen when it
- * rejects a sign-in token (401), so the screen comes back with a note instead of a restart;
- * every other failure is the unavailable view.
- */
 export function stateAfterFailure(cause: unknown, previous: SessionState | undefined): State {
   const code = cause instanceof Error ? cause.message : "";
   if (code === "unauthorized" && previous)
@@ -90,17 +75,11 @@ function toSteps(session: MiniAppSession): WorkingStep[] {
   return session.steps.map((step) => ({ id: step.nodeId, label: step.label, status: step.status }));
 }
 
-/**
- * A published flow played through the API: the server runs it and hands back only the
- * current screen, so the visitor never holds the document. Starting and every answer show
- * the working view until the API settles.
- */
 export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
   const [loaded, setLoaded] = useState<{ client: MiniAppClient; state: State }>({
     client,
     state: { kind: "loading" },
   });
-  // A different flow must not keep the old flow's actionable screen while its start is pending.
   const state: State = loaded.client === client ? loaded.state : loadingState;
   const [steps, setSteps] = useState<WorkingStep[]>([]);
   const interacted = useRef(false);
@@ -135,7 +114,6 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
     [client],
   );
 
-  // The initial state is already "loading", so opening the session sets nothing synchronously.
   useEffect(() => {
     let source = requests.current;
     if (!source || source.client !== client) {

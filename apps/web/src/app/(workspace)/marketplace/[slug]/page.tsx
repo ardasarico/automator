@@ -34,7 +34,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-/** "By Automator", or the publisher with their publish date and fork count. */
 function ListingByline({ listing }: { listing: MarketplaceItem }) {
   if (listing.author.kind === "automator")
     return <p className="mb-2 text-caption text-muted-foreground">By Automator</p>;

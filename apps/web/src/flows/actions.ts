@@ -7,7 +7,6 @@ import { exampleToFlowDocument, findFlowExample } from "../builder/examples";
 import { forkListing } from "../marketplace/server";
 import { createFlow } from "./server";
 
-/** Creating and forking are POST actions; page rendering and prefetching never write flows. */
 export async function createFlowAction(options: { example?: string; ai?: boolean } = {}) {
   await requireUser();
   const example = findFlowExample(

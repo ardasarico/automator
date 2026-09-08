@@ -3,7 +3,6 @@ import { getWalletTransactionsContract } from "@automator/contracts";
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../auth/http";
 
-/** The transactions the signed-in user's stored runs sent, newest first. */
 export async function GET(req: Request) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);

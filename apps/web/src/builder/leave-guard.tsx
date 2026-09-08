@@ -34,7 +34,6 @@ import { useBuilderStore } from "./store-provider";
 
 const LeaveGuardContext = createContext<((href: string) => void) | null>(null);
 
-/** The decision state plus the effect its last event asked for; `seq` tells effects apart. */
 type Machine = { guard: LeaveGuardState; effect: LeaveGuardEffect; seq: number };
 
 function step(machine: Machine, event: LeaveGuardEvent): Machine {
@@ -44,12 +43,6 @@ function step(machine: Machine, event: LeaveGuardEvent): Machine {
 
 const initial: Machine = { guard: idleLeaveGuard, effect: null, seq: 0 };
 
-/**
- * Keeps unsaved changes from being lost: while the store is dirty, closing or reloading the
- * tab asks through the browser's own prompt, and an in-app link away from the canvas opens
- * the "Leave without saving?" dialog instead of navigating. Save and leave runs the shared
- * save path and only navigates once it succeeds.
- */
 export function LeaveGuardProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const dirty = useBuilderStore((state) => state.dirty);
@@ -113,7 +106,6 @@ export function LeaveGuardProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => {
-      // Browsers show their own generic prompt; the text is not customisable.
       event.preventDefault();
       event.returnValue = "";
     };
@@ -160,11 +152,6 @@ export function LeaveGuardProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * A click handler for a link that leaves the canvas: a plain click is intercepted and goes
- * through the guard, a modified click (new tab) passes through. Outside the builder, or
- * without a provider, it does nothing and the link works as usual.
- */
 export function useLeaveGuard(): (href: string) => (event: MouseEvent<HTMLElement>) => void {
   const request = useContext(LeaveGuardContext);
   return useCallback(

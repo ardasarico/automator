@@ -14,7 +14,6 @@ export class VersionRequestError extends Error {
   }
 }
 
-/** The flow's saved versions, newest first, through the same-origin proxy. */
 export async function listFlowVersionsRequest(
   token: string | null,
   flowId: string,
@@ -35,7 +34,6 @@ export async function listFlowVersionsRequest(
   return result.data.versions;
 }
 
-/** One saved version with its document, for a restore. */
 export async function getFlowVersionRequest(
   token: string | null,
   flowId: string,
@@ -64,7 +62,6 @@ const messages: Record<string, string> = {
   rate_limited: "Too many requests. Try again in a moment.",
 };
 
-/** What the user reads when a history request fails. */
 export function describeVersionError(error: unknown): string {
   const code = error instanceof VersionRequestError ? error.code : "unavailable";
   return messages[code] ?? "The history could not be loaded. Please try again.";

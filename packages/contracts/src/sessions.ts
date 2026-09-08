@@ -2,12 +2,6 @@ import { Type, type Static } from "@sinclair/typebox";
 import { apiErrorResponses } from "./contract";
 import { worldProofSchema, worldRequestSchema } from "./identity";
 
-/**
- * A visitor's session in a published mini-app. The API runs the flow server-side and hands
- * the visitor only what the current screen needs; the document, its config and the run
- * results stay with the owner. `token` is issued once, on start, and must accompany every
- * answer; the session id alone opens nothing.
- */
 export const miniAppScreenSchema = Type.Object({
   nodeId: Type.String({ minLength: 1 }),
   // Spelled out rather than mapped from `screenNodeTypes`, so Elysia infers the literals.
@@ -20,14 +14,11 @@ export const miniAppScreenSchema = Type.Object({
     Type.Literal("world.id-verify"),
   ]),
   label: Type.String(),
-  /** The screen's parsed config: titles, fields, labels. Never other nodes' config. */
   config: Type.Record(Type.String(), Type.Unknown()),
-  /** `world.id-verify` only: what IDKit needs to request the proof; absent when unconfigured. */
   world: Type.Optional(worldRequestSchema),
 });
 export type MiniAppScreen = Static<typeof miniAppScreenSchema>;
 
-/** One non-screen node the last run worked through, for the interstitial. Never its error. */
 export const miniAppStepSchema = Type.Object({
   nodeId: Type.String({ minLength: 1 }),
   label: Type.String(),
@@ -42,7 +33,6 @@ export const miniAppSessionStatusSchema = Type.Union([
 ]);
 export type MiniAppSessionStatus = Static<typeof miniAppSessionStatusSchema>;
 
-/** What kind of failure ended the session, for the runtime; the error text stays with the owner. */
 export const miniAppFailureCodeSchema = Type.Union([
   Type.Literal("node_failed"),
   Type.Literal("unconfigured"),
@@ -51,20 +41,16 @@ export const miniAppFailureCodeSchema = Type.Union([
 ]);
 export type MiniAppFailureCode = Static<typeof miniAppFailureCodeSchema>;
 
-/** The one sentence every failed session answers with; the runtime shows it as is. */
 export const miniAppFailureMessage = "This app hit a problem and could not continue.";
 
 export const miniAppSessionSchema = Type.Object({
   sessionId: Type.String({ minLength: 1 }),
-  /** Present on the answer that started the session only. */
   token: Type.Optional(Type.String({ minLength: 1 })),
   status: miniAppSessionStatusSchema,
   screen: Type.Optional(miniAppScreenSchema),
   steps: Type.Array(miniAppStepSchema),
-  /** A sentence any visitor may read (`miniAppFailureMessage`); never the node's own error. */
   error: Type.Optional(Type.String()),
   code: Type.Optional(miniAppFailureCodeSchema),
-  /** The owner's note to visitors on failure, from the mini-app trigger's config. */
   help: Type.Optional(Type.String()),
 });
 export type MiniAppSession = Static<typeof miniAppSessionSchema>;
@@ -72,14 +58,10 @@ export type MiniAppSession = Static<typeof miniAppSessionSchema>;
 export const miniAppAnswerSchema = Type.Object(
   {
     token: Type.String({ minLength: 1 }),
-    /** The screen being answered; a stale answer must never advance a later screen. */
     nodeId: Type.String({ minLength: 1 }),
     port: Type.String({ minLength: 1 }),
-    /** A form's values keyed by field id; absent for a button. Ignored by identity screens. */
     data: Type.Optional(Type.Record(Type.String(), Type.String())),
-    /** `privy.login`: the visitor's Privy access token, verified on the API and never stored. */
     privyToken: Type.Optional(Type.String({ minLength: 1 })),
-    /** `world.id-verify`: the proof IDKit or MiniKit produced, verified with the Developer Portal. */
     worldProof: Type.Optional(worldProofSchema),
   },
   { additionalProperties: false },
@@ -92,14 +74,12 @@ const sessionParams = Type.Object({
   sessionId: Type.String({ minLength: 1 }),
 });
 
-/** Opens a session on a published flow: runs it from its mini-app trigger to the first screen. */
 export const startMiniAppSessionContract = {
   method: "POST",
   path: "/public/flows/:id/sessions",
   params: flowParams,
   response: { 201: miniAppSessionSchema, ...apiErrorResponses },
 } as const;
-/** Answers the current screen and runs on to the next one, the end, or a failure. */
 export const answerMiniAppSessionContract = {
   method: "POST",
   path: "/public/flows/:id/sessions/:sessionId/answer",

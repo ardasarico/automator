@@ -20,7 +20,6 @@ describe("layoutFlowPositions", () => {
     expect(positions.get("a")).toEqual({ x: startX + columnGap, y: startY });
     expect(positions.get("b")).toEqual({ x: startX + columnGap, y: startY + rowGap });
     expect(positions.get("c")).toEqual({ x: startX + 2 * columnGap, y: startY });
-    // d hangs off both t and c; the longest path wins.
     expect(positions.get("d")).toEqual({ x: startX + 3 * columnGap, y: startY });
   });
 

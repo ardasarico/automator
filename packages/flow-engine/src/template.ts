@@ -1,15 +1,9 @@
-/**
- * `{{path}}` placeholders in node config. A string that is exactly one placeholder resolves
- * to the referenced value itself, so objects and numbers pass through; placeholders inside
- * longer text are stringified. Unknown paths resolve to empty text.
- */
+/* A whole-placeholder string preserves the value's type; embedded placeholders stringify it. */
 
-/** What a template can see: fired input handles, the `vars` scope, the trigger payload and secrets. */
 export interface TemplateScope {
   input: Record<string, unknown>;
   vars: Record<string, unknown>;
   trigger: unknown;
-  /** Secret values a server resolved for this node; absent in the browser. */
   secrets?: Record<string, string>;
 }
 
@@ -34,12 +28,10 @@ function stringify(value: unknown): string {
 
 export function resolveTemplate(text: string, scope: TemplateScope): unknown {
   const whole = wholePlaceholder.exec(text);
-  // A missing value becomes empty text, so a string field never turns into `undefined`.
   if (whole) return lookupPath(scope, whole[1]!) ?? "";
   return text.replace(placeholder, (_match, path: string) => stringify(lookupPath(scope, path)));
 }
 
-/** Resolves every string in a config, recursing into arrays and plain objects. */
 export function resolveTemplates<T>(value: T, scope: TemplateScope): T {
   if (typeof value === "string") return resolveTemplate(value, scope) as T;
   if (Array.isArray(value)) return value.map((item) => resolveTemplates(item, scope)) as T;

@@ -111,7 +111,7 @@
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
-/* Mirrors the flows page: --border strengthened toward the foreground until a hover token exists. */
+
 .card:has(.cardLink:hover) {
   border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
 }

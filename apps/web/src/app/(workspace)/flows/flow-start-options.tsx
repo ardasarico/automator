@@ -36,7 +36,6 @@ const options: readonly {
   },
 ];
 
-/** The three ways into a first flow, shown in the empty state of the flows page. */
 export function FlowStartOptions() {
   return (
     <ul className={styles.startGrid} aria-label="Ways to start">

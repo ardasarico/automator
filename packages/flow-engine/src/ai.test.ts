@@ -213,7 +213,6 @@ describe("AI agent", () => {
         },
       ],
     });
-    // The model only ever sees the allowed tools, and gets each tool result back by call id.
     expect(requests[0]!.tools?.map((tool) => tool.name)).toEqual([
       "http_get",
       "set_variable",

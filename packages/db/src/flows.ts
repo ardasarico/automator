@@ -10,10 +10,8 @@ import type { SQL } from "bun";
 import { recordFlowVersion } from "./flow-versions";
 import { executionConfiguration } from "./polling-fence";
 
-/** Raised when the owner has no user row yet, so a flow cannot reference it. */
 export class FlowOwnerMissingError extends Error {}
 
-/** The stored document keeps the graph; name and description are columns for listing. */
 type FlowRow = {
   id: string;
   name: string;
@@ -21,13 +19,11 @@ type FlowRow = {
   document: Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
   createdAt: Date;
   updatedAt: Date;
-  /** Present on owner-facing reads only. */
   enabled?: boolean;
   webhookToken?: string;
   pollingRevision: string;
 };
 
-/** The columns of an owner-facing read, activation and token included. */
 const ownerColumns = `id, name, description, document, enabled, webhook_token AS "webhookToken",
   polling_revision AS "pollingRevision",
   created_at AS "createdAt", updated_at AS "updatedAt"`;
@@ -51,7 +47,6 @@ function toRecord(row: FlowRow): FlowRecord {
   return record;
 }
 
-/** Trigger node types in a document, distinct and in document order. */
 export function documentTriggerTypes(nodes: readonly { type: FlowNodeType }[]): FlowNodeType[] {
   const types = nodes
     .map((node) => node.type)
@@ -59,7 +54,6 @@ export function documentTriggerTypes(nodes: readonly { type: FlowNodeType }[]): 
   return [...new Set(types)];
 }
 
-/** A flow the scheduler or a webhook may run: the owner's record with its owner. */
 export type OwnedFlow = { ownerId: string; record: FlowRecord; pollingRevision: string };
 
 function toDocument(input: FlowDocumentInput): FlowRow["document"] {
@@ -71,7 +65,6 @@ function toDocument(input: FlowDocumentInput): FlowRow["document"] {
   };
 }
 
-/** Every read and write is scoped to the owner: another user's flow answers `null`. */
 export function createFlowStore(sql: SQL | undefined) {
   function connection() {
     if (!sql) throw new Error("Database is not configured");
@@ -129,7 +122,6 @@ export function createFlowStore(sql: SQL | undefined) {
         throw error;
       }
     },
-    /** Replaces the document; `null` when the owner has no flow with this id. */
     async update(
       ownerId: string,
       id: string,
@@ -158,8 +150,6 @@ export function createFlowStore(sql: SQL | undefined) {
           RETURNING ${tx.unsafe(ownerColumns)}`;
         if (!rows[0]) return null;
 
-        // A new trigger configuration starts with fresh polling state. Layout and labels
-        // do not change what a trigger observes, so they keep its cursor and comparison.
         const nextNodes = new Map(input.nodes.map((node) => [node.id, node]));
         const chainChanged = flowChainId(before) !== flowChainId(input);
         const changedNodes = before.nodes
@@ -184,7 +174,6 @@ export function createFlowStore(sql: SQL | undefined) {
         return toRecord(rows[0]);
       });
     },
-    /** Turns webhook and schedule triggers on or off; `null` when the owner has no such flow. */
     async setEnabled(ownerId: string, id: string, enabled: boolean): Promise<FlowRecord | null> {
       const db = connection();
       const rows = await db<FlowRow[]>`
@@ -194,7 +183,6 @@ export function createFlowStore(sql: SQL | undefined) {
         RETURNING ${db.unsafe(ownerColumns)}`;
       return rows[0] ? toRecord(rows[0]) : null;
     },
-    /** The flow a webhook call names, only while enabled and the token matches. */
     async findForWebhook(id: string, token: string): Promise<OwnedFlow | null> {
       const db = connection();
       const rows = await db<(FlowRow & { ownerId: string })[]>`
@@ -208,7 +196,6 @@ export function createFlowStore(sql: SQL | undefined) {
           }
         : null;
     },
-    /** Every enabled flow across owners, for the scheduler. */
     async listEnabled(): Promise<OwnedFlow[]> {
       const db = connection();
       const rows = await db<(FlowRow & { ownerId: string })[]>`
@@ -220,7 +207,6 @@ export function createFlowStore(sql: SQL | undefined) {
         pollingRevision: row.pollingRevision,
       }));
     },
-    /** Rejects a poll captured before an executable edit or activation change. */
     async isCurrentPoll(id: string, pollingRevision: string): Promise<boolean> {
       const db = connection();
       const rows = await db<{ id: string }[]>`
@@ -228,18 +214,15 @@ export function createFlowStore(sql: SQL | undefined) {
         WHERE id = ${id} AND enabled AND polling_revision = ${pollingRevision}`;
       return rows.length > 0;
     },
-    /** True when the owner had this flow and it is gone now, listing and runs with it. */
     async delete(ownerId: string, id: string): Promise<boolean> {
       const db = connection();
       const rows = await db<{ id: string }[]>`
         DELETE FROM automator_flows WHERE owner_id = ${ownerId} AND id = ${id} RETURNING id`;
       return rows.length > 0;
     },
-    /** The live flow behind a marketplace listing, for anyone; `null` unless it is published. */
     async findPublished(id: string): Promise<FlowRecord | null> {
       return (await this.findPublishedWithOwner(id))?.record ?? null;
     },
-    /** A published flow with who owns it, for running it on a visitor's behalf. */
     async findPublishedWithOwner(
       id: string,
     ): Promise<{ record: FlowRecord; ownerId: string } | null> {

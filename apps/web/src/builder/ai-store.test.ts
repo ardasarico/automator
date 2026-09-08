@@ -62,7 +62,6 @@ describe("ai store", () => {
     expect(ids().map(([, state]) => state)).toEqual(["discarded", "pending", "pending"]);
     store.getState().apply(c!);
     expect(ids().map(([, state]) => state)).toEqual(["discarded", "stale", "applied"]);
-    // Applying again does not touch what was already settled.
     store.getState().apply(b!);
     expect(ids().map(([, state]) => state)).toEqual(["discarded", "applied", "applied"]);
   });

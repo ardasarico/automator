@@ -32,13 +32,8 @@ import { useRunStore } from "./run-store-provider";
 import { useBuilderStore } from "./store-provider";
 import { groupProblemsByNode, NodeProblemsContext, useFlowProblems } from "./use-flow-problems";
 
-/** The drag payload MIME type the palette writes and the canvas reads. */
 export const nodeTypeMime = "application/x-automator-node-type";
 
-/**
- * Where a click-added node lands: the viewport centre in flow coordinates, nudged by the
- * node count so repeated clicks stack visibly instead of piling on one spot.
- */
 export function useAddNodeAtCenter(): (type: FlowNodeType) => void {
   const { getViewport } = useReactFlow();
   const reactFlowStore = useStoreApi();
@@ -60,7 +55,6 @@ export function useAddNodeAtCenter(): (type: FlowNodeType) => void {
   );
 }
 
-/** Moves every node onto the left-to-right grid, as one undo step, then fits the view. */
 function useTidyUp() {
   const nodes = useBuilderStore((state) => state.nodes);
   const edges = useBuilderStore((state) => state.edges);
@@ -112,7 +106,6 @@ function ZoomPanel() {
   );
 }
 
-/** What an empty canvas says instead of nothing: every flow starts with a trigger. */
 function EmptyCanvas() {
   const addAtCenter = useAddNodeAtCenter();
   return (
@@ -131,7 +124,6 @@ function EmptyCanvas() {
   );
 }
 
-/** `gettingStarted` shows the first-flow checklist until the user dismisses it. */
 export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolean }) {
   const nodes = useBuilderStore((state) => state.nodes);
   const edges = useBuilderStore((state) => state.edges);
@@ -145,7 +137,6 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
   const problemsByNode = useMemo(() => groupProblemsByNode(problems), [problems]);
   const { screenToFlowPosition } = useReactFlow();
 
-  // The last run colours each edge by whether it fired; without a run the edges stay plain.
   const shownEdges = useMemo(
     () =>
       run

@@ -19,7 +19,6 @@ import {
   toWorldProof,
 } from "./identity";
 
-/** IDKit's widget runs in the browser only: it opens a modal with a QR code, or talks to World App. */
 const IDKitRequestWidget = dynamic(
   () => import("@worldcoin/idkit").then((module) => module.IDKitRequestWidget),
   { ssr: false },
@@ -33,12 +32,6 @@ type PendingWorld = {
   reject(error: Error): void;
 };
 
-/**
- * Provides the identity actions a published mini-app's screens call: a Privy login backed by
- * the runtime's Privy app, and a World ID verification through IDKit with the request context
- * the API signed for the screen. Installs MiniKit when the page runs inside World App, where
- * IDKit completes without a QR code.
- */
 function IdentityBridge({ privyLogin, children }: { privyLogin: PrivyLogin; children: ReactNode }) {
   const [inWorldApp, setInWorldApp] = useState(false);
   const [pending, setPending] = useState<PendingWorld | null>(null);
@@ -46,7 +39,6 @@ function IdentityBridge({ privyLogin, children }: { privyLogin: PrivyLogin; chil
 
   useEffect(() => {
     let active = true;
-    // MiniKit is loaded lazily: outside World App it only reports that it is not installed.
     import("@worldcoin/minikit-js")
       .then(({ MiniKit }) => {
         if (!active) return;
@@ -113,7 +105,6 @@ function IdentityBridge({ privyLogin, children }: { privyLogin: PrivyLogin; chil
   );
 }
 
-/** Inside the Privy provider: signs the visitor in with the screen's methods and yields their token. */
 function WithPrivy({ children }: { children: ReactNode }) {
   const { authenticated, user, getAccessToken } = usePrivy();
   const pending = useRef<{
@@ -157,10 +148,6 @@ function WithPrivy({ children }: { children: ReactNode }) {
 const noPrivy: PrivyLogin = () =>
   Promise.reject(new Error("Sign-in is not available on this app yet."));
 
-/**
- * Wraps a published mini-app with the providers its identity screens need. Without a Privy
- * app id the login screen says sign-in is unavailable rather than falling back to a sample.
- */
 export function IdentityHost({ children }: { children: ReactNode }) {
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
   const { resolvedTheme } = useTheme();
@@ -174,7 +161,6 @@ export function IdentityHost({ children }: { children: ReactNode }) {
           accentColor: "#00CEFF",
           walletChainType: "ethereum-only",
         },
-        // Visitors get an embedded wallet on first sign-in, so the flow's `wallet` is set.
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
         sessions: { cookieWriteBehavior: "never" },
       }}

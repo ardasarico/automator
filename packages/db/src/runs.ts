@@ -12,10 +12,8 @@ import type { SQL } from "bun";
 
 type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
 
-/** Where a page of runs stopped: the last row's sort key, `(started_at DESC, id)`. */
 type RunCursor = { startedAt: string; id: string };
 
-/** Raised when a list cursor is not one this store produced; callers answer a bad request. */
 export class RunCursorError extends Error {
   constructor() {
     super("Run cursor is not readable");
@@ -23,10 +21,6 @@ export class RunCursorError extends Error {
   }
 }
 
-/**
- * Cursors are base64url JSON of the sort key. They are opaque to clients, so the encoding can
- * change freely; the ISO timestamp keeps millisecond precision, which is what runs store.
- */
 export function encodeRunCursor(cursor: RunCursor): string {
   return Buffer.from(JSON.stringify([cursor.startedAt, cursor.id])).toString("base64url");
 }
@@ -75,11 +69,6 @@ function toRecord(row: RunRow): FlowRunRecord {
   };
 }
 
-/**
- * Runs are immutable records of one execution: the finished `FlowRun` plus the document it
- * executed, so history stays readable after the flow changes. Reads are owner-scoped like
- * flows; the flow's current name is joined at read time.
- */
 export function createRunStore(sql: SQL | undefined) {
   function connection() {
     if (!sql) throw new Error("Database is not configured");
@@ -111,11 +100,6 @@ export function createRunStore(sql: SQL | undefined) {
       if (!rows[0]) throw new Error("Run creation failed");
       return toRecord(rows[0]);
     },
-    /**
-     * One page, newest first; `flowId` narrows to one flow. `cursor` is the previous page's
-     * `nextCursor`; a cursor that does not decode throws `RunCursorError`. The page holds up
-     * to `limit` runs (the contract default when absent, capped at the contract maximum).
-     */
     async list(
       ownerId: string,
       options: { flowId?: string; limit?: number; cursor?: string } = {},
@@ -123,7 +107,6 @@ export function createRunStore(sql: SQL | undefined) {
       const db = connection();
       const limit = Math.min(Math.max(options.limit ?? runListDefaultLimit, 1), runListMaxLimit);
       const after = options.cursor === undefined ? null : decodeRunCursor(options.cursor);
-      // One row beyond the page tells whether another page exists without a second query.
       const rows = await db<(FlowRunSummary & { startedAt: Date; finishedAt: Date })[]>`
         SELECT r.id, r.flow_id AS "flowId", f.name AS "flowName", r.status, r.source,
           r.started_at AS "startedAt", r.finished_at AS "finishedAt"
@@ -147,7 +130,6 @@ export function createRunStore(sql: SQL | undefined) {
         ? { runs, nextCursor: encodeRunCursor({ startedAt: last.startedAt, id: last.id }) }
         : { runs };
     },
-    /** When the flow's newest run from `source` started, or `null` without one; for the scheduler. */
     async latestStartedAt(
       flowId: string,
       source: FlowRunSource,
@@ -169,10 +151,6 @@ export function createRunStore(sql: SQL | undefined) {
         WHERE r.owner_id = ${ownerId} AND r.id = ${id}`;
       return rows[0] ? toRecord(rows[0]) : null;
     },
-    /**
-     * The newest `limit` full records (result and document snapshot), newest first, for
-     * scans over what recent runs produced such as the wallet's transaction list.
-     */
     async listRecords(ownerId: string, limit: number): Promise<FlowRunRecord[]> {
       const db = connection();
       const rows = await db<RunRow[]>`

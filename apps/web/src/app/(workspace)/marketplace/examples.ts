@@ -11,12 +11,6 @@ import {
   RiWebhookLine,
 } from "@remixicon/react";
 
-/**
- * The curated examples. `id` names the fixture in `apps/web/src/builder/examples.ts` that
- * the canvas is seeded from; `steps` is the prose overview on the detail page and must match
- * that fixture. `nodes` feeds the Flows page cards, `nodeTypes` the marketplace listing marks
- * (drawn from the builder catalog).
- */
 export const flowExamples = [
   {
     id: "approval-request",

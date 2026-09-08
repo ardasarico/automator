@@ -7,10 +7,6 @@ type BreadcrumbItem = {
   href: string;
 };
 
-/**
- * The one page-title role for workspace pages: the current page is an `h1` in the breadcrumb
- * row, sized `text-section`, and only the ancestors live inside the breadcrumb navigation.
- */
 export function WorkspaceBreadcrumbs({
   parents = [],
   current,

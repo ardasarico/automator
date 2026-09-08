@@ -8,7 +8,6 @@ import { WatchConfigError } from "./threshold";
 const ethUsd = "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1" as Address;
 const baseSepolia = 84532;
 
-/** A reader that answers the aggregator calls and records what was asked. */
 function stubReader(round: readonly bigint[], decimals = 8) {
   const calls: string[] = [];
   const reader = {

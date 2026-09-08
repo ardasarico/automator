@@ -29,7 +29,6 @@ function flow(code: string): FlowDocument {
   };
 }
 
-/** A stand-in for the API's sandbox: plain evaluation is fine inside a test. */
 const evalSandbox: Sandbox = {
   async run(code, input, vars) {
     return new Function("input", "vars", code)(input, vars);

@@ -8,11 +8,6 @@ import styles from "../flows/flows.module.css";
 import { LocalTime } from "./local-time";
 import { formatDuration, runSourceLabels, runStatusLabels } from "./run-labels";
 
-/**
- * The caller's recent runs, newest first. A row's name opens the run's detail page; the
- * trailing button opens the flow with that run on the canvas. `nextHref` links to the next
- * page when older runs exist, so the list stays a server component.
- */
 export function RunHistory({
   runs,
   filtered = false,
@@ -20,10 +15,8 @@ export function RunHistory({
   latestHref,
 }: {
   runs: readonly FlowRunSummary[];
-  /** True when the list is narrowed to one flow, so the empty state says so. */
   filtered?: boolean;
   nextHref?: string;
-  /** Present on a cursor page, preserving the flow filter when returning to the latest runs. */
   latestHref?: string;
 }) {
   if (runs.length === 0) {

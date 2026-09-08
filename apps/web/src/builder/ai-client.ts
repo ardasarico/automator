@@ -26,7 +26,6 @@ const failureMessages: Record<string, string> = {
   rate_limited: "Too many requests. Try again in a moment.",
 };
 
-/** What the panel tells the user when a request fails. */
 export function describeAiFailure(error: unknown): string {
   const code = error instanceof AiRequestError ? error.code : "unavailable";
   return failureMessages[code] ?? "The answer could not be produced. Please try again.";
@@ -49,11 +48,9 @@ async function post<C extends EndpointContract & { readonly method: "POST" }>(
   });
   const data: unknown = await response.json();
   if (!response.ok) throw new AiRequestError(parseAuthError(data).error);
-  // The proxy answers every failure with a non-2xx status, so what is left is the 200 body.
   return parseResponse(contract, response.status, data).data;
 }
 
-/** Asks the API for a flow or a message through the same-origin proxy, which forwards the bearer token. */
 export async function generateFlowRequest(
   token: string | null,
   input: GenerateFlowRequest,
@@ -62,7 +59,6 @@ export async function generateFlowRequest(
   return (await post(generateFlowContract, token, input, signal)) as GenerateFlowResponse;
 }
 
-/** Asks the API why a run failed; the caller redacts the document and outputs first. */
 export async function explainRunRequest(
   token: string | null,
   input: ExplainRunRequest,

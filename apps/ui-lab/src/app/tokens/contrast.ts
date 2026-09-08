@@ -1,6 +1,5 @@
 export type Rgb = [number, number, number];
 
-/** A color split into what it already paints and what it lets through. */
 export type Layer = { paint: Rgb; transmit: number };
 
 function draw(ctx: CanvasRenderingContext2D, base: string, color: string): Rgb {
@@ -13,12 +12,8 @@ function draw(ctx: CanvasRenderingContext2D, base: string, color: string): Rgb {
   return [(d[0] ?? 0) / 255, (d[1] ?? 0) / 255, (d[2] ?? 0) / 255];
 }
 
-/**
- * Let the browser resolve any computed color — oklch, color-mix, alpha — by
- * painting it over black and over white. Over black the canvas holds `a × c`;
- * the gap between the two is `1 - a`, so both halves fall out without parsing
- * a single color string.
- */
+/* Paint over black and white to recover alpha and RGB for any browser-supported color.
+ * Black gives alpha * color; the white/black difference gives 1 - alpha. */
 export function layerOf(ctx: CanvasRenderingContext2D, color: string): Layer {
   const onBlack = draw(ctx, "#000", color);
   const onWhite = draw(ctx, "#fff", color);
@@ -32,7 +27,6 @@ export function flatten(layer: Layer, base: Rgb): Rgb {
   return layer.paint.map((v, i) => v + layer.transmit * (base[i] ?? 0)) as Rgb;
 }
 
-/** Walk up the tree until something paints an opaque backdrop, then fold back down. */
 export function backdropOf(ctx: CanvasRenderingContext2D, from: Element | null): Rgb {
   const stack: Layer[] = [];
   let node: Element | null = from;

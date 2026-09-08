@@ -3,7 +3,6 @@ import { accountUsageContract } from "@automator/contracts";
 import { NextResponse } from "next/server";
 import { authErrorResponse, bearerToken, isSameOrigin } from "../../../../auth/http";
 
-/** The signed-in user's usage counts for the Settings dialog, forwarded with their token. */
 export async function GET(req: Request) {
   if (!isSameOrigin(req)) return authErrorResponse(req, new AuthApiError(403, "forbidden"));
   const token = bearerToken(req);

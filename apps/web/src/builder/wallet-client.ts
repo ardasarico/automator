@@ -12,7 +12,6 @@ export class WalletRequestError extends Error {
   }
 }
 
-/** The signed-in user's embedded wallet on one chain, through the same-origin proxy. */
 export async function fetchWallet(
   token: string | null,
   chainId: number,

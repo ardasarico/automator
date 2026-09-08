@@ -90,7 +90,7 @@
   inset-inline-start: 12px;
   cursor: e-resize;
 }
-/* The expand control draws its own mark, so the link's mark hides underneath it. */
+
 .shell[data-state="collapsed"] .markSlot,
 .shell[data-state="collapsed"] .label {
   opacity: 0;

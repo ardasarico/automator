@@ -6,7 +6,6 @@ import { RunDetail } from "./run-detail";
 
 const hash = `0x${"ab".repeat(32)}`;
 
-/** trigger → payout → discord: the payout sent a transaction, Discord refused the webhook. */
 const record: FlowRunRecord = {
   flowName: "Payday",
   source: "schedule",

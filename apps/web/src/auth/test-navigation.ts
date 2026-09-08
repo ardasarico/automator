@@ -1,8 +1,4 @@
-/**
- * Shared `next/navigation` stub. Bun's module mocks are process-wide, so every
- * test file that needs this module must register the same implementation, and
- * the state it reports lives here rather than in one file's closure.
- */
+/* Bun module mocks are process-wide; all next/navigation mocks must share this implementation. */
 export const navigation = {
   pathname: "/",
   replaced: [] as string[],

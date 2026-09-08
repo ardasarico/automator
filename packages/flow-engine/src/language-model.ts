@@ -1,8 +1,3 @@
-/**
- * The engine's view of a chat model: one request in, one assistant turn out. The API
- * implements it over OpenRouter; tests script it. Nothing here touches the network.
- */
-
 export type ChatRole = "system" | "user" | "assistant" | "tool";
 
 export interface ToolCall {
@@ -14,16 +9,13 @@ export interface ToolCall {
 export interface ChatMessage {
   role: ChatRole;
   content: string;
-  /** Set on an assistant message that asked for tools. */
   toolCalls?: ToolCall[];
-  /** Set on a tool message: which call it answers. */
   toolCallId?: string;
 }
 
 export interface ToolDefinition {
   name: string;
   description: string;
-  /** JSON schema for the arguments object. */
   parameters: Record<string, unknown>;
 }
 
@@ -47,7 +39,6 @@ export type LanguageModel = (request: ChatRequest) => Promise<ChatResponse>;
 
 export type LanguageModelFailure = "unconfigured" | "timeout" | "upstream" | "invalid_response";
 
-/** Raised by a model implementation; `kind` tells the caller whether retrying makes sense. */
 export class LanguageModelError extends Error {
   constructor(
     readonly kind: LanguageModelFailure,
@@ -59,7 +50,6 @@ export class LanguageModelError extends Error {
   }
 }
 
-/** Reads the model's JSON answer; fenced code blocks are tolerated. Throws on anything else. */
 export function parseJsonAnswer(content: string | null): unknown {
   if (content === null)
     throw new LanguageModelError("invalid_response", "The model answered nothing");
@@ -72,10 +62,6 @@ export function parseJsonAnswer(content: string | null): unknown {
   }
 }
 
-/**
- * A model for tests: answers turn by turn from a script, and records every request so a
- * test can assert what it was asked. Throws once the script runs out.
- */
 export function scriptedModel(turns: readonly ChatResponse[]) {
   const requests: ChatRequest[] = [];
   let index = 0;

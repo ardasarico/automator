@@ -62,7 +62,6 @@ export function OnboardingForm() {
     }
   }
 
-  /** The token was rejected: try one refresh, and sign out if it cannot be recovered. */
   async function recoverSession() {
     const recovered = await refresh().catch(() => null);
     if (recovered) {

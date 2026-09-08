@@ -16,15 +16,8 @@ import {
   listFlowVersionsRequest,
 } from "./versions-client";
 
-/** The last answer to the list request, tagged with the save it was fetched for. */
 type Loaded = { save: number; versions: FlowVersionSummary[]; error: string | null };
 
-/**
- * The History section of the left panel: the flow's saved versions, newest first, with the
- * newest marked as the current one. Restore puts a version's document on the canvas as an
- * undoable edit and leaves the flow unsaved, so nothing changes on the server until the
- * user saves; the list refetches after every confirmed save.
- */
 export function FlowHistory() {
   const getAccessToken = useAccessToken();
   const store = useBuilderStoreApi();
@@ -57,7 +50,6 @@ export function FlowHistory() {
       })
       .catch((caught: unknown) => {
         if (controller.signal.aborted) return;
-        // A failed refetch keeps the last list visible under the error.
         setLoaded((previous) => ({
           save,
           versions: previous?.versions ?? [],
@@ -67,8 +59,6 @@ export function FlowHistory() {
     return () => controller.abort();
   }, [flowId, saveCount, getAccessToken]);
 
-  // The list is stale until the answer for the latest save arrives; the restore note
-  // lasts until the next save, which makes the restored version current again.
   const loading = loaded === null || loaded.save !== saveCount;
   const versions = loaded?.versions ?? [];
   const error = restoreError ?? loaded?.error ?? null;

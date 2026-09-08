@@ -1,7 +1,6 @@
 import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import { Check } from "@sinclair/typebox/value";
 
-/** Every non-2xx response in the API uses this body, whatever the endpoint. */
 export const apiErrorCodeSchema = Type.Union([
   Type.Literal("forbidden"),
   Type.Literal("invalid_flow"),
@@ -20,7 +19,6 @@ export type ApiErrorCode = Static<typeof apiErrorCodeSchema>;
 export const apiErrorSchema = Type.Object({ error: apiErrorCodeSchema });
 export type ApiError = Static<typeof apiErrorSchema>;
 
-/** Statuses the API can produce for any endpoint, from its root error handler or a route. */
 export const apiErrorResponses = {
   400: apiErrorSchema,
   401: apiErrorSchema,
@@ -35,10 +33,6 @@ export const apiErrorResponses = {
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-/**
- * The single shape every endpoint is described with. `path` may contain `:name`
- * segments, which `buildPath` fills from `params`.
- */
 export interface EndpointContract {
   readonly method: HttpMethod;
   readonly path: string;
@@ -59,12 +53,10 @@ export type ContractParams<C extends EndpointContract> = C extends {
   ? Static<P>
   : undefined;
 
-/** Discriminated union of everything the endpoint may answer, keyed by status. */
 export type ContractResult<C extends EndpointContract> = {
   [S in ContractStatus<C>]: { status: S; data: Static<C["response"][S]> };
 }[ContractStatus<C>];
 
-/** Raised when a response does not match the contract, or a path parameter is missing. */
 export class ContractError extends Error {
   constructor(
     message: string,
@@ -93,10 +85,6 @@ export function buildPath<C extends EndpointContract>(
   });
 }
 
-/**
- * Validates a raw HTTP response against the contract and returns it as a
- * status-discriminated union. Unknown statuses and invalid bodies both throw.
- */
 export function parseResponse<C extends EndpointContract>(
   contract: C,
   status: number,

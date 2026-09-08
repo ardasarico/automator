@@ -41,7 +41,6 @@ const runStatusLabels = {
   idle: "",
 } as const;
 
-/** Links every transaction hash in a handle's output to the flow's chain explorer. */
 function ExplorerLinks({ output, chainId }: { output: unknown; chainId: number }) {
   const hashes = transactionHashes(output);
   if (hashes.length === 0) return null;
@@ -67,7 +66,6 @@ function ExplorerLinks({ output, chainId }: { output: unknown; chainId: number }
   );
 }
 
-/** "Explain with AI" for a failed run: asks the API and continues in the AI tab. */
 function ExplainButton({ nodeId }: { nodeId?: string }) {
   const { explain, pending } = useExplainRun();
   return (
@@ -127,13 +125,6 @@ function Outputs({ result, chainId }: { result: FlowRunNodeResult; chainId: numb
   );
 }
 
-/**
- * The last run, docked at the bottom of the canvas: its outcome and any run-wide error in the
- * title row, then every node in execution order with its status and elapsed time. Choosing a
- * row selects the node on the canvas and shows its outputs or error; the panel opens on the
- * failed node when there is one. A failed run offers "Explain with AI" in the title row and
- * under the failed node's error; the answer lands in the AI tab.
- */
 export function RunPanel() {
   const status = useRunStore((state) => state.status);
   const run = useRunStore((state) => state.run);
@@ -161,7 +152,6 @@ export function RunPanel() {
       : undefined) ??
     failed ??
     results.find(Boolean);
-  // A result can outlive its node when the canvas changes after the run.
   const labelOf = (id: string) => {
     if (runDocument) {
       const node = runDocument.nodes.find((item) => item.id === id);

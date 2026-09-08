@@ -1,20 +1,11 @@
 import { Type } from "@sinclair/typebox";
 
-/**
- * The chains a flow may run on. The API builds its chain providers from this registry (with
- * per-chain RPC overrides from the environment), the builder offers these in the flow
- * settings, and the run panel links transaction hashes to each chain's explorer. USDC
- * addresses are Circle's testnet deployments.
- */
 export interface ChainInfo {
   id: number;
   name: string;
-  /** The public RPC used unless the API overrides it. */
   rpcUrl: string;
-  /** Block explorer origin, without a trailing slash. */
   explorerUrl: string;
   nativeSymbol: string;
-  /** Circle's USDC contract on the chain; absent where Circle publishes none. */
   usdcAddress?: string;
 }
 
@@ -40,7 +31,6 @@ export const chains = [
 export type ChainId = (typeof chains)[number]["id"];
 export const chainIds: readonly ChainId[] = chains.map((chain) => chain.id);
 
-/** Base Sepolia: what a document without a `chainId` runs on. */
 export const defaultChainId: ChainId = 84532;
 
 /** `Unsafe` pins the literal union, which a mapped `Type.Union` would otherwise widen. */
@@ -56,7 +46,6 @@ export function getChain(id: number): ChainInfo | undefined {
   return chains.find((chain) => chain.id === id);
 }
 
-/** The chain's name for people, falling back to the bare id off the registry. */
 export function chainName(id: number): string {
   return getChain(id)?.name ?? `Chain ${id}`;
 }

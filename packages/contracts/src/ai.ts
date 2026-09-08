@@ -6,26 +6,14 @@ import { flowDocumentInputSchema } from "./flows";
 /** Two model attempts, provider fallback and bounded local checks share this client budget. */
 export const aiRequestTimeoutMs = 300_000;
 
-/** How many prior turns a request may carry; the API sends the model fewer still. */
 export const aiHistoryLimit = 40;
 
-/**
- * One earlier turn of the AI conversation. Assistant turns carry only the summary or message
- * the user saw, never the document they proposed, so a long thread stays a small prompt.
- */
 export const aiHistoryTurnSchema = Type.Object({
   role: Type.Union([Type.Literal("user"), Type.Literal("assistant")]),
   text: Type.String({ maxLength: 4000 }),
 });
 export type AiHistoryTurn = Static<typeof aiHistoryTurnSchema>;
 
-/**
- * Asks the model for a flow. Without `document` it designs a new one from the prompt; with
- * it, the prompt is an instruction to change that document. `history` is the conversation so
- * far, oldest first, so a follow-up such as "also notify Discord" reads in context. The answer
- * is either a complete document input the canvas can apply as it is, laid out left to right,
- * or a plain message when the prompt was a question rather than a change request.
- */
 export const generateFlowRequestSchema = Type.Object({
   prompt: Type.String({ minLength: 1, maxLength: 4000 }),
   document: Type.Optional(flowDocumentInputSchema),
@@ -33,7 +21,6 @@ export const generateFlowRequestSchema = Type.Object({
 });
 export type GenerateFlowRequest = Static<typeof generateFlowRequestSchema>;
 
-/** Model-authored examples checked in an isolated run, not a guarantee of the user's intent. */
 export const aiFlowTestSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 120 }),
   triggerNodeId: Type.Optional(Type.String()),
@@ -50,11 +37,9 @@ export const aiFlowTestSchema = Type.Object({
   expect: Type.Array(
     Type.Object({
       nodeId: Type.String(),
-      /** Omit to assert that this node was reached. */
       output: Type.Optional(Type.String()),
       path: Type.Optional(Type.String()),
       equals: Type.Optional(Type.Unknown()),
-      /** Checks the rendered screen body; includes template resolution. */
       screenBody: Type.Optional(Type.String()),
     }),
     { minItems: 1, maxItems: 12 },
@@ -78,7 +63,6 @@ export type AiVerification = Static<typeof aiVerificationSchema>;
 export const aiFlowAnswerSchema = Type.Object({
   kind: Type.Literal("flow"),
   document: flowDocumentInputSchema,
-  /** One or two sentences from the model on what the flow does or what changed. */
   summary: Type.String(),
   verification: Type.Optional(aiVerificationSchema),
 });
@@ -90,7 +74,6 @@ export const aiMessageAnswerSchema = Type.Object({
 });
 export type AiMessageAnswer = Static<typeof aiMessageAnswerSchema>;
 
-/** What the AI answers: a proposed flow to apply, or text only. The user applies; the model never does. */
 export const generateFlowResponseSchema = Type.Union([aiFlowAnswerSchema, aiMessageAnswerSchema]);
 export type GenerateFlowResponse = Static<typeof generateFlowResponseSchema>;
 
@@ -101,11 +84,6 @@ export const generateFlowContract = {
   response: { 200: generateFlowResponseSchema, ...apiErrorResponses },
 } as const;
 
-/**
- * Asks the model why a run failed and how to fix it. The document travels with its secret
- * config fields redacted (`redactFlowSecrets`) and the node outputs through
- * `redactRunOutputs`; `nodeId` names the failed node to explain when the run has several.
- */
 export const explainRunRequestSchema = Type.Object({
   document: flowDocumentInputSchema,
   run: Type.Object({
@@ -118,7 +96,6 @@ export const explainRunRequestSchema = Type.Object({
 });
 export type ExplainRunRequest = Static<typeof explainRunRequestSchema>;
 
-/** A message with the explanation and fix, or the same plus a proposed document when the fix is a config or wiring change. */
 export const explainRunResponseSchema = generateFlowResponseSchema;
 export type ExplainRunResponse = Static<typeof explainRunResponseSchema>;
 
@@ -146,7 +123,6 @@ const longHex = /\b0x[0-9a-fA-F]{65,}\b|\b[0-9a-fA-F]{64,}\b/g;
 const longBase64 =
   /\b(?=[A-Za-z0-9+/=_-]*[A-Z])(?=[A-Za-z0-9+/=_-]*[a-z])(?=[A-Za-z0-9+/=_-]*[0-9])[A-Za-z0-9+/=_-]{40,}\b/g;
 
-/** The text with secret placeholders, webhook URLs, tokens and long key-like strings replaced. */
 export function redactSensitiveText(text: string): string {
   return text
     .replace(secretPlaceholder, redactedValue)
@@ -157,11 +133,6 @@ export function redactSensitiveText(text: string): string {
     .replace(longBase64, (match) => (match.startsWith("0x") ? match : redactedValue));
 }
 
-/**
- * The value with every string redacted through `redactSensitiveText` and every field whose
- * key looks like a credential replaced outright. Arrays and objects are visited; the input
- * is not mutated.
- */
 export function redactSensitiveValue(value: unknown): unknown {
   if (typeof value === "string") return redactSensitiveText(value);
   if (Array.isArray(value)) return value.map(redactSensitiveValue);
@@ -178,7 +149,6 @@ export function redactSensitiveValue(value: unknown): unknown {
   return value;
 }
 
-/** The run's node outputs, errors and trigger payload with anything secret-looking redacted. */
 export function redactRunOutputs<T extends ExplainRunRequest["run"]>(run: T): T {
   return {
     ...run,

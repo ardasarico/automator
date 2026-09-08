@@ -16,18 +16,10 @@ import { collectWalletTransactions, transactionScanLimit } from "./transactions"
 
 export interface WalletDependencies {
   identity: IdentityProvider | undefined;
-  /** Absent when the API has no chain provider; the route then answers 503. */
   chainFactory?: ChainFactory;
-  /** Stored runs, the source of the transaction list; absent means 503 there. */
   runs?: RunStore;
 }
 
-/**
- * `GET /wallet`: the caller's embedded wallet on one chain (`?chainId=`, the default chain
- * otherwise) with its native and USDC balances, so the builder can warn about an unfunded
- * wallet before a live run. `GET /wallet/transactions`: what their recent stored runs sent,
- * read from the run records rather than the chain. Reads only; nothing here needs a signer.
- */
 export function createWalletRoutes({ identity, chainFactory, runs }: WalletDependencies) {
   return new Elysia({ name: "wallet" })
     .use(createAuthGuard(identity))

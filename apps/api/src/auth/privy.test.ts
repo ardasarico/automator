@@ -68,10 +68,6 @@ describe("Privy token verification", () => {
 });
 
 describe("verification without a local key", () => {
-  /**
-   * No `jwtVerificationKey`, so the SDK would fetch JWKS. `fetch` is stubbed to
-   * fail, standing in for both an unreachable Privy and a key that does not match.
-   */
   let identity: IdentityProvider;
   let fetches: number;
   let restore: typeof globalThis.fetch;
@@ -109,7 +105,6 @@ describe("verification without a local key", () => {
       .setExpirationTime("1h")
       .sign(privateKey);
     expect(await identity.verify(forged)).toBeNull();
-    // The rejection came from the JWKS path, which is exactly what a key avoids.
     expect(fetches).toBeGreaterThan(0);
   });
 });
@@ -188,7 +183,6 @@ describe("visitor identity", () => {
 });
 
 describe("verification error mapping", () => {
-  /** The SDK exposes only `verifyAccessToken`; the rest of the client is unused here. */
   const clientThatThrows = (error: unknown) =>
     ({
       utils: () => ({

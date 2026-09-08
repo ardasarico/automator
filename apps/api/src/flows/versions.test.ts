@@ -24,7 +24,6 @@ const input: FlowDocumentInput = {
   edges: [{ id: "e1", source: "n1", target: "n2", sourceHandle: "out", targetHandle: "in" }],
 };
 
-/** The fake store captures graph changes, like the transactional SQL store. */
 function graphChanged(before: FlowDocument, after: FlowDocument): boolean {
   const graph = ({ version, chainId, nodes, edges }: FlowDocument) => ({
     version,
@@ -35,7 +34,6 @@ function graphChanged(before: FlowDocument, after: FlowDocument): boolean {
   return !Value.Equal(graph(before), graph(after));
 }
 
-/** In-memory flows and versions with the SQL stores' owner scoping and numbering. */
 function fixture() {
   const records = new Map<string, FlowRecord & { ownerId: string }>();
   const versions = new Map<string, (FlowVersionRecord & { ownerId: string })[]>();
@@ -197,10 +195,8 @@ describe("flow version routes", () => {
       [2, 1],
       [1, 2],
     ]);
-    // The newest version carries the name as saved with it.
     expect(result.data.versions[0]?.name).toBe("Renamed");
 
-    // Saving the same graph again records nothing more.
     await request(`/flows/${record.flow.id}`, "PUT", "alice", {
       ...input,
       name: "Renamed",

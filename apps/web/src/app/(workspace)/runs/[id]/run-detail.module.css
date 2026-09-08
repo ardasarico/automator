@@ -75,7 +75,7 @@
   color: var(--destructive-text);
   overflow-wrap: anywhere;
 }
-/* Pretty JSON scrolls inside its own box; the page never scrolls sideways. */
+
 .json {
   max-width: 100%;
   margin-top: 8px;

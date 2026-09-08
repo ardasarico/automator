@@ -11,11 +11,6 @@ import { redirect } from "next/navigation";
 import { SESSION_COOKIE } from "../auth/server";
 import { FlowApiError } from "../flows/server";
 
-/**
- * The wallet on one chain, or why it could not be read: `missing` when the account has no
- * embedded wallet yet (404), `unavailable` when the chain's RPC or the API is down (503).
- * Neither fails the page, since the other chains and the transaction list still render.
- */
 export type WalletLookup =
   | { status: "ok"; wallet: Wallet }
   | { status: "missing" }
@@ -47,7 +42,6 @@ export async function getWallet(chainId: number): Promise<WalletLookup> {
   return { status: "ok", wallet: result.data };
 }
 
-/** Recent stored transactions, newest first; null when the history cannot be loaded. */
 export async function listWalletTransactions(): Promise<readonly WalletTransaction[] | null> {
   const token = await sessionToken();
   let result;

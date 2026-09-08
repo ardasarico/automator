@@ -87,7 +87,6 @@ describe.skipIf(!url)("flow persistence", () => {
       const watch = { flowId: created.flow.id, nodeId: "watch", met: true, value: "100" };
       await createWatchStateStore(sql).save(watch, poll.pollingRevision, null);
       const version = (await versions.find(ownerId, created.flow.id, 1))!;
-      // A duplicate history id makes PostgreSQL reject the history write after the flow write.
       const uuid = spyOn(crypto, "randomUUID").mockReturnValue(
         version.id as ReturnType<typeof crypto.randomUUID>,
       );

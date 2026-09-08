@@ -9,7 +9,6 @@ export interface AccountDependencies {
   identity: IdentityProvider | undefined;
 }
 
-/** The caller's own usage counts; the auth guard scopes everything to their id. */
 export function createAccountRoutes({ account, identity }: AccountDependencies) {
   return new Elysia({ name: "account" })
     .use(createAuthGuard(identity))

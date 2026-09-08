@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-/** The standard document-mode container: centred, capped, and padded like the flows page. */
 export function WorkspacePage({
   children,
   className = "",

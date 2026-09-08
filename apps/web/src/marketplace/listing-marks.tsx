@@ -2,7 +2,6 @@ import { getCatalogEntry } from "../builder/catalog";
 import { CatalogIconMark } from "../builder/catalog-icon";
 import type { MarketplaceItem } from "./listing";
 
-/** The node types a listing highlights, drawn with their catalog icons and named on hover. */
 export function ListingMarks({ nodeTypes }: { nodeTypes: MarketplaceItem["nodeTypes"] }) {
   return (
     <ul className="flex gap-2" aria-label="Nodes used">

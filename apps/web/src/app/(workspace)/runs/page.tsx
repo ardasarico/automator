@@ -17,7 +17,6 @@ function first(value: string | string[] | undefined): string | undefined {
   return single || undefined;
 }
 
-/** The runs URL for one page: `?flow=<id>` narrows to a flow, `?cursor=` continues a list. */
 function runsHref(flowId: string | undefined, cursor: string | undefined): string {
   const params = new URLSearchParams();
   if (flowId) params.set("flow", flowId);
@@ -26,10 +25,6 @@ function runsHref(flowId: string | undefined, cursor: string | undefined): strin
   return query ? `/runs?${query}` : "/runs";
 }
 
-/**
- * Recent runs across the user's flows, a page at a time; `?flow=<id>` narrows the list to
- * one flow and `?cursor=` shows the page after the one that minted it.
- */
 export default async function RunsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const flowId = first(params.flow);

@@ -2,7 +2,6 @@ import type { VisitorUser } from "@automator/contracts";
 import { InvalidAuthTokenError, PrivyClient } from "@privy-io/node";
 
 export interface EmbeddedWallet {
-  /** Privy's wallet id, needed for server-side signing. */
   id: string;
   address: string;
   /** Privy's broad delegation flag; never proves this app's configured signer is granted. */
@@ -12,13 +11,7 @@ export interface EmbeddedWallet {
 export interface IdentityProvider {
   verify(token: string): Promise<{ id: string; expiresAt: number } | null>;
   walletAddress(id: string): Promise<string | null>;
-  /** The user's embedded Ethereum wallet with its Privy id; optional so test stubs stay small. */
   embeddedWallet?(id: string): Promise<EmbeddedWallet | null>;
-  /**
-   * Who a mini-app visitor is, from the access token the runtime's Privy login produced:
-   * verified like a dashboard token, then described from the user's linked accounts. Null
-   * for a rejected token. The token is read once and never stored.
-   */
   visitor?(token: string): Promise<VisitorUser | null>;
 }
 
@@ -38,7 +31,6 @@ export function createPrivyIdentity(
   return createIdentity(privy);
 }
 
-/** Exported so tests can drive the error mapping with a stubbed client. */
 export function createIdentity(privy: PrivyClient): IdentityProvider {
   const verify: IdentityProvider["verify"] = async (token) => {
     try {
@@ -89,7 +81,6 @@ async function findEmbeddedWallet(privy: PrivyClient, id: string): Promise<Embed
   };
 }
 
-/** The parts of a Privy linked account the visitor description reads; the SDK's union is wider. */
 export interface LinkedAccountLike {
   type: string;
   address?: string | null;
@@ -99,7 +90,6 @@ export interface LinkedAccountLike {
   latest_verified_at?: number | null;
 }
 
-/** A linked account as one of the login methods the `privy.login` node offers. */
 function loginMethodOf(account: LinkedAccountLike): string | null {
   switch (account.type) {
     case "email":
@@ -109,18 +99,12 @@ function loginMethodOf(account: LinkedAccountLike): string | null {
     case "passkey":
       return "passkey";
     case "wallet":
-      // Embedded wallets are created by the app, never signed in with.
       return account.wallet_client_type === "privy" ? null : "wallet";
     default:
       return null;
   }
 }
 
-/**
- * The visitor the flow sees: their embedded wallet (else their first Ethereum wallet), their
- * email (else their Google address), and the login method of the account verified most
- * recently, which is the one they just signed in with. Blank strings where there is nothing.
- */
 export function describeVisitor(
   userId: string,
   accounts: readonly LinkedAccountLike[],
@@ -149,16 +133,11 @@ export function describeVisitor(
   return { userId, wallet, email, loginMethod };
 }
 
-/** The fixed user an end-to-end test signs in as; its wallet is synthetic and never signs. */
 export const e2eUser = {
   id: "did:privy:e2e",
   walletAddress: "0x000000000000000000000000000000000000e2e1",
 } as const;
 
-/**
- * Accepts exactly `token` as the e2e user in front of the real provider, which still
- * answers every other token. Only wired when `E2E_TEST_TOKEN` is set, never in production.
- */
 export function withE2eIdentity(
   identity: IdentityProvider | undefined,
   token: string | undefined,

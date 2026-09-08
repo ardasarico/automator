@@ -11,7 +11,6 @@ import {
   type PublicClient,
 } from "viem";
 
-/** One decoded log as the listener sees it, before it becomes a trigger payload. */
 export interface EventLog {
   address: Address;
   eventName: string;
@@ -25,19 +24,16 @@ export interface EventLog {
 export interface EventFilter {
   address: Address;
   event: AbiEvent;
-  /** Indexed argument values to match, by name; absent matches every log of the event. */
   args?: Record<string, unknown>;
   fromBlock: bigint;
   toBlock: bigint;
 }
 
-/** What the listener needs from a chain: the head and the decoded logs of a block range. */
 export interface EventReader {
   getBlockNumber(): Promise<bigint>;
   getLogs(filter: EventFilter): Promise<EventLog[]>;
 }
 
-/** Raised for a trigger config the listener cannot poll with; the message is for the log. */
 export class EventConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -45,7 +41,6 @@ export class EventConfigError extends Error {
   }
 }
 
-/** `Transfer(address indexed from, ...)`, with or without a leading `event`, to its ABI item. */
 export function parseEventSignature(text: string): AbiEvent {
   const trimmed = text.trim().replace(/^event\s+/, "");
   if (!trimmed) throw new EventConfigError("The trigger needs an event signature");
@@ -66,11 +61,7 @@ export function parseEventAddress(text: string): Address {
   return trimmed;
 }
 
-/**
- * The `args` filter typed into the config: a JSON object whose keys name indexed inputs of
- * the event. Blank means no filter. Integers use viem's decoded type as well as its topic
- * encoding: viem compares decoded logs against these values using strict equality.
- */
+/* viem compares decoded integer filters with strict equality, so use bigint values. */
 export function parseEventArgs(text: string, event: AbiEvent): Record<string, unknown> | undefined {
   const trimmed = text.trim();
   if (!trimmed) return undefined;
@@ -111,7 +102,6 @@ function normalizeEventArg(input: AbiEvent["inputs"][number], value: unknown): u
   }
 }
 
-/** The trigger payload for one log: JSON-safe, bigints as decimal strings. */
 export function eventPayload(log: EventLog, chainId: number): OnchainEventPayload {
   return {
     event: log.eventName,
@@ -125,11 +115,6 @@ export function eventPayload(log: EventLog, chainId: number): OnchainEventPayloa
   };
 }
 
-/**
- * The reader over a viem public client. `getLogs` filters by address, event topic and the
- * indexed argument values, and returns the logs decoded; a log the ABI cannot decode
- * (`strict`) is left out rather than failing the poll.
- */
 export function createEventReader(client: PublicClient): EventReader {
   return {
     getBlockNumber: () => client.getBlockNumber({ cacheTime: 0 }),

@@ -17,10 +17,6 @@ export function formatRunTime(value: string, timeZone?: string, { zone = true } 
   }).format(new Date(value));
 }
 
-/**
- * UTC during SSR/hydration; then the browser's local time. The zone label is on by default
- * and off (`zone={false}`) where the row is too narrow for it, such as the History panel.
- */
 export function LocalTime({ value, zone = true }: { value: string; zone?: boolean }) {
   const server = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
   return (

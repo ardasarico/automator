@@ -89,7 +89,6 @@ function buildCall(config: {
   };
 }
 
-/** Simulates or sends a contract write, answering the same shape either way. */
 type WriteOptions = Pick<ExecutionContext, "signal" | "checkpoint"> & {
   validateResult?: (result: unknown) => void;
 };
@@ -123,7 +122,6 @@ async function performWrite(
   return { simulated: false, hash, ...(jsonSafe(receipt) as object), result: jsonSafe(result) };
 }
 
-/** Simulates or sends a plain value transfer or raw call. */
 async function performSend(
   chain: ChainProvider,
   to: Address,

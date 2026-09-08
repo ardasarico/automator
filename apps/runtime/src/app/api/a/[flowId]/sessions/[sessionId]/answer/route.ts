@@ -3,7 +3,6 @@ import { answerMiniAppSessionContract, miniAppAnswerSchema, Value } from "@autom
 import { NextResponse } from "next/server";
 import { visitorHeaders } from "../../../visitor-headers";
 
-/** Forwards a visitor's answer to the private API and hands back the next screen. */
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ flowId: string; sessionId: string }> },

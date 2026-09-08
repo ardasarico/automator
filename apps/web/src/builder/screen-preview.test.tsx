@@ -102,7 +102,6 @@ test("external handoff survives preview panel removal and stops when the builder
     );
     const target = new URL(url);
     const nonce = new URLSearchParams(target.hash.slice(1)).get("preview");
-    // Switching to AI or minimizing the right panel removes ScreenPreview, not its builder.
     await act(async () =>
       root.render(
         <BuilderStoreProvider document={flow}>
@@ -118,8 +117,8 @@ test("external handoff survives preview panel removal and stops when the builder
           source: popup as unknown as Window,
         }),
       );
-    ready(); // Delayed first load after hiding the preview panel.
-    ready(); // Reload in the same popup.
+    ready();
+    ready();
     expect(deliveries).toHaveLength(2);
     expect(deliveries[0]).toEqual({
       data: { type: "automator.preview.document.v1", nonce, document: flow },
