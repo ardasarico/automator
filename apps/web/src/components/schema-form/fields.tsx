@@ -19,9 +19,11 @@ import {
   singular,
   type FieldContext,
   type FieldProps,
+  type PreviewTemplate,
   type Property,
   type VariableOption,
 } from "./schema";
+import { TemplatePreviews } from "./template-preview";
 import { VariablePicker } from "./variable-picker";
 
 export function Help({ text }: { text: string | undefined }) {
@@ -35,6 +37,7 @@ export function ConfigField({
   value,
   onChange,
   variables = [],
+  preview,
   context,
 }: FieldProps) {
   const label = humanize(name);
@@ -161,6 +164,7 @@ export function ConfigField({
             onChange={(e) => onChange(e.target.value)}
           />
         )}
+        <TemplatePreviews text={text} preview={preview} />
         <Help
           text={
             property.secret
@@ -206,6 +210,7 @@ export function ConfigField({
         value={value}
         onChange={onChange}
         variables={variables}
+        preview={preview}
         context={context}
       />
     );
@@ -219,6 +224,7 @@ export function ConfigField({
           value={value}
           onChange={(patch) => onChange({ ...(isRecord(value) ? value : {}), ...patch })}
           variables={variables}
+          preview={preview}
           context={context}
         />
       </Group>
@@ -262,7 +268,7 @@ export function JsonField({
 const pad = (part: number, width = 2) => String(part).padStart(width, "0");
 
 /** A stored instant as the local wall time `datetime-local` shows; anything undateable reads blank. */
-function toLocalInput(stored: string): string {
+export function toLocalInput(stored: string): string {
   const date = new Date(stored);
   if (Number.isNaN(date.getTime())) return "";
   const day = `${pad(date.getFullYear(), 4)}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
@@ -270,7 +276,7 @@ function toLocalInput(stored: string): string {
 }
 
 /** The local wall time the control reports, stored back as UTC; a half-typed entry reports "". */
-function fromLocalInput(local: string): string {
+export function fromLocalInput(local: string): string {
   const date = new Date(local);
   return local === "" || Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
@@ -364,6 +370,7 @@ export function ObjectFields({
   value,
   onChange,
   variables,
+  preview,
   context,
 }: {
   id: string;
@@ -371,6 +378,7 @@ export function ObjectFields({
   value: unknown;
   onChange(patch: Record<string, unknown>): void;
   variables?: VariableOption[];
+  preview?: PreviewTemplate;
   context?: FieldContext;
 }) {
   const record = isRecord(value) ? value : {};
@@ -399,6 +407,7 @@ export function ObjectFields({
           value={record[name]}
           onChange={(next) => onChange({ [name]: next })}
           variables={variables}
+          preview={preview}
           context={scope}
         />
       ))}
@@ -413,6 +422,7 @@ export function ArrayField({
   value,
   onChange,
   variables,
+  preview,
   context,
 }: Omit<FieldProps, "name"> & { label: string }) {
   const items = Array.isArray(value) ? value : [];
@@ -476,6 +486,7 @@ export function ArrayField({
             value={item}
             onChange={(patch) => replace(index, { ...(isRecord(item) ? item : {}), ...patch })}
             variables={variables}
+            preview={preview}
             context={context}
           />
         </Group>

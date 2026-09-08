@@ -21,7 +21,7 @@ import { NodePalette } from "./node-palette";
 import { VariablesPanel } from "./variables-panel";
 import { FlowHistory } from "./flow-history";
 import { FlowOutline } from "./flow-outline";
-import { FlowSettingsDialog } from "./flow-settings-dialog";
+import { useBuilderDialogs } from "./builder-dialogs";
 import { useLeaveGuard } from "./leave-guard";
 import { NodeSettings } from "./node-settings";
 import { useBuilderStore, useBuilderStoreApi } from "./store-provider";
@@ -78,7 +78,7 @@ export function LeftPanel() {
   };
   usePanelEscape(compact && panel === "left", closePanel);
   const [section, setSection] = useState<SectionId>("nodes");
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const dialogs = useBuilderDialogs();
   const name = useBuilderStore((state) => state.meta.name);
   const selectedNode = useBuilderStore((state) => {
     const selected = state.nodes.filter((node) => node.selected);
@@ -143,9 +143,8 @@ export function LeftPanel() {
             label="Flow settings"
             icon={RiSettings3Line}
             className="mt-auto"
-            onClick={() => setSettingsOpen(true)}
+            onClick={() => dialogs.open("settings")}
           />
-          {settingsOpen && <FlowSettingsDialog onClose={() => setSettingsOpen(false)} />}
         </div>
       </nav>
       <aside

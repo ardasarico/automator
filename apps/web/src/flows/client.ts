@@ -4,6 +4,7 @@ import {
   patchFlowContract,
   updateFlowContract,
   type FlowDocumentInput,
+  type FlowPatch,
   type FlowRecord,
 } from "@automator/contracts";
 
@@ -44,20 +45,36 @@ export async function deleteFlowRequest(id: string, token: string | null): Promi
   if (result.status !== 200) throw new FlowRequestError(result.data.error);
 }
 
-export async function setFlowEnabledRequest(
+async function patchFlowRequest(
   id: string,
   token: string | null,
-  enabled: boolean,
+  patch: FlowPatch,
 ): Promise<FlowRecord> {
   if (!token) throw new FlowRequestError("unauthorized");
   const response = await fetch(`/api/flows/${encodeURIComponent(id)}`, {
     method: patchFlowContract.method,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ enabled }),
+    body: JSON.stringify(patch),
     signal: AbortSignal.timeout(20_000),
   });
   const data: unknown = await response.json();
   const result = parseResponse(patchFlowContract, response.status, data);
   if (result.status !== 200) throw new FlowRequestError(result.data.error);
   return result.data;
+}
+
+export async function setFlowEnabledRequest(
+  id: string,
+  token: string | null,
+  enabled: boolean,
+): Promise<FlowRecord> {
+  return patchFlowRequest(id, token, { enabled });
+}
+
+export async function setFlowAppPublishedRequest(
+  id: string,
+  token: string | null,
+  appPublished: boolean,
+): Promise<FlowRecord> {
+  return patchFlowRequest(id, token, { appPublished });
 }

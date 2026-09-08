@@ -37,7 +37,8 @@ test("create a flow, simulate it, publish it, and fork the listing", async ({ pa
 
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Saved")).toBeVisible();
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Share" }).click();
+  await page.getByRole("menuitem", { name: "Publish to the marketplace" }).click();
   const dialog = page.getByRole("dialog");
   const name = `E2E flow ${Date.now()}`;
   await dialog.getByLabel("Listing name").fill(name);

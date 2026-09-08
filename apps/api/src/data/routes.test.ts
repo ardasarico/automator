@@ -154,6 +154,17 @@ function fixture(options: { callsPerMinute?: number; flows?: readonly FlowDocume
       records.set(id, { ownerId, record });
       return record;
     },
+    merge: async (ownerId, tableId, id, resolve, options = {}) => {
+      const found = ownedRecords(ownerId, tableId).find((record) => record.id === id);
+      if (!found) return null;
+      if (options.expectedUpdatedAt && options.expectedUpdatedAt !== found.updatedAt)
+        return "conflict";
+      const values = resolve(found.values);
+      if (!values) return "invalid";
+      const record: DataRecord = { ...found, values, updatedAt: stamp() };
+      records.set(id, { ownerId, record });
+      return record;
+    },
     remove: async (ownerId, tableId, id) => {
       const found = ownedRecords(ownerId, tableId).find((record) => record.id === id);
       if (!found) return null;
@@ -401,6 +412,67 @@ describe("data record routes", () => {
     expect(
       (await request(`/data/tables/${created.id}/records/${record.id}`, "DELETE", "alice")).status,
     ).toBe(404);
+  });
+
+  test("a merge patch changes one column, clears with null and keeps the rest", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+    const posted = await request(`/data/tables/${created.id}/records`, "POST", "alice", {
+      values: { email: "a@b.co", seats: 2 },
+    });
+    const record = (await posted.json()) as DataRecord;
+    const path = `/data/tables/${created.id}/records/${record.id}`;
+
+    const merged = await request(path, "PATCH", "alice", {
+      values: { seats: 5 },
+      merge: true,
+      expectedUpdatedAt: record.updatedAt,
+    });
+    expect(merged.status).toBe(200);
+    const after = (await merged.json()) as DataRecord;
+    expect(after.values).toEqual({ email: "a@b.co", seats: 5 });
+
+    const cleared = await request(path, "PATCH", "alice", {
+      values: { seats: null },
+      merge: true,
+    });
+    expect(((await cleared.json()) as DataRecord).values).toEqual({ email: "a@b.co" });
+  });
+
+  test("a merge patch answers 409 when the record changed since the caller read it", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+    const posted = await request(`/data/tables/${created.id}/records`, "POST", "alice", {
+      values: { email: "a@b.co" },
+    });
+    const record = (await posted.json()) as DataRecord;
+    const path = `/data/tables/${created.id}/records/${record.id}`;
+    await request(path, "PATCH", "alice", { values: { seats: 1 }, merge: true });
+
+    const stale = await request(path, "PATCH", "alice", {
+      values: { seats: 3 },
+      merge: true,
+      expectedUpdatedAt: record.updatedAt,
+    });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toEqual({ error: "conflict" });
+  });
+
+  test("a merge patch that would empty a required column is unprocessable", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+    const posted = await request(`/data/tables/${created.id}/records`, "POST", "alice", {
+      values: { email: "a@b.co" },
+    });
+    const record = (await posted.json()) as DataRecord;
+    const cleared = await request(
+      `/data/tables/${created.id}/records/${record.id}`,
+      "PATCH",
+      "alice",
+      { values: { email: null }, merge: true },
+    );
+    expect(cleared.status).toBe(422);
+    expect(await cleared.json()).toEqual({ error: "invalid_record" });
   });
 
   test.each([

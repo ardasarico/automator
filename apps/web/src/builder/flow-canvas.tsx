@@ -9,11 +9,12 @@ import {
   ReactFlow,
   useReactFlow,
   useStoreApi,
+  type FinalConnectionState,
   type XYPosition,
 } from "@xyflow/react";
 import { Button } from "@automator/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
-import { layoutFlowPositions, type FlowNodeType } from "@automator/contracts";
+import { flowNodePorts, layoutFlowPositions, type FlowNodeType } from "@automator/contracts";
 import {
   RiAddLine,
   RiFlashlightLine,
@@ -21,37 +22,77 @@ import {
   RiLayoutMasonryLine,
   RiSubtractLine,
 } from "@remixicon/react";
-import { useCallback, useMemo, type DragEvent } from "react";
-import { isFlowNodeType } from "./catalog";
+import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
+import { isFlowNodeType, type CatalogEntry } from "./catalog";
 import { nodeHalfSize, nodeTypes } from "./flow-node";
 import styles from "./flow-builder.module.css";
 import { GettingStartedPanel } from "./getting-started-panel";
+import { NodePicker } from "./node-picker";
+import { useNodePresets } from "./presets-context";
 import { RunPanel } from "./run-panel";
 import { edgeRunStatus } from "./run-selectors";
 import { useRunStore } from "./run-store-provider";
 import { useBuilderStore } from "./store-provider";
+import type { NodeTemplate, SourcePort } from "./store";
 import { groupProblemsByNode, NodeProblemsContext, useFlowProblems } from "./use-flow-problems";
 
 export const nodeTypeMime = "application/x-automator-node-type";
+export const nodePresetMime = "application/x-automator-node-preset";
 
-export function useAddNodeAtCenter(): (type: FlowNodeType) => void {
+/** A connection dropped on empty canvas, waiting for the node the picker returns. */
+type PendingConnection = {
+  from: SourcePort;
+  at: { x: number; y: number };
+  flowPosition: XYPosition;
+};
+
+/** Matches `.nodePicker` in the stylesheet; the drop point is clamped against it. */
+const pickerSize = { width: 280, height: 320 };
+const pickerMargin = 8;
+
+function clamp(at: number, available: number, size: number): number {
+  return Math.max(pickerMargin, Math.min(at, available - size - pickerMargin));
+}
+
+/** Only a node with an input can receive the dropped connection; triggers have none. */
+const acceptsConnection = (entry: CatalogEntry) => flowNodePorts[entry.type].inputs.length > 0;
+
+/** Where the next node lands when it is added without a drop point. */
+function useCenterPosition(): () => XYPosition {
   const { getViewport } = useReactFlow();
   const reactFlowStore = useStoreApi();
-  const addNode = useBuilderStore((state) => state.addNode);
   const count = useBuilderStore((state) => state.nodes.length);
+  return useCallback(() => {
+    const { x, y, zoom } = getViewport();
+    const { width, height } = reactFlowStore.getState();
+    const nudge = (count % 6) * 24;
+    return {
+      x: (width / 2 - x) / zoom - nodeHalfSize.x + nudge,
+      y: (height / 2 - y) / zoom - nodeHalfSize.y + nudge,
+    };
+  }, [count, getViewport, reactFlowStore]);
+}
 
+export function useAddNodeAtCenter(): (type: FlowNodeType) => void {
+  const center = useCenterPosition();
+  const addNode = useBuilderStore((state) => state.addNode);
   return useCallback(
     (type) => {
-      const { x, y, zoom } = getViewport();
-      const { width, height } = reactFlowStore.getState();
-      const nudge = (count % 6) * 24;
-      const position: XYPosition = {
-        x: (width / 2 - x) / zoom - nodeHalfSize.x + nudge,
-        y: (height / 2 - y) / zoom - nodeHalfSize.y + nudge,
-      };
-      addNode(type, position);
+      addNode(type, center());
     },
-    [addNode, count, getViewport, reactFlowStore],
+    [addNode, center],
+  );
+}
+
+/** Inserts a configured node, such as a saved one, in the middle of the canvas. */
+export function useInsertNodeAtCenter(): (input: NodeTemplate) => void {
+  const center = useCenterPosition();
+  const insertNode = useBuilderStore((state) => state.insertNode);
+  return useCallback(
+    (input) => {
+      insertNode(input, center());
+    },
+    [center, insertNode],
   );
 }
 
@@ -132,10 +173,14 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
   const onConnect = useBuilderStore((state) => state.onConnect);
   const canConnect = useBuilderStore((state) => state.canConnect);
   const addNode = useBuilderStore((state) => state.addNode);
+  const insertNode = useBuilderStore((state) => state.insertNode);
+  const { presets } = useNodePresets();
   const run = useRunStore((state) => state.run);
   const problems = useFlowProblems();
   const problemsByNode = useMemo(() => groupProblemsByNode(problems), [problems]);
   const { screenToFlowPosition } = useReactFlow();
+  const viewport = useRef<HTMLDivElement>(null);
+  const [pending, setPending] = useState<PendingConnection | null>(null);
 
   const shownEdges = useMemo(
     () =>
@@ -149,26 +194,56 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
   );
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
-    if (!event.dataTransfer.types.includes(nodeTypeMime)) return;
+    const types = event.dataTransfer.types;
+    if (!types.includes(nodeTypeMime) && !types.includes(nodePresetMime)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   }, []);
 
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
+      const presetId = event.dataTransfer.getData(nodePresetMime);
       const type = event.dataTransfer.getData(nodeTypeMime);
-      if (!isFlowNodeType(type)) return;
+      const preset = presetId ? presets.find((entry) => entry.id === presetId) : undefined;
+      if (!preset && !isFlowNodeType(type)) return;
       event.preventDefault();
-      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      addNode(type, { x: position.x - nodeHalfSize.x, y: position.y - nodeHalfSize.y });
+      const point = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const position = { x: point.x - nodeHalfSize.x, y: point.y - nodeHalfSize.y };
+      if (preset)
+        insertNode({ type: preset.type, label: preset.label, config: preset.config }, position);
+      else if (isFlowNodeType(type)) addNode(type, position);
     },
-    [addNode, screenToFlowPosition],
+    [addNode, insertNode, presets, screenToFlowPosition],
+  );
+
+  // Dropping a connection on empty canvas offers the nodes that can accept it, then wires
+  // the picked one to the port the drag started from.
+  const onConnectEnd = useCallback(
+    (event: MouseEvent | TouchEvent, connectionState: FinalConnectionState) => {
+      if (connectionState.isValid || connectionState.fromHandle?.type !== "source") return;
+      const source = connectionState.fromNode?.id;
+      if (!source) return;
+      const point = "changedTouches" in event ? event.changedTouches[0] : event;
+      if (!point) return;
+      const bounds = viewport.current?.getBoundingClientRect();
+      if (!bounds) return;
+      setPending({
+        from: { source, sourceHandle: connectionState.fromHandle.id },
+        // Anchored at the drop point, then kept inside the canvas so no row falls off an edge.
+        at: {
+          x: clamp(point.clientX - bounds.left, bounds.width, pickerSize.width),
+          y: clamp(point.clientY - bounds.top, bounds.height, pickerSize.height),
+        },
+        flowPosition: screenToFlowPosition({ x: point.clientX, y: point.clientY }),
+      });
+    },
+    [screenToFlowPosition],
   );
 
   return (
     <div className={styles.canvas}>
       <NodeProblemsContext.Provider value={problemsByNode}>
-        <div className={styles.canvasViewport}>
+        <div className={styles.canvasViewport} ref={viewport}>
           <ReactFlow
             nodes={nodes}
             edges={shownEdges}
@@ -181,6 +256,7 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
             connectionLineType={ConnectionLineType.SmoothStep}
             onDragOver={onDragOver}
             onDrop={onDrop}
+            onConnectEnd={onConnectEnd}
             fitView={nodes.length > 0}
             fitViewOptions={{ padding: 0.2 }}
             deleteKeyCode={["Backspace", "Delete"]}
@@ -202,6 +278,25 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
             )}
             {nodes.length === 0 && <EmptyCanvas />}
           </ReactFlow>
+          {pending && (
+            <NodePicker
+              label="Add a connected node"
+              position={pending.at}
+              accepts={acceptsConnection}
+              onClose={() => setPending(null)}
+              onPick={(type) => {
+                addNode(
+                  type,
+                  {
+                    x: pending.flowPosition.x - nodeHalfSize.x,
+                    y: pending.flowPosition.y - nodeHalfSize.y,
+                  },
+                  pending.from,
+                );
+                setPending(null);
+              }}
+            />
+          )}
         </div>
       </NodeProblemsContext.Provider>
       <RunPanel />

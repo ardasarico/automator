@@ -6,12 +6,15 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import {
   RiArrowLeftSLine,
   RiArrowRightSLine,
+  RiBookmarkLine,
+  RiDeleteBinLine,
   RiLayoutGridLine,
   RiSearchLine,
 } from "@remixicon/react";
 import { useId, useState, type DragEvent } from "react";
 import {
   catalogGroups,
+  getCatalogEntry,
   getCatalogGroupSections,
   listCatalogGroups,
   searchCatalog,
@@ -21,8 +24,14 @@ import {
   type CatalogSection,
 } from "./catalog";
 import { CatalogIconMark } from "./catalog-icon";
-import { nodeTypeMime, useAddNodeAtCenter } from "./flow-canvas";
+import {
+  nodePresetMime,
+  nodeTypeMime,
+  useAddNodeAtCenter,
+  useInsertNodeAtCenter,
+} from "./flow-canvas";
 import styles from "./flow-builder.module.css";
+import { useNodePresets } from "./presets-context";
 
 type View = "list" | "grid";
 
@@ -109,22 +118,71 @@ function GroupRow({ group, onOpen }: { group: CatalogGroupSummary; onOpen: () =>
   );
 }
 
+/** The account's saved nodes, above the catalog groups; each row inserts an independent copy. */
+function SavedNodes() {
+  const { presets, remove } = useNodePresets();
+  const insertAtCenter = useInsertNodeAtCenter();
+  if (presets.length === 0) return null;
+  return (
+    <section className={styles.paletteGroup} aria-label="Saved">
+      <p className={styles.paletteGroupLabel}>Saved</p>
+      {presets.map((preset) => (
+        <div key={preset.id} className="flex items-center gap-1">
+          <button
+            type="button"
+            draggable
+            className={styles.paletteItem}
+            onDragStart={(event) => {
+              event.dataTransfer.setData(nodePresetMime, preset.id);
+              event.dataTransfer.effectAllowed = "move";
+            }}
+            onClick={() => insertAtCenter(preset)}
+          >
+            <span className={styles.nodeIcon} data-category={getCatalogEntry(preset.type).category}>
+              <RiBookmarkLine aria-hidden="true" />
+            </span>
+            <span className={styles.paletteItemText}>
+              <span className={styles.paletteItemLabel}>{preset.name}</span>
+              <span className={styles.paletteItemDescription}>
+                {getCatalogEntry(preset.type).label}
+              </span>
+            </span>
+          </button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`Delete saved node: ${preset.name}`}
+            onClick={() => void remove(preset.id)}
+          >
+            <RiDeleteBinLine aria-hidden="true" />
+          </Button>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function GroupList({ onOpen }: { onOpen: (group: CatalogGroupId) => void }) {
   const groups = listCatalogGroups();
   const kinds = [
     { kind: "core" as const, label: "Core" },
     { kind: "integration" as const, label: "Integrations" },
   ];
-  return kinds.map(({ kind, label }) => (
-    <section key={kind} className={styles.paletteGroup} aria-label={label}>
-      <p className={styles.paletteGroupLabel}>{label}</p>
-      {groups
-        .filter((group) => group.kind === kind)
-        .map((group) => (
-          <GroupRow key={group.id} group={group} onOpen={() => onOpen(group.id)} />
-        ))}
-    </section>
-  ));
+  return (
+    <>
+      <SavedNodes />
+      {kinds.map(({ kind, label }) => (
+        <section key={kind} className={styles.paletteGroup} aria-label={label}>
+          <p className={styles.paletteGroupLabel}>{label}</p>
+          {groups
+            .filter((group) => group.kind === kind)
+            .map((group) => (
+              <GroupRow key={group.id} group={group} onOpen={() => onOpen(group.id)} />
+            ))}
+        </section>
+      ))}
+    </>
+  );
 }
 
 function SearchResults({

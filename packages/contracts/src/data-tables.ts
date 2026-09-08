@@ -78,6 +78,35 @@ export function isDataRecordInput(body: unknown): body is DataRecordInput {
   return Check(dataRecordInputSchema, body);
 }
 
+export const dataRecordPatchSchema = Type.Object(
+  {
+    values: Type.Record(Type.String(), Type.Unknown()),
+    /** Changes only the named columns and keeps the rest; `null` clears one. Absent replaces all. */
+    merge: Type.Optional(Type.Literal(true)),
+    /** The `updatedAt` the caller last saw. A record changed since answers 409 `conflict`. */
+    expectedUpdatedAt: Type.Optional(Type.String({ minLength: 1 })),
+  },
+  { additionalProperties: false },
+);
+export type DataRecordPatch = Static<typeof dataRecordPatchSchema>;
+
+export function isDataRecordPatch(body: unknown): body is DataRecordPatch {
+  return Check(dataRecordPatchSchema, body);
+}
+
+/** Applies a cell patch to the stored values: `null` clears a column, other values replace one. */
+export function mergeRecordValues(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...current };
+  for (const [column, value] of Object.entries(patch)) {
+    if (value === null || value === "" || value === undefined) delete merged[column];
+    else merged[column] = value;
+  }
+  return merged;
+}
+
 /** The filter operators each column type supports, shared by the node config UI and the API. */
 export const dataColumnOperators: Record<DataColumnType, readonly ConditionOperator[]> = {
   text: ["equals", "not_equals", "contains", "is_empty", "is_not_empty"],
@@ -301,7 +330,7 @@ export const updateDataRecordContract = {
   method: "PATCH",
   path: "/data/tables/:id/records/:recordId",
   params: recordParamsSchema,
-  body: dataRecordInputSchema,
+  body: dataRecordPatchSchema,
   response: { 200: dataRecordSchema, ...apiErrorResponses },
 } as const;
 export const deleteDataRecordContract = {

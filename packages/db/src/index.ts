@@ -15,6 +15,7 @@ import { createWatchStateStore } from "./watch-state";
 import { createPaymentPolicyStore } from "./payment-policies";
 import { createDataTableStore } from "./data-tables";
 import { createDataRecordStore } from "./data-records";
+import { createNodePresetStore } from "./node-presets";
 export {
   PaymentPolicyOwnerMissingError,
   PaymentPolicyDeniedError,
@@ -39,6 +40,11 @@ export { type WatchState, type WatchStateStore } from "./watch-state";
 export { type ListingStore } from "./listings";
 export { migrate, migrations, type Migration } from "./migrations";
 export { RunCursorError, type RunStore } from "./runs";
+export {
+  NodePresetLimitError,
+  NodePresetOwnerMissingError,
+  type NodePresetStore,
+} from "./node-presets";
 export { type SecretStore } from "./secrets";
 export { type MiniAppSessionRow, type SessionStore } from "./sessions";
 export { UsernameTakenError, type UserStore } from "./users";
@@ -81,6 +87,7 @@ export function createDatabase(url: string | undefined) {
     paymentPolicies: createPaymentPolicyStore(sql),
     dataTables: createDataTableStore(sql),
     dataRecords: createDataRecordStore(sql),
+    nodePresets: createNodePresetStore(sql),
     async migrate() {
       if (sql) await migrate(sql);
     },

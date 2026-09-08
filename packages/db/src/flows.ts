@@ -20,11 +20,13 @@ type FlowRow = {
   createdAt: Date;
   updatedAt: Date;
   enabled?: boolean;
+  appPublished?: boolean;
   webhookToken?: string;
   pollingRevision: string;
 };
 
-const ownerColumns = `id, name, description, document, enabled, webhook_token AS "webhookToken",
+const ownerColumns = `id, name, description, document, enabled,
+  app_published AS "appPublished", webhook_token AS "webhookToken",
   polling_revision AS "pollingRevision",
   created_at AS "createdAt", updated_at AS "updatedAt"`;
 
@@ -43,6 +45,7 @@ function toRecord(row: FlowRow): FlowRecord {
     updatedAt: row.updatedAt.toISOString(),
   };
   if (row.enabled !== undefined) record.enabled = row.enabled;
+  if (row.appPublished !== undefined) record.appPublished = row.appPublished;
   if (row.webhookToken !== undefined) record.webhookToken = row.webhookToken;
   return record;
 }
@@ -183,6 +186,18 @@ export function createFlowStore(sql: SQL | undefined) {
         RETURNING ${db.unsafe(ownerColumns)}`;
       return rows[0] ? toRecord(rows[0]) : null;
     },
+    async setAppPublished(
+      ownerId: string,
+      id: string,
+      appPublished: boolean,
+    ): Promise<FlowRecord | null> {
+      const db = connection();
+      const rows = await db<FlowRow[]>`
+        UPDATE automator_flows SET app_published = ${appPublished}
+        WHERE owner_id = ${ownerId} AND id = ${id}
+        RETURNING ${db.unsafe(ownerColumns)}`;
+      return rows[0] ? toRecord(rows[0]) : null;
+    },
     async findForWebhook(id: string, token: string): Promise<OwnedFlow | null> {
       const db = connection();
       const rows = await db<(FlowRow & { ownerId: string })[]>`
@@ -230,8 +245,7 @@ export function createFlowStore(sql: SQL | undefined) {
       const rows = await db<(FlowRow & { ownerId: string })[]>`
         SELECT f.id, f.name, f.description, f.document, f.owner_id AS "ownerId",
           f.created_at AS "createdAt", f.updated_at AS "updatedAt"
-        FROM automator_flows f JOIN automator_listings l ON l.flow_id = f.id
-        WHERE f.id = ${id}`;
+        FROM automator_flows f WHERE f.id = ${id} AND f.app_published`;
       return rows[0] ? { record: toRecord(rows[0]), ownerId: rows[0].ownerId } : null;
     },
   };

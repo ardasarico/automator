@@ -9,6 +9,7 @@ import {
   flowNodeTypes,
   getFlowContract,
   isFlowDocumentInput,
+  isFlowPatch,
   listFlowsContract,
   updateFlowContract,
   type FlowDocument,
@@ -139,6 +140,17 @@ describe("flow endpoint contracts", () => {
     };
     expect(Value.Check(getFlowContract.response[200], record)).toBe(true);
     expect(Value.Check(getFlowContract.response[200], { flow: document })).toBe(false);
+  });
+});
+
+describe("flow patches", () => {
+  test("accept activation, app publication or both, and reject anything else", () => {
+    expect(isFlowPatch({ enabled: true })).toBe(true);
+    expect(isFlowPatch({ appPublished: true })).toBe(true);
+    expect(isFlowPatch({ enabled: false, appPublished: true })).toBe(true);
+    expect(isFlowPatch({})).toBe(false);
+    expect(isFlowPatch({ enabled: "yes" })).toBe(false);
+    expect(isFlowPatch({ enabled: true, name: "x" })).toBe(false);
   });
 });
 

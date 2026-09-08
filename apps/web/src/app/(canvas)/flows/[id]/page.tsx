@@ -28,6 +28,7 @@ export default async function FlowPage({ params, searchParams }: Props) {
       key={`${id}:${initialRun?.id ?? ""}`}
       document={record.flow}
       enabled={record.enabled ?? false}
+      appPublished={record.appPublished ?? false}
       webhookToken={record.webhookToken ?? null}
       initialRun={initialRun}
       initialRunDocument={initialRun ? run!.document : null}

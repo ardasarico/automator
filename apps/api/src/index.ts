@@ -70,6 +70,7 @@ const app = createApp({
   chainFactory,
   dataTables: database.dataTables,
   dataRecords: database.dataRecords,
+  nodePresets: database.nodePresets,
   dataFactory,
   world: createWorldVerifier(config.world),
   log: true,

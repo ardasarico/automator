@@ -11,8 +11,8 @@ import {
 import { Button } from "@automator/ui/button";
 import { Field, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
-import { RiArrowLeftLine } from "@remixicon/react";
-import { useMemo } from "react";
+import { RiArrowLeftLine, RiBookmarkLine } from "@remixicon/react";
+import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { ObjectFields, type Property } from "../components/schema-form";
 import { useDataTables } from "../data/tables-context";
@@ -21,6 +21,8 @@ import type { BuilderNode } from "./document";
 import styles from "./flow-builder.module.css";
 import type { BuilderState } from "./store";
 import { useBuilderStore } from "./store-provider";
+import { SavePresetDialog } from "./save-preset-dialog";
+import { useRunPreview } from "./use-run-preview";
 import { useSecrets } from "./secrets-store";
 import { listVariables } from "./variables";
 
@@ -30,6 +32,13 @@ const configSchemas: Partial<Record<FlowNodeType, TObject>> = {
   ...flowNodeConfigSchemas,
   ...screenConfigSchemas,
 };
+
+function runTime(startedAt: string): string {
+  const date = new Date(startedAt);
+  return Number.isNaN(date.getTime())
+    ? startedAt
+    : date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
 
 export function NodeSettings({ node, onBack }: { node: BuilderNode; onBack(): void }) {
   const renameNode = useBuilderStore((state) => state.renameNode);
@@ -48,6 +57,8 @@ export function NodeSettings({ node, onBack }: { node: BuilderNode; onBack(): vo
       ),
     [node.id, nodes, edges, secretNames, tables],
   );
+  const runPreview = useRunPreview(node.id, node.data.config);
+  const [saving, setSaving] = useState(false);
   const entry = getCatalogEntry(node.data.type);
   const schema = configSchemas[node.data.type];
   let config: unknown;
@@ -70,10 +81,17 @@ export function NodeSettings({ node, onBack }: { node: BuilderNode; onBack(): vo
           <RiArrowLeftLine aria-hidden="true" />
           Nodes
         </Button>
-        <span className="text-caption text-muted-foreground">
-          {categoryLabels[entry.category]} · {entry.label}
-        </span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-caption text-muted-foreground">
+            {categoryLabels[entry.category]} · {entry.label}
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => setSaving(true)}>
+            <RiBookmarkLine aria-hidden="true" />
+            Save node
+          </Button>
+        </div>
       </div>
+      {saving && <SavePresetDialog node={node} onClose={() => setSaving(false)} />}
       <form className={styles.nodeSettingsForm} onSubmit={(event) => event.preventDefault()}>
         <Field>
           <FieldLabel htmlFor={`${node.id}-label`}>Label</FieldLabel>
@@ -90,7 +108,14 @@ export function NodeSettings({ node, onBack }: { node: BuilderNode; onBack(): vo
           value={config}
           onChange={(patch) => setNodeConfig(node.id, patch)}
           variables={variables}
+          preview={runPreview?.preview}
         />
+        {runPreview && (
+          <p className="text-caption text-muted-foreground">
+            Values below the fields come from the run at {runTime(runPreview.startedAt)}.
+            {runPreview.stale && " These settings changed since, so they may no longer match."}
+          </p>
+        )}
         {invalid && (
           <p role="alert" className="text-caption text-destructive-text">
             Some settings are incomplete or invalid. Correct them before running the flow.

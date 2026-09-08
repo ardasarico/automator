@@ -1,7 +1,7 @@
 import { AuthApiError, request } from "@automator/api-client/server";
 import {
   deleteDataRecordContract,
-  isDataRecordInput,
+  isDataRecordPatch,
   updateDataRecordContract,
 } from "@automator/contracts";
 import { NextResponse } from "next/server";
@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: RecordParams) {
   } catch {
     return authErrorResponse(req, new AuthApiError(400, "invalid_request"));
   }
-  if (!isDataRecordInput(body))
+  if (!isDataRecordPatch(body))
     return authErrorResponse(req, new AuthApiError(422, "invalid_record"));
   const { id, recordId } = await params;
   try {

@@ -118,17 +118,21 @@ export const flowRecordSchema = Type.Object({
   createdAt: Type.String(),
   updatedAt: Type.String(),
   enabled: Type.Optional(Type.Boolean()),
+  appPublished: Type.Optional(Type.Boolean()),
   webhookToken: Type.Optional(Type.String({ minLength: 1 })),
 });
 export type FlowRecord = Static<typeof flowRecordSchema>;
 
 export const flowPatchSchema = Type.Object(
-  { enabled: Type.Boolean() },
+  { enabled: Type.Optional(Type.Boolean()), appPublished: Type.Optional(Type.Boolean()) },
   { additionalProperties: false },
 );
 export type FlowPatch = Static<typeof flowPatchSchema>;
+/* An empty patch would answer 200 without changing anything, so it is rejected as invalid. */
 export function isFlowPatch(body: unknown): body is FlowPatch {
-  return Check(flowPatchSchema, body);
+  return (
+    Check(flowPatchSchema, body) && (body.enabled !== undefined || body.appPublished !== undefined)
+  );
 }
 
 export function isFlowDocumentInput(body: unknown): body is FlowDocumentInput {

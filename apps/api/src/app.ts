@@ -14,6 +14,7 @@ import type {
   FlowStore,
   FlowVersionStore,
   ListingStore,
+  NodePresetStore,
   RunStore,
   SecretStore,
   SessionStore,
@@ -39,6 +40,7 @@ import { defaultRateLimits, type RateLimits } from "./rate-limit";
 import { createQuickJsSandbox } from "./sandbox/quickjs";
 import type { SecretsCrypto } from "./secrets/crypto";
 import { createSecretsResolver } from "./secrets/resolver";
+import { createNodePresetRoutes } from "./node-presets/routes";
 import { createSecretRoutes } from "./secrets/routes";
 import { createSessionRoutes } from "./sessions/routes";
 import { createWalletRoutes } from "./wallet/routes";
@@ -60,6 +62,7 @@ export interface AppDependencies {
   chainFactory?: ChainFactory;
   dataTables?: DataTableStore;
   dataRecords?: DataRecordStore;
+  nodePresets?: NodePresetStore;
   dataFactory?: DataFactory;
   world?: WorldVerifier;
   log?: boolean;
@@ -106,6 +109,7 @@ export function createApp({
   chainFactory,
   dataTables,
   dataRecords,
+  nodePresets,
   dataFactory,
   rateLimits,
   world,
@@ -220,6 +224,11 @@ export function createApp({
     .use(
       secretsAccess
         ? createSecretRoutes({ identity, ...secretsAccess, callsPerMinute: limits.secrets })
+        : new Elysia(),
+    )
+    .use(
+      nodePresets
+        ? createNodePresetRoutes({ nodePresets, identity, callsPerMinute: limits.secrets })
         : new Elysia(),
     )
     .use(

@@ -35,6 +35,15 @@ export type VariableOption = {
   label: string;
 };
 
+/** What a template resolved to in the evidence the caller offers, usually the last run. */
+export type TemplatePreview =
+  | { status: "value"; text: string }
+  | { status: "missing" }
+  | { status: "secret" };
+
+/** Resolves one template path (the text between the braces) for the preview under a field. */
+export type PreviewTemplate = (path: string) => TemplatePreview;
+
 export type FieldProps = {
   id: string;
   name: string;
@@ -42,6 +51,7 @@ export type FieldProps = {
   value: unknown;
   onChange(value: unknown): void;
   variables?: VariableOption[];
+  preview?: PreviewTemplate;
   context?: FieldContext;
 };
 

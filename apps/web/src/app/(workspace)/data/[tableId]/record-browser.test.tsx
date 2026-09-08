@@ -43,7 +43,7 @@ const record: DataRecord = {
 };
 
 const originalFetch = globalThis.fetch;
-let calls: Array<{ url: string; method: string }>;
+let calls: Array<{ url: string; method: string; body?: unknown }>;
 let answer: () => Response | Promise<Response>;
 let container: HTMLDivElement;
 let root: Root;
@@ -52,7 +52,11 @@ beforeEach(() => {
   calls = [];
   answer = () => Response.json({ id: record.id });
   globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
-    calls.push({ url: String(url), method: init?.method ?? "GET" });
+    calls.push({
+      url: String(url),
+      method: init?.method ?? "GET",
+      ...(init?.body ? { body: JSON.parse(String(init.body)) as unknown } : {}),
+    });
     return answer();
   }) as typeof fetch;
   container = document.createElement("div");
@@ -86,10 +90,51 @@ test("each value is shown in the form its column reads best", async () => {
   await mount([record]);
   const row = document.querySelector("tbody tr")!;
   expect(row.textContent).toContain("a@b.co");
-  expect(row.textContent).toContain("No");
+  // A checkbox column is a control rather than text, so it reads and edits in one place.
+  expect(
+    row.querySelector('[aria-label="Invited of this record"]')?.getAttribute("data-checked"),
+  ).toBeNull();
   expect(row.textContent).toContain("0xabab…abab");
   // The record has no note, and an absent value is a dash rather than an empty cell.
   expect(row.textContent).toContain("—");
+});
+
+test("editing a cell patches only that column and keeps the saved value on the page", async () => {
+  answer = () =>
+    Response.json({
+      ...record,
+      values: { ...record.values, note: "Called back" },
+      updatedAt: "2026-09-08T11:00:00.000Z",
+    });
+  await mount([record]);
+
+  await act(async () => button("Edit Note of this record").click());
+  const input = document.querySelector<HTMLInputElement>(
+    'input[aria-label="Note of this record"]',
+  )!;
+  Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!.call(
+    input,
+    "Called back",
+  );
+  const key = Object.keys(input).find((name) => name.startsWith("__reactProps"))!;
+  const props = (input as unknown as Record<string, { onChange(event: unknown): void }>)[key]!;
+  await act(async () => props.onChange({ target: input, currentTarget: input }));
+  await act(async () =>
+    input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })),
+  );
+
+  expect(calls).toEqual([
+    {
+      url: "/api/data/tables/tbl-1/records/rec-1",
+      method: "PATCH",
+      body: {
+        values: { note: "Called back" },
+        merge: true,
+        expectedUpdatedAt: record.updatedAt,
+      },
+    },
+  ]);
+  expect(document.querySelector("tbody tr")!.textContent).toContain("Called back");
 });
 
 test("a table with no records offers to add the first one", async () => {

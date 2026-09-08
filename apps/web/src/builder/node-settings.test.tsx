@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { FlowDocument } from "@automator/contracts";
+import type { FlowDocument, FlowRun } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { act, useEffect } from "react";
@@ -9,6 +9,7 @@ GlobalRegistrator.register();
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const { NodeSettings } = await import("./node-settings");
+const { RunStoreProvider } = await import("./run-store-provider");
 const { BuilderStoreProvider, useBuilderStore } = await import("./store-provider");
 const { createBuilderStore } = await import("./store");
 const { hydrateFlow } = await import("./document");
@@ -44,7 +45,7 @@ const document: FlowDocument = {
 let container: HTMLDivElement;
 let root: Root;
 
-async function mount(nodeId: string) {
+async function mount(nodeId: string, run: FlowRun | null = null) {
   const store = createBuilderStore(document);
   const node = hydrateFlow(document).nodes.find((n) => n.id === nodeId)!;
   container = window.document.createElement("div");
@@ -53,7 +54,9 @@ async function mount(nodeId: string) {
   await act(async () => {
     root.render(
       <BuilderStoreProvider document={document}>
-        <NodeSettings node={node} onBack={() => {}} />
+        <RunStoreProvider initialRun={run} initialDocument={run ? document : null}>
+          <NodeSettings node={node} onBack={() => {}} />
+        </RunStoreProvider>
       </BuilderStoreProvider>,
     );
   });
@@ -93,6 +96,50 @@ describe("NodeSettings", () => {
     container.remove();
   });
 
+  test("shows each template's last-run value beside the field and flags stale evidence", async () => {
+    const run: FlowRun = {
+      id: "run-1",
+      flowId: "f",
+      status: "succeeded",
+      startedAt: "2026-09-08T10:00:00.000Z",
+      finishedAt: "2026-09-08T10:00:01.000Z",
+      trigger: { nodeId: "t", payload: {} },
+      variables: {},
+      nodes: [
+        { nodeId: "t", status: "succeeded", outputs: { visitor: {} } },
+        { nodeId: "form", status: "succeeded", outputs: { submitted: { email: "a@b.c" } } },
+      ],
+    };
+    const store = await mount("d", run);
+    await act(async () => store.getState().setNodeConfig("d", { content: "" }));
+    expect(container.textContent).toContain("Values below the fields come from the run at");
+    expect(container.textContent).not.toContain("These settings changed since");
+
+    await act(async () =>
+      root.render(
+        <BuilderStoreProvider document={document}>
+          <RunStoreProvider initialRun={run} initialDocument={document}>
+            <NodeSettings
+              node={{
+                ...hydrateFlow(document).nodes.find((n) => n.id === "d")!,
+                data: {
+                  ...hydrateFlow(document).nodes.find((n) => n.id === "d")!.data,
+                  config: { content: "Hi {{input.message.email}} and {{vars.absent}}" },
+                },
+              }}
+              onBack={() => {}}
+            />
+          </RunStoreProvider>
+        </BuilderStoreProvider>,
+      ),
+    );
+    expect(container.textContent).toContain("“a@b.c”");
+    expect(container.textContent).toContain("not set in this run");
+    expect(container.textContent).toContain("These settings changed since");
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
   test("edits a trigger's sample payload as JSON with inline feedback", async () => {
     let typed = "";
     function Live() {
@@ -117,7 +164,9 @@ describe("NodeSettings", () => {
     await act(async () => {
       root.render(
         <BuilderStoreProvider document={document}>
-          <Live />
+          <RunStoreProvider>
+            <Live />
+          </RunStoreProvider>
         </BuilderStoreProvider>,
       );
     });
@@ -177,7 +226,9 @@ describe("NodeSettings", () => {
     await act(async () => {
       root.render(
         <BuilderStoreProvider document={flow}>
-          <Live />
+          <RunStoreProvider>
+            <Live />
+          </RunStoreProvider>
         </BuilderStoreProvider>,
       );
     });

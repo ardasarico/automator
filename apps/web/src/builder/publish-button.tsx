@@ -1,31 +1,23 @@
 "use client";
 
 import { Button } from "@automator/ui/button";
-import { RiUpload2Line } from "@remixicon/react";
-import { useState } from "react";
-import { PublishDialog } from "../marketplace/publish-dialog";
-import { useBuilderStore } from "./store-provider";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@automator/ui/menu";
+import { RiArrowDownSLine, RiUpload2Line } from "@remixicon/react";
+import { useBuilderDialogs } from "./builder-dialogs";
 
 export function PublishButton() {
-  const meta = useBuilderStore((state) => state.meta);
-  const dirty = useBuilderStore((state) => state.dirty);
-  const [open, setOpen] = useState(false);
-
+  const dialogs = useBuilderDialogs();
   return (
-    <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+    <Menu>
+      <MenuTrigger render={<Button variant="outline" size="sm" />}>
         <RiUpload2Line aria-hidden="true" />
-        Publish
-      </Button>
-      {open && (
-        <PublishDialog
-          onClose={() => setOpen(false)}
-          flowId={meta.id}
-          flowName={meta.name}
-          flowDescription={meta.description}
-          unsaved={dirty}
-        />
-      )}
-    </>
+        Share
+        <RiArrowDownSLine aria-hidden="true" />
+      </MenuTrigger>
+      <MenuPopup align="end">
+        <MenuItem onClick={() => dialogs.open("share-app")}>Share as a mini app</MenuItem>
+        <MenuItem onClick={() => dialogs.open("listing")}>Publish to the marketplace</MenuItem>
+      </MenuPopup>
+    </Menu>
   );
 }

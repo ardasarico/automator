@@ -86,7 +86,7 @@ for (const width of [1280, 390]) {
       const run = page.getByRole("region", { name: "Last run" });
       await expect(run).toContainText("Succeeded");
       await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Share", exact: true })).toBeVisible();
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);

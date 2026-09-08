@@ -240,6 +240,39 @@ export function createDataRecordStore(sql: SQL | undefined) {
         RETURNING ${db.unsafe(columns)}`;
       return rows[0] ? toRecord(rows[0]) : null;
     },
+    /**
+     * Applies a partial change under the record's row lock, so a cell edit keeps the columns it
+     * does not touch and a record changed since the caller read it answers `conflict` instead of
+     * overwriting that change. `resolve` returns null when the merged values are invalid.
+     */
+    async merge(
+      ownerId: string,
+      tableId: string,
+      id: string,
+      resolve: (current: Record<string, unknown>) => Record<string, unknown> | null,
+      options: { expectedUpdatedAt?: string } = {},
+    ): Promise<DataRecord | null | "conflict" | "invalid"> {
+      const db = connection();
+      return db.begin(async (tx) => {
+        const current = await tx<RecordRow[]>`
+          SELECT ${tx.unsafe(columns)} FROM automator_data_records r
+          WHERE r.owner_id = ${ownerId} AND r.table_id = ${tableId} AND r.id = ${id}
+          FOR UPDATE`;
+        if (!current[0]) return null;
+        const stored = toRecord(current[0]);
+        if (options.expectedUpdatedAt && options.expectedUpdatedAt !== stored.updatedAt)
+          return "conflict";
+        const values = resolve(stored.values);
+        if (!values) return "invalid";
+        assertRecordSize(values);
+        const rows = await tx<RecordRow[]>`
+          UPDATE automator_data_records r
+          SET "values" = ${values}::jsonb, updated_at = now()
+          WHERE r.owner_id = ${ownerId} AND r.table_id = ${tableId} AND r.id = ${id}
+          RETURNING ${tx.unsafe(columns)}`;
+        return rows[0] ? toRecord(rows[0]) : null;
+      });
+    },
     async remove(ownerId: string, tableId: string, id: string): Promise<DataRecord | null> {
       const db = connection();
       const rows = await db<RecordRow[]>`

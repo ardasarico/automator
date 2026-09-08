@@ -6,6 +6,8 @@ export interface FlowActivation {
   enabled: boolean;
   webhookToken: string | null;
   setEnabled(enabled: boolean): void;
+  appPublished: boolean;
+  setAppPublished(published: boolean): void;
   liveMode: boolean;
   setLiveMode(live: boolean): void;
 }
@@ -14,18 +16,29 @@ const FlowActivationContext = createContext<FlowActivation | null>(null);
 
 export function FlowActivationProvider({
   enabled: initialEnabled,
+  appPublished: initialAppPublished = false,
   webhookToken,
   children,
 }: {
   enabled: boolean;
+  appPublished?: boolean;
   webhookToken: string | null;
   children: ReactNode;
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);
+  const [appPublished, setAppPublished] = useState(initialAppPublished);
   const [liveMode, setLiveMode] = useState(false);
   return (
     <FlowActivationContext.Provider
-      value={{ enabled, webhookToken, setEnabled, liveMode, setLiveMode }}
+      value={{
+        enabled,
+        webhookToken,
+        setEnabled,
+        appPublished,
+        setAppPublished,
+        liveMode,
+        setLiveMode,
+      }}
     >
       {children}
     </FlowActivationContext.Provider>

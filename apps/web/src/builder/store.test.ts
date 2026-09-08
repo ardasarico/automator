@@ -41,6 +41,51 @@ describe("builder store", () => {
     expect(first).not.toBe(second);
   });
 
+  test("addNode wires the new node to the source port in one history entry", () => {
+    const store = setup();
+    const trigger = store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    const added = store
+      .getState()
+      .addNode("ai.agent", { x: 300, y: 0 }, { source: trigger, sourceHandle: "request" });
+
+    expect(store.getState().edges).toEqual([
+      expect.objectContaining({
+        source: trigger,
+        sourceHandle: "request",
+        target: added,
+        targetHandle: "prompt",
+      }),
+    ]);
+
+    store.getState().undo();
+    expect(store.getState().nodes.map((node) => node.id)).toEqual([trigger]);
+    expect(store.getState().edges).toEqual([]);
+  });
+
+  test("addNode leaves a rejected connection out and still adds the node", () => {
+    const store = setup();
+    const added = store
+      .getState()
+      .addNode("ai.agent", { x: 0, y: 0 }, { source: "missing-node", sourceHandle: "out" });
+    expect(store.getState().nodes.map((node) => node.id)).toEqual([added]);
+    expect(store.getState().edges).toEqual([]);
+  });
+
+  test("insertNode copies a saved node's settings without sharing them", () => {
+    const store = setup();
+    const config = { content: "Hello", fields: [{ id: "email" }] };
+    const id = store
+      .getState()
+      .insertNode({ type: "notify.discord", label: "Announce", config }, { x: 0, y: 0 });
+    config.content = "Changed";
+    const node = store.getState().nodes.find((item) => item.id === id)!;
+    expect(node.data).toEqual({
+      type: "notify.discord",
+      label: "Announce",
+      config: { content: "Hello", fields: [{ id: "email" }] },
+    });
+  });
+
   test("onConnect adds one edge and rejects self-loops and duplicates", () => {
     const store = setup();
     const a = store.getState().addNode("trigger.webhook", { x: 0, y: 0 });

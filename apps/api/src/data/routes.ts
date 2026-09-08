@@ -5,7 +5,9 @@ import {
   deleteDataTableContract,
   getDataTableContract,
   isDataRecordInput,
+  isDataRecordPatch,
   isDataTableInput,
+  mergeRecordValues,
   listDataRecordsContract,
   listDataTablesContract,
   normalizeRecordValues,
@@ -222,9 +224,26 @@ export function createDataRoutes({
       async ({ claims, params, body, status }) => {
         const table = await dataTables.get(claims.id, params.id);
         if (!table) return status(404, { error: "not_found" });
-        const values = readValues(table, body);
-        if (!values) return status(422, { error: "invalid_record" });
+        if (!isDataRecordPatch(body)) return status(422, { error: "invalid_record" });
+        const patch = body;
         try {
+          // A cell edit changes named columns under the row lock; the dialog replaces every one.
+          if (patch.merge) {
+            const outcome = await dataRecords.merge(
+              claims.id,
+              params.id,
+              params.recordId,
+              (current) => readValues(table, { values: mergeRecordValues(current, patch.values) }),
+              patch.expectedUpdatedAt === undefined
+                ? {}
+                : { expectedUpdatedAt: patch.expectedUpdatedAt },
+            );
+            if (outcome === "conflict") return status(409, { error: "conflict" });
+            if (outcome === "invalid") return status(422, { error: "invalid_record" });
+            return outcome ?? status(404, { error: "not_found" });
+          }
+          const values = readValues(table, patch);
+          if (!values) return status(422, { error: "invalid_record" });
           const record = await dataRecords.update(claims.id, params.id, params.recordId, values);
           return record ?? status(404, { error: "not_found" });
         } catch (error) {
@@ -267,6 +286,7 @@ export function createDataRoutes({
  * The values to store for a record body, or `null` when the body is not a record input or breaks
  * the table's current columns — a value for a column the table does not have included.
  */
+/** Validated, normalized values for storage, or null when they do not fit the table. */
 function readValues(table: DataTable, body: unknown): Record<string, unknown> | null {
   if (!isDataRecordInput(body)) return null;
   if (validateRecordValues(table.columns, body.values).length > 0) return null;

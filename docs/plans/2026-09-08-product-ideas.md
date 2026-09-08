@@ -2,7 +2,11 @@
 
 Discussed on 2026-09-08. The user accepted these directions as ideas and deferred implementation. This note does not set a delivery order, deadline or final technical design.
 
+Status on 2026-09-08: idea 1 shipped (commit `2a28fdf`), and ideas 5 and 6 were built afterwards, the shortlist minus the deprioritized run-output inspector. Ideas 2, 3 and 4 remain open.
+
 ## 1. Persistent data and record nodes
+
+Implemented on 2026-09-08.
 
 Add a separate workspace section where users create tables, define columns and manage records. `Data` is a suggested name; `Database` or another label remains an option.
 
@@ -37,6 +41,37 @@ The missing experience is: show the visitor a payment request, let them pay from
 A proposed node distinction is to complete `USDC payment` as visitor payment collection and retain `USDC payout` for outgoing distribution. This is a future design proposal; existing node behavior has not been changed.
 
 Implementation references: `packages/flow-engine/src/onchain-executors.ts`, `apps/api/src/sessions/routes.ts`, `apps/runtime/src/app/a/[flowId]/identity-host.tsx`, and `apps/api/src/scheduler.ts`.
+
+## 5. Share mini-apps without a Marketplace listing
+
+Implemented on 2026-09-08: `automator_flows.app_published` gates the public read, `PATCH /flows/:id` `{ appPublished }` toggles it, and the builder's Share menu offers the app link and the marketplace listing as separate choices. Accepted by the user on 2026-09-08.
+
+Users must be able to publish a mini-app and share its link without listing the flow in the Marketplace. Publishing a runnable app and listing a reusable flow in the Marketplace are separate choices; sharing a link must not automatically create a listing.
+
+The current implementation gates published mini-app access on the existence of a Marketplace listing. Decouple that requirement while preserving the API-owned execution model.
+
+An unlisted link is not an access-control guarantee. Authentication requirements, user or wallet allowlists, link expiry and other sharing controls remain undecided.
+
+## 6. Quality-of-life shortlist
+
+Implemented on 2026-09-08, as the proposed details below describe: the connect-drop node picker, last-run values beside each configuration field, inline Data cell editing, saved nodes and the ⌘K command menu. The run-output inspector stays deprioritized.
+
+User feedback on 2026-09-08 narrows the discussion to everyday editing convenience. These statuses describe product interest, not a finalized implementation design or delivery schedule.
+
+| Idea                                                               | User feedback                                                           |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Add a connected node by dragging an output into empty canvas space | Supported.                                                              |
+| Show a variable's last-run value beside its configuration field    | Explicitly requested for inclusion.                                     |
+| Edit Data values directly in table cells                           | Candidate; the user wants the interaction explained before settling it. |
+| Improve the run-output inspector                                   | Deprioritized because that area is already due to change.               |
+| Save configured nodes for reuse                                    | Candidate; the user emphasizes doing it properly.                       |
+| A single command menu                                              | Candidate with positive feedback.                                       |
+
+Proposed details, pending user agreement:
+
+- Variable previews identify the source run and distinguish missing values from `0`, `false` and empty text. Changed flow configuration makes previous-run evidence stale. Secrets stay masked.
+- Inline Data editing uses editors matched to existing column types, keyboard save/cancel/navigation, and visible pending/error states that preserve the draft. A cell update must preserve other columns and detect conflicting edits; the current record update replaces the full values object. Multi-cell paste is a later extension.
+- Saved nodes are private configuration presets that insert independent copies. They retain secret references rather than secret values, identify missing table/column/input dependencies when inserted, and do not update existing copies when a preset changes. Start with one node per preset; reusable subflows remain a separate idea.
 
 ## Example combining the ideas
 

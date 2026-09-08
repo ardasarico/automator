@@ -1,3 +1,4 @@
+import { flowNodePorts } from "@automator/contracts";
 import type { FlowDocument, FlowDocumentInput, FlowNodeType } from "@automator/contracts";
 import {
   addEdge,
@@ -22,6 +23,16 @@ export type HistoryEntry = { meta: FlowMeta; nodes: BuilderNode[]; edges: Builde
 
 type EditKey = string | null;
 
+/** The output a dropped connection came from, used to wire a node added on the spot. */
+export type SourcePort = { source: string; sourceHandle?: string | null };
+
+/** Everything a new node needs beyond its place: a catalog entry or a saved node supplies it. */
+export type NodeTemplate = {
+  type: FlowNodeType;
+  label: string;
+  config: Record<string, unknown>;
+};
+
 export type BuilderState = {
   meta: FlowMeta;
   nodes: BuilderNode[];
@@ -41,7 +52,8 @@ export type BuilderState = {
   onEdgesChange(changes: EdgeChange<BuilderEdge>[]): void;
   onConnect(connection: Connection): void;
   canConnect(connection: Connection | BuilderEdge): boolean;
-  addNode(type: FlowNodeType, position: XYPosition): string;
+  addNode(type: FlowNodeType, position: XYPosition, from?: SourcePort): string;
+  insertNode(input: NodeTemplate, position: XYPosition, from?: SourcePort): string;
   renameNode(id: string, label: string): void;
   setNodeConfig(id: string, patch: Record<string, unknown>): void;
   removeNode(id: string): void;
@@ -260,21 +272,51 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
       }));
     },
 
-    addNode(type, position) {
+    addNode(type, position, from) {
+      return get().insertNode(
+        { type, label: getCatalogEntry(type).label, config: {} },
+        position,
+        from,
+      );
+    },
+
+    insertNode(input, position, from) {
+      const { type } = input;
       const id = crypto.randomUUID();
       const node: BuilderNode = {
         id,
         type: "flow",
         position,
-        data: { type, label: getCatalogEntry(type).label, config: {} },
+        // A preset inserts an independent copy: later edits to either never reach the other.
+        data: { type, label: input.label, config: structuredClone(input.config) },
         selected: true,
       };
-      set((state) => ({
-        ...remember(state),
-        nodes: [...state.nodes.map((item) => ({ ...item, selected: false })), node],
-        edges: state.edges.map((edge) => (edge.selected ? { ...edge, selected: false } : edge)),
-        dirty: true,
-      }));
+      // The node and its edge land in one history entry, so one undo removes both.
+      const connection: Connection | null = from
+        ? {
+            source: from.source,
+            sourceHandle: from.sourceHandle ?? null,
+            target: id,
+            targetHandle: flowNodePorts[type].inputs[0] ?? null,
+          }
+        : null;
+      set((state) => {
+        const edges = state.edges.map((edge) =>
+          edge.selected ? { ...edge, selected: false } : edge,
+        );
+        const wire =
+          connection &&
+          state.nodes.some((item) => item.id === connection.source) &&
+          get().canConnect(connection)
+            ? connection
+            : null;
+        return {
+          ...remember(state),
+          nodes: [...state.nodes.map((item) => ({ ...item, selected: false })), node],
+          edges: wire ? addEdge({ ...wire, id: crypto.randomUUID() }, edges) : edges,
+          dirty: true,
+        };
+      });
       return id;
     },
 

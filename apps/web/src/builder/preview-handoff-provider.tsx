@@ -3,8 +3,8 @@
 import type { FlowDocument } from "@automator/contracts";
 import { openPreview } from "@automator/miniapp";
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from "react";
+import { runtimeUrl } from "../lib/runtime-url";
 
-const runtimeUrl = process.env.NEXT_PUBLIC_RUNTIME_URL ?? "http://localhost:3002";
 const PreviewHandoffContext = createContext<((document: FlowDocument) => boolean) | null>(null);
 
 export function PreviewHandoffProvider({ children }: { children: ReactNode }) {

@@ -29,6 +29,7 @@ import styles from "../../flows/flows.module.css";
 import { LocalTime } from "../../runs/local-time";
 import { TableDialog } from "../table-dialog";
 import { DeleteTableDialog } from "./delete-table-dialog";
+import { RecordCell } from "./record-cell";
 import { RecordDialog } from "./record-dialog";
 
 export function shortAddress(address: string): string {
@@ -144,6 +145,10 @@ export function RecordBrowser({
   const [deletingRecord, setDeletingRecord] = useState<DataRecord | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* Cell edits answer with the stored record, so the row shows it without refetching the page. */
+  const [edited, setEdited] = useState<Record<string, DataRecord>>({});
+  const saveCell = (record: DataRecord) =>
+    setEdited((current) => ({ ...current, [record.id]: record }));
 
   async function deleteRecord(record: DataRecord) {
     setBusy(true);
@@ -251,31 +256,44 @@ export function RecordBrowser({
                 </tr>
               </thead>
               <tbody>
-                {records.map((record) => (
-                  <tr key={record.id}>
-                    {table.columns.map((column, index) =>
-                      index === 0 ? (
-                        <th key={column.id} scope="row" className="font-normal">
-                          <RecordValue column={column} value={record.values[column.id]} />
-                        </th>
-                      ) : (
-                        <td key={column.id}>
-                          <RecordValue column={column} value={record.values[column.id]} />
-                        </td>
-                      ),
-                    )}
-                    <td className="w-px text-end whitespace-nowrap">
-                      <RecordActions
-                        label={recordLabel(table, record)}
-                        onEdit={() => setEditing({ record })}
-                        onDelete={() => {
-                          setError(null);
-                          setDeletingRecord(record);
-                        }}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {records.map((stored) => {
+                  const record = edited[stored.id] ?? stored;
+                  return (
+                    <tr key={record.id}>
+                      {table.columns.map((column, index) =>
+                        index === 0 ? (
+                          <th key={column.id} scope="row" className="font-normal">
+                            <RecordCell
+                              table={table}
+                              record={record}
+                              column={column}
+                              onSaved={saveCell}
+                            />
+                          </th>
+                        ) : (
+                          <td key={column.id}>
+                            <RecordCell
+                              table={table}
+                              record={record}
+                              column={column}
+                              onSaved={saveCell}
+                            />
+                          </td>
+                        ),
+                      )}
+                      <td className="w-px text-end whitespace-nowrap">
+                        <RecordActions
+                          label={recordLabel(table, record)}
+                          onEdit={() => setEditing({ record })}
+                          onDelete={() => {
+                            setError(null);
+                            setDeletingRecord(record);
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

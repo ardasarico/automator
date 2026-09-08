@@ -11,6 +11,7 @@ import {
   type DataRecord,
   type DataRecordInput,
   type DataRecordList,
+  type DataRecordPatch,
   type DataTable,
   type DataTableInput,
   type DeleteDataTableResponse,
@@ -135,11 +136,12 @@ export async function createDataRecordRequest(
   return result.data;
 }
 
+/** `merge` changes only the named columns; without it the values replace the whole record. */
 export async function updateDataRecordRequest(
   tableId: string,
   recordId: string,
   token: string | null,
-  input: DataRecordInput,
+  input: DataRecordPatch,
 ): Promise<DataRecord> {
   const { status, data } = await call(
     recordPath(tableId, recordId),

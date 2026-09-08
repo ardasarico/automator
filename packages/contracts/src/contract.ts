@@ -2,6 +2,7 @@ import { Type, type Static, type TSchema } from "@sinclair/typebox";
 import { Check } from "@sinclair/typebox/value";
 
 export const apiErrorCodeSchema = Type.Union([
+  Type.Literal("conflict"),
   Type.Literal("forbidden"),
   Type.Literal("invalid_flow"),
   Type.Literal("invalid_listing"),

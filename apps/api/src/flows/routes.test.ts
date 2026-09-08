@@ -88,6 +88,13 @@ function fixture(overrides: Partial<FlowStore> = {}, users?: UserStore, log = fa
       records.set(id, next);
       return strip(next);
     },
+    setAppPublished: async (ownerId, id, appPublished) => {
+      const record = owned(ownerId, id);
+      if (!record) return null;
+      const next = { ...record, appPublished };
+      records.set(id, next);
+      return strip(next);
+    },
     findForWebhook: async (id, token) => {
       const record = records.get(id);
       return record && record.enabled && record.webhookToken === token
@@ -246,6 +253,29 @@ describe("flow routes", () => {
       flows: { enabled: boolean }[];
     };
     expect(listed.flows[0]?.enabled).toBe(true);
+  });
+
+  test("patch publishes the app separately from activation and rejects an empty patch", async () => {
+    const { request, records } = fixture();
+    const record = (await (await request("/flows", "POST", "alice", input)).json()) as FlowRecord;
+    const empty = await request(`/flows/${record.flow.id}`, "PATCH", "alice", {});
+    expect(empty.status).toBe(422);
+    const foreign = await request(`/flows/${record.flow.id}`, "PATCH", "bob", {
+      appPublished: true,
+    });
+    expect(foreign.status).toBe(404);
+    const published = await request(`/flows/${record.flow.id}`, "PATCH", "alice", {
+      appPublished: true,
+    });
+    expect(published.status).toBe(200);
+    const body = (await published.json()) as FlowRecord;
+    expect(body.appPublished).toBe(true);
+    expect(body.enabled).toBe(false);
+    expect(records.get(record.flow.id)?.appPublished).toBe(true);
+    const removed = await request(`/flows/${record.flow.id}`, "PATCH", "alice", {
+      appPublished: false,
+    });
+    expect(((await removed.json()) as FlowRecord).appPublished).toBe(false);
   });
 
   test("delete removes only the owner's flow and answers its id", async () => {

@@ -77,7 +77,11 @@ export function createFlowRoutes({ flows, identity, versions, log = false }: Flo
       patchFlowContract.path,
       async ({ claims, params, body, status }) => {
         if (!isFlowPatch(body)) return status(422, { error: "invalid_flow" });
-        const record = await flows.setEnabled(claims.id, params.id, body.enabled);
+        let record = null;
+        if (body.enabled !== undefined)
+          record = await flows.setEnabled(claims.id, params.id, body.enabled);
+        if (body.appPublished !== undefined)
+          record = await flows.setAppPublished(claims.id, params.id, body.appPublished);
         return record ?? status(404, { error: "not_found" });
       },
       {

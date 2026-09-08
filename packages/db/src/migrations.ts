@@ -259,6 +259,28 @@ export const migrations: Migration[] = [
     CREATE INDEX IF NOT EXISTS automator_data_records_keyset
       ON automator_data_records (table_id, created_at DESC, id DESC)`,
   },
+  {
+    name: "0015_flow_app_publishing",
+    sql: `ALTER TABLE automator_flows
+      ADD COLUMN IF NOT EXISTS app_published BOOLEAN NOT NULL DEFAULT false;
+    UPDATE automator_flows f SET app_published = true
+      FROM automator_listings l WHERE l.flow_id = f.id AND NOT f.app_published`,
+  },
+  {
+    name: "0016_node_presets",
+    sql: `CREATE TABLE IF NOT EXISTS automator_node_presets (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL REFERENCES automator_users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL CHECK (char_length(btrim(name)) BETWEEN 1 AND 64),
+      node_type TEXT NOT NULL,
+      label TEXT NOT NULL DEFAULT '',
+      config JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS automator_node_presets_owner
+      ON automator_node_presets (owner_id, created_at DESC, id DESC)`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (
