@@ -2,7 +2,9 @@ import {
   RiCheckboxCircleLine,
   RiCoinLine,
   RiDiscordLine,
+  RiFileAddLine,
   RiFileList3Line,
+  RiFileSearchLine,
   RiGitBranchLine,
   RiPriceTag3Line,
   RiQrCodeLine,
@@ -164,5 +166,26 @@ export const flowExamples = [
       { name: "USDC payout", icon: RiCoinLine },
     ],
     nodeTypes: ["trigger.webhook", "usdc.payout", "notify.discord"],
+  },
+  {
+    id: "applicant-intake",
+    name: "Applicant intake",
+    description: "Save applicants to a table and recognise the ones who come back.",
+    steps: [
+      { name: "Your details", description: "A form collects the applicant's name and email." },
+      {
+        name: "Seen this email?",
+        description: "Find records looks the email up in the table you pick after forking.",
+      },
+      {
+        name: "Save the applicant",
+        description: "A new email becomes a record; a known one skips straight to the greeting.",
+      },
+    ],
+    nodes: [
+      { name: "Find records", icon: RiFileSearchLine },
+      { name: "Create record", icon: RiFileAddLine },
+    ],
+    nodeTypes: ["screen.form", "data.find-records", "data.create-record", "screen.page"],
   },
 ] as const;

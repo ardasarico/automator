@@ -75,3 +75,77 @@ describe("form field identifiers", () => {
     ]);
   });
 });
+
+const tables = [
+  { id: "t1", name: "Signups", columns: [{ id: "c_email" }, { id: "c_name" }] },
+] as const;
+
+function dataNode(config: Record<string, unknown>): FlowNode {
+  return {
+    id: "data",
+    type: "data.find-records",
+    label: "Find records",
+    position: { x: 0, y: 0 },
+    config,
+  };
+}
+
+function dataProblems(config: Record<string, unknown>, withTables = true) {
+  return findFlowConfigProblems(
+    { nodes: [dataNode(config)], edges: [] },
+    withTables ? tables : undefined,
+  );
+}
+
+describe("data node table references", () => {
+  test("asks for a table when none is selected, with or without a table list", () => {
+    const message = "Pick a table for this node.";
+    expect(dataProblems({ tableId: "" })).toEqual([
+      { nodeId: "data", path: "config.tableId", message },
+    ]);
+    expect(dataProblems({}, false)).toEqual([{ nodeId: "data", path: "config.tableId", message }]);
+  });
+
+  test("names a table the owner no longer has", () => {
+    expect(dataProblems({ tableId: "gone" })).toEqual([
+      {
+        nodeId: "data",
+        path: "config.tableId",
+        message: 'Table "gone" is not one of your tables any more.',
+      },
+    ]);
+  });
+
+  test("reports filter, value and sort columns the table does not have", () => {
+    const problems = dataProblems({
+      tableId: "t1",
+      filters: [
+        { column: "c_email", operator: "equals", value: "a" },
+        { column: "c_gone", operator: "equals", value: "b" },
+        { column: "", operator: "equals", value: "c" },
+      ],
+      values: [{ column: "c_dropped", value: "x" }],
+      sortColumn: "c_missing",
+    });
+    expect(problems.map((problem) => problem.path)).toEqual([
+      "config.filters.1.column",
+      "config.values.0.column",
+      "config.sortColumn",
+    ]);
+    expect(problems[0]?.message).toBe('"c_gone" is not a column of "Signups".');
+  });
+
+  test("accepts a fully resolved data node", () => {
+    expect(
+      dataProblems({
+        tableId: "t1",
+        filters: [{ column: "c_email", operator: "equals", value: "a" }],
+        sortColumn: "c_name",
+      }),
+    ).toEqual([]);
+  });
+
+  test("leaves column references unchecked when the caller passes no tables", () => {
+    expect(dataProblems({ tableId: "gone", sortColumn: "c_missing" }, false)).toEqual([]);
+  });
+});

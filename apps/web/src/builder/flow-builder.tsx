@@ -4,6 +4,7 @@ import "@xyflow/react/dist/style.css";
 
 import type { FlowDocument, FlowRun } from "@automator/contracts";
 import { ReactFlowProvider } from "@xyflow/react";
+import { DataTablesProvider } from "../data/tables-context";
 import { AiStoreProvider } from "./ai-store-provider";
 import { CanvasHeader } from "./canvas-header";
 import { FlowActivationProvider } from "./flow-activation";
@@ -43,14 +44,17 @@ export function FlowBuilder({
               <AiStoreProvider focusOnMount={focusAi}>
                 <ReactFlowProvider>
                   <ResponsivePanelsProvider>
-                    <div className={styles.builder}>
-                      <LeftPanel />
-                      <div className={styles.canvasColumn}>
-                        <CanvasHeader />
-                        <FlowCanvas gettingStarted={gettingStarted} />
+                    {/* Every table picker and the canvas problem badges read the same list. */}
+                    <DataTablesProvider>
+                      <div className={styles.builder}>
+                        <LeftPanel />
+                        <div className={styles.canvasColumn}>
+                          <CanvasHeader />
+                          <FlowCanvas gettingStarted={gettingStarted} />
+                        </div>
+                        <RightPanels />
                       </div>
-                      <RightPanels />
-                    </div>
+                    </DataTablesProvider>
                   </ResponsivePanelsProvider>
                 </ReactFlowProvider>
               </AiStoreProvider>

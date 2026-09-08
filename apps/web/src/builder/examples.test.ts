@@ -1,5 +1,17 @@
-import { findFlowDocumentProblem, flowDocumentSchema, Value } from "@automator/contracts";
-import { createStubChain, runFlow, type LanguageModel } from "@automator/flow-engine";
+import {
+  findFlowDocumentProblem,
+  flowDocumentSchema,
+  Value,
+  type FlowDocument,
+  type FlowRun,
+} from "@automator/contracts";
+import {
+  createStubChain,
+  runFlow,
+  type DataProvider,
+  type DataRecord,
+  type LanguageModel,
+} from "@automator/flow-engine";
 import { describe, expect, test } from "bun:test";
 import { flowExamples } from "../app/(workspace)/marketplace/examples";
 import { getCatalogEntry } from "./catalog";
@@ -111,6 +123,83 @@ describe("exampleToFlowDocument", () => {
     expect(run.nodes.find((result) => result.nodeId === bug.id)?.error).toBe(
       "Discord message needs a Discord webhook URL",
     );
+  });
+
+  test("the applicant intake saves a new email and greets a known one", async () => {
+    const columns = [
+      { id: "name", name: "Name", type: "text", required: true },
+      { id: "email", name: "Email", type: "text", required: true },
+    ];
+    const table = { id: "tbl", name: "Applicants", columns };
+    /* A fresh fork has no table selected; picking one is the first thing the example asks for. */
+    const withTable = () => {
+      const document = exampleToFlowDocument(findFlowExample("applicant-intake")!, "flow");
+      for (const node of document.nodes)
+        if (node.type.startsWith("data.")) node.config = { ...node.config, tableId: table.id };
+      return document;
+    };
+    const provider = (existing: readonly DataRecord[]) => {
+      const created: Record<string, unknown>[] = [];
+      const data: DataProvider = {
+        mode: "live",
+        table: async () => table,
+        find: async () => existing,
+        resolve: async () => existing[0] ?? null,
+        create: async (_tableId, values) => {
+          created.push(values);
+          return {
+            id: `rec-${created.length}`,
+            tableId: table.id,
+            values,
+            createdAt: "2026-09-08T00:00:00.000Z",
+            updatedAt: "2026-09-08T00:00:00.000Z",
+          };
+        },
+        update: async () => {
+          throw new Error("not used");
+        },
+        remove: async () => null,
+      };
+      return { data, created };
+    };
+    const statusOf = (document: FlowDocument, run: FlowRun, label: string) =>
+      run.nodes.find((result) => {
+        const node = document.nodes.find((item) => item.id === result.nodeId);
+        return node?.label === label;
+      })?.status;
+
+    const fresh = withTable();
+    const empty = provider([]);
+    const firstRun = await runFlow(fresh, {
+      trigger: { payload: {} },
+      screens: "auto",
+      data: empty.data,
+    });
+    expect(firstRun.error).toBeUndefined();
+    expect(statusOf(fresh, firstRun, "Save the applicant")).toBe("succeeded");
+    expect(statusOf(fresh, firstRun, "Welcome back")).toBe("skipped");
+    expect(empty.created).toHaveLength(1);
+    expect(Object.keys(empty.created[0]!).sort()).toEqual(["email", "name"]);
+
+    const again = withTable();
+    const known = provider([
+      {
+        id: "rec-1",
+        tableId: table.id,
+        values: { name: "Ada", email: "ada@example.com" },
+        createdAt: "2026-09-08T00:00:00.000Z",
+        updatedAt: "2026-09-08T00:00:00.000Z",
+      },
+    ]);
+    const secondRun = await runFlow(again, {
+      trigger: { payload: {} },
+      screens: "auto",
+      data: known.data,
+    });
+    expect(secondRun.error).toBeUndefined();
+    expect(statusOf(again, secondRun, "Welcome back")).toBe("succeeded");
+    expect(statusOf(again, secondRun, "Save the applicant")).toBe("skipped");
+    expect(known.created).toHaveLength(0);
   });
 
   test("findFlowExample returns undefined for unknown or missing slugs", () => {

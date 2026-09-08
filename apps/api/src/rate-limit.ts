@@ -1,5 +1,6 @@
 export interface RateLimits {
   runs: number;
+  data: number;
   ai: number;
   secrets: number;
   sessions: number;
@@ -8,6 +9,7 @@ export interface RateLimits {
 
 export const defaultRateLimits: RateLimits = {
   runs: 30,
+  data: 30,
   ai: 10,
   secrets: 30,
   sessions: 60,

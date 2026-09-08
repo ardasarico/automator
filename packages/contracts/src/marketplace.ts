@@ -59,6 +59,7 @@ export function isPublishListingInput(body: unknown): body is PublishListingInpu
 
 export const reservedListingSlugs: ReadonlySet<string> = new Set([
   "ai-digest",
+  "applicant-intake",
   "approval-request",
   "audience-gate",
   "event-check-in",

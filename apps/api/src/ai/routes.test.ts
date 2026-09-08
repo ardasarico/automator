@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { explainRunContract, generateFlowContract, parseResponse } from "@automator/contracts";
+import {
+  explainRunContract,
+  generateFlowContract,
+  parseResponse,
+  type DataTable,
+} from "@automator/contracts";
 import { scriptedModel, type LanguageModel } from "@automator/flow-engine";
 import { Elysia } from "elysia";
 import type { IdentityProvider } from "../auth/privy";
@@ -21,8 +26,43 @@ const answer = {
   edges: [{ source: "n1", sourceHandle: "run", target: "n2", targetHandle: "message" }],
 };
 
-function fixture(model: LanguageModel | undefined, callsPerMinute?: number) {
-  const app = new Elysia().use(createAiRoutes({ identity, model, callsPerMinute }));
+const tables: DataTable[] = [
+  {
+    id: "tbl-signups",
+    name: "Signups",
+    columns: [{ id: "email", name: "Email", type: "text", required: true }],
+    recordCount: 0,
+    createdAt: "2026-09-08T00:00:00.000Z",
+    updatedAt: "2026-09-08T00:00:00.000Z",
+  },
+];
+
+const dataTables = { list: async () => tables };
+
+function dataAnswer(tableId: string) {
+  return {
+    name: "Collect",
+    description: "",
+    summary: "Stores the signup.",
+    nodes: [
+      { id: "n1", type: "trigger.manual", label: "Run", config: {} },
+      {
+        id: "n2",
+        type: "data.create-record",
+        label: "Save",
+        config: { tableId, values: [{ column: "email", value: "a@b.co" }] },
+      },
+    ],
+    edges: [{ source: "n1", sourceHandle: "run", target: "n2", targetHandle: "values" }],
+  };
+}
+
+function fixture(
+  model: LanguageModel | undefined,
+  callsPerMinute?: number,
+  stores?: { dataTables: typeof dataTables },
+) {
+  const app = new Elysia().use(createAiRoutes({ identity, model, callsPerMinute, ...stores }));
   const post = (body: unknown, token?: string, path: string = generateFlowContract.path) =>
     app.handle(
       new Request(`http://localhost${path}`, {
@@ -126,6 +166,38 @@ describe("POST /ai/flows", () => {
     );
     expect(response.status).toBe(200);
     expect(JSON.stringify(scripted.requests)).not.toContain("discord.com/api/webhooks");
+  });
+
+  test("the prompt lists the owner's tables and a node may reference one", async () => {
+    const scripted = scriptedModel([
+      { content: JSON.stringify(dataAnswer("tbl-signups")), toolCalls: [] },
+    ]);
+    const { post } = fixture(scripted.model, undefined, { dataTables });
+    const response = await post({ prompt: "store the signup" }, "alice");
+    expect(response.status).toBe(200);
+    const prompt = scripted.requests[0]!.messages[0]!.content;
+    expect(prompt).toContain('id "tbl-signups" named "Signups"');
+    expect(prompt).toContain("email (text)");
+    expect(prompt).toContain("Never invent a table id");
+  });
+
+  test("without any table the prompt forbids data nodes", async () => {
+    const scripted = scriptedModel([{ content: JSON.stringify(answer), toolCalls: [] }]);
+    const { post } = fixture(scripted.model, undefined, {
+      dataTables: { list: async () => [] },
+    });
+    expect((await post({ prompt: "x" }, "alice")).status).toBe(200);
+    expect(scripted.requests[0]!.messages[0]!.content).toContain(
+      "no data tables, so you must not use any data.* node",
+    );
+  });
+
+  test("a data node naming a table the owner does not have is rejected", async () => {
+    const invented = { content: JSON.stringify(dataAnswer("tbl-invented")), toolCalls: [] };
+    const { post } = fixture(scriptedModel([invented, invented]).model, undefined, { dataTables });
+    const response = await post({ prompt: "store the signup" }, "alice");
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "invalid_flow" });
   });
 
   test("answers 422 when the model cannot produce a valid flow", async () => {

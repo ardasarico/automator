@@ -6,6 +6,7 @@ import {
   samplePayloadProblem,
   screenConfigSchemas,
   secretFields,
+  type FlowConfigTable,
   type FlowDocument,
   type FlowNodeType,
   type TObject,
@@ -41,7 +42,10 @@ function isBlank(value: unknown): boolean {
   return value === undefined || value === null || (typeof value === "string" && !value.trim());
 }
 
-export function findFlowProblems(document: Pick<FlowDocument, "nodes" | "edges">): FlowProblem[] {
+export function findFlowProblems(
+  document: Pick<FlowDocument, "nodes" | "edges">,
+  tables?: readonly FlowConfigTable[],
+): FlowProblem[] {
   const problems: FlowProblem[] = [];
   const structural = findFlowDocumentProblem(document);
   if (structural) return [{ severity: "error", message: structural }];
@@ -142,7 +146,7 @@ export function findFlowProblems(document: Pick<FlowDocument, "nodes" | "edges">
       });
     }
   }
-  for (const problem of findFlowConfigProblems(document))
+  for (const problem of findFlowConfigProblems(document, tables))
     problems.push({
       severity: "error",
       nodeId: problem.nodeId,

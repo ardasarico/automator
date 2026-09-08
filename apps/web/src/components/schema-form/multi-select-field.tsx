@@ -2,7 +2,7 @@
 
 import { Checkbox } from "@automator/ui/checkbox";
 import { Field, FieldDescription, FieldLabel } from "@automator/ui/field";
-import styles from "./flow-builder.module.css";
+import styles from "./multi-select-field.module.css";
 
 export function MultiSelectField({
   id,

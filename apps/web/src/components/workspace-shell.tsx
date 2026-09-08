@@ -7,6 +7,7 @@ import {
   RiPlayCircleLine,
   RiCompass3Line,
   RiSideBarLine,
+  RiTableLine,
   RiWallet3Line,
 } from "@remixicon/react";
 import { motion, MotionConfig, useReducedMotion } from "motion/react";
@@ -19,6 +20,7 @@ import { AccountMenu } from "./account-menu";
 const pages = [
   { href: "/flows", label: "Flows", icon: RiFlowChart },
   { href: "/runs", label: "Runs", icon: RiPlayCircleLine },
+  { href: "/data", label: "Data", icon: RiTableLine },
   { href: "/marketplace", label: "Marketplace", icon: RiCompass3Line },
   { href: "/wallet", label: "Wallet", icon: RiWallet3Line },
 ];

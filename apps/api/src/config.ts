@@ -100,6 +100,7 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     secretsKey,
     rateLimits: {
       runs: perMinute(env.RATE_LIMIT_RUNS, defaultRateLimits.runs),
+      data: perMinute(env.RATE_LIMIT_DATA, defaultRateLimits.data),
       ai: perMinute(env.RATE_LIMIT_AI, defaultRateLimits.ai),
       secrets: perMinute(env.RATE_LIMIT_SECRETS, defaultRateLimits.secrets),
       sessions: perMinute(env.RATE_LIMIT_SESSIONS, defaultRateLimits.sessions),

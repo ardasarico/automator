@@ -49,4 +49,8 @@ export const flowNodePorts: Record<FlowNodeType, FlowNodePorts> = {
   "usdc.payment": ports(["amount", "payer"], ["receipt"]),
   "usdc.payout": ports(["recipient", "amount"], ["receipt"]),
   "usdc.balance": ports(["wallet"], ["balance"]),
+  "data.create-record": ports(["values"], ["record"]),
+  "data.find-records": ports(["query"], ["found", "empty"]),
+  "data.update-record": ports(["record"], ["record"]),
+  "data.delete-record": ports(["record"], ["record"]),
 };

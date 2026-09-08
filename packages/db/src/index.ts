@@ -13,6 +13,8 @@ import { createFlowVersionStore } from "./flow-versions";
 import { createTriggerClaimStore } from "./trigger-claims";
 import { createWatchStateStore } from "./watch-state";
 import { createPaymentPolicyStore } from "./payment-policies";
+import { createDataTableStore } from "./data-tables";
+import { createDataRecordStore } from "./data-records";
 export {
   PaymentPolicyOwnerMissingError,
   PaymentPolicyDeniedError,
@@ -41,6 +43,25 @@ export { type SecretStore } from "./secrets";
 export { type MiniAppSessionRow, type SessionStore } from "./sessions";
 export { UsernameTakenError, type UserStore } from "./users";
 export { flowVersionLimit, type FlowVersionInput, type FlowVersionStore } from "./flow-versions";
+export {
+  dataTableLimit,
+  DataColumnDuplicateError,
+  DataColumnTypeLockedError,
+  DataLimitError,
+  DataTableOwnerMissingError,
+  type DataTableStore,
+} from "./data-tables";
+export {
+  assertRecordCapacity,
+  assertRecordSize,
+  dataRecordLimit,
+  dataRecordMaxBytes,
+  DataRecordCursorError,
+  type DataRecordFilter,
+  type DataRecordQuery,
+  type DataRecordSort,
+  type DataRecordStore,
+} from "./data-records";
 
 export function createDatabase(url: string | undefined) {
   const sql = url ? new SQL(url, { max: 5, connectionTimeout: 3, idleTimeout: 20 }) : undefined;
@@ -58,6 +79,8 @@ export function createDatabase(url: string | undefined) {
     watchState: createWatchStateStore(sql),
     triggerClaims: createTriggerClaimStore(sql),
     paymentPolicies: createPaymentPolicyStore(sql),
+    dataTables: createDataTableStore(sql),
+    dataRecords: createDataRecordStore(sql),
     async migrate() {
       if (sql) await migrate(sql);
     },

@@ -235,6 +235,30 @@ export const migrations: Migration[] = [
     CREATE INDEX IF NOT EXISTS automator_payment_reservations_daily
       ON automator_payment_reservations (owner_id, day, chain_id, asset)`,
   },
+  {
+    name: "0014_data_tables",
+    sql: `CREATE TABLE IF NOT EXISTS automator_data_tables (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL REFERENCES automator_users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL CHECK (char_length(btrim(name)) BETWEEN 1 AND 64),
+      description TEXT,
+      columns JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS automator_data_records (
+      id TEXT PRIMARY KEY,
+      table_id TEXT NOT NULL REFERENCES automator_data_tables(id) ON DELETE CASCADE,
+      owner_id TEXT NOT NULL REFERENCES automator_users(id) ON DELETE CASCADE,
+      "values" JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS automator_data_tables_owner
+      ON automator_data_tables (owner_id, created_at);
+    CREATE INDEX IF NOT EXISTS automator_data_records_keyset
+      ON automator_data_records (table_id, created_at DESC, id DESC)`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (

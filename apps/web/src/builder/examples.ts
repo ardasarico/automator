@@ -42,6 +42,63 @@ function edge(
 }
 
 const fixtures: Record<FlowExample["id"], () => Fixture> = {
+  "applicant-intake": () => ({
+    nodes: [
+      node("open", "trigger.miniapp-open", 0, 0, "Mini-app opened"),
+      node("apply", "screen.form", 1, 0, "Your details", {
+        title: "Your details",
+        description: "Leave your name and email and we will take it from there.",
+        fields: [
+          { id: "name", label: "Full name", type: "text", placeholder: "", required: true },
+          {
+            id: "email",
+            label: "Email",
+            type: "email",
+            placeholder: "you@example.com",
+            required: true,
+          },
+        ],
+        submit: "Continue",
+      }),
+      node("remember", "logic.set-variable", 2, 0, "Remember the applicant", {
+        name: "applicant",
+        value: "{{input.value}}",
+      }),
+      node("lookup", "data.find-records", 3, 0, "Seen this email?", {
+        tableId: "",
+        filters: [{ column: "email", operator: "equals", value: "{{vars.applicant.email}}" }],
+        sortColumn: "",
+        sortDirection: "desc",
+        limit: 25,
+      }),
+      node("save", "data.create-record", 4, 0, "Save the applicant", {
+        tableId: "",
+        values: [
+          { column: "name", value: "{{vars.applicant.name}}" },
+          { column: "email", value: "{{vars.applicant.email}}" },
+        ],
+      }),
+      node("welcome", "screen.page", 5, 0, "You're on the list", {
+        title: "You're on the list",
+        body: "Thanks {{vars.applicant.name}}, we saved your details and will be in touch.",
+        button: "Done",
+      }),
+      node("back", "screen.page", 4, 1, "Welcome back", {
+        title: "Welcome back",
+        body: "We already have an application for {{vars.applicant.email}}.",
+        button: "Done",
+      }),
+    ],
+    edges: [
+      edge("open", "visitor", "apply", "data"),
+      edge("apply", "submitted", "remember", "value"),
+      edge("remember", "value", "lookup", "query"),
+      edge("lookup", "empty", "save", "values"),
+      edge("save", "record", "welcome", "data"),
+      edge("lookup", "found", "back", "data"),
+    ],
+  }),
+
   "approval-request": () => ({
     nodes: [
       node("open", "trigger.miniapp-open", 0, 0, "Mini-app opened"),

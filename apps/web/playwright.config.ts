@@ -35,7 +35,13 @@ export default defineConfig({
       url: `${apiUrl}/health/live`,
       timeout: 120_000,
       reuseExistingServer: false,
-      env: { PORT: apiPort, E2E_TEST_TOKEN: e2eToken, DATABASE_URL: databaseUrl },
+      env: {
+        PORT: apiPort,
+        E2E_TEST_TOKEN: e2eToken,
+        DATABASE_URL: databaseUrl,
+        // Seeding a page boundary of records writes far faster than a person does.
+        RATE_LIMIT_DATA: "600",
+      },
     },
     {
       command: `bunx next dev --port ${webPort}`,

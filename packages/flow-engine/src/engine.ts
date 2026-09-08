@@ -13,6 +13,7 @@ import {
 import { NodeExecutionError, type ExecutionContext, type ExecutorRegistry } from "./executor";
 import { defaultExecutors } from "./executors";
 import type { ChainProvider } from "./chain";
+import type { DataProvider } from "./data";
 import type { LanguageModel } from "./language-model";
 import type { Sandbox } from "./sandbox";
 import { autoAnswer } from "./screens";
@@ -39,6 +40,7 @@ export interface RunOptions {
   fetch?: typeof fetch;
   model?: LanguageModel;
   chain?: ChainProvider;
+  data?: DataProvider;
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;
   runId?: string;
@@ -493,6 +495,7 @@ async function execute(
         fetch: fetcher,
         ...(options.model ? { model: options.model } : {}),
         ...(options.chain ? { chain: options.chain } : {}),
+        ...(options.data ? { data: options.data } : {}),
         ...(options.sandbox ? { sandbox: options.sandbox } : {}),
         now,
         sleep,

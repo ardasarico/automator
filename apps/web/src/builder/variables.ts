@@ -4,14 +4,11 @@ import {
   type FlowEdge,
   type FlowNode,
 } from "@automator/contracts";
+import type { VariableOption } from "../components/schema-form";
 import { getCatalogEntry } from "./catalog";
 import { triggerSamplePayload } from "./trigger-payload";
 
-export type VariableOption = {
-  template: string;
-  source: string;
-  label: string;
-};
+export type { VariableOption };
 
 type NodeLike = Pick<FlowNode, "id" | "type" | "label" | "config">;
 /** React Flow records a missing handle as null; the document as undefined. Both count as absent. */
@@ -53,11 +50,44 @@ const identityFields: Partial<Record<FlowNode["type"], Record<string, [string, s
   },
 };
 
+/** The slice of a data table a picker needs; any list of the account's tables satisfies it. */
+type TableLike = { id: string; columns: readonly { id: string; name: string }[] };
+
+/*
+ * A record travels as `{ id, tableId, values, createdAt, updatedAt }`, so a column sits under
+ * `values`; `data.find-records` wraps that record in `{ records, count, first }` on `found`.
+ */
+function recordFields(table: TableLike, prefix: string): [string, string][] {
+  return [
+    [`${prefix}id`, "Record id"],
+    ...table.columns.map((column): [string, string] => [
+      `${prefix}values.${column.id}`,
+      column.name,
+    ]),
+  ];
+}
+
+function dataFields(
+  source: Pick<NodeLike, "type" | "config">,
+  sourceHandle: string,
+  tables: readonly TableLike[],
+): [string, string][] {
+  const tableId = typeof source.config.tableId === "string" ? source.config.tableId.trim() : "";
+  const table = tables.find((candidate) => candidate.id === tableId);
+  if (!table) return [];
+  if (source.type === "data.find-records")
+    return sourceHandle === "found"
+      ? [["count", "Match count"], ...recordFields(table, "first.")]
+      : [];
+  return sourceHandle === "record" ? recordFields(table, "") : [];
+}
+
 export function listVariables(
   nodeId: string,
   nodes: readonly NodeLike[],
   edges: readonly EdgeLike[],
   secretNames: readonly string[] = [],
+  tables: readonly TableLike[] = [],
 ): VariableOption[] {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const options: VariableOption[] = [];
@@ -83,7 +113,9 @@ export function listVariables(
         });
       }
     }
-    const fields = identityFields[source.type]?.[edge.sourceHandle ?? ""] ?? [];
+    const fields = source.type.startsWith("data.")
+      ? dataFields(source, edge.sourceHandle ?? "", tables)
+      : (identityFields[source.type]?.[edge.sourceHandle ?? ""] ?? []);
     for (const [key, label] of fields) {
       options.push({ template: `{{input.${handle}.${key}}}`, source: source.label, label });
     }

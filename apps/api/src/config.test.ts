@@ -56,7 +56,7 @@ describe("API configuration", () => {
       privySignerId: undefined,
       world: undefined,
       e2eTestToken: undefined,
-      rateLimits: { runs: 30, ai: 10, secrets: 30, sessions: 60, webhooks: 60 },
+      rateLimits: { runs: 30, data: 30, ai: 10, secrets: 30, sessions: 60, webhooks: 60 },
     });
   });
 
@@ -77,6 +77,7 @@ describe("API configuration", () => {
     });
     expect(config.rateLimits).toEqual({
       runs: 5,
+      data: 30,
       ai: 10,
       secrets: 30,
       sessions: 60,

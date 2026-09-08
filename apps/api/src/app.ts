@@ -9,6 +9,8 @@ import {
 import type {
   AccountStore,
   createDatabase,
+  DataRecordStore,
+  DataTableStore,
   FlowStore,
   FlowVersionStore,
   ListingStore,
@@ -24,6 +26,8 @@ import type { ChainFactory } from "./chain/provider";
 import { createAccountRoutes } from "./account/routes";
 import { createAiRoutes } from "./ai/routes";
 import { createAuthRoutes } from "./auth/routes";
+import type { DataFactory } from "./data/provider";
+import { createDataRoutes } from "./data/routes";
 import { createFlowRoutes } from "./flows/routes";
 import { createTriggerIssueRoutes, type TriggerIssueReader } from "./flows/trigger-issues";
 import { createFlowVersionRoutes } from "./flows/versions";
@@ -54,6 +58,9 @@ export interface AppDependencies {
   identity?: IdentityProvider;
   model?: LanguageModel;
   chainFactory?: ChainFactory;
+  dataTables?: DataTableStore;
+  dataRecords?: DataRecordStore;
+  dataFactory?: DataFactory;
   world?: WorldVerifier;
   log?: boolean;
   rateLimits?: Partial<RateLimits>;
@@ -97,6 +104,9 @@ export function createApp({
   log = false,
   model,
   chainFactory,
+  dataTables,
+  dataRecords,
+  dataFactory,
   rateLimits,
   world,
   flowVersions,
@@ -172,6 +182,17 @@ export function createApp({
     .use(createTriggerIssueRoutes({ flows, triggerIssues, identity }))
     .use(flows ? createPublicRoutes({ flows }) : new Elysia())
     .use(
+      dataTables && dataRecords && flows
+        ? createDataRoutes({
+            dataTables,
+            dataRecords,
+            flows,
+            identity,
+            callsPerMinute: limits.data,
+          })
+        : new Elysia(),
+    )
+    .use(
       createRunRoutes({
         identity,
         flows,
@@ -179,6 +200,7 @@ export function createApp({
         engine: { model },
         secretsFor,
         chainFactory,
+        dataFactory,
         callsPerMinute: limits.runs,
         log,
       }),
@@ -190,6 +212,7 @@ export function createApp({
             runs,
             engine: engineFor,
             chainFactory,
+            dataFactory,
             callsPerMinute: limits.webhooks,
           })
         : new Elysia(),
@@ -208,13 +231,14 @@ export function createApp({
             engine: { model, sandbox },
             secretsFor,
             chainFactory,
+            dataFactory,
             callsPerMinute: limits.sessions,
             identity,
             world,
           })
         : new Elysia(),
     )
-    .use(createAiRoutes({ identity, model, log, callsPerMinute: limits.ai }))
+    .use(createAiRoutes({ identity, model, dataTables, log, callsPerMinute: limits.ai }))
     .use(account ? createAccountRoutes({ account, identity }) : new Elysia())
     .use(createWalletRoutes({ identity, chainFactory, runs }))
     .use(createPaymentPolicyRoutes({ identity, paymentPolicies }))

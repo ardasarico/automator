@@ -42,6 +42,10 @@ export const flowNodeTypes = [
   "usdc.payment",
   "usdc.payout",
   "usdc.balance",
+  "data.create-record",
+  "data.find-records",
+  "data.update-record",
+  "data.delete-record",
 ] as const;
 export type FlowNodeType = (typeof flowNodeTypes)[number];
 

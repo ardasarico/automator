@@ -1,5 +1,6 @@
 import type { FlowNode, FlowNodeType, Static, TObject } from "@automator/contracts";
 import type { ChainProvider } from "./chain";
+import type { DataProvider } from "./data";
 import type { LanguageModel } from "./language-model";
 
 export interface ExecutionContext {
@@ -11,6 +12,7 @@ export interface ExecutionContext {
   fetch: typeof fetch;
   model?: LanguageModel;
   chain?: ChainProvider;
+  data?: DataProvider;
   now(): Date;
   sleep(ms: number): Promise<void>;
   signal?: AbortSignal;

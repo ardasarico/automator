@@ -5,6 +5,7 @@ import {
   Type,
   Value,
 } from "@automator/contracts";
+import type { DataTableStore } from "@automator/db";
 import { LanguageModelError, type LanguageModel } from "@automator/flow-engine";
 import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
@@ -16,6 +17,8 @@ import { FlowGenerationError, generateFlow } from "./generate-flow";
 export interface AiDependencies {
   identity: IdentityProvider | undefined;
   model: LanguageModel | undefined;
+  /** Read to tell the model which tables a generated `data.*` node may reference. */
+  dataTables?: Pick<DataTableStore, "list">;
   log?: boolean;
   callsPerMinute?: number;
   now?: () => number;
@@ -24,6 +27,7 @@ export interface AiDependencies {
 export function createAiRoutes({
   identity,
   model,
+  dataTables,
   log = false,
   callsPerMinute = defaultRateLimits.ai,
   now = Date.now,
@@ -51,13 +55,14 @@ export function createAiRoutes({
     })
     .post(
       generateFlowContract.path,
-      async ({ body, status }) => {
+      async ({ claims, body, status }) => {
         if (!Value.Check(generateFlowContract.body, body))
           return status(400, { error: "invalid_request" });
         // The builder already blanks secret fields; doing it here too keeps them off the model.
         const current = body.document ? redactFlowSecrets(body.document) : undefined;
+        const tables = dataTables ? await dataTables.list(claims.id) : [];
         const result = await attempt("Flow generation", (model) =>
-          generateFlow(model, body.prompt, current, body.history),
+          generateFlow(model, body.prompt, current, body.history, tables),
         );
         return result.status === 200 ? result.data : status(result.status, { error: result.error });
       },

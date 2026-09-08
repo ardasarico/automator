@@ -23,6 +23,7 @@ import { isStoredDocumentValid } from "../flows/stored";
 import { createQuickJsSandbox } from "../sandbox/quickjs";
 import type { IdentityProvider } from "../auth/privy";
 import type { ChainFactory } from "../chain/provider";
+import type { DataFactory } from "../data/provider";
 import { createRateLimiter, defaultRateLimits } from "../rate-limit";
 import { executeStoredRun } from "./execute";
 
@@ -33,6 +34,7 @@ export interface RunDependencies {
   engine?: Pick<RunOptions, "fetch" | "sleep" | "executors" | "model">;
   secretsFor?: (ownerId: string) => SecretsResolver;
   chainFactory?: ChainFactory;
+  dataFactory?: DataFactory;
   sandbox?: Sandbox;
   flows?: FlowStore;
   runs?: RunStore;
@@ -46,6 +48,7 @@ export function createRunRoutes({
   runs,
   secretsFor,
   chainFactory,
+  dataFactory,
   sandbox = createQuickJsSandbox(),
   callsPerMinute = defaultRateLimits.runs,
   now = Date.now,
@@ -58,9 +61,11 @@ export function createRunRoutes({
       // Checked in the handler, after the guard, so an anonymous caller always sees 401.
       if (!Value.Check(runFlowContract.body, body))
         return status(400, { error: "invalid_request" });
+      const mode = body.mode ?? "dry-run";
       const chain = chainFactory
-        ? await chainFactory.forUser(claims.id, body.mode ?? "dry-run", flowChainId(body.document))
+        ? await chainFactory.forUser(claims.id, mode, flowChainId(body.document))
         : undefined;
+      const data = dataFactory?.forOwner(claims.id, mode);
       return runFlow(body.document, {
         ...engine,
         trigger: body.trigger,
@@ -69,6 +74,7 @@ export function createRunRoutes({
         secrets: secretsFor?.(claims.id),
         sandbox,
         ...(chain ? { chain } : {}),
+        ...(data ? { data } : {}),
       });
     },
     {
@@ -102,15 +108,18 @@ export function createRunRoutes({
         const record = await stores.flows.find(claims.id, params.id);
         if (!record) return status(404, { error: "not_found" });
         if (!isStoredDocumentValid(record.flow, log)) return status(422, { error: "invalid_flow" });
+        const mode = body.mode ?? "dry-run";
         const chain = chainFactory
-          ? await chainFactory.forUser(claims.id, body.mode ?? "dry-run", flowChainId(record.flow))
+          ? await chainFactory.forUser(claims.id, mode, flowChainId(record.flow))
           : undefined;
+        const data = dataFactory?.forOwner(claims.id, mode);
         const stored = await executeStoredRun(stores, {
           ownerId: claims.id,
           record,
           source: "manual",
           engine: {
             ...(chain ? { chain } : {}),
+            ...(data ? { data } : {}),
             ...engine,
             trigger: body.trigger,
             screens: body.screens,

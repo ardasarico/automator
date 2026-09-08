@@ -35,6 +35,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import { Elysia } from "elysia";
 import type { IdentityProvider } from "../auth/privy";
 import type { ChainFactory } from "../chain/provider";
+import type { DataFactory } from "../data/provider";
 import { clientAddress, createRateLimiter, defaultRateLimits } from "../rate-limit";
 import { WorldVerifyError, type WorldVerifier } from "../world/verify";
 
@@ -42,9 +43,13 @@ export interface SessionDependencies {
   flows: FlowStore;
   runs: RunStore;
   sessions: SessionStore;
-  engine?: Pick<RunOptions, "fetch" | "sleep" | "executors" | "model" | "sandbox" | "chain">;
+  engine?: Pick<
+    RunOptions,
+    "fetch" | "sleep" | "executors" | "model" | "sandbox" | "chain" | "data"
+  >;
   secretsFor?: (ownerId: string) => SecretsResolver;
   chainFactory?: ChainFactory;
+  dataFactory?: DataFactory;
   callsPerMinute?: number;
   now?: () => number;
   identity?: Pick<IdentityProvider, "visitor">;
@@ -229,6 +234,7 @@ export function createSessionRoutes({
   engine,
   secretsFor,
   chainFactory,
+  dataFactory,
   callsPerMinute = defaultRateLimits.sessions,
   now = Date.now,
   identity,
@@ -262,6 +268,7 @@ export function createSessionRoutes({
           chain: chainFactory
             ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))
             : undefined,
+          data: dataFactory?.forOwner(found.ownerId, "live"),
         });
         await runs.create(found.ownerId, document, run, "miniapp");
         const sessionId = randomUUID();
@@ -368,6 +375,7 @@ export function createSessionRoutes({
           resume: { ...resume, completed: previous.run.nodes },
           secrets: secretsFor?.(found.ownerId),
           chain,
+          data: dataFactory?.forOwner(found.ownerId, "live"),
         });
         await runs.create(found.ownerId, document, run, "miniapp");
         const session = toSession(

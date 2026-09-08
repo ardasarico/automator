@@ -1,0 +1,14 @@
+.multiSelect {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 6px;
+}
+.multiSelectOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+}

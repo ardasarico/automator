@@ -1,4 +1,5 @@
 import {
+  clearDataTableReferences,
   listingNodeTypes,
   reservedListingSlugs,
   slugifyListingName,
@@ -179,10 +180,12 @@ export function createListingStore(sql: SQL | undefined) {
           SELECT name, description, document FROM automator_listings WHERE slug = ${slug} FOR UPDATE`;
         const listing = listings[0];
         if (!listing) return null;
+        /* Tables belong to the publisher; a fork starts with no table selected. */
+        const document = clearDataTableReferences(listing.document);
         const rows = await tx<FlowRow[]>`
           INSERT INTO automator_flows (id, owner_id, name, description, document)
           VALUES (${crypto.randomUUID()}, ${ownerId}, ${listing.name}, ${listing.description},
-            ${listing.document}::jsonb)
+            ${document}::jsonb)
           RETURNING id, name, description, document, enabled, webhook_token AS "webhookToken",
             created_at AS "createdAt", updated_at AS "updatedAt"`;
         const flow = rows[0];

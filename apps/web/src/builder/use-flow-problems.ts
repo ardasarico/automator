@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useMemo } from "react";
+import { useDataTables } from "../data/tables-context";
 import { serializeFlow } from "./document";
 import { useBuilderStore } from "./store-provider";
 import { findFlowProblems, type FlowProblem } from "./validation";
@@ -9,7 +10,13 @@ export function useFlowProblems(): FlowProblem[] {
   const meta = useBuilderStore((state) => state.meta);
   const nodes = useBuilderStore((state) => state.nodes);
   const edges = useBuilderStore((state) => state.edges);
-  return useMemo(() => findFlowProblems(serializeFlow(meta, nodes, edges)), [meta, nodes, edges]);
+  // Only a settled list can prove a table is gone; while it loads or fails, leave it unchecked.
+  const { tables, loading, error } = useDataTables();
+  const known = loading || error ? undefined : tables;
+  return useMemo(
+    () => findFlowProblems(serializeFlow(meta, nodes, edges), known),
+    [meta, nodes, edges, known],
+  );
 }
 
 export const NodeProblemsContext = createContext<ReadonlyMap<string, FlowProblem[]>>(new Map());

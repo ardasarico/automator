@@ -189,4 +189,62 @@ describe.skipIf(!url)("listings store", () => {
       await sql.close({ timeout: 5 });
     }
   });
+  test.skipIf(!url)("a fork starts with no table selected on its data nodes", async () => {
+    const sql = new SQL(url!, { max: 2, connectionTimeout: 5 });
+    try {
+      await migrate(sql);
+      const users = createUserStore(sql);
+      const flows = createFlowStore(sql);
+      const listings = createListingStore(sql);
+      await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-fork-%'`;
+      await users.sync("did:privy:test-fork-a", null);
+      await users.saveProfile("did:privy:test-fork-a", { name: "Arda", username: "test_fork_a" });
+      await users.sync("did:privy:test-fork-b", null);
+
+      const document = {
+        ...input,
+        name: "Intake",
+        nodes: [
+          input.nodes[0]!,
+          {
+            id: "n-data",
+            type: "data.find-records" as const,
+            position: { x: 300, y: 0 },
+            label: "Find records",
+            config: {
+              tableId: "tbl-owned-by-publisher",
+              filters: [{ column: "email", operator: "equals", value: "a@b.c" }],
+              sortColumn: "email",
+              sortDirection: "desc",
+              limit: 25,
+            },
+          },
+        ],
+        edges: [],
+      };
+      const flow = await flows.create("did:privy:test-fork-a", document);
+      const listing = await listings.publish("did:privy:test-fork-a", flow.flow, {
+        name: "Intake",
+        description: "Look up an applicant.",
+      });
+
+      const forked = await listings.fork("did:privy:test-fork-b", listing.slug);
+      const node = forked!.flow.nodes.find((entry) => entry.id === "n-data");
+      expect(node?.config).toMatchObject({
+        tableId: "",
+        filters: [],
+        sortColumn: "",
+        sortDirection: "desc",
+        limit: 25,
+      });
+      const publisher = await listings.find(listing.slug);
+      expect(
+        publisher?.document.nodes.find((entry) => entry.id === "n-data")?.config,
+      ).toMatchObject({ tableId: "tbl-owned-by-publisher" });
+
+      await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-fork-%'`;
+    } finally {
+      await sql.close({ timeout: 5 });
+    }
+  });
 });

@@ -18,3 +18,24 @@ describe("flow node ports", () => {
     }
   });
 });
+
+describe("data node ports", () => {
+  test("name the handles the data executors and the catalog share", () => {
+    expect(flowNodePorts["data.create-record"]).toEqual({
+      inputs: ["values"],
+      outputs: ["record"],
+    });
+    expect(flowNodePorts["data.find-records"]).toEqual({
+      inputs: ["query"],
+      outputs: ["found", "empty"],
+    });
+    expect(flowNodePorts["data.update-record"]).toEqual({
+      inputs: ["record"],
+      outputs: ["record"],
+    });
+    expect(flowNodePorts["data.delete-record"]).toEqual({
+      inputs: ["record"],
+      outputs: ["record"],
+    });
+  });
+});

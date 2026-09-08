@@ -170,7 +170,7 @@ test("account settings load every section and the test identity has a clear wall
 test("signed-out workspace and canvas requests return to login", async ({ page, context }) => {
   const flow = await seedFlow(`E2E auth ${Date.now()}`);
   await context.clearCookies();
-  for (const path of ["/flows", "/runs", "/wallet", `/flows/${flow.id}`]) {
+  for (const path of ["/flows", "/runs", "/data", "/wallet", `/flows/${flow.id}`]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/login(?:\?|$)/);
   }

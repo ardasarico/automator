@@ -6,6 +6,7 @@ import {
 } from "@automator/contracts";
 import { aiExecutors } from "./ai-executors";
 import { compare } from "./compare";
+import { dataExecutors } from "./data-executors";
 import { logicExecutors } from "./logic-executors";
 import { loopExecutors } from "./loop-executors";
 import { notifyExecutors } from "./notify-executors";
@@ -73,6 +74,7 @@ export const defaultExecutors: ExecutorRegistry = {
   },
 
   ...aiExecutors,
+  ...dataExecutors,
   ...logicExecutors,
   ...onchainExecutors,
   ...notifyExecutors,

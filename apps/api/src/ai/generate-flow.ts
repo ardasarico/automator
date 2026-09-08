@@ -65,6 +65,28 @@ interface Draft {
   edges: DraftEdge[];
 }
 
+/** The account's tables as the prompt and the validation see them. `DataTable` fits this shape. */
+export interface AiDataTable {
+  id: string;
+  name: string;
+  columns: readonly { id: string; name: string; type: string }[];
+}
+
+/** The table section of the prompt: the only table ids a `data.*` node may carry. */
+export function describeDataTables(tables: readonly AiDataTable[]): string {
+  if (tables.length === 0)
+    return "This account has no data tables, so you must not use any data.* node.";
+  const lines = tables
+    .map(
+      (table) =>
+        `- id "${table.id}" named "${table.name}": columns ${
+          table.columns.map((column) => `${column.id} (${column.type})`).join(", ") || "none"
+        }`,
+    )
+    .join("\n");
+  return `A data.* node's tableId must be one of these table ids exactly, and its column references must be column ids of that table. Never invent a table id, a column id or a table name:\n${lines}`;
+}
+
 export function describeNodeTypes(): string {
   return generatableNodeTypes
     .map((type) => {
@@ -75,8 +97,9 @@ export function describeNodeTypes(): string {
     .join("\n");
 }
 
-export const systemPrompt =
-  () => `You design automation flows for Automator, a visual canvas for onchain workflows.
+export const systemPrompt = (
+  tables?: readonly AiDataTable[],
+) => `You design automation flows for Automator, a visual canvas for onchain workflows.
 A flow is a directed acyclic graph. It starts at a trigger node (a type whose inputs list is empty); every other node must have at least one incoming edge. Edges connect a source node's output handle to a target node's input handle, and each input handle takes at most one edge. Screens are pages the visitor sees in a mini-app; a run pauses there until the visitor acts.
 logic.for-each repeats the steps after its Item output for each element of its items list (a JSON string or a template resolving to a list, maxItems at most 100). Its Done output carries {items, results, count} after all iterations. Put screens after Done, never inside the Item body. Do not draw a cycle to express a loop.
 Config strings may reference upstream values with templates: {{input.<input handle>}} is the value delivered to that handle, {{vars.<name>}} a variable set earlier, {{trigger.<path>}} the trigger payload. The handle in {{input.<input handle>}} is always the receiving node's OWN input handle, never the upstream node's output handle: a notify.discord node reads what arrived on its "message" input as {{input.message}} (not {{input.result}} or {{input.text}}), a logic.condition reads {{input.value}}. A trigger hands its whole payload (an object, e.g. a webhook body) to its output handle, so a field of it is addressed as {{input.<input handle>.<field>}} on the next node, or {{trigger.<field>}} anywhere.
@@ -90,6 +113,9 @@ Execution rules and examples:
 
 Node types you may use, with their handles and full config schemas:
 ${describeNodeTypes()}
+
+The data tables of the account making this request:
+${describeDataTables(tables ?? [])}
 
 Earlier turns of the conversation may come before the request; assistant turns there are the summaries the user saw, and the flow JSON in the request is always the current state of the canvas.
 
@@ -201,7 +227,8 @@ function hasCycle(nodes: DraftNode[], edges: DraftEdge[]): boolean {
   return seen < nodes.length;
 }
 
-export function materialize(draft: Draft): FlowDocumentInput {
+/** `tables` is the owner's table list; a data node naming anything else is rejected as invalid wiring. */
+export function materialize(draft: Draft, tables: readonly AiDataTable[] = []): FlowDocumentInput {
   if (draft.nodes.length === 0) throw new FlowGenerationError("The flow has no nodes");
   const nodesById = new Map<string, DraftNode>();
   for (const node of draft.nodes) {
@@ -268,7 +295,7 @@ export function materialize(draft: Draft): FlowDocumentInput {
     throw new FlowGenerationError("The flow does not fit the document schema");
   const problem = findFlowDocumentProblem(document);
   if (problem) throw new FlowGenerationError(problem);
-  const configProblems = findFlowConfigProblems(document);
+  const configProblems = findFlowConfigProblems(document, tables);
   for (const node of document.nodes) {
     if (
       node.type === "screen.form" &&
@@ -309,6 +336,7 @@ export function historyMessages(history: readonly AiHistoryTurn[] = []): ChatMes
 export async function askForFlow(
   model: LanguageModel,
   messages: ChatMessage[],
+  tables: readonly AiDataTable[] = [],
 ): Promise<GenerateFlowResponse> {
   let lastProblem: string | undefined;
   let pinnedTests: unknown;
@@ -330,7 +358,7 @@ export async function askForFlow(
       )
         pinnedTests = structuredClone(tests);
       const draft = readDraft(parsed);
-      const document = materialize(draft);
+      const document = materialize(draft, tables);
       if (
         document.nodes.some((n) => n.type === "trigger.miniapp-open") &&
         document.nodes.some((n) => n.type === "screen.form")
@@ -369,9 +397,10 @@ export async function generateFlow(
   prompt: string,
   current?: FlowDocumentInput,
   history?: readonly AiHistoryTurn[],
+  tables: readonly AiDataTable[] = [],
 ): Promise<GenerateFlowResponse> {
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt() },
+    { role: "system", content: systemPrompt(tables) },
     ...historyMessages(history),
   ];
   if (current) {
@@ -382,5 +411,5 @@ export async function generateFlow(
   } else {
     messages.push({ role: "user", content: `Design a flow for this request: ${prompt}` });
   }
-  return askForFlow(model, messages);
+  return askForFlow(model, messages, tables);
 }

@@ -15,8 +15,19 @@ export type {
   ContractCall,
   TransactionReceiptSummary,
 } from "./chain";
+export type {
+  DataColumn,
+  DataFilter,
+  DataMode,
+  DataProvider,
+  DataQuery,
+  DataRecord,
+  DataTable,
+  DataTarget,
+} from "./data";
 export { describeChainError } from "./chain-errors";
 export { erc20Abi, jsonSafe } from "./abi";
+export { dataExecutors } from "./data-executors";
 export { logicExecutors } from "./logic-executors";
 export { postDiscordMessage, type DiscordDelivery } from "./discord";
 export type { AgentStep } from "./agent";

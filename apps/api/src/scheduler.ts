@@ -21,6 +21,7 @@ import {
   type EventReader,
 } from "./chain/events";
 import type { ChainFactory } from "./chain/provider";
+import type { DataFactory } from "./data/provider";
 import { executeStoredRun, RunPersistenceError, type EngineOptions } from "./runs/execute";
 import { isWatchTrigger, readWatchTrigger, type WatchSources } from "./watch/poll";
 import { WatchConfigError, crossed } from "./watch/threshold";
@@ -31,6 +32,7 @@ export interface SchedulerDependencies {
   triggerClaims: TriggerClaimStore;
   engine?: EngineOptions | ((ownerId: string) => EngineOptions);
   chainFactory?: ChainFactory;
+  dataFactory?: DataFactory;
   tickMs?: number;
   now?: () => Date;
   log?: (line: string) => void;
@@ -83,6 +85,7 @@ export function createScheduler({
   triggerClaims,
   engine,
   chainFactory,
+  dataFactory,
   tickMs = 30_000,
   now = () => new Date(),
   log = () => {},
@@ -117,6 +120,7 @@ export function createScheduler({
       const chain = chainFactory
         ? await chainFactory.forUser(ownerId, "live", flowChainId(record.flow))
         : undefined;
+      const data = dataFactory?.forOwner(ownerId, "live");
       if (!(await flows.isCurrentPoll(flowId, pollingRevision))) return;
       const at = now();
       const admission = await triggerClaims.claim({
@@ -143,6 +147,7 @@ export function createScheduler({
           engine: {
             ...shared,
             ...(chain ? { chain } : {}),
+            ...(data ? { data } : {}),
             trigger: { nodeId: trigger.id, payload: { at: at.toISOString() } },
           },
         },
@@ -199,6 +204,7 @@ export function createScheduler({
       chainFactory && logs.length > 0
         ? await chainFactory.forUser(ownerId, "live", chainId)
         : undefined;
+    const data = logs.length > 0 ? dataFactory?.forOwner(ownerId, "live") : undefined;
     let handled: bigint | null = null;
     try {
       for (const entry of logs) {
@@ -226,6 +232,7 @@ export function createScheduler({
               engine: {
                 ...shared,
                 ...(chain ? { chain } : {}),
+                ...(data ? { data } : {}),
                 trigger: { nodeId: node.id, payload: eventPayload(entry, chainId) },
                 screens: "wait",
               },
@@ -277,6 +284,7 @@ export function createScheduler({
     }
     const shared = typeof engine === "function" ? engine(ownerId) : engine;
     const chain = chainFactory ? await chainFactory.forUser(ownerId, "live", chainId) : undefined;
+    const data = dataFactory?.forOwner(ownerId, "live");
     // Admission and consuming the observation commit together. A process lost after this
     // point leaves an inspectable unresolved claim, never an automatically retried crossing.
     const admission = await triggerClaims.claim({
@@ -303,6 +311,7 @@ export function createScheduler({
         engine: {
           ...shared,
           ...(chain ? { chain } : {}),
+          ...(data ? { data } : {}),
           trigger: { nodeId: node.id, payload: reading.payload },
           screens: "wait",
         },

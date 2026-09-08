@@ -7,7 +7,10 @@ import {
   RiCheckboxCircleLine,
   RiCodeSSlashLine,
   RiCoinLine,
+  RiDatabase2Line,
+  RiDeleteBinLine,
   RiDiscordLine,
+  RiFileAddLine,
   RiFileEditLine,
   RiFileListLine,
   RiFileSearchLine,
@@ -45,6 +48,7 @@ import {
 export type FlowNodeCategory =
   | "trigger"
   | "logic"
+  | "data"
   | "onchain"
   | "ai"
   | "screen"
@@ -54,6 +58,7 @@ export type FlowNodeCategory =
 export type CatalogGroupId =
   | "triggers"
   | "logic"
+  | "data"
   | "onchain"
   | "ai"
   | "screens"
@@ -82,6 +87,7 @@ export type CatalogEntry = {
 export const catalogCategories: Record<FlowNodeCategory, string> = {
   trigger: "Triggers",
   logic: "Logic",
+  data: "Data",
   onchain: "Onchain",
   ai: "AI",
   screen: "Screens",
@@ -92,6 +98,7 @@ export const catalogCategories: Record<FlowNodeCategory, string> = {
 export const categoryLabels: Record<FlowNodeCategory, string> = {
   trigger: "Trigger",
   logic: "Logic",
+  data: "Data",
   onchain: "Onchain",
   ai: "AI",
   screen: "Screen",
@@ -102,6 +109,7 @@ export const categoryLabels: Record<FlowNodeCategory, string> = {
 export const categoryIcons: Record<FlowNodeCategory, RemixiconComponentType> = {
   trigger: RiFlashlightLine,
   logic: RiGitBranchLine,
+  data: RiDatabase2Line,
   onchain: RiCoinLine,
   ai: RiRobot2Line,
   screen: RiLayoutLine,
@@ -120,6 +128,7 @@ export type CatalogGroupDefinition = {
 export const categoryOrder: readonly FlowNodeCategory[] = [
   "trigger",
   "logic",
+  "data",
   "onchain",
   "ai",
   "screen",
@@ -145,6 +154,13 @@ export const catalogGroups: readonly CatalogGroupDefinition[] = [
     label: "Logic",
     description: "Branch, loop, wait, and shape data.",
     icon: remix(RiGitBranchLine),
+    kind: "core",
+  },
+  {
+    id: "data",
+    label: "Data",
+    description: "Store and look up records in your tables.",
+    icon: remix(RiDatabase2Line),
     kind: "core",
   },
   {
@@ -554,6 +570,46 @@ export const catalog: readonly CatalogEntry[] = [
     icon: remix(RiPenNibLine),
     inputs: [port("wallet", "Wallet"), port("transaction", "Transaction")],
     outputs: [port("signed", "Signed")],
+  },
+  {
+    type: "data.create-record",
+    category: "data",
+    group: "data",
+    label: "Create record",
+    description: "Add a record to one of your tables.",
+    icon: remix(RiFileAddLine),
+    inputs: [port("values", "Values")],
+    outputs: [port("record", "Record")],
+  },
+  {
+    type: "data.find-records",
+    category: "data",
+    group: "data",
+    label: "Find records",
+    description: "Look up records that match a filter.",
+    icon: remix(RiFileSearchLine),
+    inputs: [port("query", "Query")],
+    outputs: [port("found", "Found"), port("empty", "Empty")],
+  },
+  {
+    type: "data.update-record",
+    category: "data",
+    group: "data",
+    label: "Update record",
+    description: "Change the values of one record.",
+    icon: remix(RiFileEditLine),
+    inputs: [port("record", "Record")],
+    outputs: [port("record", "Record")],
+  },
+  {
+    type: "data.delete-record",
+    category: "data",
+    group: "data",
+    label: "Delete record",
+    description: "Remove one record from a table.",
+    icon: remix(RiDeleteBinLine),
+    inputs: [port("record", "Record")],
+    outputs: [port("record", "Record")],
   },
   {
     type: "usdc.payment",

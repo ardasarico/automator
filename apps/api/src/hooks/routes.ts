@@ -1,12 +1,14 @@
 import { flowChainId, webhookTriggerContract, type WebhookPayload } from "@automator/contracts";
 import { Elysia } from "elysia";
 import type { ChainFactory } from "../chain/provider";
+import type { DataFactory } from "../data/provider";
 import { createRateLimiter, defaultRateLimits } from "../rate-limit";
 import { executeStoredRun, type EngineOptions, type RunStores } from "../runs/execute";
 
 export interface HookDependencies extends RunStores {
   engine?: EngineOptions | ((ownerId: string) => EngineOptions);
   chainFactory?: ChainFactory;
+  dataFactory?: DataFactory;
   callsPerMinute?: number;
   now?: () => number;
 }
@@ -26,6 +28,7 @@ export function createHookRoutes({
   runs,
   engine,
   chainFactory,
+  dataFactory,
   callsPerMinute = defaultRateLimits.webhooks,
   now = Date.now,
 }: HookDependencies) {
@@ -54,6 +57,7 @@ export function createHookRoutes({
       const chain = chainFactory
         ? await chainFactory.forUser(owned.ownerId, "live", flowChainId(owned.record.flow))
         : undefined;
+      const data = dataFactory?.forOwner(owned.ownerId, "live");
       const record = await executeStoredRun(
         { flows, runs },
         {
@@ -63,6 +67,7 @@ export function createHookRoutes({
           engine: {
             ...shared,
             ...(chain ? { chain } : {}),
+            ...(data ? { data } : {}),
             trigger: { nodeId: trigger.id, payload: webhookPayload(request, body) },
             screens: "wait",
           },

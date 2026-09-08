@@ -1,5 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { conditionOperators } from "./condition-operators";
+import { dataNodeConfigSchemas } from "./data-node-configs";
 import { filterConfigSchema, mergeConfigSchema, switchConfigSchema } from "./logic-configs";
 import { forEachConfigSchema, runCodeConfigSchema } from "./loop-configs";
 import { emailConfigSchema, telegramMessageConfigSchema } from "./notify-configs";
@@ -67,6 +68,7 @@ export function samplePayloadProblem(text: string): string | null {
 }
 
 export { conditionOperators, type ConditionOperator } from "./condition-operators";
+export * from "./data-node-configs";
 
 export const conditionConfigSchema = Type.Object({
   left: Type.String({ default: "{{input.value}}" }),
@@ -154,4 +156,5 @@ export const flowNodeConfigSchemas = {
   "logic.run-code": runCodeConfigSchema,
   ...onchainConfigSchemas,
   ...watchConfigSchemas,
+  ...dataNodeConfigSchemas,
 } as const;

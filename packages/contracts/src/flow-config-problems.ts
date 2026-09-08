@@ -23,8 +23,23 @@ export function templateReferences(
   return [];
 }
 
+/*
+ * The shape the data-table checks need. Kept structural so this module stays free of the data
+ * contracts: any caller holding tables with ids, names and column ids can pass them in.
+ */
+export interface FlowConfigTable {
+  id: string;
+  name: string;
+  columns: readonly { id: string }[];
+}
+
+/**
+ * Reports config problems for a document. Data-node table and column references are only checked
+ * against `tables` when a caller passes them; without it an empty table id is still reported.
+ */
 export function findFlowConfigProblems(
   document: Pick<FlowDocument, "nodes" | "edges">,
+  tables?: readonly FlowConfigTable[],
 ): FlowConfigProblem[] {
   const problems: FlowConfigProblem[] = [];
   const nodes = new Map(document.nodes.map((node) => [node.id, node]));
@@ -58,6 +73,32 @@ export function findFlowConfigProblems(
           add(`config.fields.${index}.id`, `Form field id "${id}" is reserved.`);
         else if (seen.has(id)) add(`config.fields.${index}.id`, `Duplicate form field id "${id}".`);
         seen.add(id);
+      }
+    }
+    if (node.type.startsWith("data.")) {
+      const tableId = typeof node.config.tableId === "string" ? node.config.tableId.trim() : "";
+      const table = tableId ? tables?.find((candidate) => candidate.id === tableId) : undefined;
+      if (!tableId) add("config.tableId", "Pick a table for this node.");
+      else if (tables && !table)
+        add("config.tableId", `Table "${tableId}" is not one of your tables any more.`);
+      if (table) {
+        const columnIds = new Set(table.columns.map((column) => column.id));
+        const checkColumn = (path: string, value: unknown) => {
+          if (typeof value !== "string" || value === "" || columnIds.has(value)) return;
+          add(path, `"${value}" is not a column of "${table.name}".`);
+        };
+        for (const key of ["filters", "values"] as const) {
+          const rows: unknown = node.config[key];
+          if (!Array.isArray(rows)) continue;
+          for (const [index, row] of rows.entries())
+            checkColumn(
+              `config.${key}.${index}.column`,
+              row === null || typeof row !== "object"
+                ? undefined
+                : (row as { column?: unknown }).column,
+            );
+        }
+        checkColumn("config.sortColumn", node.config.sortColumn);
       }
     }
     for (const { path, reference } of templateReferences(node.config)) {

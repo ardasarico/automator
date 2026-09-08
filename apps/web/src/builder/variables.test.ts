@@ -126,4 +126,60 @@ describe("listVariables", () => {
       { template: "{{trigger.body}}", source: "Node w", label: "body" },
     ]);
   });
+  test("expands a found record's columns for a find-records node upstream", () => {
+    const table = {
+      id: "tbl_customers",
+      columns: [
+        { id: "email", name: "Email" },
+        { id: "plan", name: "Plan" },
+      ],
+    };
+    const graph = [
+      node("t", "trigger.webhook"),
+      node("find", "data.find-records", { tableId: "tbl_customers" }),
+      node("d", "notify.discord"),
+    ];
+    const wires = [
+      { source: "t", target: "find", targetHandle: "query" },
+      { source: "find", target: "d", sourceHandle: "found", targetHandle: "message" },
+    ];
+    expect(listVariables("d", graph, wires, [], [table]).slice(0, 5)).toEqual([
+      { template: "{{input.message}}", source: "Node find", label: "Found" },
+      { template: "{{input.message.count}}", source: "Node find", label: "Match count" },
+      { template: "{{input.message.first.id}}", source: "Node find", label: "Record id" },
+      { template: "{{input.message.first.values.email}}", source: "Node find", label: "Email" },
+      { template: "{{input.message.first.values.plan}}", source: "Node find", label: "Plan" },
+    ]);
+    // The empty branch carries no record, and an unlisted table offers no columns.
+    expect(
+      listVariables(
+        "d",
+        graph,
+        [wires[0]!, { ...wires[1]!, sourceHandle: "empty" }],
+        [],
+        [table],
+      ).slice(0, 1),
+    ).toEqual([{ template: "{{input.message}}", source: "Node find", label: "Empty" }]);
+    expect(listVariables("d", graph, wires, [], []).slice(0, 1)).toEqual([
+      { template: "{{input.message}}", source: "Node find", label: "Found" },
+    ]);
+  });
+
+  test("expands a written record's columns for a create-record node upstream", () => {
+    const graph = [
+      node("t", "trigger.webhook"),
+      node("make", "data.create-record", { tableId: "tbl_customers" }),
+      node("d", "notify.discord"),
+    ];
+    const wires = [
+      { source: "t", target: "make", targetHandle: "values" },
+      { source: "make", target: "d", sourceHandle: "record", targetHandle: "message" },
+    ];
+    const tables = [{ id: "tbl_customers", columns: [{ id: "email", name: "Email" }] }];
+    expect(listVariables("d", graph, wires, [], tables).slice(0, 3)).toEqual([
+      { template: "{{input.message}}", source: "Node make", label: "Record" },
+      { template: "{{input.message.id}}", source: "Node make", label: "Record id" },
+      { template: "{{input.message.values.email}}", source: "Node make", label: "Email" },
+    ]);
+  });
 });

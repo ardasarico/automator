@@ -5,6 +5,7 @@ import { createApp } from "./app";
 import { createPrivyIdentity, withE2eIdentity } from "./auth/privy";
 import { createChainFactory, resolveChainSettings } from "./chain/provider";
 import { readConfig } from "./config";
+import { createDataFactory } from "./data/provider";
 import { createQuickJsSandbox } from "./sandbox/quickjs";
 import { createScheduler } from "./scheduler";
 import { createSecretsCrypto } from "./secrets/crypto";
@@ -42,6 +43,10 @@ const signing =
         signerId: config.privySignerId,
       }
     : undefined;
+const dataFactory = createDataFactory({
+  dataTables: database.dataTables,
+  dataRecords: database.dataRecords,
+});
 const chainFactory = createChainFactory(
   resolveChainSettings(config),
   identity,
@@ -63,6 +68,9 @@ const app = createApp({
   identity,
   model,
   chainFactory,
+  dataTables: database.dataTables,
+  dataRecords: database.dataRecords,
+  dataFactory,
   world: createWorldVerifier(config.world),
   log: true,
   rateLimits: config.rateLimits,
@@ -83,6 +91,7 @@ const scheduler = createScheduler({
     secrets: createSecretsResolver({ secrets: database.secrets, crypto: secretsCrypto }, ownerId),
   }),
   chainFactory,
+  dataFactory,
   eventCursors: database.eventCursors,
   eventReaderFor: (chainId) => chainFactory.chain(chainId)?.eventReader,
   watchState: database.watchState,
