@@ -5,10 +5,7 @@ export interface Migration {
   sql: string;
 }
 
-/**
- * Applied in order, exactly once each, and never edited afterwards: a released
- * entry is already recorded in the ledger, so a change to it would be skipped.
- */
+/* Never edit released migrations: the ledger skips entries already applied. */
 export const migrations: Migration[] = [
   {
     name: "0001_users",
@@ -121,8 +118,6 @@ export const migrations: Migration[] = [
       CHECK (source IN ('manual', 'webhook', 'schedule', 'miniapp', 'event'))`,
   },
   {
-    // The node type `world.selfie-check` left the catalogue; `world.id-verify` has the same
-    // handles, so only the type is rewritten and configs, positions and edges stay untouched.
     name: "0008_retire_selfie_check",
     sql: `UPDATE automator_flows SET document = jsonb_set(document, '{nodes}', (
       SELECT jsonb_agg(
@@ -220,6 +215,26 @@ export const migrations: Migration[] = [
       ON automator_trigger_claims (flow_id, node_id)
       WHERE status IN ('running', 'uncertain')`,
   },
+  {
+    name: "0013_payment_policies",
+    sql: `CREATE TABLE IF NOT EXISTS automator_payment_policies (
+      owner_id TEXT PRIMARY KEY REFERENCES automator_users(id) ON DELETE CASCADE,
+      policy JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS automator_payment_reservations (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL REFERENCES automator_users(id) ON DELETE CASCADE,
+      chain_id INTEGER NOT NULL,
+      asset TEXT NOT NULL CHECK (asset IN ('native', 'usdc')),
+      recipient TEXT NOT NULL,
+      amount NUMERIC(78, 0) NOT NULL CHECK (amount >= 0),
+      day DATE NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+    );
+    CREATE INDEX IF NOT EXISTS automator_payment_reservations_daily
+      ON automator_payment_reservations (owner_id, day, chain_id, asset)`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (
@@ -227,10 +242,6 @@ const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
 )`;
 
-/**
- * Runs pending migrations inside one transaction, behind an advisory lock so
- * that concurrently starting API instances serialize instead of racing.
- */
 export async function migrate(sql: SQL, entries: Migration[] = migrations): Promise<string[]> {
   const applied: string[] = [];
   await sql.begin(async (tx) => {

@@ -8,7 +8,6 @@ import { useAccessToken } from "../auth/access-token";
 import { FlowRequestError } from "../flows/client";
 import { fetchTriggerIssues } from "./trigger-issues-client";
 
-/** Mounted only inside the open settings dialog; account changes discard all retained data. */
 export function TriggerIssues({ flowId }: { flowId: string }) {
   const { user } = useAuthSession();
   return (
@@ -59,8 +58,8 @@ function TriggerIssuesForAccount({ flowId, signedIn }: { flowId: string; signedI
   }, [flowId, signedIn, getAccessToken, attempt]);
 
   return (
-    <section className="flex min-w-0 flex-col gap-2" aria-label="Polling trigger issues">
-      <h3 className="text-sm font-medium">Polling trigger issues</h3>
+    <section className="flex min-w-0 flex-col gap-2" aria-label="Automatic run issues">
+      <h3 className="text-sm font-medium">Automatic run issues</h3>
       <p className="text-caption text-muted-foreground">
         Schedule, onchain-event, price and balance triggers. Up to 50 recent unresolved or unsaved
         outcomes.
@@ -100,7 +99,7 @@ function TriggerIssuesForAccount({ flowId, signedIn }: { flowId: string; signedI
           <p className="mt-1">
             {issue.status === "completed"
               ? "Execution finished, but run history has not been saved."
-              : "Execution outcome is unresolved. The worker may still execute actions; avoid starting a duplicate run."}
+              : "Execution outcome is unresolved. Actions may still be running. Further runs from these triggers are paused to prevent duplicates."}
           </p>
           {issue.record && (
             <details className="mt-2">

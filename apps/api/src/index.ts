@@ -16,7 +16,6 @@ const config = readConfig();
 const database = createDatabase(config.databaseUrl);
 await database.migrate();
 const secretsCrypto = createSecretsCrypto(config.secretsKey);
-// OpenRouter first (free models when configured so), OpenAI when it fails or is not configured.
 const openRouter = createOpenRouterModel({
   apiKey: config.openRouterApiKey,
   model: config.openRouterModel,
@@ -30,7 +29,6 @@ const identity = withE2eIdentity(
   createPrivyIdentity(config.privyAppId, config.privyAppSecret, config.privyVerificationKey),
   config.e2eTestToken,
 );
-// Signing needs a Privy client of its own: the identity provider keeps its client private.
 const signing =
   config.privyAuthorizationKey && config.privySignerId && config.privyAppId && config.privyAppSecret
     ? {
@@ -44,8 +42,13 @@ const signing =
         signerId: config.privySignerId,
       }
     : undefined;
-// Every registry chain, with the environment's RPC overrides; a run picks its flow's chain.
-const chainFactory = createChainFactory(resolveChainSettings(config), identity, signing);
+const chainFactory = createChainFactory(
+  resolveChainSettings(config),
+  identity,
+  signing,
+  undefined,
+  database.paymentPolicies,
+);
 
 const app = createApp({
   database,
@@ -65,14 +68,15 @@ const app = createApp({
   rateLimits: config.rateLimits,
   flowVersions: database.flowVersions,
   triggerIssues: database.triggerClaims,
+  paymentPolicies: database.paymentPolicies,
 }).listen({ hostname: "::", port: config.port });
 
 console.log(`API listening on ${app.server?.url}`);
 
-// Schedule, onchain-event and watch triggers run in this process, on the flow's own chain.
 const scheduler = createScheduler({
   flows: database.flows,
   runs: database.runs,
+  triggerClaims: database.triggerClaims,
   engine: (ownerId) => ({
     model,
     sandbox: createQuickJsSandbox(),

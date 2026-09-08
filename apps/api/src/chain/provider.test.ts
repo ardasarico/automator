@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { PaymentPolicyOperation } from "@automator/db";
 import { custom, encodeAbiParameters, encodeFunctionResult, parseAbi, type Address } from "viem";
 import type { IdentityProvider } from "../auth/privy";
 import { createChainFactory, resolveChain, resolveChainSettings } from "./provider";
@@ -254,5 +255,85 @@ describe("chain provider", () => {
         account: user,
       }),
     ).rejects.toThrow();
+  });
+
+  test("factory signers enforce the injected current policy before Privy or RPC signing", async () => {
+    const { transport, calls: rpcCalls } = fakeTransport({});
+    const admitted: PaymentPolicyOperation[] = [];
+    let enabled = true;
+    let privySignCalls = 0;
+    let walletChecks = 0;
+    const signature = `0x${"a".repeat(130)}` as const;
+    const signing = {
+      privy: {
+        wallets: () => ({
+          get: async () => {
+            walletChecks++;
+            return {
+              id: "w1",
+              address: user,
+              chain_type: "ethereum",
+              additional_signers: [{ signer_id: "app-signer" }],
+            };
+          },
+          ethereum: () => ({
+            signMessage: async () => {
+              privySignCalls++;
+              return { signature };
+            },
+          }),
+        }),
+      } as never,
+      authorizationKey: "key",
+      signerId: "app-signer",
+    };
+    const factory = createChainFactory(
+      [{ chainId: 4801, rpcUrl: "https://unused.invalid", usdcAddress: worldUsdc }],
+      identity({ id: "w1", address: user, delegated: false }),
+      signing,
+      () => transport,
+      {
+        async reserve(ownerId, operation) {
+          expect(ownerId).toBe("did:privy:owner");
+          admitted.push(operation);
+          if (enabled) throw new Error("Current payment policy denies this operation");
+          return null;
+        },
+      },
+    );
+    // Signing nodes also use the signer in dry-run mode, so the policy must still apply.
+    const provider = await factory.forUser("did:privy:owner", "dry-run", 4801);
+    const signer = provider.signer!;
+    expect(signer.address).toBe(user);
+    await expect(signer.sendTransaction({ to: user, value: 1n })).rejects.toThrow(
+      "Current payment policy",
+    );
+    await expect(
+      signer.writeContract({
+        address: worldUsdc,
+        abi: parseAbi(["function transfer(address,uint256) returns (bool)"]),
+        functionName: "transfer",
+        args: [user, 2n],
+      }),
+    ).rejects.toThrow("Current payment policy");
+    await expect(signer.signMessage("hello")).rejects.toThrow("Current payment policy");
+    await expect(signer.signTransaction({ to: user, value: 1n })).rejects.toThrow(
+      "Current payment policy",
+    );
+    expect(admitted.slice(0, 2)).toEqual([
+      { kind: "transfer", chainId: 4801, asset: "native", recipient: user, amount: "1" },
+      { kind: "transfer", chainId: 4801, asset: "usdc", recipient: user, amount: "2" },
+    ]);
+    expect(privySignCalls).toBe(0);
+    expect(rpcCalls).toEqual([]);
+
+    enabled = false;
+    expect(await signer.signMessage("hello")).toBe(signature);
+    enabled = true;
+    await expect(signer.signMessage("hello again")).rejects.toThrow("Current payment policy");
+    expect(privySignCalls).toBe(1);
+    expect(walletChecks).toBe(1);
+    expect(admitted).toHaveLength(6);
+    expect(rpcCalls).toEqual([]);
   });
 });

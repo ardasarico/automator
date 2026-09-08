@@ -38,6 +38,7 @@ import { createSecretsResolver } from "./secrets/resolver";
 import { createSecretRoutes } from "./secrets/routes";
 import { createSessionRoutes } from "./sessions/routes";
 import { createWalletRoutes } from "./wallet/routes";
+import { createPaymentPolicyRoutes, type PaymentPolicyAccess } from "./wallet/payment-policy";
 import type { WorldVerifier } from "./world/verify";
 
 export interface AppDependencies {
@@ -46,30 +47,21 @@ export interface AppDependencies {
   flows?: FlowStore;
   runs?: RunStore;
   listings?: ListingStore;
-  /** User secrets and their cipher; both or neither, so `{{secrets.*}}` resolves consistently. */
   secrets?: SecretStore;
   secretsCrypto?: SecretsCrypto;
-  /** Mini-app sessions for published flows; needs flows, runs and secrets as well. */
   sessions?: SessionStore;
-  /** Per-user usage counts for the Settings dialog. */
   account?: AccountStore;
   identity?: IdentityProvider;
-  /** The chat model for AI nodes and flow generation; absent without an OpenRouter key. */
   model?: LanguageModel;
-  /** Chains for onchain nodes, per user and mode; absent when the API has no chain provider. */
   chainFactory?: ChainFactory;
-  /** World ID proof verification for mini-app sessions; absent without `WORLD_APP_ID`. */
   world?: WorldVerifier;
-  /** Server-side request and failure logging, off by default so tests stay quiet. */
   log?: boolean;
-  /** Calls per minute on the limited routes; the defaults from `rate-limit.ts` otherwise. */
   rateLimits?: Partial<RateLimits>;
-  /** Save history per flow; recorded by the flow routes and read by the version routes. */
   flowVersions?: FlowVersionStore;
   triggerIssues?: TriggerIssueReader;
+  paymentPolicies?: PaymentPolicyAccess;
 }
 
-/** Everything a client is allowed to learn about a failure. */
 function sanitize(
   code: unknown,
   error: unknown,
@@ -109,6 +101,7 @@ export function createApp({
   world,
   flowVersions,
   triggerIssues,
+  paymentPolicies,
 }: AppDependencies) {
   const limits = { ...defaultRateLimits, ...rateLimits };
   const startedAt = new WeakMap<Request, number>();
@@ -117,131 +110,117 @@ export function createApp({
     ? (ownerId: string) => createSecretsResolver(secretsAccess, ownerId)
     : undefined;
   const sandbox = createQuickJsSandbox();
-  // Trigger-driven runs (webhooks, the scheduler) get the same model, sandbox and secrets as a session run.
   const engineFor = (ownerId: string) => ({ model, sandbox, secrets: secretsFor?.(ownerId) });
 
-  return (
-    new Elysia()
-      .onRequest(({ request, set }) => {
-        // The API only serves per-user or point-in-time data; nothing here is cacheable.
-        set.headers["Cache-Control"] = "no-store";
-        if (log) startedAt.set(request, performance.now());
-      })
-      .onError(({ code, error, path, request, status }) => {
-        const failure = sanitize(code, error);
-        if (log && failure.status >= 500)
-          console.error("API request failed", {
-            method: request.method,
-            path: logPath(path),
-            code,
-            kind: error instanceof Error ? error.constructor.name : typeof error,
-            message: error instanceof Error ? error.message : undefined,
-          });
-        return status(failure.status, failure.body);
-      })
-      .onAfterResponse(({ request, path, set }) => {
-        const start = startedAt.get(request);
-        if (start === undefined) return;
-        startedAt.delete(request);
-        console.log(
-          `${request.method} ${logPath(path)} ${set.status ?? 200} ${Math.round(performance.now() - start)}ms`,
-        );
-      })
-      .get(apiInfoContract.path, (): ApiInfoResponse => ({ name: "Automator API" }), {
-        response: apiInfoContract.response,
-      })
-      .get(livenessContract.path, (): LivenessResponse => ({ status: "ok" }), {
-        response: livenessContract.response,
-      })
-      .get(
-        healthContract.path,
-        async ({ status }) => {
-          // `check` turns every failure into a status, so health reports instead of throwing.
-          const databaseStatus = await database.check();
-          const checkedAt = new Date().toISOString();
-          return databaseStatus === "up"
-            ? status(200, {
-                status: "ok",
-                checks: { api: "up", database: databaseStatus },
-                checkedAt,
-              })
-            : status(503, {
-                status: "error",
-                checks: { api: "up", database: databaseStatus },
-                checkedAt,
-              });
-        },
-        { response: healthContract.response },
-      )
-      .use(users ? createAuthRoutes({ users, identity }) : new Elysia())
-      .use(
-        flows ? createFlowRoutes({ flows, identity, versions: flowVersions, log }) : new Elysia(),
-      )
-      // A flow's save history, readable by its owner; the flow routes above record it.
-      .use(
-        flows && flowVersions
-          ? createFlowVersionRoutes({ flows, versions: flowVersions, identity, log })
-          : new Elysia(),
-      )
-      .use(createTriggerIssueRoutes({ flows, triggerIssues, identity }))
-      // Published flows are readable without a session, for the runtime that hosts them.
-      .use(flows ? createPublicRoutes({ flows }) : new Elysia())
-      // Any signed-in user may run a document statelessly; saved runs need both stores.
-      .use(
-        createRunRoutes({
-          identity,
-          flows,
-          runs,
-          engine: { model },
-          secretsFor,
-          chainFactory,
-          callsPerMinute: limits.runs,
-          log,
-        }),
-      )
-      // Webhook calls carry no session: the flow's token is the credential.
-      .use(
-        flows && runs
-          ? createHookRoutes({
-              flows,
-              runs,
-              engine: engineFor,
-              chainFactory,
-              callsPerMinute: limits.webhooks,
+  return new Elysia()
+    .onRequest(({ request, set }) => {
+      set.headers["Cache-Control"] = "no-store";
+      if (log) startedAt.set(request, performance.now());
+    })
+    .onError(({ code, error, path, request, status }) => {
+      const failure = sanitize(code, error);
+      if (log && failure.status >= 500)
+        console.error("API request failed", {
+          method: request.method,
+          path: logPath(path),
+          code,
+          kind: error instanceof Error ? error.constructor.name : typeof error,
+          message: error instanceof Error ? error.message : undefined,
+        });
+      return status(failure.status, failure.body);
+    })
+    .onAfterResponse(({ request, path, set }) => {
+      const start = startedAt.get(request);
+      if (start === undefined) return;
+      startedAt.delete(request);
+      console.log(
+        `${request.method} ${logPath(path)} ${set.status ?? 200} ${Math.round(performance.now() - start)}ms`,
+      );
+    })
+    .get(apiInfoContract.path, (): ApiInfoResponse => ({ name: "Automator API" }), {
+      response: apiInfoContract.response,
+    })
+    .get(livenessContract.path, (): LivenessResponse => ({ status: "ok" }), {
+      response: livenessContract.response,
+    })
+    .get(
+      healthContract.path,
+      async ({ status }) => {
+        const databaseStatus = await database.check();
+        const checkedAt = new Date().toISOString();
+        return databaseStatus === "up"
+          ? status(200, {
+              status: "ok",
+              checks: { api: "up", database: databaseStatus },
+              checkedAt,
             })
-          : new Elysia(),
-      )
-      .use(
-        secretsAccess
-          ? createSecretRoutes({ identity, ...secretsAccess, callsPerMinute: limits.secrets })
-          : new Elysia(),
-      )
-      // Visitors play a published flow through sessions; the API runs it as the owner.
-      .use(
-        flows && runs && sessions
-          ? createSessionRoutes({
-              flows,
-              runs,
-              sessions,
-              engine: { model, sandbox },
-              secretsFor,
-              chainFactory,
-              callsPerMinute: limits.sessions,
-              identity,
-              world,
-            })
-          : new Elysia(),
-      )
-      .use(createAiRoutes({ identity, model, log, callsPerMinute: limits.ai }))
-      .use(account ? createAccountRoutes({ account, identity }) : new Elysia())
-      // The caller's embedded wallet balances per chain (503 until a chain provider exists)
-      // and the transactions their stored runs sent.
-      .use(createWalletRoutes({ identity, chainFactory, runs }))
-      // Listings publish and fork the caller's flows, so they need both stores and the user profile.
-      .use(
-        listings && flows && users
-          ? createMarketplaceRoutes({ listings, flows, users, identity, log })
-          : new Elysia(),
-      )
-  );
+          : status(503, {
+              status: "error",
+              checks: { api: "up", database: databaseStatus },
+              checkedAt,
+            });
+      },
+      { response: healthContract.response },
+    )
+    .use(users ? createAuthRoutes({ users, identity }) : new Elysia())
+    .use(flows ? createFlowRoutes({ flows, identity, versions: flowVersions, log }) : new Elysia())
+    .use(
+      flows && flowVersions
+        ? createFlowVersionRoutes({ flows, versions: flowVersions, identity, log })
+        : new Elysia(),
+    )
+    .use(createTriggerIssueRoutes({ flows, triggerIssues, identity }))
+    .use(flows ? createPublicRoutes({ flows }) : new Elysia())
+    .use(
+      createRunRoutes({
+        identity,
+        flows,
+        runs,
+        engine: { model },
+        secretsFor,
+        chainFactory,
+        callsPerMinute: limits.runs,
+        log,
+      }),
+    )
+    .use(
+      flows && runs
+        ? createHookRoutes({
+            flows,
+            runs,
+            engine: engineFor,
+            chainFactory,
+            callsPerMinute: limits.webhooks,
+          })
+        : new Elysia(),
+    )
+    .use(
+      secretsAccess
+        ? createSecretRoutes({ identity, ...secretsAccess, callsPerMinute: limits.secrets })
+        : new Elysia(),
+    )
+    .use(
+      flows && runs && sessions
+        ? createSessionRoutes({
+            flows,
+            runs,
+            sessions,
+            engine: { model, sandbox },
+            secretsFor,
+            chainFactory,
+            callsPerMinute: limits.sessions,
+            identity,
+            world,
+          })
+        : new Elysia(),
+    )
+    .use(createAiRoutes({ identity, model, log, callsPerMinute: limits.ai }))
+    .use(account ? createAccountRoutes({ account, identity }) : new Elysia())
+    .use(createWalletRoutes({ identity, chainFactory, runs }))
+    .use(createPaymentPolicyRoutes({ identity, paymentPolicies }))
+    .use(
+      listings && flows && users
+        ? createMarketplaceRoutes({ listings, flows, users, identity, log })
+        : new Elysia(),
+    );
 }

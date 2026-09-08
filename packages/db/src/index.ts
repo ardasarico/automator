@@ -12,6 +12,13 @@ import { createUserStore } from "./users";
 import { createFlowVersionStore } from "./flow-versions";
 import { createTriggerClaimStore } from "./trigger-claims";
 import { createWatchStateStore } from "./watch-state";
+import { createPaymentPolicyStore } from "./payment-policies";
+export {
+  PaymentPolicyOwnerMissingError,
+  PaymentPolicyDeniedError,
+  type PaymentPolicyOperation,
+  type PaymentPolicyStore,
+} from "./payment-policies";
 export {
   type TriggerClaimIssue,
   type TriggerClaimInput,
@@ -50,6 +57,7 @@ export function createDatabase(url: string | undefined) {
     flowVersions: createFlowVersionStore(sql),
     watchState: createWatchStateStore(sql),
     triggerClaims: createTriggerClaimStore(sql),
+    paymentPolicies: createPaymentPolicyStore(sql),
     async migrate() {
       if (sql) await migrate(sql);
     },

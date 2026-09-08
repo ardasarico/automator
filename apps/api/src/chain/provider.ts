@@ -1,4 +1,5 @@
 import { chains, defaultChainId, isChainId } from "@automator/contracts";
+import type { PaymentPolicyStore } from "@automator/db";
 import type { ChainMode, ChainProvider, ChainReader, ChainSigner } from "@automator/flow-engine";
 import type { PrivyClient } from "@privy-io/node";
 import { createViemAccount } from "@privy-io/node/viem";
@@ -15,17 +16,16 @@ import * as knownChains from "viem/chains";
 import type { EmbeddedWallet, IdentityProvider } from "../auth/privy";
 import type { ApiConfig } from "../config";
 import { createEventReader, type EventReader } from "./events";
+import { createPaymentPolicySigner } from "./payment-policy";
 
 export { defaultChainId } from "@automator/contracts";
 
 export interface ChainSettings {
   chainId: number;
   rpcUrl: string;
-  /** The USDC contract on the chain; absent when unknown. */
   usdcAddress?: Address;
 }
 
-/** What the API needs to sign with a user's embedded wallet. */
 export interface SigningSettings {
   privy: PrivyClient;
   /** The authorization key's private key from the Privy dashboard (base64 PKCS8, no PEM headers). */
@@ -34,7 +34,6 @@ export interface SigningSettings {
   signerId: string;
 }
 
-/** One configured chain: its readers and USDC, shared by every run on it. */
 export interface ConfiguredChain {
   chainId: number;
   chainName: string;
@@ -45,28 +44,15 @@ export interface ConfiguredChain {
 }
 
 export interface ChainFactory {
-  /** The chains a run may ask for, registry order. */
   readonly chainIds: readonly number[];
-  /** Whether the API holds a Privy authorization key, so a granted wallet can sign. */
   readonly canSign: boolean;
   chain(chainId: number): ConfiguredChain | undefined;
-  /**
-   * A provider for the user's run on `chainId` (the default chain without one): reads
-   * always work; signing needs the configured signer grant and key. Throws for an unconfigured chain.
-   */
   forUser(userId: string, mode: ChainMode, chainId?: number): Promise<ChainProvider>;
-  /** The user's embedded wallet, the same address on every chain; `null` without one. */
   wallet(userId: string): Promise<(EmbeddedWallet & { signing?: boolean }) | null>;
 }
 
 type ChainEnvironment = Pick<ApiConfig, "chainId" | "chainRpcUrl" | "usdcAddress" | "chainRpcUrls">;
 
-/**
- * The registry chains with the environment's overrides: `CHAIN_RPC_URL_<id>` replaces one
- * chain's RPC, and the legacy `CHAIN_ID` / `CHAIN_RPC_URL` / `USDC_ADDRESS` trio still applies
- * to the chain it names (a per-chain URL wins over it). A `CHAIN_ID` off the registry is
- * reported and its companions ignored, so a flow can never select a chain the API lacks.
- */
 export function resolveChainSettings(
   env: ChainEnvironment,
   warn: (line: string) => void = (line) => console.warn(line),
@@ -103,7 +89,6 @@ export function resolveChain(chainId: number, rpcUrl: string): Chain {
   });
 }
 
-/** The engine's reader over a viem public client. */
 export function createReader(chain: Chain, transport: Transport): ChainReader {
   const client = createPublicClient({ chain, transport });
   return {
@@ -124,7 +109,6 @@ export function createReader(chain: Chain, transport: Transport): ChainReader {
   };
 }
 
-/** The engine's signer over a viem wallet client whose account signs through Privy. */
 export function createSigner(
   chain: Chain,
   transport: Transport,
@@ -149,15 +133,12 @@ export function createSigner(
   };
 }
 
-/**
- * One factory for every configured chain. Privy signers are chain-agnostic: the wallet is
- * the same address everywhere, only the client it signs through changes per chain.
- */
 export function createChainFactory(
   settings: readonly ChainSettings[],
   identity: IdentityProvider | undefined,
   signing: SigningSettings | undefined,
   transportFor: (settings: ChainSettings) => Transport = (chain) => http(chain.rpcUrl),
+  paymentPolicies?: Pick<PaymentPolicyStore, "reserve">,
 ): ChainFactory {
   const configured = new Map<number, ConfiguredChain & { chain: Chain; transport: Transport }>();
   for (const entry of settings) {
@@ -204,7 +185,6 @@ export function createChainFactory(
       };
       let found: Awaited<ReturnType<ChainFactory["wallet"]>>;
       try {
-        // One fresh permission read per provider/run, shared by all of its nodes.
         found = await wallet(userId);
       } catch {
         return {
@@ -230,13 +210,22 @@ export function createChainFactory(
           signerUnavailableReason:
             "Server signing is not enabled for this wallet; enable the configured app signer from the builder",
         };
+      const signer = createSigner(entry.chain, entry.transport, signing, {
+        id: found.id,
+        address: account,
+      });
       return {
         ...base,
         account,
-        signer: createSigner(entry.chain, entry.transport, signing, {
-          id: found.id,
-          address: account,
-        }),
+        signer: paymentPolicies
+          ? createPaymentPolicySigner(
+              signer,
+              userId,
+              entry.chainId,
+              entry.usdcAddress,
+              paymentPolicies,
+            )
+          : signer,
       };
     },
   };

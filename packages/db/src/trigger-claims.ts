@@ -18,11 +18,7 @@ export type TriggerClaimResult =
   | { kind: "claimed"; id: string }
   | { kind: "duplicate" | "blocked" | "stale" };
 
-/**
- * Claims are durable admission records, not expiring leases. A lost worker may have sent
- * an external effect, so an unresolved claim prevents automatic execution of that trigger.
- * Finished occurrences stay in the ledger even when cursor/history persistence fails.
- */
+/* Claims never expire: a lost worker may have sent effects. Unresolved claims block replay. */
 export function createTriggerClaimStore(sql: SQL | undefined) {
   function connection() {
     if (!sql) throw new Error("Database is not configured");
@@ -38,15 +34,16 @@ export function createTriggerClaimStore(sql: SQL | undefined) {
           WHERE id = ${input.flowId} FOR UPDATE`;
         if (!flows[0]?.enabled || flows[0].revision !== input.pollingRevision)
           return { kind: "stale" };
-        const duplicate = await tx<{ id: string }[]>`
-          SELECT id FROM automator_trigger_claims
+        const duplicate = await tx<{ status: string }[]>`
+          SELECT status FROM automator_trigger_claims
           WHERE flow_id = ${input.flowId} AND node_id = ${input.nodeId}
             AND polling_revision = ${input.pollingRevision} AND source = ${input.source}
             AND occurrence_key = ${input.occurrenceKey} LIMIT 1`;
-        if (duplicate.length) return { kind: "duplicate" };
+        if (duplicate.length)
+          return { kind: duplicate[0]!.status === "completed" ? "duplicate" : "blocked" };
         const unresolved = await tx<{ id: string }[]>`
           SELECT id FROM automator_trigger_claims WHERE flow_id = ${input.flowId}
-            AND node_id = ${input.nodeId} AND status IN ('running', 'uncertain') LIMIT 1`;
+            AND status IN ('running', 'uncertain') LIMIT 1`;
         if (unresolved.length) return { kind: "blocked" };
         if (input.scheduleEveryMs !== undefined) {
           const recent = await tx<{ id: string }[]>`
@@ -96,7 +93,6 @@ export function createTriggerClaimStore(sql: SQL | undefined) {
         ORDER BY started_at DESC LIMIT 1`;
       return rows[0]?.at ?? null;
     },
-    /** Retain the complete evidence independently of the ordinary run-history write. */
     async complete(id: string, record: FlowRunRecord, historySaved: boolean): Promise<void> {
       const db = connection();
       await db`UPDATE automator_trigger_claims SET status = 'completed', run_record = ${record}::jsonb,

@@ -101,13 +101,13 @@ test("polling issues preserve uncertain wording, private evidence and mobile set
     expect(requests).toBe(0);
     await page.getByRole("button", { name: "Flow settings", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Flow settings", exact: true });
-    const section = dialog.getByRole("region", { name: "Polling trigger issues" });
+    const section = dialog.getByRole("region", { name: "Automatic run issues" });
     await expect(section).toContainText("3 retained issues.");
     await expect(
       section.getByText("Execution outcome is unresolved.", { exact: false }),
     ).toHaveCount(2);
     await expect(section).toContainText(
-      "The worker may still execute actions; avoid starting a duplicate run.",
+      "Actions may still be running. Further runs from these triggers are paused to prevent duplicates.",
     );
     await expect(section).toContainText("Execution finished, but run history has not been saved.");
     await section.getByText("Retained execution evidence", { exact: true }).click();

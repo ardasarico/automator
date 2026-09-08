@@ -37,9 +37,9 @@ describe.skipIf(!url)("durable trigger admission", () => {
       const first = createTriggerClaimStore(sql);
       const second = createTriggerClaimStore(sql);
       const results = await Promise.all([first.claim(input), second.claim(input)]);
-      expect(results.map((result) => result.kind).sort()).toEqual(["claimed", "duplicate"]);
+      expect(results.map((result) => result.kind).sort()).toEqual(["blocked", "claimed"]);
       const restarted = createTriggerClaimStore(sql);
-      expect(await restarted.claim(input)).toEqual({ kind: "duplicate" });
+      expect(await restarted.claim(input)).toEqual({ kind: "blocked" });
       expect(await restarted.claim({ ...input, occurrenceKey: "next" })).toEqual({
         kind: "blocked",
       });
@@ -86,6 +86,19 @@ describe.skipIf(!url)("durable trigger admission", () => {
         watch: { expectedObservationId: null, value: "10" },
       };
       const claims = createTriggerClaimStore(sql);
+      expect(
+        await claims.claim({ ...input, watch: { expectedObservationId: "stale", value: "10" } }),
+      ).toEqual({ kind: "stale" });
+      await expect(
+        claims.claim({
+          ...input,
+          watch: { expectedObservationId: null, value: null as unknown as string },
+        }),
+      ).rejects.toThrow();
+      const before = await sql<
+        { count: number }[]
+      >`SELECT count(*)::int AS count FROM automator_trigger_claims WHERE flow_id = ${flow.flow.id}`;
+      expect(before[0]?.count).toBe(0);
       expect((await claims.claim(input)).kind).toBe("claimed");
       const states = await sql<{ met: boolean; value: string }[]>`
         SELECT met, value FROM automator_watch_state WHERE flow_id = ${flow.flow.id}`;
@@ -94,7 +107,7 @@ describe.skipIf(!url)("durable trigger admission", () => {
       const count = await sql<{ count: number }[]>`
         SELECT count(*)::int AS count FROM automator_trigger_claims WHERE flow_id = ${flow.flow.id}`;
       expect(count[0]?.count).toBe(1);
-      expect(await claims.claim(input)).toEqual({ kind: "duplicate" });
+      expect(await claims.claim(input)).toEqual({ kind: "blocked" });
     } finally {
       await sql`DELETE FROM automator_users WHERE id = ${ownerId}`;
       await sql.close();

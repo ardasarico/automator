@@ -11,6 +11,7 @@ import { WorkspacePage } from "../../../components/workspace-page";
 import { getWallet, listWalletTransactions, type WalletLookup } from "../../../wallet/server";
 import flowStyles from "../flows/flows.module.css";
 import { CopyAddressButton } from "./copy-address-button";
+import { PaymentLimits } from "./payment-limits";
 import { SigningStatus } from "./signing-status";
 import styles from "./wallet.module.css";
 import { WalletTransactions } from "./wallet-transactions";
@@ -37,6 +38,7 @@ export default async function WalletPage() {
       <WorkspaceBreadcrumbs current="Wallet" />
       <AddressCard address={address} signing={wallet?.signing} />
       <Balances lookups={lookups} />
+      <PaymentLimits />
       <WalletTransactions transactions={transactions} />
     </WorkspacePage>
   );
@@ -146,6 +148,7 @@ function NoWallet() {
           Go to flows
         </Button>
       </section>
+      <PaymentLimits />
     </WorkspacePage>
   );
 }

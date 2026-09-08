@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { FlowDocument } from "@automator/contracts";
 import type { Address, Hex } from "viem";
-import { createStubChain, type ChainReader } from "@automator/flow-engine";
+import { createStubChain, defaultExecutors, type ChainReader } from "@automator/flow-engine";
 import type { EventFilter, EventLog, EventReader } from "./chain/events";
 import type { ChainFactory } from "./chain/provider";
 import { memoryEventCursors, memoryStores, memoryWatchState } from "./runs/test-stores";
@@ -97,7 +97,6 @@ describe("scheduler", () => {
       payload: { at: "2026-09-07T10:00:00.000Z" },
     });
     expect(lines.filter((line) => line.startsWith("Scheduled run"))).toHaveLength(2);
-    // Nothing is due yet on the next tick.
     expect(await scheduler.tick()).toEqual([]);
   });
 
@@ -288,7 +287,6 @@ function transfer(block: number, index: number, value: number): EventLog {
   };
 }
 
-/** A reader with a movable head that answers the logs inside the asked range, in order. */
 function scriptedReader(head: number, logs: EventLog[]) {
   const filters: EventFilter[] = [];
   let failNext: Error | null = null;
@@ -389,7 +387,6 @@ describe("onchain-event polling", () => {
       chainId: 84532,
       lastBlock: BigInt(1000),
     });
-    // At the head there is nothing to ask for.
     await scheduler.tick();
     await scheduler.settle();
     expect(chain.filters).toHaveLength(1);
@@ -558,7 +555,6 @@ describe("onchain-event polling", () => {
 
 const ethUsdFeed = "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1";
 
-/** A flow whose only trigger watches a price or a balance. */
 function watcher(
   id: string,
   type: "trigger.price" | "trigger.balance",
@@ -591,7 +587,6 @@ function watcher(
   };
 }
 
-/** A chain reader whose feed answer can be moved between ticks. */
 function movablePrice(start: string, decimals = 8) {
   const state = { answer: BigInt(start) };
   const reader = {
@@ -609,8 +604,11 @@ describe("watch triggers", () => {
     sources: WatchSources,
     seed: Parameters<typeof memoryWatchState>[0] = [],
   ) {
-    const stores = memoryStores([{ ownerId: "did:privy:alice", flow: document, enabled: true }]);
     const watch = memoryWatchState(seed);
+    const stores = memoryStores(
+      [{ ownerId: "did:privy:alice", flow: document, enabled: true }],
+      watch,
+    );
     const lines: string[] = [];
     const scheduler = createScheduler({
       ...stores,
@@ -803,18 +801,21 @@ describe("watch triggers", () => {
   });
 
   test("wallet setup failures do not consume a crossing before execution can begin", async () => {
-    const stores = memoryStores([
-      {
-        ownerId: "alice",
-        enabled: true,
-        flow: watcher("retry", "trigger.price", {
-          pair: "ETH / USD",
-          comparison: "below",
-          threshold: "4000",
-        }),
-      },
-    ]);
     const watch = memoryWatchState();
+    const stores = memoryStores(
+      [
+        {
+          ownerId: "alice",
+          enabled: true,
+          flow: watcher("retry", "trigger.price", {
+            pair: "ETH / USD",
+            comparison: "below",
+            threshold: "4000",
+          }),
+        },
+      ],
+      watch,
+    );
     const price = movablePrice("390000000000");
     let unavailable = true;
     const chainFactory = {
@@ -838,5 +839,235 @@ describe("watch triggers", () => {
     await scheduler.settle();
     expect(stores.runRecords).toHaveLength(1);
     expect(watch.states.get("retry:w")?.met).toBe(true);
+  });
+});
+
+describe("durable scheduler admission", () => {
+  test("two workers and a restarted scheduler cannot take over an unfinished flow", async () => {
+    const stores = memoryStores([
+      { ownerId: "alice", flow: scheduled("durable", "1m"), enabled: true },
+    ]);
+    let at = new Date("2026-09-08T10:00:00Z");
+    let effects = 0;
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const options = {
+      ...stores,
+      now: () => at,
+      engine: {
+        now: () => at,
+        executors: {
+          ...defaultExecutors,
+          "logic.set-variable": {
+            kind: "step" as const,
+            run: async () => {
+              effects += 1;
+              entered.resolve();
+              await release.promise;
+              return {};
+            },
+          },
+        },
+      },
+    };
+    const first = createScheduler(options);
+    const second = createScheduler(options);
+    await Promise.all([first.tick(), second.tick()]);
+    await entered.promise;
+    await second.settle();
+    expect(effects).toBe(1);
+    at = new Date(at.getTime() + 120_000);
+    const restarted = createScheduler(options);
+    await restarted.tick();
+    await restarted.settle();
+    expect(effects).toBe(1);
+    expect(stores.claims.size).toBe(1);
+    release.resolve();
+    await first.settle();
+    expect(stores.runRecords).toHaveLength(1);
+  });
+
+  test("finished schedules survive a process restart without their ordinary history", async () => {
+    const stores = memoryStores([
+      { ownerId: "alice", flow: scheduled("history-loss", "1m"), enabled: true },
+    ]);
+    let at = new Date("2026-09-08T10:00:00Z");
+    let effects = 0;
+    stores.runs.create = async () => {
+      throw new Error("History unavailable");
+    };
+    const options = {
+      ...stores,
+      now: () => at,
+      engine: {
+        now: () => at,
+        executors: {
+          ...defaultExecutors,
+          "logic.set-variable": {
+            kind: "step" as const,
+            run: async () => {
+              effects += 1;
+              return {};
+            },
+          },
+        },
+      },
+    };
+    const first = createScheduler(options);
+    await first.tick();
+    await first.settle();
+    expect(effects).toBe(1);
+    expect([...stores.claims.values()][0]).toMatchObject({
+      status: "completed",
+      historySaved: false,
+    });
+    const restarted = createScheduler(options);
+    expect(await restarted.tick()).toEqual([]);
+    at = new Date(at.getTime() + 60_000);
+    await restarted.tick();
+    await restarted.settle();
+    expect(effects).toBe(2);
+  });
+
+  test("cursor-write loss and restart do not repeat completed logs in the same block", async () => {
+    const stores = memoryStores([
+      { ownerId: "alice", flow: watching("event-restart"), enabled: true },
+    ]);
+    const cursors = memoryEventCursors([
+      { flowId: "event-restart", nodeId: "ev", chainId: 84532, lastBlock: BigInt(99) },
+    ]);
+    const reader = scriptedReader(100, [transfer(100, 1, 1), transfer(100, 0, 2)]);
+    const save = cursors.store.save;
+    cursors.store.save = async () => {
+      throw new Error("Cursor unavailable");
+    };
+    let effects = 0;
+    const options = {
+      ...stores,
+      eventCursors: cursors.store,
+      eventReaderFor: () => reader.reader,
+      engine: {
+        executors: {
+          ...defaultExecutors,
+          "logic.set-variable": {
+            kind: "step" as const,
+            run: async () => {
+              effects += 1;
+              return {};
+            },
+          },
+        },
+      },
+    };
+    const first = createScheduler(options);
+    await first.tick();
+    await first.settle();
+    expect(effects).toBe(2);
+    expect(
+      stores.runRecords.map(
+        (record) => (record.run.trigger.payload as { logIndex: number }).logIndex,
+      ),
+    ).toEqual([0, 1]);
+    expect(cursors.cursors.get("event-restart:ev")?.lastBlock).toBe(BigInt(99));
+    cursors.store.save = save;
+    const restarted = createScheduler(options);
+    await restarted.tick();
+    await restarted.settle();
+    expect(effects).toBe(2);
+    expect(cursors.cursors.get("event-restart:ev")?.lastBlock).toBe(BigInt(100));
+  });
+
+  test.each([1, 2])(
+    "an unresolved event among %d logs neither advances its block nor permits another trigger after restart",
+    async (logCount) => {
+      const flow = watching("unresolved-event");
+      flow.nodes.push(scheduled("unused", "1m").nodes[0]!);
+      const stores = memoryStores([{ ownerId: "alice", flow, enabled: true }]);
+      const cursors = memoryEventCursors([
+        { flowId: flow.id, nodeId: "ev", chainId: 84532, lastBlock: BigInt(99) },
+      ]);
+      const reader = scriptedReader(
+        100,
+        [transfer(100, 0, 1), transfer(100, 1, 2)].slice(0, logCount),
+      );
+      const record = stores.flowRecords.get(flow.id)!;
+      record.flow = { ...flow, nodes: flow.nodes.filter((node) => node.id !== "s") };
+      stores.triggerClaims.complete = async () => {
+        throw new Error("Claim completion unavailable");
+      };
+      let effects = 0;
+      const lines: string[] = [];
+      const options = {
+        ...stores,
+        eventCursors: cursors.store,
+        eventReaderFor: () => reader.reader,
+        log: (line: string) => lines.push(line),
+        engine: {
+          executors: {
+            ...defaultExecutors,
+            "logic.set-variable": {
+              kind: "step" as const,
+              run: async () => {
+                effects += 1;
+                return {};
+              },
+            },
+          },
+        },
+      };
+      const first = createScheduler(options);
+      await first.tick();
+      await first.settle();
+      expect(effects).toBe(1);
+      expect(cursors.cursors.get(`${flow.id}:ev`)?.lastBlock).toBe(BigInt(99));
+      record.flow = flow;
+      const restarted = createScheduler(options);
+      await restarted.tick();
+      await restarted.settle();
+      expect(effects).toBe(1);
+      expect(stores.claims.size).toBe(1);
+      expect(stores.runRecords).toHaveLength(1);
+      expect(cursors.cursors.get(`${flow.id}:ev`)?.lastBlock).toBe(BigInt(99));
+      expect(lines.some((line) => line.includes("scheduled run paused"))).toBe(true);
+    },
+  );
+
+  test("admission database failures start no effects and do not consume a watch crossing", async () => {
+    const watch = memoryWatchState();
+    const document = watcher("claim-outage", "trigger.price", {
+      pair: "ETH / USD",
+      comparison: "below",
+      threshold: "4000",
+    });
+    document.nodes.push(scheduled("unused", "1m").nodes[0]!);
+    const stores = memoryStores([{ ownerId: "alice", flow: document, enabled: true }], watch);
+    stores.triggerClaims.claim = async () => {
+      throw new Error("Admission unavailable");
+    };
+    let effects = 0;
+    const price = movablePrice("390000000000");
+    const scheduler = createScheduler({
+      ...stores,
+      watchState: watch.store,
+      watchSources: { chainReaderFor: () => price.reader },
+      engine: {
+        executors: {
+          ...defaultExecutors,
+          "logic.set-variable": {
+            kind: "step",
+            run: async () => {
+              effects += 1;
+              return {};
+            },
+          },
+        },
+      },
+    });
+    await scheduler.tick();
+    await scheduler.settle();
+    expect(effects).toBe(0);
+    expect(stores.claims.size).toBe(0);
+    expect(stores.runRecords).toHaveLength(0);
+    expect(watch.states.size).toBe(0);
   });
 });

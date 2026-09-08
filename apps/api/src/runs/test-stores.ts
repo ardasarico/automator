@@ -18,7 +18,6 @@ import {
   type TriggerClaimInput,
 } from "@automator/db";
 
-/** An in-memory cursor store keyed like the SQL one, for scheduler tests. */
 export function memoryEventCursors(seed: EventCursor[] = []) {
   const cursors = new Map<string, EventCursor>();
   for (const cursor of seed) cursors.set(`${cursor.flowId}:${cursor.nodeId}`, cursor);
@@ -32,7 +31,6 @@ export function memoryEventCursors(seed: EventCursor[] = []) {
   return { store, cursors };
 }
 
-/** An in-memory watch state store keyed like the SQL one, for scheduler tests. */
 export function memoryWatchState(
   seed: Array<Omit<WatchState, "observationId"> & { observationId?: string }> = [],
 ) {
@@ -54,7 +52,6 @@ export function memoryWatchState(
   return { store, states };
 }
 
-/** In-memory flow and run stores with the same owner scoping as the SQL ones, for route tests. */
 export function memoryStores(
   seed: { ownerId: string; flow: FlowDocument; enabled?: boolean }[],
   watch?: ReturnType<typeof memoryWatchState>,
@@ -124,7 +121,6 @@ export function memoryStores(
         .sort((a, b) => Date.parse(b.run.startedAt) - Date.parse(a.run.startedAt))[0];
       return match ? new Date(match.run.startedAt) : null;
     },
-    // Same paging semantics as the SQL store; the cursor is simply the last run's id.
     list: async (ownerId, options = {}) => {
       const limit = options.limit ?? runListDefaultLimit;
       const ordered = runRecords
@@ -192,16 +188,19 @@ export function memoryStores(
       const entries = [...claims.values()].filter(
         (entry) => entry.flowId === input.flowId && entry.nodeId === input.nodeId,
       );
+      const duplicate = entries.find(
+        (entry) =>
+          entry.pollingRevision === input.pollingRevision &&
+          entry.source === input.source &&
+          entry.occurrenceKey === input.occurrenceKey,
+      );
+      if (duplicate) return { kind: duplicate.status === "completed" ? "duplicate" : "blocked" };
       if (
-        entries.some(
-          (entry) =>
-            entry.pollingRevision === input.pollingRevision &&
-            entry.source === input.source &&
-            entry.occurrenceKey === input.occurrenceKey,
+        [...claims.values()].some(
+          (entry) => entry.flowId === input.flowId && entry.status !== "completed",
         )
       )
-        return { kind: "duplicate" };
-      if (entries.some((entry) => entry.status !== "completed")) return { kind: "blocked" };
+        return { kind: "blocked" };
       if (
         input.scheduleEveryMs !== undefined &&
         entries.some(
