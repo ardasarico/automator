@@ -98,6 +98,18 @@ describe("AI executors", () => {
     });
   });
 
+  test("the classification named label cannot overwrite the label output", async () => {
+    const { model } = scriptedModel([text('{"label":"label"}')]);
+    const run = await runFlow(
+      flow(
+        [node("t", "trigger.manual"), node("c", "ai.classify", { labels: ["label"] })],
+        [edge("t", "run", "c", "text")],
+      ),
+      { model, trigger: { payload: "Input content" } },
+    );
+    expect(run.nodes[1]?.outputs).toEqual({ label: "label" });
+  });
+
   test("extract checks the answer against the schema, tolerating a code fence", async () => {
     const schema = JSON.stringify({
       type: "object",
@@ -286,5 +298,95 @@ describe("AI agent", () => {
       status: "failed",
       error: "AI agent stopped after 2 steps without a final answer",
     });
+    expect(run.nodes[1]?.outputs?.steps).toHaveLength(2);
+  });
+
+  test.each(["model failure", "cancellation"])(
+    "retains completed tool deliveries after %s without firing downstream edges",
+    async (failure) => {
+      const controller = new AbortController();
+      let turns = 0;
+      let deliveries = 0;
+      const run = await runFlow(
+        flow(
+          [
+            node("t", "trigger.manual"),
+            node("a", "ai.agent", {
+              task: "Post",
+              tools: ["discord_message"],
+              discordWebhookUrl: webhook,
+            }),
+            node("after", "logic.set-variable", { name: "ran", value: "yes" }),
+          ],
+          [edge("t", "run", "a", "prompt"), edge("a", "steps", "after", "value")],
+        ),
+        {
+          signal: controller.signal,
+          model: async () => {
+            turns += 1;
+            if (turns === 1)
+              return {
+                content: null,
+                toolCalls: [
+                  { id: "c1", name: "discord_message", arguments: { content: "Sent once" } },
+                ],
+              };
+            if (failure === "cancellation") controller.abort();
+            throw new Error("Model unavailable");
+          },
+          fetch: (async () => {
+            deliveries += 1;
+            return Response.json({ id: "m1" });
+          }) as unknown as typeof fetch,
+        },
+      );
+      expect(run.status).toBe("failed");
+      expect(deliveries).toBe(1);
+      expect(run.nodes[1]?.outputs?.steps).toMatchObject([
+        { tool: "discord_message", result: "Posted message m1" },
+      ]);
+      expect(run.nodes[2]?.status).toBe("skipped");
+    },
+  );
+
+  test("does not follow a redirect outside the configured host allowlist", async () => {
+    const { model } = scriptedModel([
+      {
+        content: null,
+        toolCalls: [
+          { id: "c", name: "http_get", arguments: { url: "https://api.example.com/redirect" } },
+        ],
+      },
+      text("Could not fetch the redirect."),
+    ]);
+    const fetched: RequestInit[] = [];
+    const run = await runFlow(
+      flow(
+        [
+          node("t", "trigger.manual"),
+          node("a", "ai.agent", {
+            task: "Fetch a page",
+            tools: ["http_get"],
+            allowedHosts: ["api.example.com"],
+          }),
+        ],
+        [edge("t", "run", "a", "prompt")],
+      ),
+      {
+        model,
+        fetch: (async (_input: unknown, init: RequestInit) => {
+          fetched.push(init);
+          return new Response(null, {
+            status: 302,
+            headers: { Location: "https://outside.example/private" },
+          });
+        }) as typeof fetch,
+      },
+    );
+    expect(fetched).toHaveLength(1);
+    expect(fetched[0]?.redirect).toBe("manual");
+    expect(run.nodes[1]?.outputs?.steps).toMatchObject([
+      { tool: "http_get", error: true, result: "HTTP redirects are not allowed" },
+    ]);
   });
 });

@@ -12,6 +12,10 @@ import {
   type EventCursorStore,
   type FlowStore,
   type RunStore,
+  type WatchState,
+  type WatchStateStore,
+  type TriggerClaimStore,
+  type TriggerClaimInput,
 } from "@automator/db";
 
 /** An in-memory cursor store keyed like the SQL one, for scheduler tests. */
@@ -22,14 +26,41 @@ export function memoryEventCursors(seed: EventCursor[] = []) {
     find: async (flowId, nodeId) => cursors.get(`${flowId}:${nodeId}`) ?? null,
     save: async (cursor) => {
       cursors.set(`${cursor.flowId}:${cursor.nodeId}`, { ...cursor });
+      return true;
     },
   };
   return { store, cursors };
 }
 
+/** An in-memory watch state store keyed like the SQL one, for scheduler tests. */
+export function memoryWatchState(
+  seed: Array<Omit<WatchState, "observationId"> & { observationId?: string }> = [],
+) {
+  const states = new Map<string, WatchState>();
+  for (const state of seed)
+    states.set(`${state.flowId}:${state.nodeId}`, {
+      ...state,
+      observationId: state.observationId ?? crypto.randomUUID(),
+    });
+  const store: WatchStateStore = {
+    find: async (flowId, nodeId) => states.get(`${flowId}:${nodeId}`) ?? null,
+    save: async (state, _revision, expectedObservationId) => {
+      const key = `${state.flowId}:${state.nodeId}`;
+      if ((states.get(key)?.observationId ?? null) !== expectedObservationId) return false;
+      states.set(key, { ...state, observationId: crypto.randomUUID() });
+      return true;
+    },
+  };
+  return { store, states };
+}
+
 /** In-memory flow and run stores with the same owner scoping as the SQL ones, for route tests. */
-export function memoryStores(seed: { ownerId: string; flow: FlowDocument; enabled?: boolean }[]) {
+export function memoryStores(
+  seed: { ownerId: string; flow: FlowDocument; enabled?: boolean }[],
+  watch?: ReturnType<typeof memoryWatchState>,
+) {
   const timestamp = "2026-09-07T10:00:00.000Z";
+  const pollingRevisions = new Map(seed.map((entry) => [entry.flow.id, "0"]));
   const flowRecords = new Map<string, FlowRecord & { ownerId: string }>();
   for (const entry of seed)
     flowRecords.set(entry.flow.id, {
@@ -50,17 +81,28 @@ export function memoryStores(seed: { ownerId: string; flow: FlowDocument; enable
     findForWebhook: async (id: string, token: string) => {
       const record = flowRecords.get(id);
       return record && record.enabled && record.webhookToken === token
-        ? { ownerId: record.ownerId, record: strip(record) }
+        ? {
+            ownerId: record.ownerId,
+            record: strip(record),
+            pollingRevision: pollingRevisions.get(record.flow.id)!,
+          }
         : null;
     },
     listEnabled: async () =>
       [...flowRecords.values()]
         .filter((record) => record.enabled)
-        .map((record) => ({ ownerId: record.ownerId, record: strip(record) })),
+        .map((record) => ({
+          ownerId: record.ownerId,
+          record: strip(record),
+          pollingRevision: pollingRevisions.get(record.flow.id)!,
+        })),
+    isCurrentPoll: async (id: string, revision: string) =>
+      Boolean(flowRecords.get(id)?.enabled && pollingRevisions.get(id) === revision),
     setEnabled: async (ownerId: string, id: string, enabled: boolean) => {
       const record = flowRecords.get(id);
       if (!record || record.ownerId !== ownerId) return null;
       const next = { ...record, enabled };
+      if (record.enabled !== enabled) pollingRevisions.set(id, crypto.randomUUID());
       flowRecords.set(id, next);
       return strip(next);
     },
@@ -71,9 +113,14 @@ export function memoryStores(seed: { ownerId: string; flow: FlowDocument; enable
       runRecords.push(record);
       return { run, flowName: flow.name, source, document: flow };
     },
-    latestStartedAt: async (flowId, source) => {
+    latestStartedAt: async (flowId, source, triggerNodeId) => {
       const match = runRecords
-        .filter((r) => r.run.flowId === flowId && r.source === source)
+        .filter(
+          (r) =>
+            r.run.flowId === flowId &&
+            r.source === source &&
+            (triggerNodeId === undefined || r.run.trigger?.nodeId === triggerNodeId),
+        )
         .sort((a, b) => Date.parse(b.run.startedAt) - Date.parse(a.run.startedAt))[0];
       return match ? new Date(match.run.startedAt) : null;
     },
@@ -126,5 +173,79 @@ export function memoryStores(seed: { ownerId: string; flow: FlowDocument; enable
         .slice(0, limit)
         .map(({ run, flowName, source, document }) => ({ run, flowName, source, document })),
   };
-  return { flows, runs, runRecords, flowRecords };
+  const claims = new Map<
+    string,
+    TriggerClaimInput & {
+      id: string;
+      status: string;
+      record?: FlowRunRecord;
+      historySaved?: boolean;
+    }
+  >();
+  const triggerClaims: TriggerClaimStore = {
+    claim: async (input) => {
+      if (
+        !flowRecords.get(input.flowId)?.enabled ||
+        pollingRevisions.get(input.flowId) !== input.pollingRevision
+      )
+        return { kind: "stale" };
+      const entries = [...claims.values()].filter(
+        (entry) => entry.flowId === input.flowId && entry.nodeId === input.nodeId,
+      );
+      if (
+        entries.some(
+          (entry) =>
+            entry.pollingRevision === input.pollingRevision &&
+            entry.source === input.source &&
+            entry.occurrenceKey === input.occurrenceKey,
+        )
+      )
+        return { kind: "duplicate" };
+      if (entries.some((entry) => entry.status !== "completed")) return { kind: "blocked" };
+      if (
+        input.scheduleEveryMs !== undefined &&
+        entries.some(
+          (entry) =>
+            entry.source === "schedule" &&
+            input.at.getTime() - entry.at.getTime() < input.scheduleEveryMs!,
+        )
+      )
+        return { kind: "duplicate" };
+      if (input.watch) {
+        if (!watch)
+          throw new Error("Watch test fixture needs its watch state bound to memoryStores");
+        const key = `${input.flowId}:${input.nodeId}`;
+        const previous = watch.states.get(key);
+        if ((previous?.observationId ?? null) !== input.watch.expectedObservationId)
+          return { kind: "stale" };
+        if (previous?.met) return { kind: "duplicate" };
+        watch.states.set(key, {
+          flowId: input.flowId,
+          nodeId: input.nodeId,
+          met: true,
+          value: input.watch.value,
+          observationId: crypto.randomUUID(),
+        });
+      }
+      const id = crypto.randomUUID();
+      claims.set(id, { ...input, id, status: "running" });
+      return { kind: "claimed", id };
+    },
+    listIssues: async () => [],
+    latestStartedAt: async (flowId, nodeId) =>
+      [...claims.values()]
+        .filter(
+          (entry) =>
+            entry.flowId === flowId && entry.nodeId === nodeId && entry.source === "schedule",
+        )
+        .sort((a, b) => b.at.getTime() - a.at.getTime())[0]?.at ?? null,
+    complete: async (id, record, historySaved) => {
+      const claim = claims.get(id)!;
+      Object.assign(claim, { status: "completed", record, historySaved });
+    },
+    markUncertain: async (id) => {
+      claims.get(id)!.status = "uncertain";
+    },
+  };
+  return { flows, runs, triggerClaims, claims, runRecords, flowRecords, pollingRevisions };
 }

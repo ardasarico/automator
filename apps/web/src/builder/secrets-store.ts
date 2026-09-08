@@ -12,15 +12,17 @@ import { createStore, useStore } from "zustand";
 
 /**
  * The signed-in user's secret names, shared by the Variables panel and the node settings
- * picker. Loaded once per page through the same-origin proxy; mutations update the list in
- * place. Values never reach the browser after they are typed.
+ * picker. Loaded per account through the same-origin proxy; SessionProvider clears the
+ * list and invalidates captured actions when accounts change. Values are never returned.
  */
 export type SecretsStatus = "idle" | "loading" | "ready" | "failed";
 
 type SecretsState = {
+  accountId: string | null;
   status: SecretsStatus;
   secrets: SecretSummary[];
   error: string | null;
+  setAccount(accountId: string | null): void;
   load(token: string | null): Promise<void>;
   save(token: string | null, name: string, value: string): Promise<void>;
   remove(token: string | null, name: string): Promise<void>;
@@ -54,49 +56,77 @@ async function call(token: string | null, path: string, init: RequestInit = {}) 
   return { status: response.status, data };
 }
 
-export const secretsStore = createStore<SecretsState>((set, get) => ({
-  status: "idle",
-  secrets: [],
-  error: null,
+export function createSecretsStore() {
+  return createStore<SecretsState>((set, get) => {
+    let generation = 0;
+    function actions(owner: number): Pick<SecretsState, "load" | "save" | "remove"> {
+      const isCurrent = () => owner === generation && get().accountId !== null;
+      const assertCurrent = () => {
+        if (!isCurrent()) throw new SecretRequestError("unauthorized");
+      };
+      return {
+        async load(token) {
+          if (!isCurrent() || get().status === "loading") return;
+          set({ status: "loading", error: null });
+          try {
+            const { status, data } = await call(token, listSecretsContract.path);
+            const result = parseResponse(listSecretsContract, status, data);
+            if (result.status !== 200) throw new SecretRequestError(result.data.error);
+            if (isCurrent()) set({ status: "ready", secrets: result.data.secrets });
+          } catch (caught) {
+            if (!isCurrent()) return;
+            const code = caught instanceof SecretRequestError ? caught.code : "unavailable";
+            set({ status: "failed", error: messages[code] ?? messages.unavailable! });
+          }
+        },
 
-  async load(token) {
-    if (get().status === "loading") return;
-    set({ status: "loading", error: null });
-    try {
-      const { status, data } = await call(token, listSecretsContract.path);
-      const result = parseResponse(listSecretsContract, status, data);
-      if (result.status !== 200) throw new SecretRequestError(result.data.error);
-      set({ status: "ready", secrets: result.data.secrets });
-    } catch (caught) {
-      const code = caught instanceof SecretRequestError ? caught.code : "unavailable";
-      set({ status: "failed", error: messages[code] ?? messages.unavailable! });
+        async save(token, name, value) {
+          assertCurrent();
+          const { status, data } = await call(token, `/secrets/${encodeURIComponent(name)}`, {
+            method: putSecretContract.method,
+            body: JSON.stringify({ value }),
+          });
+          assertCurrent();
+          const result = parseResponse(putSecretContract, status, data);
+          if (result.status !== 200) throw new SecretRequestError(result.data.error);
+          const saved = result.data;
+          set((state) => ({
+            secrets: [...state.secrets.filter((s) => s.name !== saved.name), saved].sort((a, b) =>
+              a.name.localeCompare(b.name),
+            ),
+          }));
+        },
+
+        async remove(token, name) {
+          assertCurrent();
+          const { status, data } = await call(token, `/secrets/${encodeURIComponent(name)}`, {
+            method: deleteSecretContract.method,
+          });
+          assertCurrent();
+          const result = parseResponse(deleteSecretContract, status, data);
+          if (result.status !== 200) throw new SecretRequestError(result.data.error);
+          set((state) => ({ secrets: state.secrets.filter((s) => s.name !== name) }));
+        },
+      };
     }
-  },
 
-  async save(token, name, value) {
-    const { status, data } = await call(token, `/secrets/${encodeURIComponent(name)}`, {
-      method: putSecretContract.method,
-      body: JSON.stringify({ value }),
-    });
-    const result = parseResponse(putSecretContract, status, data);
-    if (result.status !== 200) throw new SecretRequestError(result.data.error);
-    const saved = result.data;
-    set((state) => ({
-      secrets: [...state.secrets.filter((s) => s.name !== saved.name), saved].sort((a, b) =>
-        a.name.localeCompare(b.name),
-      ),
-    }));
-  },
+    return {
+      accountId: null,
+      status: "idle",
+      secrets: [],
+      error: null,
+      setAccount(accountId) {
+        if (get().accountId === accountId) return;
+        generation++;
+        // Rotate the actions too: a consumer may still be awaiting the old account's token.
+        set({ accountId, status: "idle", secrets: [], error: null, ...actions(generation) });
+      },
+      ...actions(generation),
+    };
+  });
+}
 
-  async remove(token, name) {
-    const { status, data } = await call(token, `/secrets/${encodeURIComponent(name)}`, {
-      method: deleteSecretContract.method,
-    });
-    const result = parseResponse(deleteSecretContract, status, data);
-    if (result.status !== 200) throw new SecretRequestError(result.data.error);
-    set((state) => ({ secrets: state.secrets.filter((s) => s.name !== name) }));
-  },
-}));
+export const secretsStore = createSecretsStore();
 
 export function useSecrets<T>(selector: (state: SecretsState) => T): T {
   return useStore(secretsStore, selector);

@@ -47,6 +47,39 @@ const toolDefinitions: Record<AgentTool, ToolDefinition> = {
 };
 
 const maxBodyChars = 4000;
+const maxToolCalls = 100;
+
+/** Read only a bounded prefix, cancelling even a streaming response once the budget is used. */
+async function responsePrefix(response: Response, signal?: AbortSignal): Promise<string> {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const abort = () => {
+    void reader.cancel().catch(() => {});
+  };
+  signal?.addEventListener("abort", abort, { once: true });
+  const decoder = new TextDecoder();
+  let text = "";
+  let remainingBytes = maxBodyChars * 4;
+  try {
+    signal?.throwIfAborted();
+    while (text.length < maxBodyChars && remainingBytes > 0) {
+      const { done, value } = await reader.read();
+      signal?.throwIfAborted();
+      if (done) {
+        text += decoder.decode();
+        break;
+      }
+      const prefix = value.subarray(0, remainingBytes);
+      remainingBytes -= prefix.byteLength;
+      text += decoder.decode(prefix, { stream: true });
+    }
+    return text.slice(0, maxBodyChars);
+  } finally {
+    signal?.removeEventListener("abort", abort);
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
 
 function hostAllowed(url: URL, allowedHosts: readonly string[]): boolean {
   return allowedHosts.some((allowed) => {
@@ -77,6 +110,7 @@ export async function runAgent(context: ExecutionContext): Promise<ExecutionOutp
   const steps: AgentStep[] = [];
 
   const execute = async (name: string, args: Record<string, unknown>): Promise<string> => {
+    context.signal?.throwIfAborted();
     if (!allowed.has(name as AgentTool))
       throw new NodeExecutionError(`Tool "${name}" is not allowed`);
     switch (name as AgentTool) {
@@ -84,8 +118,10 @@ export async function runAgent(context: ExecutionContext): Promise<ExecutionOutp
         const url = new URL(argument(args, "url"));
         if (url.protocol !== "https:" || !hostAllowed(url, config.allowedHosts))
           throw new NodeExecutionError(`Host "${url.hostname}" is not allowed`);
-        const response = await context.fetch(url, { method: "GET" });
-        const body = (await response.text()).slice(0, maxBodyChars);
+        const response = await context.fetch(url, { method: "GET", redirect: "manual" });
+        if (response.status >= 300 && response.status < 400)
+          throw new NodeExecutionError("HTTP redirects are not allowed");
+        const body = await responsePrefix(response, context.signal);
         return `HTTP ${response.status}\n${body}`;
       }
       case "set_variable": {
@@ -105,8 +141,12 @@ export async function runAgent(context: ExecutionContext): Promise<ExecutionOutp
   };
 
   for (let step = 1; step <= config.maxSteps; step += 1) {
+    context.signal?.throwIfAborted();
     const answer = await model({ messages, ...(tools.length > 0 ? { tools } : {}) });
+    context.signal?.throwIfAborted();
     if (answer.toolCalls.length === 0) return { result: answer.content ?? "", steps };
+    if (answer.toolCalls.length > maxToolCalls - steps.length)
+      throw new NodeExecutionError(`AI agent exceeded its limit of ${maxToolCalls} tool calls`);
     messages.push({
       role: "assistant",
       content: answer.content ?? "",
@@ -118,6 +158,7 @@ export async function runAgent(context: ExecutionContext): Promise<ExecutionOutp
       try {
         result = await execute(call.name, call.arguments);
       } catch (error) {
+        if (context.signal?.aborted) throw error;
         failed = true;
         result = error instanceof Error ? error.message : String(error);
       }
@@ -128,6 +169,7 @@ export async function runAgent(context: ExecutionContext): Promise<ExecutionOutp
         result,
         ...(failed ? { error: true as const } : {}),
       });
+      context.checkpoint?.({ steps: [...steps] });
       messages.push({ role: "tool", content: result, toolCallId: call.id });
     }
   }

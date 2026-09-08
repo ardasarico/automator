@@ -104,6 +104,7 @@ function FormFieldControl({
       type={field.type}
       size="lg"
       inputMode={field.type === "number" ? "decimal" : undefined}
+      step={field.type === "number" ? "any" : undefined}
       onChange={(event) => onChange(event.target.value)}
     />
   );
@@ -131,10 +132,11 @@ function FormScreen({ node, onContinue, titleRef }: ScreenViewProps) {
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
-          const data: Record<string, string> = {};
-          for (const [key, value] of new FormData(event.currentTarget)) {
-            if (typeof value === "string") data[key] = value;
-          }
+          const data = Object.fromEntries(
+            Array.from(new FormData(event.currentTarget)).filter(
+              (entry): entry is [string, string] => typeof entry[1] === "string",
+            ),
+          );
           onContinue(ports.primary, data);
         }}
       >

@@ -359,9 +359,15 @@ export async function askForFlow(
       const parsed = parseJsonAnswer(answer.content);
       const message = readMessage(parsed);
       if (message !== undefined) return { kind: "message", text: message };
+      const tests = pinnedTests ?? (isRecord(parsed) ? parsed.tests : undefined);
+      if (
+        Array.isArray(tests) &&
+        tests.length &&
+        Value.Check(Type.Array(aiFlowTestSchema, { maxItems: 6 }), tests)
+      )
+        pinnedTests = structuredClone(tests);
       const draft = readDraft(parsed);
       const document = materialize(draft);
-      const tests = pinnedTests ?? (isRecord(parsed) ? parsed.tests : undefined);
       if (
         document.nodes.some((n) => n.type === "trigger.miniapp-open") &&
         document.nodes.some((n) => n.type === "screen.form")
@@ -372,12 +378,6 @@ export async function askForFlow(
             `This mini-app needs at least ${minimum} behavioral test scenarios with form answers and expected results.`,
           );
       }
-      if (
-        Array.isArray(tests) &&
-        tests.length &&
-        Value.Check(Type.Array(aiFlowTestSchema, { maxItems: 6 }), tests)
-      )
-        pinnedTests = structuredClone(tests);
       let verification;
       try {
         verification = await verifyFlow(document, tests);

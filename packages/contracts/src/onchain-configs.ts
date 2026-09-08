@@ -57,6 +57,13 @@ export const usdcTransferConfigSchema = Type.Object({
 });
 export type UsdcTransferConfig = Static<typeof usdcTransferConfigSchema>;
 
+/** Payment has a payer input; the owner configures the destination explicitly. */
+export const usdcPaymentConfigSchema = Type.Object({
+  ...usdcTransferConfigSchema.properties,
+  to: text(),
+});
+export type UsdcPaymentConfig = Static<typeof usdcPaymentConfigSchema>;
+
 export const usdcBalanceConfigSchema = Type.Object({
   /** Blank reads the user's own wallet. */
   address: text(),
@@ -119,7 +126,7 @@ export const onchainConfigSchemas = {
   "onchain.transfer-token": transferTokenConfigSchema,
   "onchain.sign-message": signMessageConfigSchema,
   "privy.sign-transaction": signTransactionConfigSchema,
-  "usdc.payment": usdcTransferConfigSchema,
+  "usdc.payment": usdcPaymentConfigSchema,
   "usdc.payout": usdcTransferConfigSchema,
   "usdc.balance": usdcBalanceConfigSchema,
 } as const;

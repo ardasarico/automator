@@ -21,11 +21,26 @@ test("a row links its name to the run page and its icon button to the canvas", (
   expect(html).toContain('aria-label="Open on canvas"');
   expect(html).toContain("Webhook");
   expect(html).toContain("1.5s");
-  expect(html).not.toContain("Load older runs");
+  expect(html).not.toContain("View older runs");
 });
 
 test("the next page link appears only when the API minted a cursor", () => {
   const html = renderToString(<RunHistory runs={[run]} nextHref="/runs?flow=flow-1&cursor=abc" />);
-  expect(html).toContain("Load older runs");
+  expect(html).toContain("View older runs");
   expect(html).toContain('href="/runs?flow=flow-1&amp;cursor=abc"');
+});
+
+test("older pages provide a way to the latest runs without clearing the flow filter", () => {
+  const html = renderToString(<RunHistory runs={[run]} latestHref="/runs?flow=flow-1" />);
+  expect(html).toContain('aria-label="Run history pages"');
+  expect(html).toContain('href="/runs?flow=flow-1"');
+  expect(html).toContain("View latest runs");
+});
+
+test("an empty cursor page does not claim the flow never ran", () => {
+  const html = renderToString(<RunHistory runs={[]} filtered latestHref="/runs?flow=flow-1" />);
+  expect(html).toContain("No older runs");
+  expect(html).toContain('href="/runs?flow=flow-1"');
+  expect(html).toContain("View latest runs");
+  expect(html).not.toContain("No runs for this flow yet");
 });

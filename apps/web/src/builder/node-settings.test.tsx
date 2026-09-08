@@ -2,7 +2,7 @@
 import type { FlowDocument } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { act } from "react";
+import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 GlobalRegistrator.register();
@@ -146,5 +146,57 @@ describe("NodeSettings", () => {
     await type('{"openedAt": "now"}');
     expect(container.textContent).not.toContain("Invalid JSON");
     expect(textarea!.getAttribute("aria-invalid")).toBeNull();
+  });
+
+  test("incomplete numeric settings stay editable and string lists follow undo", async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    const flow: FlowDocument = {
+      ...document,
+      nodes: [
+        { id: "wait", type: "logic.wait", label: "Wait", position: { x: 0, y: 0 }, config: {} },
+        {
+          id: "ai",
+          type: "ai.classify",
+          label: "Classify",
+          position: { x: 0, y: 0 },
+          config: { labels: ["Original"] },
+        },
+      ],
+      edges: [],
+    };
+    let change: (id: string, patch: Record<string, unknown>) => void;
+    let undo: () => void;
+    function Live() {
+      const nodes = useBuilderStore((state) => state.nodes);
+      const setNodeConfig = useBuilderStore((state) => state.setNodeConfig);
+      const undoChange = useBuilderStore((state) => state.undo);
+      useEffect(() => {
+        change = setNodeConfig;
+        undo = undoChange;
+      });
+      return nodes.map((node) => <NodeSettings key={node.id} node={node} onBack={() => {}} />);
+    }
+    container = window.document.createElement("div");
+    window.document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <BuilderStoreProvider document={flow}>
+          <Live />
+        </BuilderStoreProvider>,
+      );
+    });
+    await act(async () => change!("wait", { seconds: "" }));
+    expect(container.querySelector<HTMLInputElement>("#wait-seconds")!.value).toBe("");
+    expect(container.textContent).toContain("Some settings are incomplete or invalid");
+    await act(async () => change!("wait", { seconds: 0.5 }));
+    expect(container.querySelector<HTMLInputElement>("#wait-seconds")!.value).toBe("0.5");
+    expect(container.textContent).not.toContain("Some settings are incomplete or invalid");
+
+    await act(async () => change!("ai", { labels: ["Updated", "Other"] }));
+    expect(container.querySelector<HTMLInputElement>("#ai-labels")!.value).toBe("Updated, Other");
+    await act(async () => undo!());
+    expect(container.querySelector<HTMLInputElement>("#ai-labels")!.value).toBe("Original");
   });
 });

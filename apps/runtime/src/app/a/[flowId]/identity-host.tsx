@@ -115,20 +115,22 @@ function IdentityBridge({ privyLogin, children }: { privyLogin: PrivyLogin; chil
 
 /** Inside the Privy provider: signs the visitor in with the screen's methods and yields their token. */
 function WithPrivy({ children }: { children: ReactNode }) {
-  const { getAccessToken } = usePrivy();
-  const pending = useRef<{ resolve(token: string): void; reject(error: Error): void } | null>(null);
+  const { authenticated, user, getAccessToken } = usePrivy();
+  const pending = useRef<{
+    resolve(answer: { privyToken: string }): void;
+    reject(error: Error): void;
+  } | null>(null);
+  const getLoginAnswer = useCallback(async () => {
+    const token = await getAccessToken().catch(() => null);
+    if (!token) throw new Error(describePrivyError("no_token"));
+    return { privyToken: token };
+  }, [getAccessToken]);
   const { login } = useLogin({
     onComplete: () => {
       const waiting = pending.current;
       pending.current = null;
       if (!waiting) return;
-      getAccessToken().then(
-        (token) => {
-          if (token) waiting.resolve(token);
-          else waiting.reject(new Error(describePrivyError("no_token")));
-        },
-        () => waiting.reject(new Error(describePrivyError("no_token"))),
-      );
+      void getLoginAnswer().then(waiting.resolve, waiting.reject);
     },
     onError: (code) => {
       const waiting = pending.current;
@@ -137,14 +139,17 @@ function WithPrivy({ children }: { children: ReactNode }) {
     },
   });
   const privyLogin = useCallback<PrivyLogin>(
-    (config: PrivyLoginConfig) =>
-      new Promise<{ privyToken: string }>((resolve, reject) => {
+    (config: PrivyLoginConfig) => {
+      // Privy's login() is a no-op for a signed-in visitor and emits no callback.
+      if (authenticated && user && !user.isGuest) return getLoginAnswer();
+      return new Promise<{ privyToken: string }>((resolve, reject) => {
         pending.current?.reject(new Error(describePrivyError("exited_auth_flow")));
-        pending.current = { resolve: (privyToken) => resolve({ privyToken }), reject };
+        pending.current = { resolve, reject };
         const loginMethods = privyLoginMethods(config);
         login(loginMethods ? { loginMethods } : {});
-      }),
-    [login],
+      });
+    },
+    [authenticated, getLoginAnswer, login, user],
   );
   return <IdentityBridge privyLogin={privyLogin}>{children}</IdentityBridge>;
 }

@@ -1,7 +1,63 @@
 {
   "extends": ["//"],
   "tasks": {
-    "dev": { "passThroughEnv": ["PORT", "DATABASE_URL", "PRIVY_APP_ID", "PRIVY_APP_SECRET"] },
-    "start": { "passThroughEnv": ["PORT", "DATABASE_URL", "PRIVY_APP_ID", "PRIVY_APP_SECRET"] }
+    "dev": {
+      "passThroughEnv": [
+        "PORT",
+        "NODE_ENV",
+        "DATABASE_URL",
+        "PRIVY_APP_ID",
+        "PRIVY_APP_SECRET",
+        "PRIVY_VERIFICATION_KEY",
+        "PRIVY_AUTHORIZATION_KEY",
+        "PRIVY_SIGNER_ID",
+        "SECRETS_KEY",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_MODEL",
+        "OPENAI_API_KEY",
+        "OPENAI_MODEL",
+        "TOKEN_API_KEY",
+        "TOKEN_API_URL",
+        "CHAIN_ID",
+        "CHAIN_RPC_URL",
+        "CHAIN_RPC_URL_*",
+        "USDC_ADDRESS",
+        "WORLD_APP_ID",
+        "WORLD_RP_ID",
+        "WORLD_RP_SIGNING_KEY",
+        "WORLD_ENVIRONMENT",
+        "E2E_TEST_TOKEN",
+        "RATE_LIMIT_*"
+      ]
+    },
+    "start": {
+      "passThroughEnv": [
+        "PORT",
+        "NODE_ENV",
+        "DATABASE_URL",
+        "PRIVY_APP_ID",
+        "PRIVY_APP_SECRET",
+        "PRIVY_VERIFICATION_KEY",
+        "PRIVY_AUTHORIZATION_KEY",
+        "PRIVY_SIGNER_ID",
+        "SECRETS_KEY",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_MODEL",
+        "OPENAI_API_KEY",
+        "OPENAI_MODEL",
+        "TOKEN_API_KEY",
+        "TOKEN_API_URL",
+        "CHAIN_ID",
+        "CHAIN_RPC_URL",
+        "CHAIN_RPC_URL_*",
+        "USDC_ADDRESS",
+        "WORLD_APP_ID",
+        "WORLD_RP_ID",
+        "WORLD_RP_SIGNING_KEY",
+        "WORLD_ENVIRONMENT",
+        "E2E_TEST_TOKEN",
+        "RATE_LIMIT_*"
+      ]
+    }
   }
 }

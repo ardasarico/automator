@@ -51,6 +51,8 @@ export interface RunOptions {
    * placeholders stay literal, so the builder's in-browser preview never sees a value.
    */
   secrets?: SecretsResolver;
+  /** Maximum node starts across this run and all loop passes (default 10,000). Replays do not count. */
+  maxNodeExecutions?: number;
   executors?: ExecutorRegistry;
   fetch?: typeof fetch;
   /** The chat model for AI nodes; without it they fail as unconfigured. */
@@ -87,7 +89,11 @@ function isAbort(error: unknown): boolean {
 /** Settles with `promise`, or rejects as soon as the signal fires. */
 function withAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
   if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(new DOMException(cancelledMessage, "AbortError"));
+  if (signal.aborted) {
+    // Work may synchronously abort before returning its promise; still observe its rejection.
+    void promise.catch(() => {});
+    return Promise.reject(new DOMException(cancelledMessage, "AbortError"));
+  }
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(new DOMException(cancelledMessage, "AbortError"));
     signal.addEventListener("abort", onAbort, { once: true });
@@ -119,12 +125,16 @@ function describeError(error: unknown): string {
  * keeps each body node's last pass, and `done` then fires with the items and per-pass results.
  */
 export function runFlow(document: FlowDocument, options: RunOptions = {}): Promise<FlowRun> {
-  return execute(document, options);
+  const limit = options.maxNodeExecutions ?? 10_000;
+  if (!Number.isSafeInteger(limit) || limit < 1)
+    throw new NodeExecutionError("maxNodeExecutions must be a positive safe integer");
+  return execute(document, options, { remaining: limit, limit });
 }
 
 async function execute(
   document: FlowDocument,
   options: RunOptions,
+  budget: { remaining: number; limit: number },
   pass?: LoopPass,
 ): Promise<FlowRun> {
   const executors = options.executors ?? defaultExecutors;
@@ -188,6 +198,19 @@ async function execute(
     outgoing.get(edge.source)!.push(edge);
   }
 
+  // Validate the whole graph before an acyclic prefix can send notifications or transactions.
+  const degrees = new Map(document.nodes.map((node) => [node.id, incoming.get(node.id)!.length]));
+  const acyclic = document.nodes.filter((node) => degrees.get(node.id) === 0);
+  for (let index = 0; index < acyclic.length; index += 1) {
+    for (const edge of outgoing.get(acyclic[index]!.id)!) {
+      const remaining = degrees.get(edge.target)! - 1;
+      degrees.set(edge.target, remaining);
+      if (remaining === 0) acyclic.push(nodes.get(edge.target)!);
+    }
+  }
+  if (acyclic.length !== document.nodes.length)
+    return finish("failed", null, "The flow contains a cycle");
+
   const isTrigger = (node: FlowNode) => executors[node.type]?.kind === "trigger";
   const unconnectedTriggers = document.nodes.filter(
     (node) => isTrigger(node) && incoming.get(node.id)!.length === 0,
@@ -247,7 +270,7 @@ async function execute(
         // An edge without a handle carries whatever the node produced, if anything.
         resolveEdge(edge, keys.length > 0, keys.length === 1 ? outputs[keys[0]!] : outputs);
       } else {
-        resolveEdge(edge, edge.sourceHandle in outputs, outputs[edge.sourceHandle]);
+        resolveEdge(edge, Object.hasOwn(outputs, edge.sourceHandle), outputs[edge.sourceHandle]);
       }
     }
   };
@@ -278,6 +301,21 @@ async function execute(
     return descendants(targets("item"), descendants(targets("done")));
   };
 
+  // Item passes are isolated subgraphs. An outside input would otherwise disappear in a
+  // nonempty pass, or run an empty loop's body once in the surrounding graph.
+  for (const loop of document.nodes.filter((node) => node.type === forEachType)) {
+    const body = loopBody(loop);
+    const crossing = document.edges.find(
+      (edge) => body.has(edge.target) && edge.source !== loop.id && !body.has(edge.source),
+    );
+    if (crossing)
+      return finish(
+        "failed",
+        triggerNodeId,
+        `Node "${crossing.target}" in For each "${loop.id}" has inputs from outside its Item path; pass shared values through variables`,
+      );
+  }
+
   /**
    * Runs the loop body once per item as a sub-run seeded at the for-each node, sequentially,
    * carrying `vars` across passes. Returns the for-each node's outputs, or the pass that failed.
@@ -286,7 +324,8 @@ async function execute(
     node: FlowNode,
     nodeInputs: Record<string, unknown>,
   ): Promise<{ outputs: Record<string, unknown> } | { error: string }> => {
-    const secrets = await secretsScope(node.config, options.secrets);
+    const secrets = await withAbort(secretsScope(node.config, options.secrets), signal);
+    signal?.throwIfAborted();
     const scope = {
       input: nodeInputs,
       vars: variables,
@@ -331,6 +370,7 @@ async function execute(
               lastOutputs = result.outputs ?? null;
           },
         },
+        budget,
         { nodeId: node.id, item, variables },
       );
       Object.assign(variables, subRun.variables);
@@ -414,6 +454,15 @@ async function execute(
       continue;
     }
 
+    if (budget.remaining === 0) {
+      const error = `The run reached its limit of ${budget.limit} node executions`;
+      record({ nodeId: node.id, status: "failed", error });
+      halted = { status: "failed", error };
+      propagate(node, {});
+      continue;
+    }
+    budget.remaining -= 1;
+
     if (node.type === forEachType) {
       const loopStartedAt = now().toISOString();
       const outcome = await runLoop(node, nodeInputs).catch((error: unknown) => ({
@@ -428,7 +477,9 @@ async function execute(
           finishedAt,
           error: outcome.error,
         });
-        halted = { status: "failed" };
+        halted = signal?.aborted
+          ? { status: "failed", error: cancelledMessage }
+          : { status: "failed" };
         propagate(node, {});
       } else {
         record({
@@ -475,9 +526,11 @@ async function execute(
     }
 
     const nodeStartedAt = now().toISOString();
+    let partialOutputs: Record<string, unknown> | undefined;
     try {
       // Resolved per node, so a missing secret fails the node that names it.
-      const secrets = await secretsScope(node.config, options.secrets);
+      const secrets = await withAbort(secretsScope(node.config, options.secrets), signal);
+      signal?.throwIfAborted();
       const scope = {
         input: nodeInputs,
         vars: variables,
@@ -497,8 +550,13 @@ async function execute(
         ...(options.sandbox ? { sandbox: options.sandbox } : {}),
         now,
         sleep,
+        signal,
+        checkpoint: (outputs) => {
+          partialOutputs = outputs;
+        },
       };
-      const outputs = await executor.run(context);
+      const outputs = await withAbort(executor.run(context), signal);
+      signal?.throwIfAborted();
       record({
         nodeId: node.id,
         status: "succeeded",
@@ -514,6 +572,7 @@ async function execute(
         startedAt: nodeStartedAt,
         finishedAt: now().toISOString(),
         error: describeError(error),
+        ...(partialOutputs === undefined ? {} : { outputs: partialOutputs }),
       });
       halted = isAbort(error)
         ? { status: "failed", error: cancelledMessage }

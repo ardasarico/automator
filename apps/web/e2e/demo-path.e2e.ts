@@ -23,7 +23,7 @@ test.beforeEach(async ({ context }) => {
 
 async function createFlow(page: Page) {
   await page.goto("/flows");
-  await page.getByRole("link", { name: "New flow" }).first().click();
+  await page.getByRole("button", { name: "New flow" }).first().click();
   await expect(page).toHaveURL(/\/flows\/[0-9a-f-]{36}$/);
   return page.url().split("/").pop()!;
 }
@@ -62,7 +62,7 @@ test("create a flow, simulate it, publish it, and fork the listing", async ({ pa
   await expect(page.getByRole("img", { name: `Graph of ${name}` })).toBeVisible();
 
   // Fork lands on a new canvas with the copied trigger.
-  await page.getByRole("link", { name: `Fork flow: ${name}` }).click();
+  await page.getByRole("button", { name: `Fork flow: ${name}` }).click();
   await expect(page).toHaveURL(/\/flows\/[0-9a-f-]{36}$/);
   await expect(page.getByText("Mini-app opened", { exact: true }).first()).toBeVisible();
 

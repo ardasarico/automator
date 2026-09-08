@@ -105,6 +105,31 @@ describe.skipIf(!url)("flow versions store", () => {
     },
   );
 
+  test.skipIf(!url)("concurrent saves allocate distinct version numbers", async () => {
+    const sql = new SQL(url!, { max: 4, connectionTimeout: 5 });
+    const ownerId = "did:privy:audit-version-concurrency";
+    try {
+      await migrate(sql);
+      const users = createUserStore(sql);
+      const flows = createFlowStore(sql);
+      const versions = createFlowVersionStore(sql);
+      await users.sync(ownerId, null);
+      const flow = await flows.create(ownerId, input);
+      const saved = await Promise.all(
+        Array.from({ length: 12 }, (_, index) =>
+          versions.record(ownerId, flow.flow.id, { ...input, name: `Concurrent ${index}` }),
+        ),
+      );
+      expect(saved.map((version) => version!.number).sort((a, b) => a - b)).toEqual(
+        Array.from({ length: 12 }, (_, index) => index + 1),
+      );
+      expect(await versions.list(ownerId, flow.flow.id)).toHaveLength(12);
+    } finally {
+      await sql`DELETE FROM automator_users WHERE id = ${ownerId}`;
+      await sql.close({ timeout: 5 });
+    }
+  });
+
   test.skipIf(!url)(`keeps only the newest ${flowVersionLimit} versions`, async () => {
     const sql = new SQL(url!, { max: 2, connectionTimeout: 5 });
     try {

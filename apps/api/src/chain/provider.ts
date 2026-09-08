@@ -30,6 +30,8 @@ export interface SigningSettings {
   privy: PrivyClient;
   /** The authorization key's private key from the Privy dashboard (base64 PKCS8, no PEM headers). */
   authorizationKey: string;
+  /** Must match NEXT_PUBLIC_PRIVY_SIGNER_ID and the authorization key registered in Privy. */
+  signerId: string;
 }
 
 /** One configured chain: its readers and USDC, shared by every run on it. */
@@ -50,11 +52,11 @@ export interface ChainFactory {
   chain(chainId: number): ConfiguredChain | undefined;
   /**
    * A provider for the user's run on `chainId` (the default chain without one): reads
-   * always work; signing needs a delegated wallet and a key. Throws for an unconfigured chain.
+   * always work; signing needs the configured signer grant and key. Throws for an unconfigured chain.
    */
   forUser(userId: string, mode: ChainMode, chainId?: number): Promise<ChainProvider>;
   /** The user's embedded wallet, the same address on every chain; `null` without one. */
-  wallet(userId: string): Promise<EmbeddedWallet | null>;
+  wallet(userId: string): Promise<(EmbeddedWallet & { signing?: boolean }) | null>;
 }
 
 type ChainEnvironment = Pick<ApiConfig, "chainId" | "chainRpcUrl" | "usdcAddress" | "chainRpcUrls">;
@@ -172,8 +174,19 @@ export function createChainFactory(
       ...(entry.usdcAddress ? { usdcAddress: entry.usdcAddress } : {}),
     });
   }
-  const wallet = async (userId: string) =>
-    identity?.embeddedWallet ? await identity.embeddedWallet(userId) : null;
+  const wallet: ChainFactory["wallet"] = async (userId) => {
+    const found = identity?.embeddedWallet ? await identity.embeddedWallet(userId) : null;
+    if (!found || !signing) return found;
+    const current = await signing.privy.wallets().get(found.id);
+    return {
+      ...found,
+      signing:
+        current.id === found.id &&
+        current.chain_type === "ethereum" &&
+        current.address.toLowerCase() === found.address.toLowerCase() &&
+        current.additional_signers.some((signer) => signer.signer_id === signing.signerId),
+    };
+  };
   return {
     chainIds: [...configured.keys()],
     canSign: signing !== undefined,
@@ -189,7 +202,17 @@ export function createChainFactory(
         reader: entry.reader,
         ...(entry.usdcAddress ? { usdcAddress: entry.usdcAddress } : {}),
       };
-      const found = await wallet(userId);
+      let found: Awaited<ReturnType<ChainFactory["wallet"]>>;
+      try {
+        // One fresh permission read per provider/run, shared by all of its nodes.
+        found = await wallet(userId);
+      } catch {
+        return {
+          ...base,
+          signerUnavailableReason:
+            "Wallet signing permission could not be verified with Privy; retry the run",
+        };
+      }
       if (!found)
         return { ...base, signerUnavailableReason: "This account has no embedded wallet" };
       const account = found.address as Address;
@@ -198,14 +221,14 @@ export function createChainFactory(
           ...base,
           account,
           signerUnavailableReason:
-            "Server signing is not configured on the API (PRIVY_AUTHORIZATION_KEY)",
+            "Server signing is not configured on the API (PRIVY_AUTHORIZATION_KEY and PRIVY_SIGNER_ID)",
         };
-      if (!found.delegated)
+      if (!found.signing)
         return {
           ...base,
           account,
           signerUnavailableReason:
-            "Server signing is not enabled for this wallet; enable it from the builder",
+            "Server signing is not enabled for this wallet; enable the configured app signer from the builder",
         };
       return {
         ...base,

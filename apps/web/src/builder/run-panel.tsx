@@ -137,25 +137,36 @@ function Outputs({ result, chainId }: { result: FlowRunNodeResult; chainId: numb
 export function RunPanel() {
   const status = useRunStore((state) => state.status);
   const run = useRunStore((state) => state.run);
+  const runDocument = useRunStore((state) => state.document);
   const reset = useRunStore((state) => state.reset);
   const nodes = useBuilderStore((state) => state.nodes);
-  // The run executed the saved document, which shares this canvas's chain setting.
-  const chainId = useBuilderStore((state) => state.meta.chainId ?? defaultChainId);
+  const canvasChainId = useBuilderStore((state) => state.meta.chainId ?? defaultChainId);
+  const chainId = runDocument ? (runDocument.chainId ?? defaultChainId) : canvasChainId;
   const selectedId = useBuilderStore((state) => {
     const selected = state.nodes.filter((node) => node.selected);
     return selected.length === 1 ? selected[0]!.id : null;
   });
   const selectNode = useSelectNode();
   const [collapsed, setCollapsed] = useState(false);
+  const [inspected, setInspected] = useState<{ runId: string; nodeId: string } | null>(null);
 
   if (status === "idle" || (status === "failed" && !run)) return null;
 
   const results = run?.nodes ?? [];
   const failed = results.find((result) => result.status === "failed");
   const current =
-    results.find((result) => result.nodeId === selectedId) ?? failed ?? results.find(Boolean);
+    results.find((result) => result.nodeId === selectedId) ??
+    (inspected?.runId === run?.id
+      ? results.find((result) => result.nodeId === inspected?.nodeId)
+      : undefined) ??
+    failed ??
+    results.find(Boolean);
   // A result can outlive its node when the canvas changes after the run.
   const labelOf = (id: string) => {
+    if (runDocument) {
+      const node = runDocument.nodes.find((item) => item.id === id);
+      return node ? node.label || getCatalogEntry(node.type).label : "Removed node";
+    }
     const node = nodes.find((item) => item.id === id);
     return node ? node.data.label || getCatalogEntry(node.data.type).label : "Removed node";
   };
@@ -195,7 +206,13 @@ export function RunPanel() {
               <RiArrowDownSLine aria-hidden="true" />
             )}
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Clear run" onClick={reset}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Clear run"
+            disabled={status === "running"}
+            onClick={reset}
+          >
             <RiCloseLine aria-hidden="true" />
           </Button>
         </span>
@@ -216,7 +233,10 @@ export function RunPanel() {
                     className={styles.runRow}
                     aria-current={current?.nodeId === result.nodeId ? "true" : undefined}
                     data-status={result.status}
-                    onClick={() => selectNode(result.nodeId)}
+                    onClick={() => {
+                      setInspected({ runId: run.id, nodeId: result.nodeId });
+                      selectNode(result.nodeId);
+                    }}
                   >
                     <span className={styles.runRowStatus} />
                     <span className={styles.runRowLabel}>{labelOf(result.nodeId)}</span>

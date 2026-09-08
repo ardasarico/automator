@@ -137,6 +137,28 @@ describe("server-side logging", () => {
     );
   });
 
+  test.each([false, true])(
+    "redacts webhook credentials in access and failure logs (failure: %p)",
+    async (fails) => {
+      const app = createApp({ database: up, log: true }).post("/hooks/:flowId/:token", () => {
+        if (fails) throw new Error("storage unavailable");
+        return { ok: true };
+      });
+      const lines = await capture(() =>
+        app.handle(
+          new Request("http://localhost/hooks/flow-1/execution-secret", { method: "POST" }),
+        ),
+      );
+      expect(JSON.stringify(lines)).not.toContain("execution-secret");
+      expect(JSON.stringify(lines)).toContain("/hooks/flow-1/[redacted]");
+      if (fails)
+        expect(lines.find((line) => line[0] === "error")?.[2]).toMatchObject({
+          path: "/hooks/flow-1/[redacted]",
+          message: "storage unavailable",
+        });
+    },
+  );
+
   test("records the real cause of a failure without returning it", async () => {
     const app = createApp({ database: up, log: true }).get("/boom", () => {
       throw new Error("password=hunter2");

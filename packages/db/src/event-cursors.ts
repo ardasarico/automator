@@ -1,4 +1,5 @@
 import type { SQL } from "bun";
+import { lockCurrentPoll } from "./polling-fence";
 
 /** Where the onchain-event listener got to for one trigger node of one flow. */
 export interface EventCursor {
@@ -35,13 +36,19 @@ export function createEventCursorStore(sql: SQL | undefined) {
       return rows[0] ? toCursor(rows[0]) : null;
     },
     /** Creates or moves the cursor; a chain change replaces the block outright. */
-    async save(cursor: EventCursor): Promise<void> {
+    async save(cursor: EventCursor, pollingRevision: string): Promise<boolean> {
       const db = connection();
-      await db`
+      return db.begin(async (tx) => {
+        if (!(await lockCurrentPoll(tx, cursor.flowId, pollingRevision))) return false;
+        await tx`
         INSERT INTO automator_event_cursors (flow_id, node_id, chain_id, last_block)
         VALUES (${cursor.flowId}, ${cursor.nodeId}, ${cursor.chainId}, ${cursor.lastBlock.toString()}::bigint)
         ON CONFLICT (flow_id, node_id) DO UPDATE
-          SET chain_id = EXCLUDED.chain_id, last_block = EXCLUDED.last_block, updated_at = now()`;
+          SET chain_id = EXCLUDED.chain_id, last_block = CASE WHEN automator_event_cursors.chain_id = EXCLUDED.chain_id
+            THEN GREATEST(automator_event_cursors.last_block, EXCLUDED.last_block)
+            ELSE EXCLUDED.last_block END, updated_at = now()`;
+        return true;
+      });
     },
   };
 }

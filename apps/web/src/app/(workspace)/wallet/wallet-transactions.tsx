@@ -1,6 +1,7 @@
 import { chainName, explorerTransactionUrl, type WalletTransaction } from "@automator/contracts";
+import { Button } from "@automator/ui/button";
 import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
-import { RiExchangeLine, RiExternalLinkLine } from "@remixicon/react";
+import { RiErrorWarningLine, RiExchangeLine, RiExternalLinkLine } from "@remixicon/react";
 import Link from "next/link";
 import { getCatalogEntry, isFlowNodeType } from "../../../builder/catalog";
 import styles from "../flows/flows.module.css";
@@ -19,14 +20,29 @@ export function nodeTypeLabel(type: string): string {
 export function WalletTransactions({
   transactions,
 }: {
-  transactions: readonly WalletTransaction[];
+  transactions: readonly WalletTransaction[] | null;
 }) {
   return (
     <section aria-labelledby="wallet-transactions-title" className={styles.collection}>
       <h2 id="wallet-transactions-title" className="text-label">
         Recent transactions
       </h2>
-      {transactions.length === 0 ? (
+      {transactions === null ? (
+        <div className={styles.empty}>
+          <EmptyStateIllustration icon={<RiErrorWarningLine />} />
+          <p className="mt-6 text-panel text-balance" role="status">
+            Recent transactions could not load
+          </p>
+          <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
+            Transaction history is temporarily unavailable. Try again to check your recent runs.
+          </p>
+          <form action="/wallet" method="get" className="mt-6">
+            <Button variant="outline" type="submit">
+              Try again
+            </Button>
+          </form>
+        </div>
+      ) : transactions.length === 0 ? (
         <div className={styles.empty}>
           <EmptyStateIllustration icon={<RiExchangeLine />} />
           <p className="mt-6 text-panel text-balance">No transactions yet</p>
@@ -53,7 +69,7 @@ export function WalletTransactions({
               {transactions.map((transaction) => {
                 const explorer = explorerTransactionUrl(transaction.chainId, transaction.hash);
                 return (
-                  <tr key={transaction.hash}>
+                  <tr key={`${transaction.chainId}:${transaction.hash.toLowerCase()}`}>
                     <th scope="row">
                       <Link
                         href={`/flows/${transaction.flowId}?run=${encodeURIComponent(transaction.runId)}`}

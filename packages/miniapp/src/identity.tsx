@@ -14,7 +14,7 @@ import {
 import { Button } from "@automator/ui/button";
 import { RiShieldCheckLine, RiUserLine } from "@remixicon/react";
 import type React from "react";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ScreenNode } from "./engine";
 
 /** What an answer to an identity screen carries besides its port; the API verifies it. */
@@ -85,14 +85,32 @@ function useIdentityAction<T extends IdentityAnswer>(
 ) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const attempt = useRef(0);
+  const inFlight = useRef(false);
+  useEffect(
+    () => () => {
+      attempt.current += 1;
+      inFlight.current = false;
+    },
+    [],
+  );
   const start = () => {
-    if (!run || busy) return;
+    if (!run || inFlight.current) return;
+    inFlight.current = true;
+    const current = ++attempt.current;
     setBusy(true);
     setError(null);
-    run().then(onDone, (cause: unknown) => {
-      setError(describeFailure(cause, fallback));
-      setBusy(false);
-    });
+    void (async () => {
+      try {
+        const answer = await run();
+        if (current === attempt.current) onDone(answer);
+      } catch (cause) {
+        if (current !== attempt.current) return;
+        inFlight.current = false;
+        setError(describeFailure(cause, fallback));
+        setBusy(false);
+      }
+    })();
   };
   return { busy, error, start };
 }

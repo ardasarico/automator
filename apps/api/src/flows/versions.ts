@@ -1,9 +1,4 @@
-import {
-  getFlowVersionContract,
-  listFlowVersionsContract,
-  Value,
-  type FlowDocument,
-} from "@automator/contracts";
+import { getFlowVersionContract, listFlowVersionsContract } from "@automator/contracts";
 import type { FlowStore, FlowVersionStore } from "@automator/db";
 import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
@@ -16,20 +11,6 @@ export interface FlowVersionDependencies {
   identity: IdentityProvider | undefined;
   /** Names stored documents that fail the schema on the server log; off in tests. */
   log?: boolean;
-}
-
-/**
- * Whether two documents differ in what a version captures: the graph and the chain. A save
- * that only renames the flow or edits its description records nothing.
- */
-export function graphChanged(before: FlowDocument, after: FlowDocument): boolean {
-  const graph = ({ version, chainId, nodes, edges }: FlowDocument) => ({
-    version,
-    chainId,
-    nodes,
-    edges,
-  });
-  return !Value.Equal(graph(before), graph(after));
 }
 
 /** The positive integer a `:number` segment names, or `null` for anything else. */

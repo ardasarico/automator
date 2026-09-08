@@ -73,6 +73,47 @@ test("relays the API's refusal statuses", async () => {
   expect(await response.json()).toEqual({ error: "not_found" });
 });
 
+test("removes transport headers before forwarding a chunked request", async () => {
+  const response = await post("/api/hooks/flow-1/tok", "{}", {
+    connection: "keep-alive, X-Local-Only, malformed token",
+    "keep-alive": "timeout=5",
+    "transfer-encoding": "chunked",
+    te: "trailers",
+    trailer: "x-checksum",
+    upgrade: "websocket",
+    expect: "100-continue",
+    "proxy-connection": "keep-alive",
+    "proxy-authorization": "Basic local-proxy-credential",
+    "x-local-only": "local metadata",
+    "x-webhook-signature": "signature",
+  });
+  expect(response.status).toBe(202);
+  expect(calls[0]!.headers["x-webhook-signature"]).toBe("signature");
+  for (const name of [
+    "connection",
+    "keep-alive",
+    "transfer-encoding",
+    "te",
+    "trailer",
+    "upgrade",
+    "expect",
+    "proxy-connection",
+    "proxy-authorization",
+    "x-local-only",
+  ]) {
+    expect(calls[0]!.headers[name]).toBeUndefined();
+  }
+});
+
+test("relays the retry delay when the API rate limits the flow", async () => {
+  answer = async () =>
+    Response.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "42" } });
+  const response = await post("/api/hooks/flow-1/tok", "{}");
+  expect(response.status).toBe(429);
+  expect(response.headers.get("retry-after")).toBe("42");
+  expect(await response.json()).toEqual({ error: "rate_limited" });
+});
+
 test("an unreachable API is a controlled 503", async () => {
   answer = async () => {
     throw new Error("ECONNREFUSED");

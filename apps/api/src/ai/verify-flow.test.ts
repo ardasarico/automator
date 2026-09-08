@@ -162,6 +162,22 @@ describe("automatic flow verification", () => {
     expect((await verifyFlow(external)).checks[0]?.detail).toContain("Loop execution");
   });
 
+  test("checks completed calculations even when a later external action is skipped", async () => {
+    const external = structuredClone(calculator);
+    external.nodes[3] = node("result", "notify.discord", { content: "hello" });
+    external.edges[2]!.targetHandle = "message";
+    const scenario = { ...costTest, expect: [costTest.expect[0]!, { nodeId: "result" }] };
+    expect((await verifyFlow(external, [scenario])).checks[0]?.status).toBe("skipped");
+    external.nodes[2]!.config.code = "return {total: 49};";
+    await expect(verifyFlow(external, [scenario])).rejects.toThrow("expected 50, got 49");
+  });
+
+  test("does not let sandbox errors impersonate a skipped external action", async () => {
+    const broken = structuredClone(calculator);
+    broken.nodes[2]!.config.code = 'throw new Error("Not tested: skip my broken code");';
+    await expect(verifyFlow(broken, [costTest])).rejects.toThrow("skip my broken code");
+  });
+
   test("rejects unknown, unused or vacuous test expectations", async () => {
     await expect(verifyFlow(calculator, [{ name: "vacuous", expect: [] }])).rejects.toThrow(
       "expectation",
@@ -174,6 +190,11 @@ describe("automatic flow verification", () => {
         { ...costTest, answers: { ...costTest.answers, absent: { port: "next" } } },
       ]),
     ).rejects.toThrow("never used");
+    await expect(
+      verifyFlow(calculator, [
+        { ...costTest, expect: [{ nodeId: "calculate", path: "total", equals: 99 }] },
+      ]),
+    ).rejects.toThrow("require an output");
   });
 });
 

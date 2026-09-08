@@ -14,11 +14,18 @@ export function isSameOrigin(request: Request) {
   if (request.headers.get("sec-fetch-site") === "cross-site") return false;
   const origin = request.headers.get("origin");
   if (!origin) return request.method === "GET" || request.method === "HEAD";
-  // Behind a proxy the public host only survives in `x-forwarded-host`.
+  // A trusted proxy supplies the public host and protocol of the final hop.
   const forwardedHosts = request.headers.get("x-forwarded-host")?.split(",");
   const forwarded = forwardedHosts?.[forwardedHosts.length - 1]?.trim();
+  const forwardedProtocols = request.headers.get("x-forwarded-proto")?.split(",");
+  const protocol = forwardedProtocols?.[forwardedProtocols.length - 1]?.trim();
   try {
-    return new URL(origin).host === (forwarded || new URL(request.url).host);
+    const originUrl = new URL(origin);
+    const requestUrl = new URL(request.url);
+    return (
+      originUrl.host === (forwarded || requestUrl.host) &&
+      originUrl.protocol === (protocol ? `${protocol}:` : requestUrl.protocol)
+    );
   } catch {
     return false;
   }

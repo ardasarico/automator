@@ -25,6 +25,7 @@ export const runSourceLabels: Record<FlowRunSource, string> = {
   schedule: "Schedule",
   miniapp: "Mini-app",
   event: "Onchain event",
+  watch: "Watch",
 };
 
 /** "1.2s" under a minute, "1m 05s" above it. */

@@ -24,6 +24,8 @@ const screen: NodeExecutor = { kind: "screen" };
 export const defaultExecutors: ExecutorRegistry = {
   "trigger.schedule": trigger("tick"),
   "trigger.onchain-event": trigger("event"),
+  "trigger.price": trigger("price"),
+  "trigger.balance": trigger("balance"),
   "trigger.webhook": trigger("request"),
   "trigger.miniapp-open": trigger("visitor"),
   "trigger.manual": trigger("run"),

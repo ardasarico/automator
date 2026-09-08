@@ -1,3 +1,4 @@
+import { flowChainId, Value } from "@automator/contracts";
 import type {
   FlowDocument,
   FlowDocumentInput,
@@ -6,6 +7,8 @@ import type {
   FlowSummary,
 } from "@automator/contracts";
 import type { SQL } from "bun";
+import { recordFlowVersion } from "./flow-versions";
+import { executionConfiguration } from "./polling-fence";
 
 /** Raised when the owner has no user row yet, so a flow cannot reference it. */
 export class FlowOwnerMissingError extends Error {}
@@ -21,10 +24,12 @@ type FlowRow = {
   /** Present on owner-facing reads only. */
   enabled?: boolean;
   webhookToken?: string;
+  pollingRevision: string;
 };
 
 /** The columns of an owner-facing read, activation and token included. */
 const ownerColumns = `id, name, description, document, enabled, webhook_token AS "webhookToken",
+  polling_revision AS "pollingRevision",
   created_at AS "createdAt", updated_at AS "updatedAt"`;
 
 function toRecord(row: FlowRow): FlowRecord {
@@ -55,7 +60,7 @@ export function documentTriggerTypes(nodes: readonly { type: FlowNodeType }[]): 
 }
 
 /** A flow the scheduler or a webhook may run: the owner's record with its owner. */
-export type OwnedFlow = { ownerId: string; record: FlowRecord };
+export type OwnedFlow = { ownerId: string; record: FlowRecord; pollingRevision: string };
 
 function toDocument(input: FlowDocumentInput): FlowRow["document"] {
   return {
@@ -100,16 +105,24 @@ export function createFlowStore(sql: SQL | undefined) {
         FROM automator_flows WHERE owner_id = ${ownerId} AND id = ${id}`;
       return rows[0] ? toRecord(rows[0]) : null;
     },
-    async create(ownerId: string, input: FlowDocumentInput): Promise<FlowRecord> {
+    async create(
+      ownerId: string,
+      input: FlowDocumentInput,
+      options: { recordVersion?: boolean } = {},
+    ): Promise<FlowRecord> {
       const db = connection();
       const id = crypto.randomUUID();
       try {
-        const rows = await db<FlowRow[]>`
+        const insert = async (tx: SQL): Promise<FlowRecord> => {
+          const rows = await tx<FlowRow[]>`
           INSERT INTO automator_flows (id, owner_id, name, description, document)
           VALUES (${id}, ${ownerId}, ${input.name}, ${input.description}, ${toDocument(input)}::jsonb)
-          RETURNING ${db.unsafe(ownerColumns)}`;
-        if (!rows[0]) throw new Error("Flow creation failed");
-        return toRecord(rows[0]);
+          RETURNING ${tx.unsafe(ownerColumns)}`;
+          if (!rows[0]) throw new Error("Flow creation failed");
+          if (options.recordVersion) await recordFlowVersion(tx, ownerId, id, input);
+          return toRecord(rows[0]);
+        };
+        return options.recordVersion ? await db.begin(insert) : await insert(db);
       } catch (error) {
         if (error instanceof Error && "errno" in error && error.errno === "23503")
           throw new FlowOwnerMissingError("Flow owner does not exist");
@@ -121,21 +134,62 @@ export function createFlowStore(sql: SQL | undefined) {
       ownerId: string,
       id: string,
       input: FlowDocumentInput,
+      options: { recordVersion?: boolean } = {},
     ): Promise<FlowRecord | null> {
       const db = connection();
-      const rows = await db<FlowRow[]>`
-        UPDATE automator_flows SET
-          name = ${input.name}, description = ${input.description},
-          document = ${toDocument(input)}::jsonb, updated_at = now()
-        WHERE owner_id = ${ownerId} AND id = ${id}
-        RETURNING ${db.unsafe(ownerColumns)}`;
-      return rows[0] ? toRecord(rows[0]) : null;
+      return db.begin(async (tx) => {
+        const previous = await tx<FlowRow[]>`
+          SELECT ${tx.unsafe(ownerColumns)} FROM automator_flows
+          WHERE owner_id = ${ownerId} AND id = ${id} FOR UPDATE`;
+        if (!previous[0]) return null;
+        const before = toRecord(previous[0]).flow;
+        const document = toDocument(input);
+        const pollingRevision = Value.Equal(
+          executionConfiguration(before),
+          executionConfiguration(input),
+        )
+          ? previous[0].pollingRevision
+          : crypto.randomUUID();
+        const rows = await tx<FlowRow[]>`
+          UPDATE automator_flows SET
+            name = ${input.name}, description = ${input.description},
+            document = ${document}::jsonb, polling_revision = ${pollingRevision}, updated_at = now()
+          WHERE owner_id = ${ownerId} AND id = ${id}
+          RETURNING ${tx.unsafe(ownerColumns)}`;
+        if (!rows[0]) return null;
+
+        // A new trigger configuration starts with fresh polling state. Layout and labels
+        // do not change what a trigger observes, so they keep its cursor and comparison.
+        const nextNodes = new Map(input.nodes.map((node) => [node.id, node]));
+        const chainChanged = flowChainId(before) !== flowChainId(input);
+        const changedNodes = before.nodes
+          .filter((node) => {
+            const next = nextNodes.get(node.id);
+            return (
+              chainChanged ||
+              !next ||
+              node.type !== next.type ||
+              !Value.Equal(node.config, next.config)
+            );
+          })
+          .map((node) => node.id);
+        if (changedNodes.length > 0) {
+          await tx`DELETE FROM automator_event_cursors
+            WHERE flow_id = ${id} AND node_id = ANY(${tx.array(changedNodes, "TEXT")}::text[])`;
+          await tx`DELETE FROM automator_watch_state
+            WHERE flow_id = ${id} AND node_id = ANY(${tx.array(changedNodes, "TEXT")}::text[])`;
+        }
+        if (options.recordVersion && !Value.Equal(toDocument(before), document))
+          await recordFlowVersion(tx, ownerId, id, input);
+        return toRecord(rows[0]);
+      });
     },
     /** Turns webhook and schedule triggers on or off; `null` when the owner has no such flow. */
     async setEnabled(ownerId: string, id: string, enabled: boolean): Promise<FlowRecord | null> {
       const db = connection();
       const rows = await db<FlowRow[]>`
-        UPDATE automator_flows SET enabled = ${enabled}
+        UPDATE automator_flows SET enabled = ${enabled},
+          polling_revision = CASE WHEN enabled = ${enabled} THEN polling_revision ELSE ${crypto.randomUUID()} END
         WHERE owner_id = ${ownerId} AND id = ${id}
         RETURNING ${db.unsafe(ownerColumns)}`;
       return rows[0] ? toRecord(rows[0]) : null;
@@ -146,7 +200,13 @@ export function createFlowStore(sql: SQL | undefined) {
       const rows = await db<(FlowRow & { ownerId: string })[]>`
         SELECT ${db.unsafe(ownerColumns)}, owner_id AS "ownerId"
         FROM automator_flows WHERE id = ${id} AND webhook_token = ${token} AND enabled`;
-      return rows[0] ? { ownerId: rows[0].ownerId, record: toRecord(rows[0]) } : null;
+      return rows[0]
+        ? {
+            ownerId: rows[0].ownerId,
+            record: toRecord(rows[0]),
+            pollingRevision: rows[0].pollingRevision,
+          }
+        : null;
     },
     /** Every enabled flow across owners, for the scheduler. */
     async listEnabled(): Promise<OwnedFlow[]> {
@@ -154,7 +214,19 @@ export function createFlowStore(sql: SQL | undefined) {
       const rows = await db<(FlowRow & { ownerId: string })[]>`
         SELECT ${db.unsafe(ownerColumns)}, owner_id AS "ownerId"
         FROM automator_flows WHERE enabled ORDER BY updated_at DESC, id`;
-      return rows.map((row) => ({ ownerId: row.ownerId, record: toRecord(row) }));
+      return rows.map((row) => ({
+        ownerId: row.ownerId,
+        record: toRecord(row),
+        pollingRevision: row.pollingRevision,
+      }));
+    },
+    /** Rejects a poll captured before an executable edit or activation change. */
+    async isCurrentPoll(id: string, pollingRevision: string): Promise<boolean> {
+      const db = connection();
+      const rows = await db<{ id: string }[]>`
+        SELECT id FROM automator_flows
+        WHERE id = ${id} AND enabled AND polling_revision = ${pollingRevision}`;
+      return rows.length > 0;
     },
     /** True when the owner had this flow and it is gone now, listing and runs with it. */
     async delete(ownerId: string, id: string): Promise<boolean> {

@@ -71,6 +71,34 @@ export const screenFormConfigSchema = Type.Object({
 });
 export type ScreenFormConfig = Static<typeof screenFormConfigSchema>;
 
+/** Matches the browser email control's single-address syntax. */
+const emailAnswer =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+const numberAnswer = /^-?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+/** Checks visitor values before the server runs any nodes following a form. */
+export function findScreenFormAnswerProblem(
+  config: ScreenFormConfig,
+  data: Record<string, string> | undefined,
+): string | null {
+  const fields = config.fields.filter((field) => field.id !== "");
+  const fieldIds = new Set(fields.map((field) => field.id));
+  for (const key of Object.keys(data ?? {}))
+    if (!fieldIds.has(key)) return `Unknown form field "${key}"`;
+  for (const field of fields) {
+    const value = data && Object.hasOwn(data, field.id) ? data[field.id]! : "";
+    if (value === "") {
+      if (field.required) return `Form field "${field.id}" is required`;
+      continue;
+    }
+    if (field.type === "email" && !emailAnswer.test(value.trim()))
+      return `Form field "${field.id}" needs a valid email address`;
+    if (field.type === "number" && (!numberAnswer.test(value) || !Number.isFinite(Number(value))))
+      return `Form field "${field.id}" needs a finite number`;
+  }
+  return null;
+}
+
 export const screenConfirmationConfigSchema = Type.Object({
   title: titleText(),
   message: text(),

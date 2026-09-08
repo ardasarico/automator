@@ -10,6 +10,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ flowId:
     const result = await request(process.env.API_URL, startMiniAppSessionContract, {
       params: { id: flowId },
       headers: visitorHeaders(req),
+      signal: req.signal,
       timeoutMs: 65_000,
     });
     return NextResponse.json(result.data, {

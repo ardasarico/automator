@@ -175,26 +175,58 @@ describe("chain provider", () => {
       account: user,
       usdcAddress: user,
       signerUnavailableReason:
-        "Server signing is not configured on the API (PRIVY_AUTHORIZATION_KEY)",
+        "Server signing is not configured on the API (PRIVY_AUTHORIZATION_KEY and PRIVY_SIGNER_ID)",
     });
-    const signing = { privy: {} as never, authorizationKey: "key" };
+    let signerIds = ["another-signer"];
+    let checks = 0;
+    const signing = {
+      privy: {
+        wallets: () => ({
+          get: async () => {
+            checks++;
+            return {
+              id: "w1",
+              address: user,
+              chain_type: "ethereum",
+              additional_signers: signerIds.map((signer_id) => ({ signer_id })),
+            };
+          },
+        }),
+      } as never,
+      authorizationKey: "key",
+      signerId: "app-signer",
+    };
     const withKey = createChainFactory(
       settings,
-      identity({ id: "w1", address: user, delegated: false }),
+      identity({ id: "w1", address: user, delegated: true }),
       signing,
       () => transport,
     );
     expect(withKey.canSign).toBe(true);
     const noGrant = await withKey.forUser("u", "live");
     expect(noGrant.signerUnavailableReason).toContain("not enabled for this wallet");
+    signerIds = ["app-signer"];
     const ready = await createChainFactory(
       settings,
-      identity({ id: "w1", address: user, delegated: true }),
+      identity({ id: "w1", address: user, delegated: false }),
       signing,
       () => transport,
     ).forUser("u", "live");
     expect(ready.signer?.address).toBe(user);
     expect(ready.signerUnavailableReason).toBeUndefined();
+    expect(checks).toBe(2);
+    signerIds = ["another-signer"];
+    expect((await withKey.forUser("u", "live")).signer).toBeUndefined();
+    signing.privy = {
+      wallets: () => ({
+        get: async () => {
+          throw new Error("upstream");
+        },
+      }),
+    } as never;
+    expect((await withKey.forUser("u", "live")).signerUnavailableReason).toContain(
+      "could not be verified",
+    );
   });
 
   test("simulateContract surfaces reverts through the reader", async () => {

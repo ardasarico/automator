@@ -56,6 +56,8 @@ export function findFlowConfigProblems(
             `config.fields.${index}.id`,
             "Form fields need a nonempty identifier (letters, digits or underscores).",
           );
+        else if (id === "__proto__")
+          add(`config.fields.${index}.id`, `Form field id "${id}" is reserved.`);
         else if (seen.has(id)) add(`config.fields.${index}.id`, `Duplicate form field id "${id}".`);
         seen.add(id);
       }
@@ -67,18 +69,21 @@ export function findFlowConfigProblems(
         continue;
       }
       if (root !== "input") continue;
-      if (!handle || !flowNodePorts[node.type].inputs.includes(handle)) {
+      // The whole input object is a supported template value, including when it is empty.
+      if (reference === "input") continue;
+      const edge = document.edges.find(
+        (edge) => edge.target === node.id && (edge.targetHandle ?? "input") === handle,
+      );
+      const legacyInput =
+        handle === "input" && edge !== undefined && edge.targetHandle === undefined;
+      if (!handle || (!flowNodePorts[node.type].inputs.includes(handle) && !legacyInput)) {
         add(
           path,
           `"${reference}" must use this node's input handle: ${flowNodePorts[node.type].inputs.join(", ") || "none"}.`,
         );
         continue;
       }
-      const edge = document.edges.find(
-        (edge) => edge.target === node.id && edge.targetHandle === handle,
-      );
-      // Legacy editor edges omit handles; structural validation handles those independently.
-      if (!edge && !document.edges.some((edge) => edge.target === node.id && !edge.targetHandle)) {
+      if (!edge) {
         add(path, `Input "${handle}" has no incoming connection.`);
         continue;
       }

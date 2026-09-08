@@ -23,6 +23,8 @@ import { useState, type ReactNode } from "react";
 import { getCatalogEntry } from "../../../builder/catalog";
 import { CatalogIconMark } from "../../../builder/catalog-icon";
 import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
+import { FlowActionButton } from "../../../flows/action-button";
+import { createFlowAction } from "../../../flows/actions";
 import { FLOWS_VIEW_COOKIE, setPreferenceCookie } from "../../../lib/preferences";
 import { DeleteFlowButton } from "./delete-flow-button";
 import { FlowStartOptions } from "./flow-start-options";
@@ -135,10 +137,10 @@ export function FlowBrowser({
       <header className={styles.header}>
         <WorkspaceBreadcrumbs current="Flows" />
         <div className={styles.headerActions}>
-          <Button render={<Link href="/create" />}>
+          <FlowActionButton action={createFlowAction.bind(null, {})}>
             <RiAddLine aria-hidden="true" />
             New flow
-          </Button>
+          </FlowActionButton>
         </div>
       </header>
       {flows.length === 0 ? (

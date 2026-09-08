@@ -16,7 +16,7 @@ import { Input } from "@automator/ui/input";
 import { Textarea } from "@automator/ui/textarea";
 import { RiExternalLinkLine } from "@remixicon/react";
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   getFlowListingRequest,
   MarketplaceRequestError,
@@ -33,7 +33,7 @@ const failureMessages: Record<string, string> = {
   unauthorized: "Your session expired. Reload the page and try again.",
   forbidden: "Finish setting up your profile before publishing a flow.",
   not_found: "This flow no longer exists, so it cannot be published.",
-  invalid_listing: "Enter a name and keep the description under 280 characters.",
+  invalid_listing: "Enter a name and keep the description to 280 characters or fewer.",
 };
 
 type Phase = "loading" | "editing" | "published" | "confirm-unpublish";
@@ -66,6 +66,8 @@ export function PublishDialog({
   const [description, setDescription] = useState(flowDescription);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pending = useRef(false);
+  const descriptionTooLong = description.length > descriptionLimit;
 
   useEffect(() => {
     let cancelled = false;
@@ -91,7 +93,8 @@ export function PublishDialog({
 
   async function publish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || !name.trim()) return;
+    if (pending.current || phase !== "editing" || !name.trim() || descriptionTooLong) return;
+    pending.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -105,12 +108,14 @@ export function PublishDialog({
     } catch (cause) {
       setError(describe(cause, "The flow could not be published. Please try again."));
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   }
 
   async function unpublish() {
-    if (busy || !listing) return;
+    if (pending.current || phase !== "confirm-unpublish" || !listing) return;
+    pending.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -120,16 +125,27 @@ export function PublishDialog({
       setPhase("editing");
       setError(describe(cause, "The listing could not be removed. Please try again."));
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   }
 
   const updating = listing !== null && phase !== "published";
-  const listingPath = listing ? `/marketplace/${listing.slug}` : null;
+  const listingPath = listing ? `/marketplace/${encodeURIComponent(listing.slug)}` : null;
 
   return (
-    <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogPopup className="max-w-md" aria-busy={phase === "loading"}>
+    <Dialog
+      open
+      onOpenChange={(next, details) => {
+        if (pending.current) details.cancel();
+        else if (!next) onClose();
+      }}
+    >
+      <DialogPopup
+        className="max-w-md"
+        aria-busy={phase === "loading" || busy}
+        closeProps={{ disabled: busy }}
+      >
         {phase === "published" && listing ? (
           <>
             <DialogHeader>
@@ -203,7 +219,7 @@ export function PublishDialog({
                     disabled={phase === "loading" || busy}
                   />
                 </Field>
-                <Field>
+                <Field invalid={descriptionTooLong}>
                   <FieldLabel htmlFor="listing-description">Description</FieldLabel>
                   <Textarea
                     id="listing-description"
@@ -212,11 +228,19 @@ export function PublishDialog({
                     rows={3}
                     placeholder="What the flow does and who it is for."
                     value={description}
+                    aria-invalid={descriptionTooLong || undefined}
+                    aria-describedby="listing-description-help"
                     onChange={(event) => setDescription(event.target.value)}
                     disabled={phase === "loading" || busy}
                   />
-                  <FieldDescription className="tabular-nums">
+                  <FieldDescription
+                    id="listing-description-help"
+                    className={
+                      descriptionTooLong ? "tabular-nums text-destructive-text" : "tabular-nums"
+                    }
+                  >
                     {description.length}/{descriptionLimit}
+                    {descriptionTooLong && " — Shorten the description to 280 characters or fewer."}
                   </FieldDescription>
                 </Field>
                 {error && (
@@ -244,7 +268,7 @@ export function PublishDialog({
                 type="submit"
                 form="publish-listing"
                 loading={busy}
-                disabled={phase === "loading" || !name.trim()}
+                disabled={phase === "loading" || !name.trim() || descriptionTooLong}
               >
                 {updating ? "Update listing" : "Publish"}
               </Button>

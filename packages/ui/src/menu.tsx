@@ -47,7 +47,7 @@ export function MenuPopup({
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
-        className="z-50"
+        className="z-(--z-popover)"
         data-slot="menu-positioner"
         side={side}
         sideOffset={sideOffset}

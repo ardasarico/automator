@@ -1,28 +1,35 @@
 import { RiAddLine, RiGitForkLine, RiSparklingLine } from "@remixicon/react";
 import type { RemixiconComponentType } from "@remixicon/react";
 import Link from "next/link";
+import { FlowActionCard } from "../../../flows/action-button";
+import { createFlowAction } from "../../../flows/actions";
 import styles from "./flows.module.css";
 
 const options: readonly {
-  href: string;
+  id: string;
+  href?: string;
+  action?: () => Promise<void>;
   icon: RemixiconComponentType;
   title: string;
   body: string;
 }[] = [
   {
-    href: "/create?ai=1",
+    id: "ai",
+    action: createFlowAction.bind(null, { ai: true }),
     icon: RiSparklingLine,
     title: "Describe it to AI",
     body: "Say what should happen; the assistant drafts the nodes and you refine them.",
   },
   {
     href: "#flow-examples-title",
+    id: "examples",
     icon: RiGitForkLine,
     title: "Start from an example",
     body: "Fork a working flow below, then change what it watches and where it posts.",
   },
   {
-    href: "/create",
+    id: "blank",
+    action: createFlowAction.bind(null, {}),
     icon: RiAddLine,
     title: "Start blank",
     body: "An empty canvas. Drag a trigger in and build from there.",
@@ -33,17 +40,30 @@ const options: readonly {
 export function FlowStartOptions() {
   return (
     <ul className={styles.startGrid} aria-label="Ways to start">
-      {options.map(({ href, icon: Icon, title, body }) => (
-        <li key={href}>
-          <Link href={href} className={styles.startCard}>
+      {options.map(({ id, href, action, icon: Icon, title, body }) => {
+        const content = (
+          <>
             <span className={styles.startIcon} aria-hidden="true">
               <Icon />
             </span>
             <span className="text-label">{title}</span>
             <span className={styles.startBody}>{body}</span>
-          </Link>
-        </li>
-      ))}
+          </>
+        );
+        return (
+          <li key={id}>
+            {action ? (
+              <FlowActionCard action={action} className={styles.startCard}>
+                {content}
+              </FlowActionCard>
+            ) : (
+              <Link href={href!} className={styles.startCard}>
+                {content}
+              </Link>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

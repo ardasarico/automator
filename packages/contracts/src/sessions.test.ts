@@ -37,17 +37,28 @@ describe("mini-app session contracts", () => {
     ).toBe(false);
   });
 
-  test("an answer carries the token and a port, optionally form values", () => {
-    expect(Value.Check(miniAppAnswerSchema, { token: "t", port: "next" })).toBe(true);
-    expect(
-      Value.Check(miniAppAnswerSchema, { token: "t", port: "submitted", data: { email: "a" } }),
-    ).toBe(true);
-    expect(Value.Check(miniAppAnswerSchema, { token: "t", port: "user", privyToken: "jwt" })).toBe(
-      true,
-    );
+  test("an answer carries the token, screen id and a port, optionally form values", () => {
+    expect(Value.Check(miniAppAnswerSchema, { token: "t", nodeId: "n", port: "next" })).toBe(true);
     expect(
       Value.Check(miniAppAnswerSchema, {
         token: "t",
+        nodeId: "n",
+        port: "submitted",
+        data: { email: "a" },
+      }),
+    ).toBe(true);
+    expect(
+      Value.Check(miniAppAnswerSchema, {
+        token: "t",
+        nodeId: "n",
+        port: "user",
+        privyToken: "jwt",
+      }),
+    ).toBe(true);
+    expect(
+      Value.Check(miniAppAnswerSchema, {
+        token: "t",
+        nodeId: "n",
         port: "verified",
         worldProof: {
           protocol_version: "3.0",
@@ -57,11 +68,15 @@ describe("mini-app session contracts", () => {
         },
       }),
     ).toBe(true);
-    expect(Value.Check(miniAppAnswerSchema, { token: "t", port: "user", privyToken: "" })).toBe(
-      false,
-    );
+    expect(
+      Value.Check(miniAppAnswerSchema, { token: "t", nodeId: "n", port: "user", privyToken: "" }),
+    ).toBe(false);
     expect(Value.Check(miniAppAnswerSchema, { port: "next" })).toBe(false);
-    expect(Value.Check(miniAppAnswerSchema, { token: "t", port: "next", extra: 1 })).toBe(false);
+    expect(Value.Check(miniAppAnswerSchema, { token: "t", port: "next" })).toBe(false);
+    expect(Value.Check(miniAppAnswerSchema, { token: "t", nodeId: "", port: "next" })).toBe(false);
+    expect(
+      Value.Check(miniAppAnswerSchema, { token: "t", nodeId: "n", port: "next", extra: 1 }),
+    ).toBe(false);
   });
 
   test("builds the answer path from both params", () => {

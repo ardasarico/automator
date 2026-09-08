@@ -58,6 +58,26 @@ describe("builder store", () => {
     expect(store.getState().canConnect({ ...connection, source: b, target: a })).toBe(false);
   });
 
+  test("adding a node deselects existing edges so Delete only removes the new selection", () => {
+    const store = setup();
+    const a = store.getState().addNode("trigger.manual", { x: 0, y: 0 });
+    const b = store.getState().addNode("screen.page", { x: 300, y: 0 });
+    store.getState().onConnect({ source: a, target: b, sourceHandle: null, targetHandle: null });
+    const edge = store.getState().edges[0]!;
+    store.getState().onEdgesChange([{ type: "select", id: edge.id, selected: true }]);
+
+    const added = store.getState().addNode("screen.page", { x: 600, y: 0 });
+    expect(
+      store
+        .getState()
+        .nodes.filter((node) => node.selected)
+        .map((node) => node.id),
+    ).toEqual([added]);
+    expect(store.getState().edges.filter((item) => item.selected)).toEqual([]);
+    store.getState().removeNode(added);
+    expect(store.getState().edges).toHaveLength(1);
+  });
+
   test("the same pair on another target handle connects, an exact duplicate does not", () => {
     const store = setup();
     const a = store.getState().addNode("trigger.miniapp-open", { x: 0, y: 0 });
@@ -266,6 +286,19 @@ describe("builder store", () => {
     store.getState().renameNode(id, "Hook");
     expect(store.getState().dirty).toBe(true);
   });
+
+  test("a save ignores selection changes and closes the previous typing undo group", () => {
+    const store = setup();
+    const id = store.getState().addNode("trigger.webhook", { x: 1, y: 2 });
+    store.getState().renameNode(id, "Saved label");
+    const before = store.getState();
+    const saved = serializeFlow(before.meta, before.nodes, before.edges);
+    store.getState().clearSelection();
+    expect(store.getState().markSaved(saved)).toBe(true);
+    store.getState().renameNode(id, "Next label");
+    store.getState().undo();
+    expect(store.getState().nodes[0]!.data.label).toBe("Saved label");
+  });
 });
 
 describe("node config", () => {
@@ -391,6 +424,50 @@ describe("history", () => {
     expect(store.getState().nodes).toHaveLength(0);
     store.getState().undo();
     expect(store.getState().nodes).toHaveLength(1);
+  });
+
+  test("keyboard position changes are undoable without discarding an earlier edit", () => {
+    const store = setup();
+    const id = store.getState().addNode("screen.page", { x: 0, y: 0 });
+    store
+      .getState()
+      .onNodesChange([{ type: "position", id, position: { x: 20, y: 0 }, dragging: false }]);
+
+    store.getState().undo();
+    expect(store.getState().nodes).toHaveLength(1);
+    expect(store.getState().nodes[0]?.position).toEqual({ x: 0, y: 0 });
+    store.getState().redo();
+    expect(store.getState().nodes[0]?.position).toEqual({ x: 20, y: 0 });
+  });
+
+  test("starting another drag after a document replacement creates a new undo step", () => {
+    const store = setup();
+    const id = store.getState().addNode("screen.page", { x: 0, y: 0 });
+    store
+      .getState()
+      .onNodesChange([{ type: "position", id, position: { x: 20, y: 0 }, dragging: true }]);
+    const replacement = {
+      ...createEmptyFlow("flow-1"),
+      nodes: [
+        {
+          id: "new",
+          type: "screen.page" as const,
+          position: { x: 0, y: 0 },
+          label: "New",
+          config: {},
+        },
+      ],
+    };
+    store.getState().applyDocument(replacement);
+    store
+      .getState()
+      .onNodesChange([{ type: "position", id: "new", position: { x: 40, y: 0 }, dragging: true }]);
+    store
+      .getState()
+      .onNodesChange([{ type: "position", id: "new", position: { x: 40, y: 0 }, dragging: false }]);
+    store.getState().undo();
+    expect(store.getState().nodes[0]?.id).toBe("new");
+    expect(store.getState().nodes[0]?.position).toEqual({ x: 0, y: 0 });
   });
 
   test("deleting a node and its edges in one tick is one undo step", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { SQL } from "bun";
+import { createFlowVersionStore } from "./flow-versions";
 import { createFlowStore } from "./flows";
 import { createListingStore } from "./listings";
 import { migrate } from "./migrations";
@@ -38,6 +39,58 @@ const input = {
 };
 
 describe.skipIf(!url)("listings store", () => {
+  test("concurrent first publishes refresh one listing without losing its identity or fork count", async () => {
+    const sql = new SQL(url!, { max: 2, connectionTimeout: 5 });
+    const suffix = crypto.randomUUID().replaceAll("-", "").slice(0, 8);
+    const ownerId = `did:privy:listings-race-${suffix}`;
+    try {
+      await migrate(sql);
+      const users = createUserStore(sql);
+      const flows = createFlowStore(sql);
+      const versions = createFlowVersionStore(sql);
+      const listings = createListingStore(sql);
+      await users.sync(ownerId, null);
+      await users.saveProfile(ownerId, { name: "Publisher", username: `listing_race_${suffix}` });
+      const flow = await flows.create(ownerId, input);
+
+      const [first, second] = await Promise.all([
+        listings.publish(ownerId, flow.flow, {
+          name: `Concurrent ${suffix} first`,
+          description: "First request",
+        }),
+        listings.publish(ownerId, flow.flow, {
+          name: `Concurrent ${suffix} second`,
+          description: "Second request",
+        }),
+      ]);
+      expect(first.slug).toBe(second.slug);
+      expect(first.publishedAt).toBe(second.publishedAt);
+      const rows = await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM automator_listings WHERE flow_id = ${flow.flow.id}`;
+      expect(rows[0]?.count).toBe(1);
+
+      const forked = await listings.fork(ownerId, first.slug);
+      expect(forked).not.toBeNull();
+      const history = await versions.list(ownerId, forked!.flow.id);
+      expect(history).toHaveLength(1);
+      expect(history[0]?.number).toBe(1);
+      expect((await versions.find(ownerId, forked!.flow.id, 1))?.document).toEqual(forked!.flow);
+      const refreshed = await listings.publish(ownerId, flow.flow, {
+        name: "Refreshed after fork",
+        description: "Updated snapshot",
+      });
+      expect(refreshed).toMatchObject({
+        slug: first.slug,
+        publishedAt: first.publishedAt,
+        forkCount: 1,
+        name: "Refreshed after fork",
+      });
+    } finally {
+      await sql`DELETE FROM automator_users WHERE id = ${ownerId}`;
+      await sql.close({ timeout: 5 });
+    }
+  });
+
   test.skipIf(!url)("publishes, re-publishes, forks and unpublishes flows", async () => {
     // Never point this at a database with real data: test rows are deleted by id prefix.
     const sql = new SQL(url!, { max: 2, connectionTimeout: 5 });

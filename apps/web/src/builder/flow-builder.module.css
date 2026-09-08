@@ -965,3 +965,112 @@ button.outlineProblem:focus-visible {
   color: var(--muted-foreground);
   text-wrap: pretty;
 }
+
+.builder {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+}
+
+.canvasColumn {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.compactControl {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .builder {
+    display: grid;
+    grid-template-columns: 45px minmax(0, 1fr) 45px;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .canvasColumn {
+    display: contents;
+  }
+
+  .canvasHeader {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .canvas {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .rail {
+    grid-row: 1 / -1;
+  }
+
+  .rail[data-side="left"] {
+    grid-column: 1;
+  }
+
+  .rail[data-side="right"] {
+    grid-column: 3;
+  }
+
+  .compactControl {
+    display: inline-flex;
+  }
+
+  .leftPanel,
+  .sidePanel {
+    position: absolute;
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+    inset: 0;
+    z-index: 10;
+    width: 100%;
+    max-width: 360px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 12px var(--shadow-color);
+  }
+
+  .sidePanel {
+    right: 0;
+    left: auto;
+  }
+
+  .leftPanel:not([data-open]),
+  .sidePanel:not([data-open]) {
+    display: none;
+  }
+
+  .canvasHeader {
+    height: auto;
+    min-height: 45px;
+    flex-wrap: wrap;
+    padding-block: 8px;
+  }
+
+  .runPanelHeader {
+    height: auto;
+    min-height: 37px;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    padding-block: 6px;
+  }
+
+  .runPanelBody {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
+  .runList,
+  .runDetail {
+    overflow: visible;
+  }
+
+  .miniMap {
+    display: none;
+  }
+}

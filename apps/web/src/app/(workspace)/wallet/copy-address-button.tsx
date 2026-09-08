@@ -4,23 +4,24 @@ import { Button } from "@automator/ui/button";
 import { RiCheckLine, RiFileCopyLine } from "@remixicon/react";
 import { useEffect, useState } from "react";
 
-/** Copies the address; the icon turns into a check for two seconds and a live region says so. */
+/** Reports clipboard success or failure, including when browser permissions prevent copying. */
 export function CopyAddressButton({ address }: { address: string }) {
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<"idle" | "pending" | "copied" | "failed">("idle");
 
   useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
+    if (state !== "copied") return;
+    const timer = setTimeout(() => setState("idle"), 2000);
     return () => clearTimeout(timer);
-  }, [copied]);
+  }, [state]);
 
   async function copy() {
+    setState("pending");
     try {
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard API is unavailable");
       await navigator.clipboard.writeText(address);
-      setCopied(true);
+      setState("copied");
     } catch {
-      setCopied(false);
+      setState("failed");
     }
   }
 
@@ -29,13 +30,27 @@ export function CopyAddressButton({ address }: { address: string }) {
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label={copied ? "Address copied" : "Copy address"}
+        aria-label={state === "copied" ? "Address copied" : "Copy address"}
+        disabled={state === "pending"}
         onClick={copy}
       >
-        {copied ? <RiCheckLine aria-hidden="true" /> : <RiFileCopyLine aria-hidden="true" />}
+        {state === "copied" ? (
+          <RiCheckLine aria-hidden="true" />
+        ) : (
+          <RiFileCopyLine aria-hidden="true" />
+        )}
       </Button>
-      <span className="sr-only" role="status">
-        {copied ? "Wallet address copied" : ""}
+      <span
+        className={state === "failed" ? "text-caption text-destructive-text" : "sr-only"}
+        role="status"
+      >
+        {state === "failed"
+          ? "Could not copy. Select and copy the wallet address."
+          : state === "copied"
+            ? "Wallet address copied"
+            : state === "pending"
+              ? "Copying wallet address"
+              : ""}
       </span>
     </>
   );

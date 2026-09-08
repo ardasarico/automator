@@ -174,6 +174,52 @@ export const migrations: Migration[] = [
     CREATE INDEX IF NOT EXISTS automator_flow_versions_flow_number
       ON automator_flow_versions (flow_id, number DESC)`,
   },
+  {
+    name: "0010_watch_state",
+    sql: `CREATE TABLE IF NOT EXISTS automator_watch_state (
+      flow_id TEXT NOT NULL REFERENCES automator_flows(id) ON DELETE CASCADE,
+      node_id TEXT NOT NULL,
+      met BOOLEAN NOT NULL,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (flow_id, node_id)
+    );
+    ALTER TABLE automator_runs DROP CONSTRAINT IF EXISTS automator_runs_source_check;
+    ALTER TABLE automator_runs ADD CONSTRAINT automator_runs_source_check
+      CHECK (source IN ('manual', 'webhook', 'schedule', 'miniapp', 'event', 'watch'))`,
+  },
+  {
+    name: "0011_session_world_request",
+    sql: `ALTER TABLE automator_sessions
+      ADD COLUMN IF NOT EXISTS world_nonce TEXT,
+      ADD COLUMN IF NOT EXISTS world_expires_at BIGINT`,
+  },
+  {
+    name: "0012_durable_trigger_claims",
+    sql: `ALTER TABLE automator_flows
+      ADD COLUMN IF NOT EXISTS polling_revision TEXT NOT NULL DEFAULT '0';
+    ALTER TABLE automator_watch_state
+      ADD COLUMN IF NOT EXISTS observation_id TEXT NOT NULL DEFAULT gen_random_uuid()::text;
+    CREATE TABLE IF NOT EXISTS automator_trigger_claims (
+      id TEXT PRIMARY KEY,
+      flow_id TEXT NOT NULL REFERENCES automator_flows(id) ON DELETE CASCADE,
+      node_id TEXT NOT NULL,
+      polling_revision TEXT NOT NULL,
+      source TEXT NOT NULL CHECK (source IN ('schedule', 'event', 'watch')),
+      occurrence_key TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('running', 'completed', 'uncertain')),
+      started_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      run_record JSONB,
+      history_saved BOOLEAN NOT NULL DEFAULT false,
+      UNIQUE (flow_id, node_id, polling_revision, source, occurrence_key)
+    );
+    CREATE INDEX IF NOT EXISTS automator_trigger_claims_latest
+      ON automator_trigger_claims (flow_id, node_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS automator_trigger_claims_unresolved
+      ON automator_trigger_claims (flow_id, node_id)
+      WHERE status IN ('running', 'uncertain')`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (

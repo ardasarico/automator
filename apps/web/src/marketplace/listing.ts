@@ -166,12 +166,3 @@ export function browseListings(
     )
     .sort((a, b) => compare(a, b, options.sort));
 }
-
-/**
- * Where "Fork flow" sends the user. Curated examples seed a new flow through `/create`;
- * published listings are copied by the API through the listing's own fork route.
- */
-export function forkHref(item: MarketplaceItem): string {
-  const slug = encodeURIComponent(item.slug);
-  return item.author.kind === "automator" ? `/create?example=${slug}` : `/marketplace/${slug}/fork`;
-}

@@ -166,6 +166,57 @@ describe("OpenRouter client", () => {
       }),
     ).toEqual(["timeout", undefined]);
   });
+
+  test.each([
+    ["null payload", null],
+    ["non-array choices", { choices: { 0: { message: { content: "ok" } } } }],
+    ["missing message", { choices: [{}] }],
+    ["non-text content", { choices: [{ message: { content: { answer: "ok" } } }] }],
+    ["empty message", { choices: [{ message: {} }] }],
+    ["non-array tool calls", { choices: [{ message: { content: null, tool_calls: {} } }] }],
+    ["malformed tool call", { choices: [{ message: { tool_calls: [null] } }] }],
+    ...["null", "[]", "42", '"text"', "not json"].map<[string, unknown]>((args) => [
+      `invalid tool arguments ${args}`,
+      {
+        choices: [
+          {
+            message: {
+              tool_calls: [
+                { id: "call", type: "function", function: { name: "http_get", arguments: args } },
+              ],
+            },
+          },
+        ],
+      },
+    ]),
+  ])("classifies %s as a provider failure and allows fallback", async (_name, payload) => {
+    const { model } = fixture(async () => Response.json(payload));
+    const request = { messages: [{ role: "user" as const, content: "hello" }] };
+    await expect(model(request)).rejects.toMatchObject({ kind: "invalid_response" });
+    let fallbackCalls = 0;
+    const fallback = withFallbackModel(model, async () => {
+      fallbackCalls++;
+      return { content: "recovered", toolCalls: [] };
+    });
+    expect(await fallback(request)).toEqual({ content: "recovered", toolCalls: [] });
+    expect(fallbackCalls).toBe(1);
+  });
+
+  test("preserves the upstream status when its error payload is null", async () => {
+    const { model } = fixture(async () => Response.json(null, { status: 503 }));
+    await expect(model({ messages: [] })).rejects.toMatchObject({
+      kind: "upstream",
+      status: 503,
+    });
+  });
+
+  test("refuses duplicate tool call ids before any tool is run", async () => {
+    const call = { id: "same", type: "function", function: { name: "http_get", arguments: "{}" } };
+    const { model } = fixture(async () =>
+      Response.json({ choices: [{ message: { content: null, tool_calls: [call, call] } }] }),
+    );
+    await expect(model({ messages: [] })).rejects.toMatchObject({ kind: "invalid_response" });
+  });
 });
 
 describe("OpenAI client", () => {

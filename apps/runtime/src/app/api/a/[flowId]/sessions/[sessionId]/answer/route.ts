@@ -22,6 +22,7 @@ export async function POST(
       params: { id: flowId, sessionId },
       headers: visitorHeaders(req),
       body,
+      signal: req.signal,
       timeoutMs: 65_000,
     });
     return NextResponse.json(result.data, {

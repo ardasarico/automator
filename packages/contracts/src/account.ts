@@ -18,6 +18,7 @@ export const accountUsageSchema = Type.Object({
     schedule: count,
     miniapp: count,
     event: count,
+    watch: count,
   }),
   secrets: count,
   /** Marketplace listings the user has published. */
@@ -36,5 +37,5 @@ export const accountUsageContract = {
 /** Every stored run of the window, whatever started it. */
 export function totalRuns(usage: Pick<AccountUsage, "runsLast30Days">): number {
   const runs = usage.runsLast30Days;
-  return runs.manual + runs.webhook + runs.schedule + runs.miniapp + runs.event;
+  return runs.manual + runs.webhook + runs.schedule + runs.miniapp + runs.event + runs.watch;
 }

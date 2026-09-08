@@ -1,19 +1,17 @@
 "use client";
 
 import { isScreenNodeType } from "@automator/contracts";
-import { encodeDocumentHash, MiniApp } from "@automator/miniapp";
+import { MiniApp } from "@automator/miniapp";
 import { Button } from "@automator/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiExternalLinkLine, RiRestartLine } from "@remixicon/react";
 import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { serializeFlow } from "./document";
+import { useOpenPreview } from "./preview-handoff-provider";
 import styles from "./screen-preview.module.css";
 import { selectSelectedNodes, type BuilderState } from "./store";
 import { useBuilderStore } from "./store-provider";
-
-/** Where the runtime app lives; the preview opens the current document there. */
-const runtimeUrl = process.env.NEXT_PUBLIC_RUNTIME_URL ?? "http://localhost:3002";
 
 const selectDocumentParts = (state: BuilderState) => ({
   meta: state.meta,
@@ -45,10 +43,13 @@ export function ScreenPreview() {
   );
   const startAt =
     selected.length === 1 && isScreenNodeType(selected[0]!.data.type) ? selected[0]!.id : undefined;
-  const href = useMemo(
-    () => `${runtimeUrl}/a/${encodeURIComponent(meta.id)}?preview${encodeDocumentHash(document)}`,
-    [meta.id, document],
-  );
+  const openPreview = useOpenPreview();
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const open = () => {
+    setPreviewError(
+      openPreview(document) ? null : "Allow pop-ups for Automator, then open the preview again.",
+    );
+  };
 
   return (
     <div className={styles.preview}>
@@ -74,14 +75,7 @@ export function ScreenPreview() {
         <Tooltip>
           <TooltipTrigger
             render={
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Open in browser"
-                render={
-                  <a href={href} target="_blank" rel="noreferrer" aria-label="Open in browser" />
-                }
-              />
+              <Button variant="ghost" size="icon-sm" aria-label="Open in browser" onClick={open} />
             }
           >
             <RiExternalLinkLine aria-hidden="true" />
@@ -89,12 +83,14 @@ export function ScreenPreview() {
           <TooltipPopup side="bottom">Open in browser</TooltipPopup>
         </Tooltip>
       </div>
+      {previewError && <p role="alert">{previewError}</p>}
       <div className={styles.stage}>
         <div className={styles.phone}>
           <MiniApp
             key={`${structure}|${startAt ?? ""}|${run}`}
             document={document}
             name={meta.name}
+            startAt={startAt}
           />
         </div>
       </div>

@@ -62,6 +62,16 @@ describe("autoAnswer", () => {
     });
   });
 
+  test("keeps special field names as own form values", () => {
+    const answer = autoAnswer(
+      node("screen.form", {
+        fields: [{ id: "__proto__", sample: "retained" }],
+      }),
+    );
+    expect(answer?.submitted).toEqual(JSON.parse('{"__proto__":"retained"}'));
+    expect(Object.hasOwn(answer?.submitted as object, "__proto__")).toBe(true);
+  });
+
   test("verifies a World ID check with a sample proof, or rejects it when asked", () => {
     expect(
       autoAnswer(node("world.id-verify", { action: "claim", verificationLevel: "orb" })),

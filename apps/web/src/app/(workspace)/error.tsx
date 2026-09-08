@@ -6,7 +6,7 @@ import { UnavailablePanel } from "../../components/unavailable-panel";
 import { WorkspaceBreadcrumbs } from "../../components/workspace-breadcrumbs";
 import { WorkspacePage } from "../../components/workspace-page";
 
-export default function WorkspaceError({ reset }: { error: Error; reset: () => void }) {
+export default function WorkspaceError({ retry }: { error: Error; retry: () => void }) {
   return (
     <WorkspacePage>
       <WorkspaceBreadcrumbs current="Something went wrong" />
@@ -14,7 +14,7 @@ export default function WorkspaceError({ reset }: { error: Error; reset: () => v
         icon={<RiErrorWarningLine />}
         title="This page could not load"
         description="Something went wrong while loading it. Try again, or go back to your flows."
-        action={<Button onClick={reset}>Try again</Button>}
+        action={<Button onClick={retry}>Try again</Button>}
       />
     </WorkspacePage>
   );

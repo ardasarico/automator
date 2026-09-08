@@ -18,6 +18,8 @@ const ports = (inputs: readonly string[], outputs: readonly string[]): FlowNodeP
 export const flowNodePorts: Record<FlowNodeType, FlowNodePorts> = {
   "trigger.schedule": ports([], ["tick"]),
   "trigger.onchain-event": ports([], ["event"]),
+  "trigger.price": ports([], ["price"]),
+  "trigger.balance": ports([], ["balance"]),
   "trigger.webhook": ports([], ["request"]),
   "trigger.miniapp-open": ports([], ["visitor"]),
   "trigger.manual": ports([], ["run"]),

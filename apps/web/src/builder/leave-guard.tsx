@@ -58,12 +58,22 @@ export function LeaveGuardProvider({ children }: { children: ReactNode }) {
   const [machine, dispatch] = useReducer(step, initial);
   // Each effect runs once, however often `save` or the router change identity afterwards.
   const handled = useRef(0);
+  const acceptedHistoryKey = useRef<string | null>(null);
 
   useEffect(() => {
     const { effect, seq } = machine;
     if (!effect || handled.current === seq) return;
     handled.current = seq;
-    if (effect.type === "navigate") router.push(effect.href);
+    if (effect.type === "navigate") {
+      if (effect.historyKey && window.navigation) {
+        acceptedHistoryKey.current = effect.historyKey;
+        // Resume the original entry; never push a replacement URL or rewrite Next's state.
+        const result = window.navigation.traverseTo(effect.historyKey);
+        void result.finished?.catch(() => {
+          acceptedHistoryKey.current = null;
+        });
+      } else router.push(effect.href);
+    }
     if (effect.type === "save")
       void save().then((outcome) =>
         dispatch(outcome.ok ? { type: "saved" } : { type: "save-failed", ...outcome }),
@@ -75,6 +85,30 @@ export function LeaveGuardProvider({ children }: { children: ReactNode }) {
     [dirty],
   );
   const choose = (choice: LeaveChoice) => dispatch({ type: "choose", choice });
+
+  useEffect(() => {
+    const navigation = window.navigation;
+    if (!navigation) return;
+    const guardTraversal = (event: NavigateEvent) => {
+      if (event.navigationType !== "traverse") return;
+      if (event.destination.key === acceptedHistoryKey.current) {
+        acceptedHistoryKey.current = null;
+        return;
+      }
+      // Cross-document navigation uses beforeunload. Older browsers and browser
+      // anti-trapping overrides may not permit cancellation; do not fake it with popstate.
+      if (!dirty || !event.destination.sameDocument || !event.cancelable) return;
+      event.preventDefault();
+      dispatch({
+        type: "request",
+        href: event.destination.url,
+        historyKey: event.destination.key,
+        dirty: true,
+      });
+    };
+    navigation.addEventListener("navigate", guardTraversal);
+    return () => navigation.removeEventListener("navigate", guardTraversal);
+  }, [dirty]);
 
   useEffect(() => {
     if (!dirty) return;

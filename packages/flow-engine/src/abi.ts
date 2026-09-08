@@ -1,4 +1,4 @@
-import { parseAbi, type Abi, type AbiFunction, type AbiParameter } from "viem";
+import { toFunctionSignature, parseAbi, type Abi, type AbiFunction, type AbiParameter } from "viem";
 import { NodeExecutionError } from "./executor";
 
 /** Reads an ABI typed into a config: a JSON array, or human-readable signatures one per line. */
@@ -24,10 +24,20 @@ export function parseAbiText(text: string): Abi {
   }
 }
 
-export function findFunction(abi: Abi, functionName: string): AbiFunction {
-  const entry = abi.find(
-    (item): item is AbiFunction => item.type === "function" && item.name === functionName,
+export function findFunction(abi: Abi, functionName: string, argumentCount: number): AbiFunction {
+  const entries = abi.filter(
+    (item): item is AbiFunction =>
+      item.type === "function" &&
+      (functionName.includes("(")
+        ? toFunctionSignature(item) === functionName
+        : item.name === functionName),
   );
+  const matches = entries.filter((item) => item.inputs.length === argumentCount);
+  if (matches.length > 1)
+    throw new NodeExecutionError(
+      `The ABI has more than one overload of "${functionName}" with ${argumentCount} arguments; specify its canonical signature, such as name(uint256), or keep only the intended overload`,
+    );
+  const entry = matches[0] ?? entries[0];
   if (!entry) throw new NodeExecutionError(`The ABI has no function "${functionName}"`);
   return entry;
 }
@@ -69,11 +79,26 @@ function coerceValue(parameter: AbiParameter, value: unknown): unknown {
     const itemType = type.slice(0, type.lastIndexOf("["));
     return value.map((item) => coerceValue({ ...parameter, type: itemType }, item));
   }
-  if (type === "tuple" && "components" in parameter && Array.isArray(value))
-    return coerceArgs(parameter.components, value);
+  if (type === "tuple" && "components" in parameter) {
+    if (Array.isArray(value)) return coerceArgs(parameter.components, value);
+    if (value !== null && typeof value === "object") {
+      const tuple = value as Record<string, unknown>;
+      return Object.fromEntries(
+        parameter.components.map((component) => [
+          component.name,
+          coerceValue(component, tuple[component.name ?? ""]),
+        ]),
+      );
+    }
+  }
   if (/^u?int\d*$/.test(type)) {
     if (typeof value === "bigint") return value;
-    if (typeof value === "number" && Number.isInteger(value)) return BigInt(value);
+    if (typeof value === "number") {
+      if (Number.isSafeInteger(value)) return BigInt(value);
+      throw new NodeExecutionError(
+        `"${parameter.name ?? type}" must be a safe integer or a decimal string`,
+      );
+    }
     if (typeof value === "string" && /^-?\d+$/.test(value.trim())) return BigInt(value.trim());
     throw new NodeExecutionError(`"${parameter.name ?? type}" must be an integer`);
   }

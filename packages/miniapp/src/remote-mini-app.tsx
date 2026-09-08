@@ -13,8 +13,8 @@ import { EndView, ScreenView, VisitorFailedView, WorkingView, type WorkingStep }
 
 /** How the page reaches the API: the runtime's same-origin handlers implement both. */
 export interface MiniAppClient {
-  start(): Promise<MiniAppSession>;
-  answer(sessionId: string, answer: MiniAppAnswer): Promise<MiniAppSession>;
+  start(signal?: AbortSignal): Promise<MiniAppSession>;
+  answer(sessionId: string, answer: MiniAppAnswer, signal?: AbortSignal): Promise<MiniAppSession>;
 }
 
 export type RemoteMiniAppProps = {
@@ -32,6 +32,14 @@ type SessionState = {
   notice?: string;
 };
 type State = { kind: "loading" } | SessionState | { kind: "unavailable"; message: string };
+const loadingState: State = { kind: "loading" };
+type ClientRequests = {
+  client: MiniAppClient;
+  users: number;
+  controller: AbortController;
+  active: AbortController | null;
+  promise?: Promise<MiniAppSession>;
+};
 
 /** A screen from the API rendered through the same views as the document-driven mini-app. */
 function toNode(screen: MiniAppScreen): ScreenNode {
@@ -88,11 +96,18 @@ function toSteps(session: MiniAppSession): WorkingStep[] {
  * the working view until the API settles.
  */
 export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const [loaded, setLoaded] = useState<{ client: MiniAppClient; state: State }>({
+    client,
+    state: { kind: "loading" },
+  });
+  // A different flow must not keep the old flow's actionable screen while its start is pending.
+  const state: State = loaded.client === client ? loaded.state : loadingState;
   const [steps, setSteps] = useState<WorkingStep[]>([]);
   const interacted = useRef(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const requestCount = useRef(0);
+  const answerable = useRef<SessionState | null>(null);
+  const requests = useRef<ClientRequests | null>(null);
 
   const settle = useCallback(
     (count: number, promise: Promise<MiniAppSession>, previous?: SessionState) => {
@@ -100,22 +115,50 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
         (session) => {
           if (count !== requestCount.current) return;
           setSteps(toSteps(session));
-          setState({ kind: "session", session, token: session.token ?? previous?.token ?? "" });
+          const next: SessionState = {
+            kind: "session",
+            session,
+            token: session.token ?? previous?.token ?? "",
+          };
+          answerable.current = next;
+          setLoaded({ client, state: next });
         },
         (cause: unknown) => {
           if (count !== requestCount.current) return;
           const next = stateAfterFailure(cause, previous);
           if (next.kind === "session") setSteps(toSteps(next.session));
-          setState(next);
+          answerable.current = next.kind === "session" ? next : null;
+          setLoaded({ client, state: next });
         },
       );
     },
-    [],
+    [client],
   );
 
   // The initial state is already "loading", so opening the session sets nothing synchronously.
   useEffect(() => {
-    settle(++requestCount.current, client.start());
+    let source = requests.current;
+    if (!source || source.client !== client) {
+      source = { client, users: 0, controller: new AbortController(), active: null };
+      requests.current = source;
+    }
+    source.users += 1;
+    source.active ??= source.controller;
+    // Strict Mode repeats effect setup. Both setups observe the same opening request, so
+    // a flow's initial work is started once rather than twice in development.
+    source.promise ??= source.client.start(source.controller.signal);
+    answerable.current = null;
+    settle(++requestCount.current, source.promise);
+    return () => {
+      requestCount.current += 1;
+      answerable.current = null;
+      source.users -= 1;
+      queueMicrotask(() => {
+        if (source.users !== 0) return;
+        source.controller.abort();
+        source.active?.abort();
+      });
+    };
   }, [client, settle]);
 
   useEffect(() => {
@@ -124,29 +167,51 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
   }, [state]);
 
   const act = (port: string, data?: Record<string, string>, identity?: IdentityAnswer) => {
-    if (state.kind !== "session") return;
+    const source = requests.current;
+    if (!source || source.client !== client) return;
+    if (state.kind !== "session" || !state.session.screen || answerable.current !== state) return;
+    // Consume synchronously: a second click before React renders cannot issue another answer.
+    answerable.current = null;
     interacted.current = true;
     const count = ++requestCount.current;
     const { session, token } = state;
+    source.active?.abort();
+    source.active = new AbortController();
     setSteps([]);
-    setState({ kind: "loading" });
+    setLoaded({ client, state: { kind: "loading" } });
     settle(
       count,
-      client.answer(session.sessionId, { token, port, ...(data ? { data } : {}), ...identity }),
+      client.answer(
+        session.sessionId,
+        {
+          token,
+          nodeId: state.session.screen.nodeId,
+          port,
+          ...(data ? { data } : {}),
+          ...identity,
+        },
+        source.active.signal,
+      ),
       state,
     );
   };
 
   const restart = () => {
+    const source = requests.current;
+    if (!source || source.client !== client) return;
+    answerable.current = null;
     interacted.current = true;
     const count = ++requestCount.current;
     setSteps([]);
-    setState({ kind: "loading" });
-    settle(count, client.start());
+    setLoaded({ client, state: { kind: "loading" } });
+    source.active?.abort();
+    source.active = new AbortController();
+    settle(count, client.start(source.active.signal));
   };
 
   let body: React.ReactNode;
-  if (state.kind === "loading") body = <WorkingView steps={steps} />;
+  if (state.kind === "loading")
+    body = <WorkingView steps={loaded.client === client ? steps : []} />;
   else if (state.kind === "unavailable")
     body = <VisitorFailedView message={state.message} onRetry={restart} />;
   else if (state.session.status === "screen" && state.session.screen)

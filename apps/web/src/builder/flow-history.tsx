@@ -4,11 +4,12 @@ import type { FlowVersionSummary } from "@automator/contracts";
 import { Badge } from "@automator/ui/badge";
 import { Button } from "@automator/ui/button";
 import { useReactFlow } from "@xyflow/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LocalTime } from "../app/(workspace)/runs/local-time";
 import { useAccessToken } from "../auth/access-token";
+import { serializeFlow } from "./document";
 import styles from "./flow-builder.module.css";
-import { useBuilderStore } from "./store-provider";
+import { useBuilderStore, useBuilderStoreApi } from "./store-provider";
 import {
   describeVersionError,
   getFlowVersionRequest,
@@ -26,14 +27,24 @@ type Loaded = { save: number; versions: FlowVersionSummary[]; error: string | nu
  */
 export function FlowHistory() {
   const getAccessToken = useAccessToken();
+  const store = useBuilderStoreApi();
   const { fitView } = useReactFlow();
   const flowId = useBuilderStore((state) => state.meta.id);
   const saveCount = useBuilderStore((state) => state.saveCount);
-  const applyDocument = useBuilderStore((state) => state.applyDocument);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [restoring, setRestoring] = useState<number | null>(null);
   const [restored, setRestored] = useState<{ number: number; save: number } | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const restoreRequest = useRef(0);
+  const fitTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      restoreRequest.current += 1;
+      if (fitTimeout.current !== null) clearTimeout(fitTimeout.current);
+    },
+    [flowId],
+  );
 
   useEffect(() => {
     if (!flowId) return;
@@ -64,19 +75,31 @@ export function FlowHistory() {
   const restoredNumber = restored && restored.save === saveCount ? restored.number : null;
 
   async function restore(number: number) {
+    const request = ++restoreRequest.current;
+    const before = store.getState();
+    const snapshot = JSON.stringify(serializeFlow(before.meta, before.nodes, before.edges));
     setRestoring(number);
     setRestoreError(null);
     try {
       const record = await getFlowVersionRequest(await getAccessToken(), flowId, number);
+      if (restoreRequest.current !== request) return;
+      const current = store.getState();
+      if (JSON.stringify(serializeFlow(current.meta, current.nodes, current.edges)) !== snapshot) {
+        setRestoreError(
+          "The flow changed while loading this version. Restore it again to replace the latest changes.",
+        );
+        return;
+      }
       const { id: _id, ...input } = record.document;
-      applyDocument(input);
-      setRestored({ number, save: saveCount });
+      current.applyDocument(input);
+      setRestored({ number, save: current.saveCount });
       // Nodes are new to React Flow on this render; fit once they have been measured.
-      setTimeout(() => void fitView({ padding: 0.2, duration: 300 }), 80);
+      if (fitTimeout.current !== null) clearTimeout(fitTimeout.current);
+      fitTimeout.current = setTimeout(() => void fitView({ padding: 0.2, duration: 300 }), 80);
     } catch (caught) {
-      setRestoreError(describeVersionError(caught));
+      if (restoreRequest.current === request) setRestoreError(describeVersionError(caught));
     } finally {
-      setRestoring(null);
+      if (restoreRequest.current === request) setRestoring(null);
     }
   }
 

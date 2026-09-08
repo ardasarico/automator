@@ -35,6 +35,24 @@ describe("createRateLimiter", () => {
     expect(limiter.retryAfter("a")).toBe(1);
     expect(limiter.retryAfter("never-seen")).toBe(1);
   });
+
+  test("an active caller keeps its remaining allowance as unrelated callers expire", () => {
+    let clock = 0;
+    const limiter = createRateLimiter(2, () => clock);
+    limiter.allow("returning");
+    for (let i = 0; i < 1_000; i++) limiter.allow(`visitor-${i}`);
+    clock = 30_000;
+    limiter.allow("returning");
+    clock = 60_000;
+    expect(limiter.allow("new-visitor")).toBe(true);
+    expect(limiter.retryAfter("returning")).toBe(30);
+    expect(limiter.allow("returning")).toBe(true);
+    expect(limiter.allow("returning")).toBe(false);
+    expect(limiter.allow("visitor-0")).toBe(true);
+    clock = 90_000;
+    expect(limiter.allow("returning")).toBe(true);
+    expect(limiter.allow("returning")).toBe(false);
+  });
 });
 
 describe("clientAddress", () => {

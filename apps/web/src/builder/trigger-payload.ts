@@ -16,7 +16,7 @@ type EdgeLike = Pick<FlowEdge, "target">;
 
 /**
  * The trigger Simulate starts from: the first trigger in document order with no incoming
- * edge, which is the same rule the engine uses to pick where a run begins.
+ * edge. Simulate sends its id explicitly so other root triggers do not fire with its sample.
  */
 export function findSimulationTrigger<T extends NodeLike>(
   nodes: readonly T[],

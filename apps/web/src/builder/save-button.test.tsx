@@ -1,10 +1,10 @@
 /// <reference types="bun" />
 import type { FlowDocument } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
-import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, useEffect } from "react";
 import type { Root } from "react-dom/client";
-import type { SaveFlowController } from "./save-button";
+import type { SaveFlowController, SaveOutcome } from "./save-button";
 
 GlobalRegistrator.register();
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -16,6 +16,7 @@ mock.module("../auth/access-token", () => ({
 
 /** Each save waits on a gate the test opens, so two saves can overlap. */
 let gates: Array<{ resolve(): void; reject(error: Error): void }> = [];
+let savedNames: string[] = [];
 class FlowRequestError extends Error {
   constructor(public readonly code: string) {
     super(code);
@@ -23,8 +24,9 @@ class FlowRequestError extends Error {
 }
 mock.module("../flows/client", () => ({
   FlowRequestError,
-  saveFlowRequest: () =>
+  saveFlowRequest: (_id: string, _token: string, input: { name: string }) =>
     new Promise<void>((resolve, reject) => {
+      savedNames.push(input.name);
       gates.push({ resolve, reject });
     }),
 }));
@@ -73,21 +75,24 @@ async function mount() {
   });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   gates = [];
+  savedNames = [];
+  await mount();
 });
-afterAll(async () => {
+afterEach(async () => {
   await act(async () => root?.unmount());
   container?.remove();
+});
+afterAll(async () => {
   await GlobalRegistrator.unregister();
 });
 
 describe("useSaveFlow", () => {
   test("a save asked for while one is running shares that save's outcome", async () => {
-    await mount();
     await act(async () => handles.setMeta!({ name: "Renamed" }));
-    let first: Promise<{ ok: boolean }>;
-    let second: Promise<{ ok: boolean }>;
+    let first: Promise<SaveOutcome>;
+    let second: Promise<SaveOutcome>;
     await act(async () => {
       first = handles.controller!.save();
       second = handles.controller!.save();
@@ -101,14 +106,59 @@ describe("useSaveFlow", () => {
   });
 
   test("a save after the running one finished starts a new request", async () => {
+    await act(async () => handles.setMeta!({ name: "First saved edit" }));
+    let first: Promise<SaveOutcome>;
+    await act(async () => {
+      first = handles.controller!.save();
+    });
+    await act(async () => gates[0]!.resolve());
+    expect(await first!).toEqual({ ok: true });
+
     await act(async () => handles.setMeta!({ name: "Renamed twice" }));
-    let outcome: Promise<{ ok: boolean }>;
+    let outcome: Promise<SaveOutcome>;
     await act(async () => {
       outcome = handles.controller!.save();
     });
-    expect(gates).toHaveLength(1);
-    await act(async () => gates[0]!.resolve());
+    expect(gates).toHaveLength(2);
+    await act(async () => gates[1]!.resolve());
     expect(await outcome!).toEqual({ ok: true });
     expect(container.textContent).toBe("saved");
+  });
+
+  test("edits made during a save remain dirty and prevent Save and leave from navigating", async () => {
+    await act(async () => handles.setMeta!({ name: "Sent to the server" }));
+    let outcome: Promise<SaveOutcome>;
+    await act(async () => {
+      outcome = handles.controller!.save();
+    });
+    await act(async () => handles.setMeta!({ name: "Edited while saving" }));
+    await act(async () => gates[0]!.resolve());
+
+    expect(await outcome!).toEqual({
+      ok: false,
+      message: "The flow changed while saving. Save again to keep the latest changes.",
+    });
+    expect(handles.controller!.dirty).toBe(true);
+    expect(handles.controller!.canSave).toBe(true);
+
+    await act(async () => {
+      outcome = handles.controller!.save();
+    });
+    expect(gates).toHaveLength(2);
+    await act(async () => gates[1]!.resolve());
+    expect(await outcome!).toEqual({ ok: true });
+    expect(handles.controller!.dirty).toBe(false);
+  });
+
+  test("save reads edits made before React has rendered the updated store", async () => {
+    let outcome: Promise<SaveOutcome>;
+    await act(async () => {
+      handles.setMeta!({ name: "Latest edit" });
+      outcome = handles.controller!.save();
+    });
+    expect(savedNames).toEqual(["Latest edit"]);
+    await act(async () => gates[0]!.resolve());
+    expect(await outcome!).toEqual({ ok: true });
+    expect(handles.controller!.dirty).toBe(false);
   });
 });

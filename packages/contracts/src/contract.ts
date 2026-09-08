@@ -86,6 +86,9 @@ export function buildPath<C extends EndpointContract>(
     const value = values?.[key];
     if (value === undefined || value === "")
       throw new ContractError(`Missing path parameter "${key}" for ${describe(contract)}`);
+    // URL resolves dot segments even when percent-encoded, changing the endpoint path.
+    if (value === "." || value === "..")
+      throw new ContractError(`Invalid path parameter "${key}" for ${describe(contract)}`);
     return encodeURIComponent(String(value));
   });
 }

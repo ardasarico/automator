@@ -26,4 +26,7 @@ export const navigationModule = {
   redirect: (href: string): never => {
     throw new Error(`redirect:${href}`);
   },
+  notFound: (): never => {
+    throw new Error("notFound");
+  },
 };

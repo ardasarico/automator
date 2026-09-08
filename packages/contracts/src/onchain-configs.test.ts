@@ -22,6 +22,14 @@ describe("onchain config schemas", () => {
       value: "0",
     });
   });
+
+  test("payment leaves its recipient explicit while payout reads the recipient port", () => {
+    expect(parseNodeConfig(onchainConfigSchemas["usdc.payment"], {}).to).toBe("");
+    expect(parseNodeConfig(onchainConfigSchemas["usdc.payout"], {}).to).toBe("{{input.recipient}}");
+    expect(
+      parseNodeConfig(onchainConfigSchemas["usdc.payment"], { to: "{{vars.destination}}" }).to,
+    ).toBe("{{vars.destination}}");
+  });
 });
 
 describe("onchain-event trigger config", () => {

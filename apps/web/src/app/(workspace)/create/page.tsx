@@ -1,12 +1,14 @@
-import { redirect } from "next/navigation";
-import { createEmptyFlow } from "../../../builder/document";
-import { exampleToFlowDocument, findFlowExample } from "../../../builder/examples";
-import { createFlow } from "../../../flows/server";
+import { findFlowExample } from "../../../builder/examples";
+import { UnavailablePanel } from "../../../components/unavailable-panel";
+import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
+import { WorkspacePage } from "../../../components/workspace-page";
+import { FlowActionButton } from "../../../flows/action-button";
+import { createFlowAction } from "../../../flows/actions";
+import { RiAddLine } from "@remixicon/react";
 
 /**
- * Creates a flow through the API and opens it. "New flow" lands on a blank document, and
- * "Fork flow" on a copy of the curated example named by `?example=`; the API mints the id.
- * `?ai=1` opens the new flow with the cursor in the AI prompt.
+ * Keeps old creation links usable without writing during GET rendering or prefetching.
+ * The submitted action creates the flow and opens its canvas.
  */
 export default async function CreatePage({
   searchParams,
@@ -16,10 +18,26 @@ export default async function CreatePage({
   const { example: requested, ai } = await searchParams;
   const slug = Array.isArray(requested) ? requested[0] : requested;
   const example = findFlowExample(slug);
-  // The id is discarded: the API assigns the stored one.
-  const { id: _draft, ...input } = example
-    ? exampleToFlowDocument(example, "draft")
-    : createEmptyFlow("draft");
-  const { flow } = await createFlow(input);
-  redirect(ai === undefined ? `/flows/${flow.id}` : `/flows/${flow.id}?ai=1`);
+  const focusAi = (Array.isArray(ai) ? ai[0] : ai) === "1";
+  return (
+    <WorkspacePage>
+      <WorkspaceBreadcrumbs current="Create a flow" />
+      <UnavailablePanel
+        icon={<RiAddLine />}
+        title={example ? `Create a copy of ${example.name}` : "Create a flow"}
+        description={
+          example
+            ? "Add this example to your flows, then make it yours on the canvas."
+            : focusAi
+              ? "Open a new canvas and describe your flow to the AI assistant."
+              : "Open an empty canvas and add your first trigger."
+        }
+        action={
+          <FlowActionButton action={createFlowAction.bind(null, { example: slug, ai: focusAi })}>
+            Create flow
+          </FlowActionButton>
+        }
+      />
+    </WorkspacePage>
+  );
 }

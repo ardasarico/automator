@@ -96,7 +96,11 @@ export const worldIdVerifyConfigSchema = Type.Object({
   action: text("", "The action id from the World Developer Portal (Incognito actions)."),
   verificationLevel: Type.Union(
     worldVerificationLevels.map((level) => Type.Literal(level)),
-    { default: "device", description: "Orb needs an Orb-verified World ID; device accepts any." },
+    {
+      default: "device",
+      description:
+        "Orb needs an Orb-verified World ID; device needs a World App device credential.",
+    },
   ),
   signal: text(
     "",

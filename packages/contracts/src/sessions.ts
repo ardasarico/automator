@@ -72,6 +72,8 @@ export type MiniAppSession = Static<typeof miniAppSessionSchema>;
 export const miniAppAnswerSchema = Type.Object(
   {
     token: Type.String({ minLength: 1 }),
+    /** The screen being answered; a stale answer must never advance a later screen. */
+    nodeId: Type.String({ minLength: 1 }),
     port: Type.String({ minLength: 1 }),
     /** A form's values keyed by field id; absent for a button. Ignored by identity screens. */
     data: Type.Optional(Type.Record(Type.String(), Type.String())),

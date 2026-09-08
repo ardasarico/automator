@@ -9,6 +9,8 @@ export type LeaveGuardState =
       status: "confirming";
       /** Where the user was going. */
       href: string;
+      /** Existing browser entry to traverse to, instead of pushing a new link. */
+      historyKey?: string;
       /** True while "Save and leave" is saving. */
       saving: boolean;
       /** Why the last save failed, shown in the dialog. */
@@ -18,12 +20,21 @@ export type LeaveGuardState =
 export type LeaveChoice = "save" | "leave" | "stay";
 
 export type LeaveGuardEvent =
-  | { type: "request"; href: string; dirty: boolean }
+  | { type: "request"; href: string; historyKey?: string; dirty: boolean }
   | { type: "choose"; choice: LeaveChoice }
   | { type: "saved" }
   | { type: "save-failed"; message: string };
 
-export type LeaveGuardEffect = { type: "navigate"; href: string } | { type: "save" } | null;
+export type LeaveGuardEffect =
+  | { type: "navigate"; href: string; historyKey?: string }
+  | { type: "save" }
+  | null;
+
+function destination(value: { href: string; historyKey?: string }) {
+  return value.historyKey
+    ? { href: value.href, historyKey: value.historyKey }
+    : { href: value.href };
+}
 
 export const idleLeaveGuard: LeaveGuardState = { status: "idle" };
 
@@ -38,17 +49,19 @@ export function reduceLeaveGuard(
 ): [LeaveGuardState, LeaveGuardEffect] {
   switch (event.type) {
     case "request":
-      if (!event.dirty) return [idleLeaveGuard, { type: "navigate", href: event.href }];
-      return [{ status: "confirming", href: event.href, saving: false, error: null }, null];
+      if (state.status === "confirming" && state.saving) return [state, null];
+      if (!event.dirty) return [idleLeaveGuard, { type: "navigate", ...destination(event) }];
+      return [{ status: "confirming", ...destination(event), saving: false, error: null }, null];
     case "choose": {
       if (state.status !== "confirming" || state.saving) return [state, null];
       if (event.choice === "stay") return [idleLeaveGuard, null];
-      if (event.choice === "leave") return [idleLeaveGuard, { type: "navigate", href: state.href }];
+      if (event.choice === "leave")
+        return [idleLeaveGuard, { type: "navigate", ...destination(state) }];
       return [{ ...state, saving: true, error: null }, { type: "save" }];
     }
     case "saved":
       if (state.status !== "confirming" || !state.saving) return [state, null];
-      return [idleLeaveGuard, { type: "navigate", href: state.href }];
+      return [idleLeaveGuard, { type: "navigate", ...destination(state) }];
     case "save-failed":
       if (state.status !== "confirming" || !state.saving) return [state, null];
       return [{ ...state, saving: false, error: event.message }, null];

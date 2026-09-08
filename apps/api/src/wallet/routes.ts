@@ -47,7 +47,8 @@ export function createWalletRoutes({ identity, chainFactory, runs }: WalletDepen
         if (!isChainId(chainId)) return status(400, { error: "invalid_request" });
         const chain = chainFactory?.chain(chainId);
         if (!chainFactory || !chain) return status(503, { error: "unavailable" });
-        const wallet = await chainFactory.wallet(claims.id);
+        const wallet = await chainFactory.wallet(claims.id).catch(() => undefined);
+        if (wallet === undefined) return status(503, { error: "unavailable" });
         if (!wallet) return status(404, { error: "not_found" });
         const address = wallet.address as Address;
         let native: bigint;
@@ -74,7 +75,7 @@ export function createWalletRoutes({ identity, chainFactory, runs }: WalletDepen
           nativeBalance: formatEther(native),
           nativeSymbol: chain.nativeSymbol,
           ...(usdc === undefined ? {} : { usdcBalance: formatUnits(usdc, 6) }),
-          ...(chainFactory.canSign ? { signing: wallet.delegated } : {}),
+          ...(chainFactory.canSign ? { signing: wallet.signing === true } : {}),
         };
         return result;
       },

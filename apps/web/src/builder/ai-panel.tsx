@@ -1,6 +1,14 @@
 "use client";
 
-import { redactFlowSecrets, restoreFlowSecrets, type FlowNode } from "@automator/contracts";
+import {
+  chainName,
+  flowChainId,
+  redactFlowSecrets,
+  restoreFlowSecrets,
+  type FlowDocument,
+  type FlowEdge,
+  type FlowNode,
+} from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import { Checkbox } from "@automator/ui/checkbox";
 import { Field, FieldLabel } from "@automator/ui/field";
@@ -39,6 +47,25 @@ export function diffNodes(current: readonly FlowNode[], next: readonly FlowNode[
   return changes;
 }
 
+/** Edge ids are bookkeeping; a connection changes when an endpoint or handle changes. */
+export function diffConnections(current: readonly FlowEdge[], next: readonly FlowEdge[]) {
+  const key = (edge: FlowEdge) =>
+    JSON.stringify([edge.source, edge.sourceHandle, edge.target, edge.targetHandle]);
+  const remaining = [...current];
+  const changes: { kind: "added" | "removed"; edge: FlowEdge }[] = [];
+  for (const edge of next) {
+    const index = remaining.findIndex((previous) => key(previous) === key(edge));
+    if (index === -1) changes.push({ kind: "added", edge });
+    else remaining.splice(index, 1);
+  }
+  return [...changes, ...remaining.map((edge) => ({ kind: "removed" as const, edge }))];
+}
+
+function proposalDocument(proposal: AiProposal, current: FlowDocument) {
+  // Only edits refer to the canvas's nodes. A new flow can reuse their ids by coincidence.
+  return proposal.replaces ? proposal.document : restoreFlowSecrets(proposal.document, current);
+}
+
 const changeLabels: Record<ChangeKind, string> = {
   added: "Add",
   removed: "Remove",
@@ -65,13 +92,24 @@ function ProposalCard({
   onDiscard(): void;
 }) {
   const nodes = useBuilderStore((state) => state.nodes);
+  const edges = useBuilderStore((state) => state.edges);
+  const meta = useBuilderStore((state) => state.meta);
   const hasNodes = nodes.length > 0;
   if (proposal.state !== "pending")
     return <p className={styles.proposalState}>{proposalStates[proposal.state]}</p>;
-  const changes = diffNodes(
-    nodes.map((node) => ({ ...node.data, id: node.id, position: node.position })),
-    proposal.document.nodes,
-  );
+  const current = serializeFlow(meta, nodes, edges);
+  const next = proposalDocument(proposal, current);
+  const changes = diffNodes(current.nodes, next.nodes);
+  const connections = diffConnections(current.edges, next.edges);
+  const settings = [
+    { name: "Name", before: current.name, after: next.name },
+    { name: "Description", before: current.description, after: next.description },
+    { name: "Chain", before: chainName(flowChainId(current)), after: chainName(flowChainId(next)) },
+  ].filter((setting) => setting.before !== setting.after);
+  function endpoint(document: Pick<FlowDocument, "nodes">, id: string, handle?: string) {
+    const label = document.nodes.find((node) => node.id === id)?.label || id;
+    return handle ? `${label} · ${handle}` : label;
+  }
   return (
     <div className={styles.preview} role="region" aria-label="Proposed flow">
       {proposal.verification && (
@@ -89,6 +127,15 @@ function ProposalCard({
           ))}
         </div>
       )}
+      {settings.length > 0 && (
+        <ul className="space-y-1 text-caption wrap-anywhere" aria-label="Flow settings changes">
+          {settings.map((setting) => (
+            <li key={setting.name}>
+              {setting.name}: {setting.before || "(empty)"} → {setting.after || "(empty)"}
+            </li>
+          ))}
+        </ul>
+      )}
       <ul className={styles.changes}>
         {changes.map((change) => (
           <li
@@ -102,6 +149,22 @@ function ProposalCard({
           </li>
         ))}
       </ul>
+      {connections.length > 0 && (
+        <ul className={styles.changes} aria-label="Connection changes">
+          {connections.map(({ kind, edge }) => {
+            const document = kind === "removed" ? current : next;
+            return (
+              <li key={`${kind}:${edge.id}`} className={styles.change} data-kind={kind}>
+                <span className={styles.changeKind}>{changeLabels[kind]}</span>
+                <span className="min-w-0 wrap-anywhere">
+                  {endpoint(document, edge.source, edge.sourceHandle)} →{" "}
+                  {endpoint(document, edge.target, edge.targetHandle)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       <div className={styles.actions}>
         <Button variant="ghost" size="sm" onClick={onDiscard}>
           Discard
@@ -176,8 +239,7 @@ export function AiPanel() {
   }
 
   function applyProposal(turn: AiTurn, proposal: AiProposal) {
-    // Proposals are drawn from a document with its secrets blanked; keep the canvas's values.
-    applyDocument(restoreFlowSecrets(proposal.document, serializeFlow(meta, nodes, edges)));
+    applyDocument(proposalDocument(proposal, serializeFlow(meta, nodes, edges)));
     apply(turn.id);
     // Nodes are new to React Flow on this render; fit once they have been measured.
     setTimeout(() => void fitView({ padding: 0.2, duration: 300 }), 80);
@@ -249,7 +311,11 @@ export function AiPanel() {
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+              if (
+                !event.nativeEvent.isComposing &&
+                (event.metaKey || event.ctrlKey) &&
+                event.key === "Enter"
+              ) {
                 event.preventDefault();
                 void send();
               }

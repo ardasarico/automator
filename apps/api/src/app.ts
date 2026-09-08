@@ -25,6 +25,7 @@ import { createAccountRoutes } from "./account/routes";
 import { createAiRoutes } from "./ai/routes";
 import { createAuthRoutes } from "./auth/routes";
 import { createFlowRoutes } from "./flows/routes";
+import { createTriggerIssueRoutes, type TriggerIssueReader } from "./flows/trigger-issues";
 import { createFlowVersionRoutes } from "./flows/versions";
 import { createHookRoutes } from "./hooks/routes";
 import { createPublicRoutes } from "./public/routes";
@@ -65,6 +66,7 @@ export interface AppDependencies {
   rateLimits?: Partial<RateLimits>;
   /** Save history per flow; recorded by the flow routes and read by the version routes. */
   flowVersions?: FlowVersionStore;
+  triggerIssues?: TriggerIssueReader;
 }
 
 /** Everything a client is allowed to learn about a failure. */
@@ -84,6 +86,11 @@ function sanitize(
   return { status: 503, body: { error: "unavailable" } };
 }
 
+/** The final webhook path segment authorizes execution and must never enter access logs. */
+function logPath(path: string): string {
+  return path.replace(/^(\/hooks\/[^/]+\/)[^/]+/, "$1[redacted]");
+}
+
 export function createApp({
   database,
   users,
@@ -101,6 +108,7 @@ export function createApp({
   rateLimits,
   world,
   flowVersions,
+  triggerIssues,
 }: AppDependencies) {
   const limits = { ...defaultRateLimits, ...rateLimits };
   const startedAt = new WeakMap<Request, number>();
@@ -124,7 +132,7 @@ export function createApp({
         if (log && failure.status >= 500)
           console.error("API request failed", {
             method: request.method,
-            path,
+            path: logPath(path),
             code,
             kind: error instanceof Error ? error.constructor.name : typeof error,
             message: error instanceof Error ? error.message : undefined,
@@ -136,7 +144,7 @@ export function createApp({
         if (start === undefined) return;
         startedAt.delete(request);
         console.log(
-          `${request.method} ${path} ${set.status ?? 200} ${Math.round(performance.now() - start)}ms`,
+          `${request.method} ${logPath(path)} ${set.status ?? 200} ${Math.round(performance.now() - start)}ms`,
         );
       })
       .get(apiInfoContract.path, (): ApiInfoResponse => ({ name: "Automator API" }), {
@@ -175,6 +183,7 @@ export function createApp({
           ? createFlowVersionRoutes({ flows, versions: flowVersions, identity, log })
           : new Elysia(),
       )
+      .use(createTriggerIssueRoutes({ flows, triggerIssues, identity }))
       // Published flows are readable without a session, for the runtime that hosts them.
       .use(flows ? createPublicRoutes({ flows }) : new Elysia())
       // Any signed-in user may run a document statelessly; saved runs need both stores.

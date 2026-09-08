@@ -56,7 +56,7 @@ test("copies the address, confirms in a live region, and resets after two second
   expect(status.textContent).toBe("");
 });
 
-test("stays quiet when the clipboard refuses", async () => {
+test("shows an accessible recovery message when the clipboard refuses and can retry", async () => {
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText: async () => Promise.reject(new Error("denied")) },
@@ -65,5 +65,47 @@ test("stays quiet when the clipboard refuses", async () => {
   const button = container.querySelector("button")!;
   await act(async () => button.click());
   expect(button.getAttribute("aria-label")).toBe("Copy address");
-  expect(container.querySelector("[role=status]")!.textContent).toBe("");
+  const status = container.querySelector("[role=status]")!;
+  expect(status.textContent).toBe("Could not copy. Select and copy the wallet address.");
+  expect(status.className).not.toContain("sr-only");
+  expect(button.disabled).toBe(false);
+
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async () => {} },
+  });
+  await act(async () => button.click());
+  expect(status.textContent).toBe("Wallet address copied");
+  expect(button.getAttribute("aria-label")).toBe("Address copied");
+});
+
+test("shows recovery instructions when the clipboard API is unavailable", async () => {
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+  await act(async () => root.render(<CopyAddressButton address={address} />));
+  await act(async () => container.querySelector("button")!.click());
+  expect(container.querySelector("[role=status]")!.textContent).toContain("Could not copy.");
+});
+
+test("prevents another request while clipboard permission is pending", async () => {
+  let finish!: () => void;
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: {
+      writeText: (text: string) => {
+        written.push(text);
+        return new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+      },
+    },
+  });
+  await act(async () => root.render(<CopyAddressButton address={address} />));
+  const button = container.querySelector("button")!;
+  await act(async () => button.click());
+  expect(button.disabled).toBe(true);
+  expect(container.querySelector("[role=status]")!.textContent).toBe("Copying wallet address");
+  await act(async () => button.click());
+  expect(written).toEqual([address]);
+  await act(async () => finish());
+  expect(button.disabled).toBe(false);
 });

@@ -1,6 +1,6 @@
 import type { FlowNode } from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
-import { diffNodes } from "./ai-panel";
+import { diffConnections, diffNodes } from "./ai-panel";
 
 const node = (id: string, type: FlowNode["type"], label: string, config = {}): FlowNode => ({
   id,
@@ -8,6 +8,22 @@ const node = (id: string, type: FlowNode["type"], label: string, config = {}): F
   label,
   config,
   position: { x: 0, y: 0 },
+});
+
+test("connection previews show rewired handles even when all node configs stay the same", () => {
+  const original = {
+    id: "e",
+    source: "condition",
+    sourceHandle: "true",
+    target: "notify",
+    targetHandle: "message",
+  };
+  const rewired = { ...original, sourceHandle: "false" };
+  expect(diffConnections([original], [rewired])).toEqual([
+    { kind: "added", edge: rewired },
+    { kind: "removed", edge: original },
+  ]);
+  expect(diffConnections([original], [{ ...original, id: "regenerated" }])).toEqual([]);
 });
 
 describe("diffNodes", () => {

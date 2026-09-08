@@ -294,7 +294,30 @@ describe("marketplace routes", () => {
     });
   });
 
-  test("a snapshot that no longer matches the document schema is a 422, not a 500", async () => {
+  test("publishing a stale stored flow is refused before changing the listing", async () => {
+    let published = false;
+    const { request, flows } = fixture({
+      publish: async () => {
+        published = true;
+        throw new Error("A stale document must never be published");
+      },
+    });
+    const flow = await flows.create("did:privy:alice", {
+      ...input,
+      nodes: [{ ...input.nodes[1]!, type: "world.retired" as never }],
+      edges: [],
+    });
+    const response = await request("/marketplace", "POST", "alice", {
+      flowId: flow.flow.id,
+      name: "Stale",
+      description: "",
+    });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "invalid_flow" });
+    expect(published).toBe(false);
+  });
+
+  test("a stale snapshot is refused on read and before creating a fork", async () => {
     const stale: MarketplaceListingDetail = {
       slug: "stale",
       name: "Stale",
@@ -311,10 +334,21 @@ describe("marketplace routes", () => {
         edges: [],
       },
     };
-    const { request } = fixture({ find: async () => stale });
+    let forked = false;
+    const { request } = fixture({
+      find: async () => stale,
+      fork: async () => {
+        forked = true;
+        throw new Error("A stale snapshot must never be forked");
+      },
+    });
     const response = await request("/marketplace/stale", "GET", "bob");
     expect(response.status).toBe(422);
     expect(await response.json()).toEqual({ error: "invalid_flow" });
+    const fork = await request("/marketplace/stale/fork", "POST", "bob");
+    expect(fork.status).toBe(422);
+    expect(await fork.json()).toEqual({ error: "invalid_flow" });
+    expect(forked).toBe(false);
   });
 
   test("slugs that fail the contract pattern answer 400 before storage", async () => {

@@ -13,21 +13,35 @@ export function createQuickJsSandbox(): Sandbox {
     async run(code, input, vars, limits) {
       const QuickJS = await loading;
       const script = `
-        const __input = ${JSON.stringify(input ?? null)};
-        const __vars = ${JSON.stringify(vars ?? {})};
-        const __result = (function (input, vars) {\n${code}\n})(__input, __vars);
-        __result === undefined ? undefined : JSON.parse(JSON.stringify(__result, (_key, value) => {
-          if (typeof value === "number" && !Number.isFinite(value))
-            throw new Error("Run code returned a non-finite number; check its numeric inputs.");
-          return value;
-        }));
+        (() => {
+          const stringify = JSON.stringify;
+          const isFinite = Number.isFinite;
+          const ErrorType = Error;
+          const input = JSON.parse(${JSON.stringify(JSON.stringify(input ?? null))});
+          const vars = JSON.parse(${JSON.stringify(JSON.stringify(vars ?? {}))});
+          const result = new Function("input", "vars", ${JSON.stringify(code)})(input, vars);
+          if (result === undefined) return undefined;
+          if (result !== null && typeof result.then === "function")
+            throw new ErrorType("Run code must return a JSON value synchronously, not a Promise.");
+          const json = stringify(result, (_key, value) => {
+            if (typeof value === "number" && !isFinite(value))
+              throw new ErrorType("Run code returned a non-finite number; check its numeric inputs.");
+            return value;
+          });
+          if (json === undefined) throw new ErrorType("Run code must return a JSON value.");
+          return json;
+        })();
       `;
       try {
-        return QuickJS.evalCode(script, {
+        const json = QuickJS.evalCode(script, {
           shouldInterrupt: shouldInterruptAfterDeadline(Date.now() + limits.timeoutMs),
           memoryLimitBytes: limits.memoryMb * 1024 * 1024,
           maxStackSizeBytes: 512 * 1024,
         });
+        // Only text crosses back: VM code cannot replace the host's JSON decoder.
+        if (json === undefined) return undefined;
+        if (typeof json !== "string") throw new Error("Run code must return a JSON value.");
+        return JSON.parse(json) as unknown;
       } catch (error) {
         throw new Error(describe(error, limits.timeoutMs));
       }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   isScreenNodeType,
+  findScreenFormAnswerProblem,
   parseScreenConfig,
   screenConfigSchemas,
   screenNodeTypes,
@@ -24,6 +25,47 @@ describe("screen node types", () => {
     expect(isScreenNodeType("world.verification-completed")).toBe(false);
     expect(isScreenNodeType("logic.condition")).toBe(false);
     expect(Object.keys(screenConfigSchemas)).toEqual([...screenNodeTypes]);
+  });
+});
+
+describe("form answer validation", () => {
+  const config = parseScreenConfig("screen.form", {
+    fields: [
+      { id: "email", type: "email", required: true },
+      { id: "amount", type: "number" },
+      { id: "note", type: "textarea" },
+    ],
+  });
+
+  test("accepts declared fields with fractional numbers and absent optional values", () => {
+    expect(
+      findScreenFormAnswerProblem(config, { email: "ada@example.com", amount: "1.25" }),
+    ).toBeNull();
+    expect(findScreenFormAnswerProblem(config, { email: "ada@example.com" })).toBeNull();
+    expect(
+      findScreenFormAnswerProblem(config, { email: "ada@example.com", amount: "" }),
+    ).toBeNull();
+  });
+
+  test("refuses undeclared fields, missing required values and invalid scalar values", () => {
+    const invalidAnswers: (Record<string, string> | undefined)[] = [
+      undefined,
+      {},
+      { email: "" },
+      { email: "ada@example.com", recipient: "forged" },
+      { email: "not-an-email" },
+      { email: "ada@example.com", amount: "Infinity" },
+      { email: "ada@example.com", amount: "0x10" },
+      { email: "ada@example.com", amount: "1e999" },
+      { email: "ada@example.com", amount: "words" },
+    ];
+    for (const data of invalidAnswers)
+      expect(findScreenFormAnswerProblem(config, data)).not.toBeNull();
+  });
+
+  test("an inherited property cannot fulfill a required field", () => {
+    const data = Object.create({ email: "ada@example.com" }) as Record<string, string>;
+    expect(findScreenFormAnswerProblem(config, data)).not.toBeNull();
   });
 });
 

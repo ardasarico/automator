@@ -15,6 +15,8 @@ import {
   useContext,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -22,6 +24,7 @@ import {
 import { useTheme } from "@automator/ui/theme-provider";
 import { authRequest, AuthRequestError } from "./client";
 import { e2eSession } from "./access-token";
+import { secretsStore } from "../builder/secrets-store";
 
 function setupError(stage: "session" | "wallet" | "account", cause: unknown) {
   const code =
@@ -103,19 +106,64 @@ export function SessionProvider({
   const [user, setUser] = useState<AuthUser | null>(initialUser ?? null);
   const [pending, setPending] = useState(!initialUser);
   const [error, setError] = useState<string | null>(null);
-  const inFlight = useRef<Promise<SessionResponse> | null>(null);
   const loggingOut = useRef(false);
   const lastAttemptAt = useRef(0);
   const userId = privyUser?.id;
+  const secretsAccountId =
+    (e2eSession || !ready ? initialUser?.id : authenticated ? userId : null) ?? null;
+  useLayoutEffect(() => {
+    secretsStore.getState().setAccount(secretsAccountId);
+  }, [secretsAccountId]);
+  const identity = useMemo(
+    () => ({ userId: ready && authenticated ? userId : undefined }),
+    [ready, authenticated, userId],
+  );
+  const currentIdentity = useRef(identity);
+  const inFlight = useRef<{
+    identity: typeof identity;
+    task: Promise<SessionResponse>;
+  } | null>(null);
+  const clearingCookie = useRef<Promise<Response> | null>(null);
+  useEffect(() => {
+    currentIdentity.current = identity;
+  }, [identity]);
+
+  const assertCurrentIdentity = useCallback(() => {
+    if (loggingOut.current) throw new Error("Logging out");
+    if (currentIdentity.current !== identity || !identity.userId)
+      throw new Error("The signed-in account changed");
+  }, [identity]);
 
   const store = useCallback((next: AuthUser) => {
     setUser((current) => (sameUser(current, next) ? current : next));
   }, []);
 
+  const clearSessionCookie = useCallback(() => {
+    if (clearingCookie.current) return clearingCookie.current;
+    const task = fetch("/api/auth/session", {
+      method: "DELETE",
+      signal: AbortSignal.timeout(20_000),
+    });
+    clearingCookie.current = task;
+    void task
+      .finally(() => {
+        if (clearingCookie.current === task) clearingCookie.current = null;
+      })
+      .catch(() => {});
+    return task;
+  }, []);
+
   const synchronize = useCallback(() => {
-    if (inFlight.current) return inFlight.current;
+    if (loggingOut.current) return Promise.reject(new Error("Logging out"));
+    if (inFlight.current?.identity === identity) return inFlight.current.task;
+    const previous = inFlight.current?.task;
+    const deletion = clearingCookie.current;
     const task = (async () => {
-      if (loggingOut.current) throw new Error("Logging out");
+      // A previous account's response can still write the cookie. Finish it before
+      // synchronizing the new account so the final cookie always matches the SDK.
+      if (previous) await previous.catch(() => {});
+      if (deletion) await deletion.catch(() => {});
+      assertCurrentIdentity();
       const current = privyUser;
       if (!current) throw setupError("session", new Error("Not signed in"));
       if (!hasEmbeddedWallet(current)) {
@@ -127,50 +175,60 @@ export function SessionProvider({
           if (!latest || !hasEmbeddedWallet(latest)) throw setupError("wallet", cause);
         }
       }
-      const session = await authRequest(sessionContract, await getAccessToken()).catch(
-        (cause: unknown) => {
-          throw setupError("account", cause);
-        },
-      );
+      assertCurrentIdentity();
+      const token = await getAccessToken();
+      assertCurrentIdentity();
+      const session = await authRequest(sessionContract, token).catch((cause: unknown) => {
+        throw setupError("account", cause);
+      });
+      assertCurrentIdentity();
+      if (session.user.id !== identity.userId) throw new Error("The signed-in account changed");
       if (!session.user.walletAddress) throw setupError("wallet", new Error("Wallet is not ready"));
       return session;
     })();
-    inFlight.current = task;
+    inFlight.current = { identity, task };
     void task
       .finally(() => {
-        if (inFlight.current === task) inFlight.current = null;
+        if (inFlight.current?.task === task) inFlight.current = null;
       })
       .catch(() => {});
     return task;
-  }, [createWallet, getAccessToken, refreshUser, privyUser]);
+  }, [assertCurrentIdentity, createWallet, getAccessToken, identity, refreshUser, privyUser]);
 
   const refresh = useCallback(async () => {
+    assertCurrentIdentity();
     setPending(true);
     setError(null);
     try {
       const session = await synchronize();
-      if (session.user.id !== userId) throw new Error("The signed-in account changed");
+      assertCurrentIdentity();
       store(session.user);
       return session.user;
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "We couldn’t finish signing you in. Please try again.",
-      );
+      if (currentIdentity.current === identity && !loggingOut.current)
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "We couldn’t finish signing you in. Please try again.",
+        );
       throw cause;
     } finally {
-      setPending(false);
+      if (currentIdentity.current === identity && !loggingOut.current) setPending(false);
     }
-  }, [store, synchronize, userId]);
+  }, [assertCurrentIdentity, identity, store, synchronize]);
 
   const saveProfile = useCallback(
     async (input: ProfileInput) => {
-      const saved = await authRequest(profileContract, await getAccessToken(), input);
+      assertCurrentIdentity();
+      const token = await getAccessToken();
+      assertCurrentIdentity();
+      const saved = await authRequest(profileContract, token, input);
+      assertCurrentIdentity();
+      if (saved.user.id !== identity.userId) throw new Error("The signed-in account changed");
       store(saved.user);
       return saved.user;
     },
-    [getAccessToken, store],
+    [assertCurrentIdentity, getAccessToken, identity, store],
   );
 
   // SDK callbacks may change identity when refreshUser updates the Privy context.
@@ -197,13 +255,13 @@ export function SessionProvider({
       try {
         const session = await synchronizeInEffect();
         if (session.user.id !== userId) throw new Error("The signed-in account changed");
-        if (active) {
+        if (active && !loggingOut.current) {
           store(session.user);
           setError(null);
           setPending(false);
         }
       } catch (cause) {
-        if (active) {
+        if (active && !loggingOut.current) {
           setError(
             cause instanceof Error
               ? cause.message
@@ -235,12 +293,13 @@ export function SessionProvider({
     setError(null);
     try {
       // Let any cookie-writing request finish before clearing the server session.
-      await inFlight.current?.catch(() => {});
+      await inFlight.current?.task.catch(() => {});
       // Clear the mirrored cookie first: if it survives, the SDK session has to
       // survive with it, or the next page load would render as a signed-in user.
-      const response = await fetch("/api/auth/session", { method: "DELETE" });
+      const response = await clearSessionCookie();
       if (!response.ok) throw new Error("Could not clear session");
       await privyLogout();
+      secretsStore.getState().setAccount(null);
       window.location.assign("/login");
     } catch (cause) {
       loggingOut.current = false;
@@ -248,7 +307,7 @@ export function SessionProvider({
       setPending(false);
       throw cause;
     }
-  }, [privyLogout]);
+  }, [clearSessionCookie, privyLogout]);
 
   // Privy is the source of truth: once it reports a signed-out visitor, the
   // mirrored cookie is stale and private routes must send them to sign in.
@@ -262,9 +321,13 @@ export function SessionProvider({
     }
     if (loggingOut.current || signOutHandled.current || !needsSession(pathname)) return;
     signOutHandled.current = true;
-    void fetch("/api/auth/session", { method: "DELETE" }).catch(() => {});
-    router.replace("/login");
-  }, [signedOut, pathname, router]);
+    void (async () => {
+      await inFlight.current?.task.catch(() => {});
+      if (currentIdentity.current !== identity) return;
+      await clearSessionCookie().catch(() => {});
+      if (currentIdentity.current === identity) router.replace("/login");
+    })();
+  }, [clearSessionCookie, identity, signedOut, pathname, router]);
 
   // A session loaded for another Privy user is stale until the next sync lands.
   const stale = user !== null && userId !== undefined && user.id !== userId;

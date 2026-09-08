@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { listFlows, listRuns } from "../../../flows/server";
+import { redirect } from "next/navigation";
+import { FlowApiError, listFlows, listRuns } from "../../../flows/server";
 import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
 import { WorkspacePage } from "../../../components/workspace-page";
 import { RunFilter } from "./run-filter";
@@ -35,7 +36,12 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
   const cursor = first(params.cursor);
   const [flows, page] = await Promise.all([
     listFlows(),
-    listRuns({ flowId, cursor, limit: pageSize }),
+    listRuns({ flowId, cursor, limit: pageSize }).catch((error: unknown) => {
+      if (cursor && error instanceof FlowApiError && error.status === 400) {
+        redirect(runsHref(flowId, undefined));
+      }
+      throw error;
+    }),
   ]);
   return (
     <WorkspacePage>
@@ -45,6 +51,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
         runs={page.runs}
         filtered={Boolean(flowId)}
         nextHref={page.nextCursor ? runsHref(flowId, page.nextCursor) : undefined}
+        latestHref={cursor ? runsHref(flowId, undefined) : undefined}
       />
     </WorkspacePage>
   );

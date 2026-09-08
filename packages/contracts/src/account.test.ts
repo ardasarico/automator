@@ -7,7 +7,7 @@ import { parseResponse } from "./contract";
 const usage = {
   flows: 3,
   activeFlows: 1,
-  runsLast30Days: { manual: 4, webhook: 2, schedule: 0, miniapp: 1, event: 0 },
+  runsLast30Days: { manual: 4, webhook: 2, schedule: 0, miniapp: 1, event: 0, watch: 0 },
   secrets: 2,
   listings: 1,
   since: "2026-08-08T10:00:00.000Z",

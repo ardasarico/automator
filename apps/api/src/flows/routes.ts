@@ -15,7 +15,6 @@ import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
 import type { IdentityProvider } from "../auth/privy";
 import { isStoredDocumentValid } from "./stored";
-import { graphChanged } from "./versions";
 
 export interface FlowDependencies {
   flows: FlowStore;
@@ -44,8 +43,7 @@ export function createFlowRoutes({ flows, identity, versions, log = false }: Flo
         if (!isFlowDocumentInput(body) || findFlowDocumentProblem(body))
           return status(422, { error: "invalid_flow" });
         try {
-          const record = await flows.create(claims.id, body);
-          await versions?.record(claims.id, record.flow.id, body);
+          const record = await flows.create(claims.id, body, { recordVersion: Boolean(versions) });
           return status(201, record);
         } catch (error) {
           if (error instanceof FlowOwnerMissingError) return status(401, { error: "unauthorized" });
@@ -70,13 +68,11 @@ export function createFlowRoutes({ flows, identity, versions, log = false }: Flo
       async ({ claims, params, body, status }) => {
         if (!isFlowDocumentInput(body) || findFlowDocumentProblem(body))
           return status(422, { error: "invalid_flow" });
-        // The stored document is read first so a save that changes the graph records a
-        // version; a rename or a new description alone leaves the history as it is.
-        const previous = versions ? await flows.find(claims.id, params.id) : null;
-        const record = await flows.update(claims.id, params.id, body);
+        // The store saves the graph and its version together under the same flow lock.
+        const record = await flows.update(claims.id, params.id, body, {
+          recordVersion: Boolean(versions),
+        });
         if (!record) return status(404, { error: "not_found" });
-        if (versions && (!previous || graphChanged(previous.flow, record.flow)))
-          await versions.record(claims.id, record.flow.id, body);
         return record;
       },
       {

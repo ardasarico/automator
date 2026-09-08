@@ -4,6 +4,7 @@ import { filterConfigSchema, mergeConfigSchema, switchConfigSchema } from "./log
 import { forEachConfigSchema, runCodeConfigSchema } from "./loop-configs";
 import { emailConfigSchema, telegramMessageConfigSchema } from "./notify-configs";
 import { onchainConfigSchemas, onchainEventTriggerConfigSchema } from "./onchain-configs";
+import { watchConfigSchemas } from "./watch-configs";
 
 /**
  * Per-type `config` schemas for the node types the flow engine runs. Every field carries a
@@ -182,4 +183,5 @@ export const flowNodeConfigSchemas = {
   "logic.for-each": forEachConfigSchema,
   "logic.run-code": runCodeConfigSchema,
   ...onchainConfigSchemas,
+  ...watchConfigSchemas,
 } as const;

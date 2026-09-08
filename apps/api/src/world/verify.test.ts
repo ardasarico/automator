@@ -35,6 +35,18 @@ const proof: WorldProof = {
   ],
 };
 
+const verifyInput = {
+  action: "claim",
+  signal: "",
+  verificationLevel: "orb" as const,
+  proof,
+};
+
+const acceptedProof = {
+  success: true,
+  results: [{ identifier: "proof_of_human", success: true, nullifier: "0x2" }],
+};
+
 function fakeFetch(handler: (url: string, init?: RequestInit) => Response): typeof fetch {
   return (async (input: string | URL | Request, init?: RequestInit) =>
     handler(String(input), init)) as typeof fetch;
@@ -122,7 +134,7 @@ describe("createWorldVerifier", () => {
         });
       }),
     )!;
-    const result = await verifier.verify({ action: "claim", signal: "0xAda", proof });
+    const result = await verifier.verify({ ...verifyInput, signal: "0xAda" });
     expect(result).toEqual({
       ok: true,
       verification: { nullifierHash: "0x2", verificationLevel: "proof_of_human", action: "claim" },
@@ -142,21 +154,148 @@ describe("createWorldVerifier", () => {
       config,
       fakeFetch(() => {
         asked += 1;
-        return Response.json({ success: true });
+        return Response.json(acceptedProof);
       }),
     )!;
-    expect(await verifier.verify({ action: "other", signal: "", proof })).toEqual({
+    expect(await verifier.verify({ ...verifyInput, action: "other" })).toEqual({
       ok: false,
       rejection: { code: "action_mismatch", detail: "The proof is for another action." },
     });
-    expect(await verifier.verify({ action: "claim", signal: "0xBob", proof })).toEqual({
+    expect(await verifier.verify({ ...verifyInput, signal: "0xBob" })).toEqual({
       ok: false,
       rejection: { code: "signal_mismatch", detail: "The proof is bound to another signal." },
     });
     expect(asked).toBe(0);
     // Without a configured signal the binding is not checked.
-    expect((await verifier.verify({ action: "claim", signal: "", proof })).ok).toBe(true);
+    expect((await verifier.verify(verifyInput)).ok).toBe(true);
   });
+
+  test.each(["staging", "sandbox", "other"])(
+    "refuses %s proofs on a production verifier before asking the portal",
+    async (environment) => {
+      let asked = false;
+      const verifier = createWorldVerifier(
+        { ...config, environment: "production" },
+        fakeFetch(() => {
+          asked = true;
+          return Response.json(acceptedProof);
+        }),
+      )!;
+      expect(await verifier.verify({ ...verifyInput, proof: { ...proof, environment } })).toEqual({
+        ok: false,
+        rejection: {
+          code: "environment_mismatch",
+          detail: "The proof is for another World ID environment.",
+        },
+      });
+      expect(asked).toBe(false);
+    },
+  );
+
+  test("treats omitted legacy environments as production", async () => {
+    const { environment: _environment, ...legacy } = proof;
+    const verifier = createWorldVerifier(
+      { ...config, environment: "production" },
+      fakeFetch(() => Response.json(acceptedProof)),
+    )!;
+    expect((await verifier.verify({ ...verifyInput, proof: legacy })).ok).toBe(true);
+    const staging = createWorldVerifier(
+      config,
+      fakeFetch(() => Response.json(acceptedProof)),
+    )!;
+    expect((await staging.verify({ ...verifyInput, proof: legacy })).ok).toBe(false);
+  });
+
+  test("requires a successful Orb credential even when another credential verified", async () => {
+    const verifier = createWorldVerifier(
+      config,
+      fakeFetch(() =>
+        Response.json({
+          success: true,
+          nullifier: "0x3",
+          results: [
+            { identifier: "device", success: true, nullifier: "0x3" },
+            { identifier: "proof_of_human", success: false, nullifier: "0x2" },
+          ],
+        }),
+      ),
+    )!;
+    expect(await verifier.verify(verifyInput)).toEqual({
+      ok: false,
+      rejection: {
+        code: "verification_level_mismatch",
+        detail: "The proof does not include the required World ID credential.",
+      },
+    });
+    expect(await verifier.verify({ ...verifyInput, verificationLevel: "device" })).toEqual({
+      ok: true,
+      verification: { nullifierHash: "0x3", verificationLevel: "device", action: "claim" },
+    });
+  });
+
+  test.each(["proof_of_human", "orb"])(
+    "selects the verified %s identity independently of the first result and top-level nullifier",
+    async (identifier) => {
+      const verifier = createWorldVerifier(
+        config,
+        fakeFetch(() =>
+          Response.json({
+            success: true,
+            nullifier: "0x3",
+            results: [
+              { identifier: "device", success: true, nullifier: "0x3" },
+              { identifier, success: true, nullifier: "0x4" },
+            ],
+          }),
+        ),
+      )!;
+      expect(await verifier.verify(verifyInput)).toEqual({
+        ok: true,
+        verification: { nullifierHash: "0x4", verificationLevel: identifier, action: "claim" },
+      });
+    },
+  );
+
+  test("requires the requested device credential instead of accepting an unrelated verified credential", async () => {
+    const verifier = createWorldVerifier(
+      config,
+      fakeFetch(() =>
+        Response.json({
+          success: true,
+          results: [{ identifier: "passport", success: true, nullifier: "0x3" }],
+        }),
+      ),
+    )!;
+    expect(await verifier.verify({ ...verifyInput, verificationLevel: "device" })).toEqual({
+      ok: false,
+      rejection: {
+        code: "verification_level_mismatch",
+        detail: "The proof does not include the required World ID credential.",
+      },
+    });
+  });
+
+  test.each([
+    { success: true },
+    { success: true, results: [] },
+    { success: true, results: [{ success: true, nullifier: "0x2" }] },
+    { success: true, results: [{ identifier: "proof_of_human", success: true }] },
+    {
+      success: true,
+      results: [{ identifier: "proof_of_human", success: true, nullifier: "not-a-nullifier" }],
+    },
+    { ...acceptedProof, environment: "production" },
+    { ...acceptedProof, action: "other" },
+  ] as const)(
+    "does not turn an incomplete or inconsistent portal success into identity",
+    async (body) => {
+      const verifier = createWorldVerifier(
+        config,
+        fakeFetch(() => Response.json(body)),
+      )!;
+      await expect(verifier.verify(verifyInput)).rejects.toBeInstanceOf(WorldVerifyError);
+    },
+  );
 
   test("maps a 400 with a code to a rejection", async () => {
     const verifier = createWorldVerifier(
@@ -172,26 +311,66 @@ describe("createWorldVerifier", () => {
         ),
       ),
     )!;
-    expect(await verifier.verify({ action: "claim", signal: "", proof })).toEqual({
+    expect(await verifier.verify(verifyInput)).toEqual({
       ok: false,
       rejection: { code: "all_verifications_failed", detail: "All proof verifications failed." },
     });
   });
+
+  test.each([
+    [429, "rate_limit_exceeded"],
+    [408, "request_timeout"],
+  ] as const)(
+    "keeps HTTP %s portal errors retryable even when they include a code",
+    async (status, code) => {
+      const verifier = createWorldVerifier(
+        config,
+        fakeFetch(() => Response.json({ success: false, code, detail: "Try again." }, { status })),
+      )!;
+      await expect(verifier.verify(verifyInput)).rejects.toBeInstanceOf(WorldVerifyError);
+    },
+  );
 
   test("throws on an outage or an answer it cannot read", async () => {
     const down = createWorldVerifier(
       config,
       fakeFetch(() => new Response("gateway", { status: 502 })),
     )!;
-    await expect(down.verify({ action: "claim", signal: "", proof })).rejects.toBeInstanceOf(
-      WorldVerifyError,
-    );
+    await expect(down.verify(verifyInput)).rejects.toBeInstanceOf(WorldVerifyError);
     const odd = createWorldVerifier(
       config,
       fakeFetch(() => Response.json({ hello: "world" })),
     )!;
-    await expect(odd.verify({ action: "claim", signal: "", proof })).rejects.toBeInstanceOf(
-      WorldVerifyError,
-    );
+    await expect(odd.verify(verifyInput)).rejects.toBeInstanceOf(WorldVerifyError);
+  });
+
+  test("aborts an unresponsive portal so the visitor can retry", async () => {
+    const fetcher = (async (_input: string | URL | Request, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        expect(signal).toBeInstanceOf(AbortSignal);
+        signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+      })) as typeof fetch;
+    const verifier = createWorldVerifier(config, fetcher, 5)!;
+    await expect(verifier.verify(verifyInput)).rejects.toBeInstanceOf(WorldVerifyError);
+  });
+
+  test("keeps the verification deadline active while reading the portal response body", async () => {
+    let reading = false;
+    const fetcher = (async (_input: string | URL | Request, init?: RequestInit) => {
+      const signal = init?.signal;
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          signal?.addEventListener("abort", () => controller.error(signal.reason), { once: true });
+        },
+        pull() {
+          reading = true;
+        },
+      });
+      return new Response(stream, { headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    const verifier = createWorldVerifier(config, fetcher, 5)!;
+    await expect(verifier.verify(verifyInput)).rejects.toBeInstanceOf(WorldVerifyError);
+    expect(reading).toBe(true);
   });
 });

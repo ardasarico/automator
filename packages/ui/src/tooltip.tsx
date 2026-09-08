@@ -36,7 +36,7 @@ export function TooltipPopup({
       <TooltipPrimitive.Positioner
         align={align}
         anchor={anchor}
-        className="z-50 h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none"
+        className="z-(--z-popover) h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none"
         data-slot="tooltip-positioner"
         side={side}
         sideOffset={sideOffset}

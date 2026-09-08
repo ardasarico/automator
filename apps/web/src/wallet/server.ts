@@ -47,8 +47,8 @@ export async function getWallet(chainId: number): Promise<WalletLookup> {
   return { status: "ok", wallet: result.data };
 }
 
-/** What the caller's recent stored runs sent, newest first; empty when runs are not stored. */
-export async function listWalletTransactions(): Promise<readonly WalletTransaction[]> {
+/** Recent stored transactions, newest first; null when the history cannot be loaded. */
+export async function listWalletTransactions(): Promise<readonly WalletTransaction[] | null> {
   const token = await sessionToken();
   let result;
   try {
@@ -57,11 +57,11 @@ export async function listWalletTransactions(): Promise<readonly WalletTransacti
       timeoutMs: 15_000,
     });
   } catch (error) {
-    if (error instanceof ApiRequestError) return [];
+    if (error instanceof ApiRequestError) return null;
     throw error;
   }
   if (result.status === 401) redirect("/login");
-  if (result.status === 503) return [];
+  if (result.status === 503) return null;
   if (result.status !== 200) throw new FlowApiError(result.status);
   return result.data.transactions;
 }

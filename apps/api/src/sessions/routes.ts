@@ -2,6 +2,7 @@ import {
   answerMiniAppSessionContract,
   flowNodeConfigSchemas,
   flowChainId,
+  findScreenFormAnswerProblem,
   isIdentityScreenType,
   isScreenNodeType,
   miniAppAnswerSchema,
@@ -230,6 +231,7 @@ async function answerIdentityScreen(
       const result = await deps.world.verify({
         action: config.action,
         signal: config.signal,
+        verificationLevel: config.verificationLevel,
         proof: body.worldProof,
       });
       return {
@@ -281,7 +283,7 @@ export function createSessionRoutes({
     })
     .post(
       startMiniAppSessionContract.path,
-      async ({ params, status }) => {
+      async ({ params, status, request }) => {
         const found = await flows.findPublishedWithOwner(params.id);
         if (!found) return status(404, { error: "not_found" });
         const document = found.record.flow;
@@ -290,6 +292,7 @@ export function createSessionRoutes({
         const payload = { openedAt: new Date().toISOString() };
         const run = await runFlow(document, {
           ...engine,
+          signal: request.signal,
           trigger: { nodeId: entry.id, payload },
           secrets: secretsFor?.(found.ownerId),
           chain: chainFactory
@@ -316,6 +319,8 @@ export function createSessionRoutes({
           variables: run.variables,
           payload,
           lastRunId: run.id,
+          worldNonce: session.screen?.world?.rpContext.nonce ?? null,
+          worldExpiresAt: session.screen?.world?.rpContext.expires_at ?? null,
         });
         return status(201, { ...session, token });
       },
@@ -326,7 +331,7 @@ export function createSessionRoutes({
     )
     .post(
       answerMiniAppSessionContract.path,
-      async ({ params, body, status }) => {
+      async ({ params, body, status, request }) => {
         if (!Value.Check(miniAppAnswerSchema, body))
           return status(400, { error: "invalid_request" });
         const row = await sessions.find(params.id, params.sessionId);
@@ -334,6 +339,7 @@ export function createSessionRoutes({
         if (!row || !tokenMatches(row, body.token)) return status(404, { error: "not_found" });
         if (row.status !== "screen" || row.nodeId === null)
           return status(409, { error: "invalid_request" });
+        if (body.nodeId !== row.nodeId) return status(409, { error: "invalid_request" });
         const found = await flows.findPublishedWithOwner(params.id);
         if (!found) return status(404, { error: "not_found" });
         const previous = row.lastRunId ? await runs.find(row.ownerId, row.lastRunId) : null;
@@ -348,6 +354,17 @@ export function createSessionRoutes({
           return status(400, { error: "invalid_request" });
         let resume: Resume;
         if (isIdentityScreenType(node.type)) {
+          // A valid proof for another visitor session is not this screen's answer. Keep the
+          // issued request bound to this pause; mismatches never reach the World portal.
+          if (
+            world &&
+            node.type === "world.id-verify" &&
+            body.worldProof &&
+            (row.worldNonce !== body.worldProof.nonce ||
+              row.worldExpiresAt === null ||
+              row.worldExpiresAt <= now() / 1000)
+          )
+            return status(400, { error: "invalid_request" });
           const outcome = await answerIdentityScreen(
             node,
             body,
@@ -358,20 +375,37 @@ export function createSessionRoutes({
           if (!("resume" in outcome)) return status(outcome.status, { error: outcome.error });
           resume = outcome.resume;
         } else {
+          if (node.type === "screen.form") {
+            const config = resolveTemplates(parseScreenConfig(node.type, node.config), {
+              input: screenScope(document, previous.run, node.id).input,
+              vars: row.variables,
+              trigger: row.payload,
+            });
+            if (findScreenFormAnswerProblem(config, body.data))
+              return status(400, { error: "invalid_request" });
+          }
           resume = {
             nodeId: node.id,
-            outputs: { [body.port]: visitorAnswer(body.port, body.data) },
+            outputs: {
+              [body.port]:
+                node.type === "screen.form" ? (body.data ?? {}) : visitorAnswer(body.port),
+            },
             variables: row.variables,
           };
         }
+        // Provider failures before execution remain retryable. Claim the screen only once
+        // every prerequisite is ready, before any node can send a message or transaction.
+        const chain = chainFactory
+          ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))
+          : undefined;
+        if (!(await sessions.claim(row))) return status(409, { error: "invalid_request" });
         const run = await runFlow(document, {
           ...engine,
+          signal: request.signal,
           trigger: { payload: row.payload },
           resume: { ...resume, completed: previous.run.nodes },
           secrets: secretsFor?.(found.ownerId),
-          chain: chainFactory
-            ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))
-            : undefined,
+          chain,
         });
         await runs.create(found.ownerId, document, run, "miniapp");
         const session = toSession(
@@ -386,6 +420,8 @@ export function createSessionRoutes({
           nodeId: session.screen?.nodeId ?? null,
           variables: run.variables,
           lastRunId: run.id,
+          worldNonce: session.screen?.world?.rpContext.nonce ?? null,
+          worldExpiresAt: session.screen?.world?.rpContext.expires_at ?? null,
         });
         return session;
       },

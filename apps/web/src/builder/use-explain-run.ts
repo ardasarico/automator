@@ -19,6 +19,7 @@ import { useAccessToken } from "../auth/access-token";
 export function useExplainRun() {
   const getAccessToken = useAccessToken();
   const run = useRunStore((state) => state.run);
+  const runDocument = useRunStore((state) => state.document);
   const meta = useBuilderStore((state) => state.meta);
   const nodes = useBuilderStore((state) => state.nodes);
   const edges = useBuilderStore((state) => state.edges);
@@ -31,11 +32,11 @@ export function useExplainRun() {
   const explain = useCallback(
     async (nodeId?: string) => {
       if (!run || pending) return;
-      const node = nodeId ? nodes.find((entry) => entry.id === nodeId) : undefined;
-      const label = node ? node.data.label || getCatalogEntry(node.data.type).label : undefined;
+      const { id: _id, ...document } = runDocument ?? serializeFlow(meta, nodes, edges);
+      const node = nodeId ? document.nodes.find((entry) => entry.id === nodeId) : undefined;
+      const label = node ? node.label || getCatalogEntry(node.type).label : undefined;
       const askId = ask(label ? `Explain why "${label}" failed.` : "Explain why this run failed.");
       requestFocus();
-      const { id: _id, ...document } = serializeFlow(meta, nodes, edges);
       try {
         const result = await explainRunRequest(await getAccessToken(), {
           document: redactFlowSecrets(document),
@@ -52,7 +53,19 @@ export function useExplainRun() {
         fail(askId, describeAiFailure(error));
       }
     },
-    [answer, ask, edges, fail, getAccessToken, meta, nodes, pending, requestFocus, run],
+    [
+      answer,
+      ask,
+      edges,
+      fail,
+      getAccessToken,
+      meta,
+      nodes,
+      pending,
+      requestFocus,
+      run,
+      runDocument,
+    ],
   );
 
   return { explain, pending };

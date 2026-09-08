@@ -10,7 +10,13 @@ import {
 } from "@xyflow/react";
 import { createStore, type StoreApi } from "zustand";
 import { getCatalogEntry } from "./catalog";
-import { hydrateFlow, type BuilderEdge, type BuilderNode, type FlowMeta } from "./document";
+import {
+  hydrateFlow,
+  serializeFlow,
+  type BuilderEdge,
+  type BuilderNode,
+  type FlowMeta,
+} from "./document";
 
 /** What undo restores: the document-bearing part of the state, selection flags included. */
 export type HistoryEntry = { meta: FlowMeta; nodes: BuilderNode[]; edges: BuilderEdge[] };
@@ -67,8 +73,8 @@ export type BuilderState = {
   hydrate(document: FlowDocument): void;
   /** Replaces the whole graph and meta with a generated document, keeping the flow id; dirty. */
   applyDocument(input: FlowDocumentInput): void;
-  /** Marks the current graph and meta as persisted, without touching the canvas. */
-  markSaved(): void;
+  /** Records a save; only clears dirty if the canvas still matches the saved document. */
+  markSaved(document?: FlowDocument): boolean;
 };
 
 /** Node changes that only affect how the canvas looks, not the document. */
@@ -165,7 +171,9 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
           ? remember(state)
           : remove
             ? remember(state, "remove", removalWindowMs)
-            : {};
+            : documentChanged && !state.dragging
+              ? remember(state)
+              : {};
         return {
           ...history,
           nodes: applyNodeChanges(changes, state.nodes),
@@ -195,6 +203,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
           future: [...state.future, snapshot(state)],
           lastEdit: null,
           lastEditAt: 0,
+          dragging: false,
           dirty: true,
         };
       });
@@ -210,6 +219,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
           future: state.future.slice(0, -1),
           lastEdit: null,
           lastEditAt: 0,
+          dragging: false,
           dirty: true,
         };
       });
@@ -295,6 +305,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
       set((state) => ({
         ...remember(state),
         nodes: [...state.nodes.map((item) => ({ ...item, selected: false })), node],
+        edges: state.edges.map((edge) => (edge.selected ? { ...edge, selected: false } : edge)),
         dirty: true,
       }));
       return id;
@@ -353,6 +364,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
         dirty: false,
         past: [],
         future: [],
+        dragging: false,
         lastEdit: null,
         lastEditAt: 0,
       });
@@ -362,12 +374,19 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
       set((state) => ({
         ...remember(state),
         ...hydrateFlow({ ...input, id: state.meta.id }),
+        dragging: false,
         dirty: true,
       }));
     },
 
-    markSaved() {
-      set((state) => ({ dirty: false, saveCount: state.saveCount + 1 }));
+    markSaved(document) {
+      const state = get();
+      const unchanged =
+        document === undefined ||
+        JSON.stringify(serializeFlow(state.meta, state.nodes, state.edges)) ===
+          JSON.stringify(document);
+      set({ dirty: !unchanged, saveCount: state.saveCount + 1, lastEdit: null, lastEditAt: 0 });
+      return unchanged;
     },
   }));
 }

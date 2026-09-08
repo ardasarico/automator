@@ -52,6 +52,22 @@ describe("event signatures and filters", () => {
     expect(() => parseEventArgs("{nope", event)).toThrow("not valid JSON");
   });
 
+  test("normalizes integer filters to the types viem decodes, including OR filters", () => {
+    const event = parseEventSignature("Ticket(uint256 indexed id, int8 indexed tier)");
+    expect(parseEventArgs('{"id":"9007199254740993","tier":"-1"}', event)).toEqual({
+      id: BigInt("9007199254740993"),
+      tier: -1,
+    });
+    expect(parseEventArgs('{"id":[42,"43"],"tier":[1,"2"]}', event)).toEqual({
+      id: [BigInt(42), BigInt(43)],
+      tier: [1, 2],
+    });
+    expect(() => parseEventArgs('{"id":9007199254740993}', event)).toThrow("safe integer");
+    expect(() => parseEventArgs('{"id":-1}', event)).toThrow("valid uint256");
+    expect(() => parseEventArgs('{"tier":128}', event)).toThrow("valid int8");
+    expect(() => parseEventArgs('{"id":true}', event)).toThrow("must be an integer");
+  });
+
   test("turns a decoded log into a JSON-safe payload", () => {
     expect(
       eventPayload(
@@ -158,5 +174,63 @@ describe("event reader", () => {
     expect(
       await reader.getLogs({ address: usdc, event, fromBlock: BigInt(1), toBlock: BigInt(5) }),
     ).toEqual([]);
+  });
+
+  test("retains matching logs when indexed integer filters arrive as JSON", async () => {
+    const ticket = parseEventSignature("Ticket(uint256 indexed id, uint8 indexed tier)");
+    const raw = {
+      ...rawLog(alice, bob, BigInt(1), 5, 0),
+      topics: encodeEventTopics({
+        abi: [ticket],
+        eventName: "Ticket",
+        args: { id: BigInt(42), tier: 2 },
+      }),
+      data: "0x",
+    };
+    const transport = custom({
+      async request({ method }: { method: string }) {
+        if (method === "eth_getLogs") return [raw];
+        throw new Error(`Unexpected ${method}`);
+      },
+    });
+    const reader = createEventReader(createPublicClient({ transport }));
+    for (const args of [
+      '{"id":42,"tier":2}',
+      '{"id":"42","tier":"2"}',
+      '{"id":["41",42],"tier":[1,"2"]}',
+    ]) {
+      const logs = await reader.getLogs({
+        address: usdc,
+        event: ticket,
+        args: parseEventArgs(args, ticket),
+        fromBlock: BigInt(1),
+        toBlock: BigInt(5),
+      });
+      expect(logs).toHaveLength(1);
+      expect(logs[0]?.args).toEqual({ id: BigInt(42), tier: 2 });
+    }
+  });
+
+  test("leaves removed logs and logs without a block hash out", async () => {
+    const transport = custom({
+      async request({ method }: { method: string }) {
+        if (method === "eth_getLogs")
+          return [
+            { ...rawLog(alice, bob, BigInt(1), 5, 0), removed: true },
+            { ...rawLog(alice, bob, BigInt(1), 5, 1), blockHash: null },
+            rawLog(alice, bob, BigInt(1), 5, 2),
+          ];
+        throw new Error(`Unexpected ${method}`);
+      },
+    });
+    const reader = createEventReader(createPublicClient({ transport }));
+    const logs = await reader.getLogs({
+      address: usdc,
+      event,
+      fromBlock: BigInt(1),
+      toBlock: BigInt(5),
+    });
+    expect(logs).toHaveLength(1);
+    expect(logs[0]?.logIndex).toBe(2);
   });
 });

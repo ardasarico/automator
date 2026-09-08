@@ -1,6 +1,8 @@
 import type { OnchainEventPayload } from "@automator/contracts";
 import { jsonSafe } from "@automator/flow-engine";
 import {
+  decodeAbiParameters,
+  encodeAbiParameters,
   isAddress,
   parseAbiItem,
   type AbiEvent,
@@ -66,7 +68,8 @@ export function parseEventAddress(text: string): Address {
 
 /**
  * The `args` filter typed into the config: a JSON object whose keys name indexed inputs of
- * the event. Blank means no filter. Values pass through for viem to encode as topics.
+ * the event. Blank means no filter. Integers use viem's decoded type as well as its topic
+ * encoding: viem compares decoded logs against these values using strict equality.
  */
 export function parseEventArgs(text: string, event: AbiEvent): Record<string, unknown> | undefined {
   const trimmed = text.trim();
@@ -79,15 +82,33 @@ export function parseEventArgs(text: string, event: AbiEvent): Record<string, un
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
     throw new EventConfigError("The argument filter must be a JSON object");
-  const indexed = new Set(
-    event.inputs.filter((input) => input.indexed).map((input) => input.name ?? ""),
+  const indexed = new Map(
+    event.inputs.filter((input) => input.indexed).map((input) => [input.name ?? "", input]),
   );
-  for (const key of Object.keys(parsed)) {
-    if (!indexed.has(key))
-      throw new EventConfigError(`"${key}" is not an indexed argument of ${event.name}`);
+  const entries: [string, unknown][] = [];
+  for (const [key, value] of Object.entries(parsed)) {
+    const input = indexed.get(key);
+    if (!input) throw new EventConfigError(`"${key}" is not an indexed argument of ${event.name}`);
+    if (value === null || value === "") continue;
+    entries.push([key, normalizeEventArg(input, value)]);
   }
-  const entries = Object.entries(parsed).filter(([, value]) => value !== null && value !== "");
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function normalizeEventArg(input: AbiEvent["inputs"][number], value: unknown): unknown {
+  if (!/^u?int\d*$/.test(input.type)) return value;
+  if (Array.isArray(value)) return value.map((item) => normalizeEventArg(input, item));
+  if (typeof value === "number" && !Number.isSafeInteger(value))
+    throw new EventConfigError(`"${input.name}" must be a safe integer or an integer string`);
+  if ((typeof value !== "number" && typeof value !== "string") || value === "")
+    throw new EventConfigError(`"${input.name}" must be an integer`);
+  try {
+    if (typeof value === "string" && !value.trim()) throw new Error("Blank integer");
+    const encoded = encodeAbiParameters([input], [BigInt(value)]);
+    return decodeAbiParameters([input], encoded)[0];
+  } catch {
+    throw new EventConfigError(`"${input.name}" must be a valid ${input.type} integer`);
+  }
 }
 
 /** The trigger payload for one log: JSON-safe, bigints as decimal strings. */
@@ -123,14 +144,20 @@ export function createEventReader(client: PublicClient): EventReader {
       });
       const decoded: EventLog[] = [];
       for (const log of logs) {
-        if (log.blockNumber === null || log.logIndex === null || log.transactionHash === null)
+        if (
+          log.removed ||
+          log.blockNumber === null ||
+          log.blockHash === null ||
+          log.logIndex === null ||
+          log.transactionHash === null
+        )
           continue;
         decoded.push({
           address: log.address,
           eventName: log.eventName,
           args: (log.args ?? {}) as Record<string, unknown>,
           blockNumber: log.blockNumber,
-          blockHash: log.blockHash as Hex,
+          blockHash: log.blockHash,
           transactionHash: log.transactionHash,
           logIndex: log.logIndex,
         });

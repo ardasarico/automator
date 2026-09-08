@@ -10,6 +10,8 @@ import { FlowActivationProvider } from "./flow-activation";
 import { FlowCanvas } from "./flow-canvas";
 import { LeaveGuardProvider } from "./leave-guard";
 import { LeftPanel } from "./left-panel";
+import styles from "./flow-builder.module.css";
+import { ResponsivePanelsProvider } from "./responsive-panels";
 import { RightPanels } from "./right-panels";
 import { RunStoreProvider } from "./run-store-provider";
 import { SaveFlowProvider } from "./save-button";
@@ -19,6 +21,7 @@ import { BuilderStoreProvider } from "./store-provider";
 export function FlowBuilder({
   document,
   initialRun = null,
+  initialRunDocument = null,
   enabled = false,
   webhookToken = null,
   gettingStarted = false,
@@ -27,6 +30,8 @@ export function FlowBuilder({
   document: FlowDocument;
   /** A stored run to show on the canvas from the start, for links out of the run history. */
   initialRun?: FlowRun | null;
+  /** The historical document executed by initialRun. */
+  initialRunDocument?: FlowDocument | null;
   /** Whether the flow's triggers are live, and its webhook token, from the stored record. */
   enabled?: boolean;
   webhookToken?: string | null;
@@ -38,19 +43,21 @@ export function FlowBuilder({
   return (
     <BuilderStoreProvider document={document}>
       <FlowActivationProvider enabled={enabled} webhookToken={webhookToken}>
-        <RunStoreProvider initialRun={initialRun}>
+        <RunStoreProvider initialRun={initialRun} initialDocument={initialRunDocument}>
           <SaveFlowProvider>
             <LeaveGuardProvider>
               <AiStoreProvider focusOnMount={focusAi}>
                 <ReactFlowProvider>
-                  <div className="flex min-h-0 flex-1">
-                    <LeftPanel />
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <CanvasHeader />
-                      <FlowCanvas gettingStarted={gettingStarted} />
+                  <ResponsivePanelsProvider>
+                    <div className={styles.builder}>
+                      <LeftPanel />
+                      <div className={styles.canvasColumn}>
+                        <CanvasHeader />
+                        <FlowCanvas gettingStarted={gettingStarted} />
+                      </div>
+                      <RightPanels />
                     </div>
-                    <RightPanels />
-                  </div>
+                  </ResponsivePanelsProvider>
                 </ReactFlowProvider>
               </AiStoreProvider>
             </LeaveGuardProvider>

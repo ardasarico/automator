@@ -5,7 +5,7 @@ import {
   type FlowNode,
   type FlowRecord,
 } from "@automator/contracts";
-import type { EventCursorStore, FlowStore, RunStore } from "@automator/db";
+import type { EventCursorStore, FlowStore, RunStore, WatchStateStore } from "@automator/db";
 import {
   EventConfigError,
   eventPayload,
@@ -15,7 +15,9 @@ import {
   type EventReader,
 } from "./chain/events";
 import type { ChainFactory } from "./chain/provider";
-import { executeStoredRun, type EngineOptions } from "./runs/execute";
+import { executeStoredRun, RunPersistenceError, type EngineOptions } from "./runs/execute";
+import { isWatchTrigger, readWatchTrigger, type WatchSources } from "./watch/poll";
+import { WatchConfigError, crossed } from "./watch/threshold";
 
 export interface SchedulerDependencies {
   flows: FlowStore;
@@ -34,6 +36,10 @@ export interface SchedulerDependencies {
   eventLookback?: number;
   /** The most blocks one poll covers; a flow further behind catches up over several ticks. */
   eventMaxBlocks?: number;
+  /** Price and balance triggers remember their last reading here; without it they stay idle. */
+  watchState?: WatchStateStore;
+  /** Where those triggers read from; a source left out disables its trigger type. */
+  watchSources?: WatchSources;
 }
 
 const units: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
@@ -43,8 +49,8 @@ export function parseInterval(text: string): number | null {
   const match = /^\s*(\d+)\s*([smhd])?\s*$/i.exec(text);
   if (!match) return null;
   const amount = Number(match[1]);
-  if (amount <= 0) return null;
-  return amount * units[(match[2] ?? "m").toLowerCase()]!;
+  const milliseconds = amount * units[(match[2] ?? "m").toLowerCase()]!;
+  return Number.isSafeInteger(milliseconds) && milliseconds > 0 ? milliseconds : null;
 }
 
 function scheduleTriggers(nodes: readonly FlowNode[]): { node: FlowNode; every: number }[] {
@@ -61,6 +67,10 @@ function eventTriggers(nodes: readonly FlowNode[]): FlowNode[] {
   return nodes.filter((node) => node.type === "trigger.onchain-event");
 }
 
+function watchTriggers(nodes: readonly FlowNode[]): FlowNode[] {
+  return nodes.filter(isWatchTrigger);
+}
+
 const ZERO = BigInt(0);
 const ONE = BigInt(1);
 
@@ -71,7 +81,7 @@ function describe(error: unknown): string {
 /**
  * Runs enabled flows with a schedule trigger on their interval, and polls the chain for the
  * flows with an onchain-event trigger, in process. Each tick lists the enabled flows and
- * starts every flow whose newest scheduled run is older than its shortest `every`; for every
+ * starts every schedule trigger whose newest run is older than its `every`; for every
  * onchain-event trigger it reads the logs from the node's cursor to the head (bounded per
  * tick) and starts one run per log. A flow still busy from the last tick is skipped, so runs
  * never overlap, and one flow's failure never stops the tick. Time is injectable for tests.
@@ -88,22 +98,36 @@ export function createScheduler({
   eventReaderFor,
   eventLookback = 10,
   eventMaxBlocks = 2000,
+  watchState,
+  watchSources,
 }: SchedulerDependencies) {
   const inFlight = new Set<string>();
+  // A finished run must not be repeated just because writing its history failed. This
+  // fallback lasts for the process; durable execution claims are still needed across crashes.
+  const unsavedSchedules = new Map<string, Date>();
+  let ticking = false;
   let timer: ReturnType<typeof setInterval> | undefined;
 
-  function track(flowId: string, work: Promise<unknown>) {
+  function track(flowId: string, work: () => Promise<unknown>) {
     inFlight.add(flowId);
-    void work.finally(() => inFlight.delete(flowId));
+    void work()
+      .catch((error) => log(`Flow ${flowId} failed: ${describe(error)}`))
+      .finally(() => inFlight.delete(flowId));
   }
 
-  async function runSchedule(ownerId: string, record: FlowRecord, trigger: FlowNode) {
+  async function runSchedule(
+    ownerId: string,
+    record: FlowRecord,
+    trigger: FlowNode,
+    pollingRevision: string,
+  ) {
     const flowId = record.flow.id;
-    const shared = typeof engine === "function" ? engine(ownerId) : engine;
-    const chain = chainFactory
-      ? await chainFactory.forUser(ownerId, "live", flowChainId(record.flow))
-      : undefined;
     try {
+      const shared = typeof engine === "function" ? engine(ownerId) : engine;
+      const chain = chainFactory
+        ? await chainFactory.forUser(ownerId, "live", flowChainId(record.flow))
+        : undefined;
+      if (!(await flows.isCurrentPoll(flowId, pollingRevision))) return;
       const result = await executeStoredRun(
         { flows, runs },
         {
@@ -119,6 +143,8 @@ export function createScheduler({
       );
       log(`Scheduled run ${result.run.id} of flow ${flowId}: ${result.run.status}`);
     } catch (error) {
+      if (error instanceof RunPersistenceError)
+        unsavedSchedules.set(`${flowId}:${trigger.id}`, new Date(error.record.run.startedAt));
       log(`Scheduled run of flow ${flowId} failed: ${describe(error)}`);
     }
   }
@@ -130,6 +156,7 @@ export function createScheduler({
     node: FlowNode,
     reader: EventReader,
     cursors: EventCursorStore,
+    pollingRevision: string,
   ) {
     const flowId = record.flow.id;
     const chainId = flowChainId(record.flow);
@@ -165,6 +192,7 @@ export function createScheduler({
     let handled: bigint | null = null;
     try {
       for (const entry of logs) {
+        if (!(await flows.isCurrentPoll(flowId, pollingRevision))) return;
         try {
           const result = await executeStoredRun(
             { flows, runs },
@@ -184,7 +212,11 @@ export function createScheduler({
             `Event run ${result.run.id} of flow ${flowId} (${entry.eventName} in block ${entry.blockNumber}): ${result.run.status}`,
           );
         } catch (error) {
-          // A run that could not be stored leaves the cursor before its block: nothing is
+          if (error instanceof RunPersistenceError) {
+            log(`Event run ${error.record.run.id} of flow ${flowId}: ${describe(error)}`);
+            continue;
+          }
+          // A run that could not execute leaves the cursor before its block: nothing is
           // skipped on retry, at the cost of replaying that block's earlier logs.
           handled = entry.blockNumber - ONE;
           throw error;
@@ -193,11 +225,94 @@ export function createScheduler({
       handled = to;
     } finally {
       if (handled !== null && handled >= from)
-        await cursors.save({ flowId, nodeId: node.id, chainId, lastBlock: handled });
+        await cursors.save(
+          { flowId, nodeId: node.id, chainId, lastBlock: handled },
+          pollingRevision,
+        );
     }
   }
 
-  async function pollEvents(ownerId: string, record: FlowRecord, triggers: FlowNode[]) {
+  /**
+   * One watch trigger's poll: take the reading, and start a run only when the comparison has
+   * just turned true. The reading is stored either way, so a condition that stays true keeps
+   * the flow quiet until it goes false and crosses back.
+   */
+  async function pollWatchTrigger(
+    ownerId: string,
+    record: FlowRecord,
+    node: FlowNode,
+    state: WatchStateStore,
+    pollingRevision: string,
+  ) {
+    const flowId = record.flow.id;
+    const chainId = flowChainId(record.flow);
+    const previous = await state.find(flowId, node.id);
+    const reading = await readWatchTrigger(node, chainId, watchSources ?? {});
+    if (!crossed(previous?.met, reading.met)) {
+      if (previous?.met !== reading.met || previous?.value !== reading.value)
+        await state.save(
+          { flowId, nodeId: node.id, met: reading.met, value: reading.value },
+          pollingRevision,
+          previous?.observationId ?? null,
+        );
+      return;
+    }
+    const shared = typeof engine === "function" ? engine(ownerId) : engine;
+    const chain = chainFactory ? await chainFactory.forUser(ownerId, "live", chainId) : undefined;
+    // Setup can retry before any node executes. Once ready, claim the crossing before
+    // execution so an execution failure does not replay the flow every tick.
+    if (
+      !(await state.save(
+        { flowId, nodeId: node.id, met: true, value: reading.value },
+        pollingRevision,
+        previous?.observationId ?? null,
+      ))
+    )
+      return;
+    if (!(await flows.isCurrentPoll(flowId, pollingRevision))) return;
+    const result = await executeStoredRun(
+      { flows, runs },
+      {
+        ownerId,
+        record,
+        source: "watch",
+        engine: {
+          ...shared,
+          ...(chain ? { chain } : {}),
+          trigger: { nodeId: node.id, payload: reading.payload },
+          screens: "wait",
+        },
+      },
+    );
+    log(
+      `Watch run ${result.run.id} of flow ${flowId} (${node.type} at ${reading.value}): ${result.run.status}`,
+    );
+  }
+
+  async function pollWatches(
+    ownerId: string,
+    record: FlowRecord,
+    triggers: FlowNode[],
+    pollingRevision: string,
+  ) {
+    const flowId = record.flow.id;
+    if (!watchState) return;
+    for (const node of triggers) {
+      try {
+        await pollWatchTrigger(ownerId, record, node, watchState, pollingRevision);
+      } catch (error) {
+        const kind = error instanceof WatchConfigError ? "cannot watch" : "watch failed";
+        log(`Flow ${flowId} trigger ${node.id} ${kind}: ${describe(error)}`);
+      }
+    }
+  }
+
+  async function pollEvents(
+    ownerId: string,
+    record: FlowRecord,
+    triggers: FlowNode[],
+    pollingRevision: string,
+  ) {
     const flowId = record.flow.id;
     const reader = eventReaderFor?.(flowChainId(record.flow));
     if (!reader || !eventCursors) {
@@ -206,7 +321,7 @@ export function createScheduler({
     }
     for (const node of triggers) {
       try {
-        await pollTrigger(ownerId, record, node, reader, eventCursors);
+        await pollTrigger(ownerId, record, node, reader, eventCursors, pollingRevision);
       } catch (error) {
         const kind = error instanceof EventConfigError ? "cannot poll" : "poll failed";
         log(`Flow ${flowId} trigger ${node.id} ${kind}: ${describe(error)}`);
@@ -217,23 +332,32 @@ export function createScheduler({
   async function runDue(): Promise<string[]> {
     const started: string[] = [];
     const enabled = await flows.listEnabled();
-    for (const { ownerId, record } of enabled) {
+    for (const { ownerId, record, pollingRevision } of enabled) {
       const flowId = record.flow.id;
       if (inFlight.has(flowId)) continue;
-      const schedules = scheduleTriggers(record.flow.nodes);
-      const events = eventTriggers(record.flow.nodes);
-      if (schedules.length > 0) {
-        const every = Math.min(...schedules.map((trigger) => trigger.every));
-        const last = await runs.latestStartedAt(flowId, "schedule");
-        if (!last || now().getTime() - last.getTime() >= every) {
-          started.push(flowId);
-          track(flowId, runSchedule(ownerId, record, schedules[0]!.node));
-          continue;
+      try {
+        const schedules = scheduleTriggers(record.flow.nodes);
+        const events = eventTriggers(record.flow.nodes);
+        const due: FlowNode[] = [];
+        for (const { node, every } of schedules) {
+          const stored = await runs.latestStartedAt(flowId, "schedule", node.id);
+          const unsaved = unsavedSchedules.get(`${flowId}:${node.id}`);
+          const last = unsaved && (!stored || unsaved > stored) ? unsaved : stored;
+          if (!last || now().getTime() - last.getTime() >= every) due.push(node);
         }
-      }
-      if (events.length > 0 && eventCursors && eventReaderFor) {
-        started.push(flowId);
-        track(flowId, pollEvents(ownerId, record, events));
+        const watches = watchTriggers(record.flow.nodes);
+        const pollsEvents = events.length > 0 && eventCursors && eventReaderFor;
+        const pollsWatches = watches.length > 0 && watchState;
+        if (due.length > 0 || pollsEvents || pollsWatches) {
+          started.push(flowId);
+          track(flowId, async () => {
+            for (const node of due) await runSchedule(ownerId, record, node, pollingRevision);
+            if (pollsEvents) await pollEvents(ownerId, record, events, pollingRevision);
+            if (pollsWatches) await pollWatches(ownerId, record, watches, pollingRevision);
+          });
+        }
+      } catch (error) {
+        log(`Flow ${flowId} scheduling failed: ${describe(error)}`);
       }
     }
     return started;
@@ -242,16 +366,22 @@ export function createScheduler({
   return {
     /** One pass over the enabled flows; resolves with the ids it started work for. */
     async tick(): Promise<string[]> {
+      // Reserve the tick before its first await: two timers can overlap while the stores
+      // are slow, before any individual flow has been marked in flight.
+      if (ticking) return [];
+      ticking = true;
       try {
         return await runDue();
       } catch (error) {
         log(`Scheduler tick failed: ${describe(error)}`);
         return [];
+      } finally {
+        ticking = false;
       }
     },
     /** Waits for the runs the last tick started, for tests and shutdown. */
     async settle(): Promise<void> {
-      while (inFlight.size > 0) await new Promise((resolve) => setTimeout(resolve, 5));
+      while (ticking || inFlight.size > 0) await new Promise((resolve) => setTimeout(resolve, 5));
     },
     start() {
       if (timer) return;

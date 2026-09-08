@@ -4,7 +4,7 @@ import type { FlowSummary } from "@automator/contracts";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@automator/ui/select";
 import { useRouter } from "next/navigation";
 
-const allFlows = "__all__";
+const allFlows = "";
 
 /** Narrows the run history to one flow through the `flow` query parameter. */
 export function RunFilter({
@@ -15,11 +15,13 @@ export function RunFilter({
   selected: string;
 }) {
   const router = useRouter();
+  const unavailable = selected !== "" && !flows.some((flow) => flow.id === selected);
   const items = [
     { value: allFlows, label: "All flows" },
+    ...(unavailable ? [{ value: selected, label: "Unavailable flow" }] : []),
     ...flows.map((flow) => ({ value: flow.id, label: flow.name })),
   ];
-  const value = flows.some((flow) => flow.id === selected) ? selected : allFlows;
+  const value = selected || allFlows;
   return (
     <div className="mb-4 flex items-center gap-3">
       <label htmlFor="run-filter-flow" className="text-caption text-muted-foreground">
@@ -38,7 +40,11 @@ export function RunFilter({
         </SelectTrigger>
         <SelectPopup>
           {items.map((item) => (
-            <SelectItem key={item.value} value={item.value}>
+            <SelectItem
+              key={item.value}
+              value={item.value}
+              disabled={unavailable && item.value === selected}
+            >
               {item.label}
             </SelectItem>
           ))}

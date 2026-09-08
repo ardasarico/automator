@@ -94,6 +94,7 @@ export const flowRunSourceSchema = Type.Union([
   Type.Literal("schedule"),
   Type.Literal("miniapp"),
   Type.Literal("event"),
+  Type.Literal("watch"),
 ]);
 export type FlowRunSource = Static<typeof flowRunSourceSchema>;
 

@@ -1,7 +1,8 @@
-import { Button } from "@automator/ui/button";
 import { RiGitForkLine } from "@remixicon/react";
 import Link from "next/link";
-import { authorLabel, forkHref, type MarketplaceItem } from "../../../marketplace/listing";
+import { authorLabel, type MarketplaceItem } from "../../../marketplace/listing";
+import { FlowActionButton } from "../../../flows/action-button";
+import { createFlowAction, forkFlowAction } from "../../../flows/actions";
 import { ListingMarks } from "../../../marketplace/listing-marks";
 import styles from "./marketplace.module.css";
 
@@ -25,7 +26,7 @@ export function ListingCard({ listing }: { listing: MarketplaceItem }) {
         )}
       </div>
       <h3 id={titleId} className={`${styles.cardTitle} text-label`}>
-        <Link href={`/marketplace/${listing.slug}`} className={styles.cardLink}>
+        <Link href={`/marketplace/${encodeURIComponent(listing.slug)}`} className={styles.cardLink}>
           {listing.name}
         </Link>
       </h3>
@@ -34,16 +35,20 @@ export function ListingCard({ listing }: { listing: MarketplaceItem }) {
         <p className={styles.cardMeta}>
           <span>{authorLabel(listing.author)}</span>
         </p>
-        <Button
+        <FlowActionButton
           className="relative z-10"
           variant="outline"
           size="sm"
-          render={<Link href={forkHref(listing)} />}
+          action={
+            listing.author.kind === "automator"
+              ? createFlowAction.bind(null, { example: listing.slug })
+              : forkFlowAction.bind(null, listing.slug)
+          }
           aria-label={`Fork flow: ${listing.name}`}
         >
           <RiGitForkLine aria-hidden="true" />
           Fork flow
-        </Button>
+        </FlowActionButton>
       </div>
     </article>
   );

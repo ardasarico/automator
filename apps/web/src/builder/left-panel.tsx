@@ -4,6 +4,7 @@ import { Button } from "@automator/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import {
   RiArrowLeftLine,
+  RiCloseLine,
   RiBracesLine,
   RiFlowChart,
   RiHistoryLine,
@@ -13,7 +14,8 @@ import {
 } from "@remixicon/react";
 import type { RemixiconComponentType } from "@remixicon/react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { usePanelEscape, useResponsivePanels } from "./responsive-panels";
 import styles from "./flow-builder.module.css";
 import { NodePalette } from "./node-palette";
 import { VariablesPanel } from "./variables-panel";
@@ -22,7 +24,7 @@ import { FlowOutline } from "./flow-outline";
 import { FlowSettingsDialog } from "./flow-settings-dialog";
 import { useLeaveGuard } from "./leave-guard";
 import { NodeSettings } from "./node-settings";
-import { useBuilderStore } from "./store-provider";
+import { useBuilderStore, useBuilderStoreApi } from "./store-provider";
 
 type SectionId = "nodes" | "variables" | "outline" | "history";
 
@@ -47,6 +49,8 @@ function SidebarButton({
   icon: RemixiconComponentType;
   className?: string;
   "aria-pressed"?: boolean;
+  "aria-expanded"?: boolean;
+  "aria-controls"?: string;
   onClick?: () => void;
 }) {
   return (
@@ -80,6 +84,14 @@ function SidebarButton({
  * versions and restores one onto the canvas.
  */
 export function LeftPanel() {
+  const { compact, panel, setPanel } = useResponsivePanels();
+  const panelOpen = !compact || panel === "left";
+  const lastTrigger = useRef<HTMLElement | null>(null);
+  const closePanel = () => {
+    setPanel(null);
+    lastTrigger.current?.focus();
+  };
+  usePanelEscape(compact && panel === "left", closePanel);
   const [section, setSection] = useState<SectionId>("nodes");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const name = useBuilderStore((state) => state.meta.name);
@@ -88,6 +100,21 @@ export function LeftPanel() {
     const selected = state.nodes.filter((node) => node.selected);
     return selected.length === 1 ? selected[0] : undefined;
   });
+  const store = useBuilderStoreApi();
+  useEffect(
+    () =>
+      store.subscribe((state, previous) => {
+        const selected = state.nodes.filter((node) => node.selected);
+        const previousSelected = previous.nodes.filter((node) => node.selected);
+        if (compact && selected.length === 1 && selected[0]?.id !== previousSelected[0]?.id) {
+          lastTrigger.current =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          setSection("nodes");
+          setPanel("left");
+        }
+      }),
+    [compact, store, setPanel],
+  );
   const clearSelection = useBuilderStore((state) => state.clearSelection);
   const guardLink = useLeaveGuard();
   const open = sections.find((entry) => entry.id === section) ?? sections[0]!;
@@ -118,8 +145,14 @@ export function LeftPanel() {
               key={id}
               label={label}
               icon={icon}
-              aria-pressed={section === id}
-              onClick={() => setSection(id)}
+              aria-pressed={panelOpen && section === id}
+              aria-expanded={panelOpen && section === id}
+              aria-controls="builder-left-panel"
+              onClick={() => {
+                lastTrigger.current = document.activeElement as HTMLElement;
+                setSection(id);
+                if (compact) setPanel(panelOpen && section === id ? null : "left");
+              }}
             />
           ))}
           <SidebarButton
@@ -131,7 +164,13 @@ export function LeftPanel() {
           {settingsOpen && <FlowSettingsDialog onClose={() => setSettingsOpen(false)} />}
         </div>
       </nav>
-      <aside className={styles.leftPanel} aria-label={`${open.label} panel`}>
+      <aside
+        id="builder-left-panel"
+        className={styles.leftPanel}
+        data-open={panelOpen || undefined}
+        aria-label={`${open.label} panel`}
+        role={compact ? "dialog" : undefined}
+      >
         <div className={styles.panelHeader}>
           <h1 className="flex min-w-0 flex-1 items-center gap-1.5 px-1 text-caption font-medium">
             <RiFlowChart
@@ -140,6 +179,15 @@ export function LeftPanel() {
             />
             <span className="truncate">{name}</span>
           </h1>
+          <Button
+            className={styles.compactControl}
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Close left panel"
+            onClick={closePanel}
+          >
+            <RiCloseLine aria-hidden="true" />
+          </Button>
         </div>
         {section === "nodes" &&
           (selectedNode ? (

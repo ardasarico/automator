@@ -5,6 +5,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiPlayLine, RiRestartLine, RiStopLine } from "@remixicon/react";
 import { useState } from "react";
 import styles from "./flow-builder.module.css";
+import { useFlowActivation } from "./flow-activation";
 import { PublishButton } from "./publish-button";
 import { useRunStore } from "./run-store-provider";
 import { SaveButton, useSaveFlowController } from "./save-button";
@@ -21,6 +22,8 @@ import { countErrors } from "./validation";
  */
 export function CanvasHeader() {
   const { running, error, run, stop: stopSimulation } = useFlowRun();
+  const { liveMode } = useFlowActivation();
+  const runLabel = liveMode ? "Run live" : "Simulate";
   const runError = useRunStore((state) => state.run?.error ?? null);
   const saving = useSaveFlowController();
   const problems = useFlowProblems();
@@ -42,14 +45,14 @@ export function CanvasHeader() {
     warned && errors > 0
       ? `${errors === 1 ? "1 problem" : `${errors} problems`} may fail this run: ${
           problems.find((problem) => problem.severity === "error")?.message ?? ""
-        } Click Simulate again to run anyway.`
+        } Click ${runLabel} again to run anyway.`
       : null;
 
   return (
     <header className={styles.canvasHeader}>
       <Button variant="outline" size="sm" disabled={running} onClick={startSimulation}>
         <RiPlayLine aria-hidden="true" />
-        Simulate
+        {runLabel}
       </Button>
       {running && (
         <>

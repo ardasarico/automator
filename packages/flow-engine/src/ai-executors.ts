@@ -75,7 +75,7 @@ export const aiExecutors: ExecutorRegistry = {
           `The model answered with an unknown label: ${asText(parsed.label)}`,
         );
       // The label also fires a handle of its own name, so per-label ports can be added later.
-      return { label, [label]: content };
+      return { [label]: content, label };
     },
   },
 

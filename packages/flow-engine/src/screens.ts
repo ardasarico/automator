@@ -35,10 +35,11 @@ export function autoAnswer(node: FlowNode): ExecutionOutputs | null {
   if (!isScreenNodeType(node.type)) return null;
   if (node.type === "screen.form") {
     const config = parseScreenConfig(node.type, node.config);
-    const values: Record<string, string> = {};
-    for (const field of config.fields) {
-      if (field.id !== "") values[field.id] = sampleValue(field);
-    }
+    const values = Object.fromEntries(
+      config.fields
+        .filter((field) => field.id !== "")
+        .map((field) => [field.id, sampleValue(field)]),
+    );
     const port = screenPorts(node.type).primary;
     return { [port]: values, simulated: { port } };
   }

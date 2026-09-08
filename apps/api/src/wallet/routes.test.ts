@@ -52,16 +52,23 @@ function run(id: string, startedAt: string, nodes: FlowRun["nodes"]): FlowRun {
 }
 
 describe("collectWalletTransactions", () => {
-  test("lists receipt hashes newest first with the node's chain and time", () => {
+  test("lists live receipt hashes newest first with the document's chain and node time", () => {
     const older = run("r-old", "2026-09-07T09:00:00.000Z", [
       { nodeId: "t", status: "succeeded", outputs: { run: {} } },
       {
         nodeId: "send",
         status: "succeeded",
         finishedAt: "2026-09-07T09:00:02.000Z",
-        outputs: { receipt: { hash: hashA }, echo: { receipt: { transactionHash: hashA } } },
+        outputs: {
+          receipt: { simulated: false, hash: hashA },
+          echo: { receipt: { transactionHash: hashA } },
+        },
       },
-      { nodeId: "call", status: "succeeded", outputs: { receipt: { transactionHash: hashB } } },
+      {
+        nodeId: "call",
+        status: "succeeded",
+        outputs: { receipt: { simulated: false, hash: hashB } },
+      },
     ]);
     const newer = run("r-new", "2026-09-07T10:00:00.000Z", [
       { nodeId: "t", status: "succeeded", outputs: { run: {} } },
@@ -86,7 +93,7 @@ describe("collectWalletTransactions", () => {
       },
       {
         hash: hashB,
-        chainId: 84532,
+        chainId: 4801,
         flowId: "flow-pay",
         flowName: "Payout",
         runId: "r-old",
@@ -116,21 +123,33 @@ describe("GET /wallet/transactions", () => {
       "did:privy:alice",
       payout,
       run("r1", "2026-09-07T09:00:00.000Z", [
-        { nodeId: "send", status: "succeeded", outputs: { receipt: { hash: hashA } } },
+        {
+          nodeId: "send",
+          status: "succeeded",
+          outputs: { receipt: { simulated: false, hash: hashA } },
+        },
       ]),
     );
     await runs.create(
       "did:privy:alice",
       payout,
       run("r2", "2026-09-07T10:00:00.000Z", [
-        { nodeId: "send", status: "succeeded", outputs: { receipt: { hash: hashB } } },
+        {
+          nodeId: "send",
+          status: "succeeded",
+          outputs: { receipt: { simulated: false, hash: hashB } },
+        },
       ]),
     );
     await runs.create(
       "did:privy:bob",
       payout,
       run("r3", "2026-09-07T11:00:00.000Z", [
-        { nodeId: "send", status: "succeeded", outputs: { receipt: { hash: hashC } } },
+        {
+          nodeId: "send",
+          status: "succeeded",
+          outputs: { receipt: { simulated: false, hash: hashC } },
+        },
       ]),
     );
     const call = app(createWalletRoutes({ identity: identity(null), runs }));
@@ -172,7 +191,22 @@ function factory(
       chainRpcUrls: {},
     }),
     identity(wallet),
-    signing ? { privy: {} as never, authorizationKey: "key" } : undefined,
+    signing
+      ? {
+          privy: {
+            wallets: () => ({
+              get: async () => ({
+                id: wallet?.id,
+                address: wallet?.address,
+                chain_type: "ethereum",
+                additional_signers: wallet?.delegated ? [{ signer_id: "app-signer" }] : [],
+              }),
+            }),
+          } as never,
+          authorizationKey: "key",
+          signerId: "app-signer",
+        }
+      : undefined,
     (settings) =>
       custom({
         async request({ method }: { method: string }) {

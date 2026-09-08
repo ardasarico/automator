@@ -98,6 +98,7 @@ describe.skipIf(!url)("live PostgreSQL schema", () => {
       expect(await flows.findForWebhook(created.flow.id, created.webhookToken!)).toEqual({
         ownerId: "did:privy:test-a",
         record: enabled!,
+        pollingRevision: expect.any(String),
       });
       expect(await flows.findForWebhook(created.flow.id, "wrong")).toBeNull();
       expect(
@@ -350,32 +351,45 @@ describe.skipIf(!url)("live PostgreSQL chains and event cursors", () => {
       expect(stored.document.chainId).toBe(84532);
       expect(await runs.latestStartedAt(created.flow.id, "event")).toEqual(new Date(run.startedAt));
 
+      await flows.setEnabled("did:privy:test-a", created.flow.id, true);
+      const pollingRevision = (await flows.listEnabled()).find(
+        (entry) => entry.record.flow.id === created.flow.id,
+      )!.pollingRevision;
       // Cursors: one per (flow, node), block numbers beyond 2^53 survive, saves upsert.
       expect(await cursors.find(created.flow.id, "n1")).toBeNull();
       const big = BigInt("9007199254740993");
-      await cursors.save({ flowId: created.flow.id, nodeId: "n1", chainId: 84532, lastBlock: big });
+      await cursors.save(
+        { flowId: created.flow.id, nodeId: "n1", chainId: 84532, lastBlock: big },
+        pollingRevision,
+      );
       expect(await cursors.find(created.flow.id, "n1")).toEqual({
         flowId: created.flow.id,
         nodeId: "n1",
         chainId: 84532,
         lastBlock: big,
       });
-      await cursors.save({
-        flowId: created.flow.id,
-        nodeId: "n1",
-        chainId: 4801,
-        lastBlock: BigInt(10),
-      });
+      await cursors.save(
+        {
+          flowId: created.flow.id,
+          nodeId: "n1",
+          chainId: 4801,
+          lastBlock: BigInt(10),
+        },
+        pollingRevision,
+      );
       expect(await cursors.find(created.flow.id, "n1")).toMatchObject({
         chainId: 4801,
         lastBlock: BigInt(10),
       });
-      await cursors.save({
-        flowId: created.flow.id,
-        nodeId: "n2",
-        chainId: 4801,
-        lastBlock: BigInt(5),
-      });
+      await cursors.save(
+        {
+          flowId: created.flow.id,
+          nodeId: "n2",
+          chainId: 4801,
+          lastBlock: BigInt(5),
+        },
+        pollingRevision,
+      );
       expect((await cursors.find(created.flow.id, "n2"))?.lastBlock).toBe(BigInt(5));
 
       // Deleting the flow takes its cursors with it.

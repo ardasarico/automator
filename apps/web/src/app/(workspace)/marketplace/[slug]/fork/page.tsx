@@ -1,9 +1,6 @@
-import { notFound, redirect } from "next/navigation";
-import { forkListing } from "../../../../../marketplace/server";
+import { redirect } from "next/navigation";
 
-/** "Fork flow" on a published listing: the API copies it into a new flow, which opens here. */
+/** Legacy links return to the listing; only the submitted fork action creates a flow. */
 export default async function ForkListingPage({ params }: { params: Promise<{ slug: string }> }) {
-  const record = await forkListing(decodeURIComponent((await params).slug));
-  if (!record) notFound();
-  redirect(`/flows/${record.flow.id}`);
+  redirect(`/marketplace/${encodeURIComponent((await params).slug)}`);
 }

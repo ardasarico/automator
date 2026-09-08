@@ -43,6 +43,8 @@ describe("API configuration", () => {
       privyVerificationKey: "-----BEGIN PUBLIC KEY-----",
       openRouterApiKey: undefined,
       openRouterModel: "openai/gpt-oss-120b",
+      tokenApiKey: undefined,
+      tokenApiUrl: undefined,
       openAiApiKey: undefined,
       openAiModel: "gpt-4.1-mini",
       secretsKey: Buffer.from(secretsKey, "base64"),
@@ -51,10 +53,17 @@ describe("API configuration", () => {
       usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       chainRpcUrls: {},
       privyAuthorizationKey: undefined,
+      privySignerId: undefined,
       world: undefined,
       e2eTestToken: undefined,
       rateLimits: { runs: 30, ai: 10, secrets: 30, sessions: 60, webhooks: 60 },
     });
+  });
+
+  test("reads the configured Privy signer ID independently of the authorization key", () => {
+    expect(readConfig({ ...complete, PRIVY_SIGNER_ID: "app-signer" }).privySignerId).toBe(
+      "app-signer",
+    );
   });
 
   test("rate limits take positive integers from the environment and ignore the rest", () => {
@@ -97,6 +106,8 @@ describe("API configuration", () => {
       {
         openRouterApiKey: undefined,
         openRouterModel: "openai/gpt-oss-120b",
+        tokenApiKey: undefined,
+        tokenApiUrl: undefined,
       },
     );
     expect(

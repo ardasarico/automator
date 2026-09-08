@@ -31,6 +31,20 @@ function fakeFetch(handler: (url: string, init?: RequestInit) => Response): type
 const okDiscord = fakeFetch(() => Response.json({ id: "m1", channel_id: "c1" }));
 
 describe("runFlow", () => {
+  test("an inherited object property is not a fired output handle", async () => {
+    const run = await runFlow(
+      flow(
+        [
+          node("t", "trigger.manual"),
+          node("after", "logic.set-variable", { name: "ran", value: "yes" }),
+        ],
+        [edge("t", "toString", "after", "value")],
+      ),
+    );
+    expect(run.nodes[1]?.status).toBe("skipped");
+    expect(run.variables).toEqual({});
+  });
+
   test("runs a trigger into a Discord message with templated content", async () => {
     const calls: { url: string; body: unknown }[] = [];
     const run = await runFlow(
@@ -301,6 +315,38 @@ describe("runFlow", () => {
     );
     expect(slept).toEqual([2000]);
     expect(run.nodes[1]!.outputs).toEqual({ done: "p" });
+  });
+
+  test("rejects a cycle before running an otherwise reachable external side effect", async () => {
+    const fetched: string[] = [];
+    const run = await runFlow(
+      flow(
+        [
+          node("t", "trigger.manual"),
+          node("d", "notify.discord", {
+            webhookUrl: "https://discord.com/api/webhooks/1/abc",
+            content: "must not be sent",
+          }),
+          node("a", "logic.wait"),
+          node("b", "logic.wait"),
+        ],
+        [
+          edge("t", "run", "d", "message"),
+          edge("d", "sent", "a", "in"),
+          edge("a", "done", "b", "in"),
+          edge("b", "done", "a", "in"),
+        ],
+      ),
+      {
+        fetch: fakeFetch((url) => {
+          fetched.push(url);
+          return Response.json({ id: "m", channel_id: "c" });
+        }),
+      },
+    );
+    expect(run).toMatchObject({ status: "failed", error: "The flow contains a cycle" });
+    expect(fetched).toEqual([]);
+    expect(run.nodes.every((result) => result.status === "skipped")).toBe(true);
   });
 });
 

@@ -47,10 +47,16 @@ export function openSession(
   payload: unknown,
   engine: EngineOptions,
   onNodeResult?: RunOptions["onNodeResult"],
+  signal?: AbortSignal,
 ): Promise<FlowRun> | null {
   const entry = findEntry(document);
   if (!entry) return null;
-  return runFlow(document, { ...engine, trigger: { nodeId: entry.id, payload }, onNodeResult });
+  return runFlow(document, {
+    ...engine,
+    trigger: { nodeId: entry.id, payload },
+    onNodeResult,
+    signal,
+  });
 }
 
 /** Continues the flow after the visitor acted on `nodeId` through `port`. */
@@ -66,9 +72,11 @@ export function continueSession(
     completed?: readonly FlowRunNodeResult[];
   },
   onNodeResult?: RunOptions["onNodeResult"],
+  signal?: AbortSignal,
 ): Promise<FlowRun> {
   return runFlow(document, {
     ...engine,
+    signal,
     trigger: { payload },
     resume: {
       nodeId: step.nodeId,

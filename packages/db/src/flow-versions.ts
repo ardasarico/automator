@@ -48,6 +48,33 @@ function toRecord(row: VersionRow): FlowVersionRecord {
 
 const columns = `id, flow_id AS "flowId", number, name, description, document, created_at AS "createdAt"`;
 
+/** Records and prunes within the caller's transaction, with the flow row already locked. */
+export async function recordFlowVersion(
+  tx: SQL,
+  ownerId: string,
+  flowId: string,
+  input: FlowVersionInput,
+): Promise<FlowVersionRecord | null> {
+  const snapshot: Snapshot = {
+    version: input.version,
+    ...(input.chainId === undefined ? {} : { chainId: input.chainId }),
+    nodes: input.nodes,
+    edges: input.edges,
+  };
+  const rows = await tx<VersionRow[]>`
+    INSERT INTO automator_flow_versions (id, flow_id, owner_id, number, name, description, document)
+    SELECT ${crypto.randomUUID()}, f.id, f.owner_id,
+      (SELECT COALESCE(MAX(v.number), 0) + 1 FROM automator_flow_versions v WHERE v.flow_id = f.id),
+      ${input.name}, ${input.description}, ${snapshot}::jsonb
+    FROM automator_flows f WHERE f.id = ${flowId} AND f.owner_id = ${ownerId}
+    RETURNING ${tx.unsafe(columns)}`;
+  if (!rows[0]) return null;
+  await tx`
+    DELETE FROM automator_flow_versions
+    WHERE flow_id = ${flowId} AND number <= ${rows[0].number - flowVersionLimit}`;
+  return toRecord(rows[0]);
+}
+
 /**
  * Save history per flow: every recorded version is an immutable snapshot of the document,
  * numbered from 1 in save order. Reads are owner-scoped like flows, and a flow that is gone
@@ -70,28 +97,11 @@ export function createFlowVersionStore(sql: SQL | undefined) {
       input: FlowVersionInput,
     ): Promise<FlowVersionRecord | null> {
       const db = connection();
-      const id = crypto.randomUUID();
-      const snapshot: Snapshot = {
-        version: input.version,
-        ...(input.chainId === undefined ? {} : { chainId: input.chainId }),
-        nodes: input.nodes,
-        edges: input.edges,
-      };
       return db.begin(async (tx) => {
-        // The number is read and written in one statement, and the unique (flow_id, number)
-        // constraint turns a concurrent save into an error rather than a duplicate.
-        const rows = await tx<VersionRow[]>`
-          INSERT INTO automator_flow_versions (id, flow_id, owner_id, number, name, description, document)
-          SELECT ${id}, f.id, f.owner_id,
-            (SELECT COALESCE(MAX(v.number), 0) + 1 FROM automator_flow_versions v WHERE v.flow_id = f.id),
-            ${input.name}, ${input.description}, ${snapshot}::jsonb
-          FROM automator_flows f WHERE f.id = ${flowId} AND f.owner_id = ${ownerId}
-          RETURNING ${tx.unsafe(columns)}`;
-        if (!rows[0]) return null;
-        await tx`
-          DELETE FROM automator_flow_versions
-          WHERE flow_id = ${flowId} AND number <= ${rows[0].number - flowVersionLimit}`;
-        return toRecord(rows[0]);
+        // Read MAX after taking the lock so a waiting writer sees the preceding commit.
+        await tx`SELECT id FROM automator_flows
+          WHERE id = ${flowId} AND owner_id = ${ownerId} FOR UPDATE`;
+        return recordFlowVersion(tx, ownerId, flowId, input);
       });
     },
     /** Newest first; empty for a flow the owner does not have. */

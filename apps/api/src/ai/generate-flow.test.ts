@@ -197,6 +197,30 @@ describe("generateFlow", () => {
     const hopeless = scriptedModel([text(bad), { content: "not json", toolCalls: [] }]);
     await expect(generateFlow(hopeless.model, "x")).rejects.toBeInstanceOf(FlowGenerationError);
   });
+
+  test("keeps the original expectations when repairing an invalid graph", async () => {
+    const proposal = {
+      name: "Tickets",
+      nodes: [
+        { id: "start", type: "trigger.manual", config: {} },
+        { id: "calculate", type: "logic.run-code", config: { code: "return {total: 49};" } },
+      ],
+      edges: [{ source: "start", sourceHandle: "run", target: "calculate", targetHandle: "input" }],
+    };
+    const tests = (equals: number) => [
+      {
+        name: "Two tickets cost 50",
+        expect: [{ nodeId: "calculate", output: "output", path: "total", equals }],
+      },
+    ];
+    const broken = {
+      ...proposal,
+      edges: [{ ...proposal.edges[0], sourceHandle: "missing" }],
+      tests: tests(50),
+    };
+    const { model } = scriptedModel([text(broken), text({ ...proposal, tests: tests(49) })]);
+    await expect(generateFlow(model, "Two tickets cost 50")).rejects.toThrow("expected 50, got 49");
+  });
 });
 
 describe("materialize", () => {

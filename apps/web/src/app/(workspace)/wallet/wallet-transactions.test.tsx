@@ -39,3 +39,13 @@ test("says transactions follow live runs when there are none", () => {
   expect(html).toContain("after a live run sends one");
   expect(html).not.toContain("<table");
 });
+
+test("offers recovery without claiming the history is empty when transactions are unavailable", () => {
+  const html = renderToString(<WalletTransactions transactions={null} />);
+  expect(html).toContain("Recent transactions could not load");
+  expect(html).toContain('action="/wallet"');
+  expect(html).toContain('method="get"');
+  expect(html).toContain("Try again");
+  expect(html).not.toContain("No transactions yet");
+  expect(html).not.toContain("<table");
+});

@@ -44,6 +44,11 @@ describe("endpoint contracts", () => {
     expect(() => buildPath(flowContract, { id: "a", runId: "" })).toThrow(/runId/);
   });
 
+  test.each([".", ".."])("rejects the dot segment %s before URL resolution", (id) => {
+    expect(() => buildPath(flowContract, { id, runId: "r1" })).toThrow(ContractError);
+    expect(() => buildPath(flowContract, { id: "f1", runId: id })).toThrow(ContractError);
+  });
+
   test("a contract without params keeps a literal path", () => {
     const ping = { method: "GET", path: "/ping", response: { 200: Type.Null() } } as const;
     expect(buildPath(ping)).toBe("/ping");

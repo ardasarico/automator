@@ -3,6 +3,7 @@ import type {
   WorldRejection,
   WorldRequest,
   WorldVerification,
+  WorldVerificationLevel,
 } from "@automator/contracts";
 import { signRequest } from "@worldcoin/idkit-server";
 import { hexToBytes, keccak256, stringToBytes, type Hex } from "viem";
@@ -30,8 +31,13 @@ export interface WorldConfig {
 export interface WorldVerifier {
   /** A freshly signed request context the runtime needs to open an IDKit request for `action`. */
   requestContext(action: string): WorldRequest;
-  /** Checks an IDKit result for `action`, bound to `signal` when one is set; resolves with the verdict. */
-  verify(input: { action: string; signal: string; proof: WorldProof }): Promise<WorldVerifyResult>;
+  /** Checks the action, configured credential and optional signal against the portal's verdict. */
+  verify(input: {
+    action: string;
+    signal: string;
+    verificationLevel: WorldVerificationLevel;
+    proof: WorldProof;
+  }): Promise<WorldVerifyResult>;
 }
 
 /** The portal could not be asked, or answered something unreadable: the visitor may retry. */
@@ -93,6 +99,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 export function createWorldVerifier(
   config: WorldConfig | undefined,
   fetcher: typeof fetch = fetch,
+  timeoutMs = 10_000,
 ): WorldVerifier | undefined {
   if (!config) return undefined;
   const { appId, rpId, signingKey, environment } = config;
@@ -111,9 +118,19 @@ export function createWorldVerifier(
         },
       };
     },
-    async verify({ action, signal, proof }) {
-      // The API decides what is being proven; a result for another action or signal is refused
-      // before the portal is asked, so a proof cannot be replayed across screens.
+    async verify({ action, signal, verificationLevel, proof }) {
+      // The portal verifies in the submitted environment; visitors cannot choose a test
+      // environment when this API requests real credentials. Legacy omitted values mean production.
+      if ((proof.environment ?? "production") !== environment)
+        return {
+          ok: false,
+          rejection: {
+            code: "environment_mismatch",
+            detail: "The proof is for another World ID environment.",
+          },
+        };
+      // These checks bind the claim to this screen's configured action and signal. Proof
+      // freshness and one-use semantics require a separate session/nullifier check.
       if (proof.action !== action)
         return {
           ok: false,
@@ -136,6 +153,7 @@ export function createWorldVerifier(
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(proof),
+          signal: AbortSignal.timeout(timeoutMs),
         });
       } catch (error) {
         throw new WorldVerifyError(
@@ -144,23 +162,47 @@ export function createWorldVerifier(
       }
       const body = asRecord(await response.json().catch(() => null));
       if (response.ok && body?.success === true) {
+        if (body.action !== undefined && body.action !== action)
+          throw new WorldVerifyError("World ID verification answered for another action");
+        if (body.environment !== undefined && body.environment !== environment)
+          throw new WorldVerifyError("World ID verification answered for another environment");
         const results = Array.isArray(body.results) ? body.results.map(asRecord) : [];
-        const accepted = results.find((item) => item?.success === true) ?? null;
-        const first = asRecord(proof.responses[0]);
-        const nullifier =
-          (typeof body.nullifier === "string" && body.nullifier) ||
-          (typeof accepted?.nullifier === "string" && accepted.nullifier) ||
-          (typeof first?.nullifier === "string" && first.nullifier) ||
-          "";
-        const identifier =
-          (typeof accepted?.identifier === "string" && accepted.identifier) ||
-          (typeof first?.identifier === "string" && first.identifier) ||
-          "";
+        const successful = results.filter(
+          (item) =>
+            item?.success === true && typeof item.identifier === "string" && item.identifier,
+        );
+        if (successful.length === 0)
+          throw new WorldVerifyError("World ID verification returned no verified credential");
+        // Overall success means at least one credential verified, not that our requested
+        // credential did. Only the portal's successful result may establish the level.
+        const accepted = successful.find((item) =>
+          verificationLevel === "device"
+            ? item?.identifier === "device"
+            : item?.identifier === "proof_of_human" || item?.identifier === "orb",
+        );
+        if (!accepted)
+          return {
+            ok: false,
+            rejection: {
+              code: "verification_level_mismatch",
+              detail: "The proof does not include the required World ID credential.",
+            },
+          };
+        // A different result's top-level nullifier or a client-supplied response must not
+        // become the identity of the credential we selected.
+        const nullifier = accepted.nullifier;
+        const identifier = accepted.identifier as string;
+        if (typeof nullifier !== "string" || !/^0x[0-9a-fA-F]{1,64}$/.test(nullifier))
+          throw new WorldVerifyError("World ID verification returned no valid nullifier");
         return {
           ok: true,
           verification: { nullifierHash: nullifier, verificationLevel: identifier, action },
         };
       }
+      // Throttling and upstream timeouts say nothing about the proof. Leave the screen
+      // unanswered so a temporary provider failure cannot take a permanent rejection branch.
+      if (response.status === 408 || response.status === 429)
+        throw new WorldVerifyError(`World ID verification answered ${response.status}`);
       if (response.status < 500 && typeof body?.code === "string") {
         return {
           ok: false,

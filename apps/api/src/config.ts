@@ -23,6 +23,10 @@ export interface ApiConfig {
    */
   openAiApiKey: string | undefined;
   openAiModel: string;
+  /** The Graph's Token API key; without it the balance trigger stays idle. */
+  tokenApiKey: string | undefined;
+  /** Overrides the Token API origin, for tests and self-hosted gateways. */
+  tokenApiUrl: string | undefined;
   /**
    * 32-byte base64 key that encrypts user secrets at rest. Required in production;
    * development without one gets a key generated at startup, so stored secrets do not
@@ -40,6 +44,7 @@ export interface ApiConfig {
   chainRpcUrls: Record<string, string>;
   /** Privy authorization key (base64 PKCS8) that signs with users' delegated embedded wallets. */
   privyAuthorizationKey: string | undefined;
+  privySignerId: string | undefined;
   /**
    * World ID for `world.id-verify` nodes: the Developer Portal app, its relying party and
    * signing key, and the environment proofs are made in. Optional in every environment;
@@ -118,6 +123,8 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     openRouterApiKey: env.OPENROUTER_API_KEY || undefined,
     openRouterModel: env.OPENROUTER_MODEL || defaultOpenRouterModel,
     openAiApiKey: env.OPENAI_API_KEY || undefined,
+    tokenApiKey: env.TOKEN_API_KEY || undefined,
+    tokenApiUrl: env.TOKEN_API_URL || undefined,
     openAiModel: env.OPENAI_MODEL || defaultOpenAiModel,
     chainId: Number(env.CHAIN_ID) || defaultChainId,
     // Without CHAIN_RPC_URL the named chain keeps its own public RPC, never Base Sepolia's.
@@ -131,6 +138,7 @@ export function readConfig(env: Record<string, string | undefined> = process.env
         : undefined,
     chainRpcUrls: readChainRpcUrls(env),
     privyAuthorizationKey: env.PRIVY_AUTHORIZATION_KEY || undefined,
+    privySignerId: env.PRIVY_SIGNER_ID || undefined,
     world: readWorldConfig(env),
     e2eTestToken: env.E2E_TEST_TOKEN || undefined,
     secretsKey,

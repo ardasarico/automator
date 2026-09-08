@@ -12,8 +12,9 @@
   /* Coss uses these only for its inset highlights and shadows. */
   --color-black: #000;
   --color-white: #fff;
-  /* Stacking order for layered surfaces. Read them with z-(--z-popover). */
-  --z-popover: 50;
+  /* Base UI appends nested portals after their parent surface. Equal levels keep
+     popovers above their dialog and a later dialog above an earlier popover. */
+  --z-popover: 60;
   --z-overlay: 60;
   --z-toast: 70;
 }

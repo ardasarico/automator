@@ -17,7 +17,7 @@ describe("auth API client", () => {
       },
     );
     expect(result).toEqual({ user: null });
-    expect(sent?.headers).toMatchObject({ Authorization: "Bearer test-token" });
+    expect(new Headers(sent?.headers).get("authorization")).toBe("Bearer test-token");
     expect(sent?.cache).toBe("no-store");
   });
 

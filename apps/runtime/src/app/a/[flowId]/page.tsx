@@ -1,8 +1,9 @@
 import { request } from "@automator/api-client/server";
 import { getPublicFlowContract, type PublicFlow } from "@automator/contracts";
 import type { Metadata } from "next";
-import { HashMiniApp } from "./hash-mini-app";
+import { PreviewMiniApp } from "./preview-mini-app";
 import { PublishedMiniApp } from "./published-mini-app";
+import { NotFoundNotice } from "./shell";
 import { resolveRuntimeSource } from "./source";
 
 type Props = {
@@ -28,14 +29,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 /**
  * A flow played as its visitor sees it. A published flow runs on the API through mini-app
  * sessions, so the visitor only ever receives the current screen. Otherwise, and always with
- * `?preview`, the document comes from the URL fragment that the builder's "Open in browser"
- * link writes: the owner's own preview of an unsaved canvas, played in their browser.
+ * `?preview`, an unsaved snapshot is handed off in memory by the opening builder tab.
  */
 export default async function MiniAppPage({ params, searchParams }: Props) {
   const { flowId } = await params;
   const hasPreviewFlag = (await searchParams).preview !== undefined;
   const flow = hasPreviewFlag ? null : await loadPublishedFlow(flowId);
   const source = resolveRuntimeSource({ hasPreviewFlag, published: flow ? true : null });
-  if (source === "fragment" || !flow) return <HashMiniApp flowId={flowId} />;
+  if (source === "preview")
+    return (
+      <PreviewMiniApp
+        flowId={flowId}
+        builderUrl={
+          process.env.WEB_URL ??
+          (process.env.NODE_ENV === "development" ? "http://localhost:3000" : undefined)
+        }
+      />
+    );
+  if (!flow) return <NotFoundNotice />;
   return <PublishedMiniApp flowId={flow.id} name={flow.name} />;
 }

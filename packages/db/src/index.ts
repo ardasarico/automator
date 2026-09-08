@@ -10,6 +10,14 @@ import { createSecretStore } from "./secrets";
 import { createSessionStore } from "./sessions";
 import { createUserStore } from "./users";
 import { createFlowVersionStore } from "./flow-versions";
+import { createTriggerClaimStore } from "./trigger-claims";
+import { createWatchStateStore } from "./watch-state";
+export {
+  type TriggerClaimIssue,
+  type TriggerClaimInput,
+  type TriggerClaimResult,
+  type TriggerClaimStore,
+} from "./trigger-claims";
 export { type AccountStore } from "./account";
 export {
   documentTriggerTypes,
@@ -18,6 +26,7 @@ export {
   type OwnedFlow,
 } from "./flows";
 export { type EventCursor, type EventCursorStore } from "./event-cursors";
+export { type WatchState, type WatchStateStore } from "./watch-state";
 export { type ListingStore } from "./listings";
 export { migrate, migrations, type Migration } from "./migrations";
 export { RunCursorError, type RunStore } from "./runs";
@@ -39,6 +48,8 @@ export function createDatabase(url: string | undefined) {
     account: createAccountStore(sql),
     eventCursors: createEventCursorStore(sql),
     flowVersions: createFlowVersionStore(sql),
+    watchState: createWatchStateStore(sql),
+    triggerClaims: createTriggerClaimStore(sql),
     async migrate() {
       if (sql) await migrate(sql);
     },

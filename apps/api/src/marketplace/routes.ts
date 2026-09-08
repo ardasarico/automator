@@ -64,6 +64,7 @@ export function createMarketplaceRoutes({
         if (!user.username) return status(403, { error: "forbidden" });
         const record = await flows.find(claims.id, body.flowId);
         if (!record) return status(404, { error: "not_found" });
+        if (!isStoredDocumentValid(record.flow, log)) return status(422, { error: "invalid_flow" });
         // The snapshot never carries the publisher's credentials: secret fields are blanked.
         const listing = await listings.publish(claims.id, redactFlowSecrets(record.flow), {
           name: body.name,
@@ -86,6 +87,10 @@ export function createMarketplaceRoutes({
       async ({ claims, params, status }) => {
         // The fork inserts a flow for the caller, which needs their user row to exist.
         if (!(await users.find(claims.id))) return status(401, { error: "unauthorized" });
+        const listing = await listings.find(params.slug);
+        if (!listing) return status(404, { error: "not_found" });
+        if (!isStoredDocumentValid(listing.document, log))
+          return status(422, { error: "invalid_flow" });
         const record = await listings.fork(claims.id, params.slug);
         return record ? status(201, record) : status(404, { error: "not_found" });
       },

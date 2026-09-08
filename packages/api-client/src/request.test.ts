@@ -74,28 +74,52 @@ describe("contract-driven request", () => {
         });
       },
     });
-    expect(init?.headers).toMatchObject({
-      Authorization: "Bearer test-token",
-      "Content-Type": "application/json",
-    });
+    expect(new Headers(init?.headers).get("authorization")).toBe("Bearer test-token");
+    expect(new Headers(init?.headers).get("content-type")).toBe("application/json");
     expect(init?.cache).toBe("no-store");
     expect(init?.body).toBe(JSON.stringify({ name: "Alice", username: "alice" }));
     expect(init?.method).toBe("PUT");
   });
 
-  test("sends extra headers without letting them replace the bearer token", async () => {
-    let init: ApiRequestInit | undefined;
+  test.each(["Authorization", "authorization", "AUTHORIZATION"])(
+    "sends extra headers without letting %s replace the bearer token",
+    async (name) => {
+      let init: ApiRequestInit | undefined;
+      await request("http://api", meContract, {
+        token: "t",
+        headers: { "X-Forwarded-For": "203.0.113.9, 10.0.0.1", [name]: "Bearer spoofed" },
+        fetcher: async (_url, sent) => {
+          init = sent;
+          return Response.json({ user: null });
+        },
+      });
+      const headers = new Headers(init?.headers);
+      expect(headers.get("x-forwarded-for")).toBe("203.0.113.9, 10.0.0.1");
+      expect(headers.get("authorization")).toBe("Bearer t");
+    },
+  );
+
+  test("only the token option can authenticate a request", async () => {
     await request("http://api", meContract, {
-      token: "t",
-      headers: { "X-Forwarded-For": "203.0.113.9, 10.0.0.1", Authorization: "Bearer spoofed" },
-      fetcher: async (_url, sent) => {
-        init = sent;
+      headers: { authorization: "Bearer unintended" },
+      fetcher: async (_url, init) => {
+        expect(new Headers(init.headers).has("authorization")).toBe(false);
         return Response.json({ user: null });
       },
     });
-    expect(init?.headers).toMatchObject({
-      "X-Forwarded-For": "203.0.113.9, 10.0.0.1",
-      Authorization: "Bearer t",
+  });
+
+  test("sets one JSON content type regardless of extra header casing", async () => {
+    await request("http://api", profileContract, {
+      token: "t",
+      body: { name: "Alice", username: "alice" },
+      headers: { "content-type": "text/plain" },
+      fetcher: async (_url, init) => {
+        expect(new Headers(init.headers).get("content-type")).toBe("application/json");
+        return Response.json({
+          user: { id: "u", name: "Alice", username: "alice", walletAddress: "0x1" },
+        });
+      },
     });
   });
 
@@ -109,7 +133,7 @@ describe("contract-driven request", () => {
       },
     });
     expect(init?.body).toBeUndefined();
-    expect(init?.headers).not.toHaveProperty("Content-Type");
+    expect(new Headers(init?.headers).has("content-type")).toBe(false);
   });
 
   test.each([

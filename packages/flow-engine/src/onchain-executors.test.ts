@@ -11,6 +11,7 @@ import type { ChainProvider, ChainReader, ChainSigner } from "./chain";
 import type { ExecutionContext } from "./executor";
 import { onchainExecutors } from "./onchain-executors";
 import { resolveTemplates } from "./template";
+import { runFlow } from "./engine";
 
 const user = "0x1111111111111111111111111111111111111111" as Address;
 const other = "0x2222222222222222222222222222222222222222" as Address;
@@ -115,6 +116,224 @@ const counterAbi =
   "function count() view returns (uint256)\nfunction increment(uint256 by) returns (uint256)\nfunction owner() view returns (address)";
 
 describe("onchain executors", () => {
+  test.each(["onchain.transfer-token", "usdc.payout"] as const)(
+    "%s retains a broadcast hash when receipt polling fails or is cancelled",
+    async (type) => {
+      for (const cancelled of [false, true]) {
+        const controller = new AbortController();
+        const { chain, calls } = stubChain({ mode: "live" });
+        chain.reader.waitForTransactionReceipt = async () => {
+          if (cancelled) controller.abort();
+          throw new Error("RPC unavailable");
+        };
+        const result = await runFlow(
+          {
+            version: 1,
+            id: "flow",
+            name: "Transfer",
+            description: "",
+            nodes: [
+              {
+                id: "start",
+                type: "trigger.manual",
+                position: { x: 0, y: 0 },
+                label: "Start",
+                config: {},
+              },
+              {
+                id: "send",
+                type,
+                position: { x: 0, y: 0 },
+                label: "Send",
+                config: { to: other, amount: "1" },
+              },
+            ],
+            edges: [
+              {
+                id: "e",
+                source: "start",
+                sourceHandle: "run",
+                target: "send",
+                targetHandle: "amount",
+              },
+            ],
+          },
+          { chain, signal: controller.signal },
+        );
+        expect(result.status).toBe("failed");
+        expect(result.nodes[1]?.outputs).toEqual({ receipt: { simulated: false, hash } });
+        expect(
+          calls.filter((call) => call.startsWith("send ") || call.startsWith("write ")),
+        ).toHaveLength(1);
+      }
+    },
+  );
+
+  test("refuses token amounts that would be rounded before signing", async () => {
+    const { chain, calls } = stubChain({ mode: "live" });
+    await expect(run("usdc.payout", { to: other, amount: "0.0000009" }, chain)).rejects.toThrow(
+      "Amount has more than 6 decimal places",
+    );
+    expect(calls).toEqual(["read decimals()"]);
+  });
+
+  test("refuses unsafe numeric transfer amounts received through templates", async () => {
+    const { chain, calls } = stubChain({ mode: "live" });
+    await expect(
+      run("onchain.transfer-token", { to: other, amount: "{{input.amount}}" }, chain, {
+        amount: Number.MAX_SAFE_INTEGER + 1,
+      }),
+    ).rejects.toThrow("must be a decimal string");
+    expect(calls).toEqual([]);
+  });
+
+  test("refuses negative native value instead of silently dropping it from a write", async () => {
+    const { chain, calls } = stubChain({ mode: "live" });
+    await expect(
+      run(
+        "onchain.write-contract",
+        { address: other, abi: counterAbi, functionName: "increment", args: "[3]", value: "-1" },
+        chain,
+      ),
+    ).rejects.toThrow("Value must be a decimal amount");
+    expect(calls).toEqual([]);
+  });
+
+  test("large integer arguments must be strings so JSON cannot silently change them", async () => {
+    const { chain, calls } = stubChain();
+    await expect(
+      run(
+        "onchain.read-contract",
+        { address: other, abi: counterAbi, functionName: "increment", args: "[9007199254740993]" },
+        chain,
+      ),
+    ).rejects.toThrow("must be a safe integer or a decimal string");
+    expect(calls).toEqual([]);
+    await run(
+      "onchain.read-contract",
+      { address: other, abi: counterAbi, functionName: "increment", args: '["9007199254740993"]' },
+      chain,
+    );
+    expect(calls).toEqual(["read increment(9007199254740993)"]);
+  });
+
+  test("named tuple arguments coerce nested values without losing integer precision", async () => {
+    const { chain, calls } = stubChain({ mode: "live" });
+    const config = {
+      address: other,
+      abi: "function execute((bool approved,uint256 amount)[] actions)",
+      functionName: "execute",
+    };
+    await expect(
+      run(
+        "onchain.write-contract",
+        { ...config, args: '[[{"approved":false,"amount":9007199254740993}]]' },
+        chain,
+      ),
+    ).rejects.toThrow("must be a safe integer or a decimal string");
+    expect(calls).toEqual([]);
+    const encoded: unknown[] = [];
+    chain.reader.simulateContract = async (call) => {
+      encoded.push(call.args);
+      return true;
+    };
+    await run(
+      "onchain.write-contract",
+      { ...config, args: '[[{"approved":"false","amount":"9007199254740993"}]]' },
+      chain,
+    );
+    expect(encoded).toEqual([[[{ approved: false, amount: 9007199254740993n }]]]);
+  });
+
+  test.each(["dry-run", "live"] as const)(
+    "refuses an ERC-20 transfer that returns false in %s mode",
+    async (mode) => {
+      const { chain, calls } = stubChain({ mode });
+      chain.reader.simulateContract = async () => false;
+      await expect(run("usdc.payout", { to: other, amount: "1" }, chain)).rejects.toThrow(
+        "Token transfer returned false",
+      );
+      expect(calls).toEqual(["read decimals()"]);
+      await expect(
+        run("onchain.transfer-token", { to: other, token: usdc, amount: "1" }, chain),
+      ).rejects.toThrow("Token transfer returned false");
+      expect(calls).toEqual(["read decimals()", "read decimals()"]);
+    },
+  );
+
+  test("a generic contract write may legitimately return false", async () => {
+    const { chain, calls } = stubChain({ mode: "live" });
+    chain.reader.simulateContract = async () => false;
+    const output = await run(
+      "onchain.write-contract",
+      { address: other, abi: "function check() returns (bool)", functionName: "check" },
+      chain,
+    );
+    expect(output.receipt).toMatchObject({ result: false, hash });
+    expect(calls).toEqual(["write check()", `receipt ${hash}`]);
+  });
+
+  test("selects an ABI overload by argument count and refuses ambiguous overloads", async () => {
+    const { chain, calls } = stubChain();
+    const abi =
+      "function safeTransferFrom(address from,address to,uint256 tokenId)\nfunction safeTransferFrom(address from,address to,uint256 tokenId,bytes data)";
+    let selectedInputs = 0;
+    chain.reader.simulateContract = async (call) => {
+      const functions = call.abi.filter((item) => item.type === "function");
+      expect(functions).toHaveLength(1);
+      selectedInputs = functions[0]!.inputs.length;
+      return undefined;
+    };
+    await run(
+      "onchain.write-contract",
+      {
+        address: other,
+        abi,
+        functionName: "safeTransferFrom",
+        args: JSON.stringify([user, other, "1", "0x"]),
+      },
+      chain,
+    );
+    expect(selectedInputs).toBe(4);
+    await expect(
+      run(
+        "onchain.read-contract",
+        {
+          address: other,
+          abi: "function balanceOf(address owner) view returns (uint256)\nfunction balanceOf(uint256 tokenId) view returns (uint256)",
+          functionName: "balanceOf",
+          args: '["1"]',
+        },
+        chain,
+      ),
+    ).rejects.toThrow("more than one overload");
+    expect(calls).toEqual([]);
+  });
+
+  test("canonical signatures bind the overload and pass its bare name to the chain", async () => {
+    const { chain, calls } = stubChain();
+    chain.reader.readContract = async (call) => {
+      expect(call.functionName).toBe("balanceOf");
+      const functions = call.abi.filter((item) => item.type === "function");
+      expect(functions).toHaveLength(1);
+      expect(functions[0]!.inputs[0]!.type).toBe("uint256");
+      expect(call.args).toEqual([1n]);
+      return 7n;
+    };
+    const result = await run(
+      "onchain.read-contract",
+      {
+        address: other,
+        abi: "function balanceOf(address owner) view returns (uint256)\nfunction balanceOf(uint256 tokenId) view returns (uint256)",
+        functionName: "balanceOf(uint256)",
+        args: '["1"]',
+      },
+      chain,
+    );
+    expect(result).toEqual({ result: "7" });
+    expect(calls).toEqual([]);
+  });
+
   test("read-contract decodes and returns JSON-safe values", async () => {
     const { chain, calls } = stubChain();
     expect(

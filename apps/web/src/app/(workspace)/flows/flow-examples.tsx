@@ -1,6 +1,7 @@
-import { Button } from "@automator/ui/button";
 import { RiGitForkLine } from "@remixicon/react";
 import Link from "next/link";
+import { FlowActionButton } from "../../../flows/action-button";
+import { createFlowAction } from "../../../flows/actions";
 import { flowExamples } from "../marketplace/examples";
 import { FlowNodeMarks } from "../marketplace/flow-node-marks";
 import styles from "./flows.module.css";
@@ -35,16 +36,16 @@ export function FlowExamples() {
               <p className={styles.exampleDescription}>{example.description}</p>
               <div className={styles.templateActions}>
                 <span className="text-caption text-muted-foreground">Automator</span>
-                <Button
+                <FlowActionButton
                   className="relative z-10"
                   variant="outline"
                   size="sm"
-                  render={<Link href={`/create?example=${example.id}`} />}
+                  action={createFlowAction.bind(null, { example: example.id })}
                   aria-label={`Fork flow: ${example.name}`}
                 >
                   <RiGitForkLine aria-hidden="true" />
                   Fork flow
-                </Button>
+                </FlowActionButton>
               </div>
             </article>
           );

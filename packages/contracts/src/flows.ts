@@ -12,6 +12,8 @@ export const flowNodeTypes = [
   // Generic triggers
   "trigger.schedule",
   "trigger.onchain-event",
+  "trigger.price",
+  "trigger.balance",
   "trigger.webhook",
   "trigger.miniapp-open",
   "trigger.manual",

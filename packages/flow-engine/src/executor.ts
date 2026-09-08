@@ -19,6 +19,10 @@ export interface ExecutionContext {
   chain?: ChainProvider;
   now(): Date;
   sleep(ms: number): Promise<void>;
+  /** Checked between external operations so a cancelled node cannot start another action. */
+  signal?: AbortSignal;
+  /** Retains completed work for a failed or cancelled node's audit output; never fires edges. */
+  checkpoint?: (outputs: ExecutionOutputs) => void;
 }
 
 /** Values for output handles; an absent handle does not fire its edges. */

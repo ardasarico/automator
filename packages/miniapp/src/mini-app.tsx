@@ -66,10 +66,21 @@ export function MiniApp({
   const titleRef = useRef<HTMLHeadingElement>(null);
   /** Increments per run, so a run abandoned by Start over cannot land its results later. */
   const runCount = useRef(0);
+  const activeRun = useRef<AbortController | null>(null);
+  const running = useRef(false);
 
   const launch = useCallback(
-    (start: (onNodeResult: (result: FlowRunNodeResult) => void) => Promise<FlowRun> | null) => {
+    (
+      start: (
+        onNodeResult: (result: FlowRunNodeResult) => void,
+        signal: AbortSignal,
+      ) => Promise<FlowRun> | null,
+    ) => {
       const count = ++runCount.current;
+      activeRun.current?.abort();
+      const controller = new AbortController();
+      activeRun.current = controller;
+      running.current = true;
       const run = start((result) => {
         if (count !== runCount.current) return;
         setSession((current) =>
@@ -77,14 +88,16 @@ export function MiniApp({
             ? { ...current, results: [...current.results, result] }
             : current,
         );
-      });
+      }, controller.signal);
       if (!run) {
+        running.current = false;
         setSession({ kind: "no-entry" });
         return;
       }
       setSession({ kind: "running", results: [] });
       void run.then((finished) => {
         if (count !== runCount.current) return;
+        running.current = false;
         variables.current = finished.variables;
         completed.current = finished.nodes;
         setSession(settleRun(finished, latest.current.document));
@@ -95,8 +108,14 @@ export function MiniApp({
 
   const open = useCallback(
     () =>
-      launch((onNodeResult) =>
-        openSession(latest.current.document, payload.current, latest.current.engine, onNodeResult),
+      launch((onNodeResult, signal) =>
+        openSession(
+          latest.current.document,
+          payload.current,
+          latest.current.engine,
+          onNodeResult,
+          signal,
+        ),
       ),
     [launch],
   );
@@ -105,6 +124,11 @@ export function MiniApp({
   const startedOnScreen = useRef(session.kind === "screen");
   useEffect(() => {
     if (!startedOnScreen.current) open();
+    return () => {
+      runCount.current += 1;
+      activeRun.current?.abort();
+      running.current = false;
+    };
   }, [open]);
 
   // Only after the visitor acted: a preview that re-renders while its author edits must not
@@ -116,6 +140,7 @@ export function MiniApp({
   const screen = currentScreen(document, session);
 
   const restart = () => {
+    if (running.current) return;
     interacted.current = true;
     variables.current = {};
     completed.current = [];
@@ -123,14 +148,16 @@ export function MiniApp({
   };
 
   const act = (node: ScreenNode, port: string, data?: Record<string, string>) => {
+    if (running.current) return;
     interacted.current = true;
-    launch((onNodeResult) =>
+    launch((onNodeResult, signal) =>
       continueSession(
         latest.current.document,
         payload.current,
         latest.current.engine,
         { nodeId: node.id, port, data, variables: variables.current, completed: completed.current },
         onNodeResult,
+        signal,
       ),
     );
   };

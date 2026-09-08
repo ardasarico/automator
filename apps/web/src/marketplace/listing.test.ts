@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
   authorLabel,
   browseListings,
-  forkHref,
   isOwnListing,
   listingCategories,
   type MarketplaceItem,
@@ -87,11 +86,6 @@ test("authorLabel and isOwnListing", () => {
   expect(isOwnListing(mine, "arda")).toBe(true);
   expect(isOwnListing(mine, "nova")).toBe(false);
   expect(isOwnListing(curated, "arda")).toBe(false);
-});
-
-test("forkHref seeds curated examples through /create and forks listings through the API", () => {
-  expect(forkHref(curated)).toBe("/create?example=ticket-checkout");
-  expect(forkHref(mine)).toBe("/marketplace/arda%2Fairdrop-gate/fork");
 });
 
 test("listingCategories reads categories off node types and the browser filters by them", () => {

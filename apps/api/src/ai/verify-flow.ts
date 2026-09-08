@@ -141,9 +141,17 @@ export async function verifyFlow(
       const node = document.nodes.find((node) => node.id === expectation.nodeId);
       if (!node)
         throw new Error(`${scenario.name}: expectation names unknown node ${expectation.nodeId}.`);
-      if (expectation.output && !flowNodePorts[node.type].outputs.includes(expectation.output))
+      if (
+        expectation.output === undefined &&
+        (expectation.path !== undefined || Object.hasOwn(expectation, "equals"))
+      )
+        throw new Error(`${scenario.name}: value expectations require an output.`);
+      if (
+        expectation.output !== undefined &&
+        !flowNodePorts[node.type].outputs.includes(expectation.output)
+      )
         throw new Error(`${scenario.name}: unknown output ${expectation.output} on ${node.id}.`);
-      if (expectation.output && !Object.hasOwn(expectation, "equals"))
+      if (expectation.output !== undefined && !Object.hasOwn(expectation, "equals"))
         throw new Error(`${scenario.name}: output expectations require equals.`);
     }
     const options: RunOptions = {
@@ -234,21 +242,28 @@ export async function verifyFlow(
     if (run.status === "waiting")
       throw new Error(`${scenario.name}: exceeds the 16-screen automatic test limit.`);
     const failure = run.nodes.find((node) => node.status === "failed");
+    let skippedDetail: string | undefined;
     if (failure || run.status === "failed") {
       const detail = failure?.error ?? run.error ?? "Run failed";
-      if (detail.startsWith(blockedPrefix) || (!tests.length && detail.includes("missing value"))) {
-        checks.push({ name: scenario.name, status: "skipped", detail });
-        continue;
-      }
-      throw new Error(`${scenario.name}: ${failure?.nodeId ?? "flow"}: ${detail}`);
+      const failedNode = document.nodes.find((node) => node.id === failure?.nodeId);
+      const blocked =
+        failedNode &&
+        defaultExecutors[failedNode.type]?.kind !== "trigger" &&
+        !pureTypes.has(failedNode.type) &&
+        detail.startsWith(blockedPrefix);
+      if (blocked || (!tests.length && detail.includes("missing value"))) skippedDetail = detail;
+      else throw new Error(`${scenario.name}: ${failure?.nodeId ?? "flow"}: ${detail}`);
     }
     for (const result of run.nodes) if (result.status === "succeeded") reached.add(result.nodeId);
     for (const id of Object.keys(scenario.answers ?? {}))
-      if (!answered.has(id)) throw new Error(`${scenario.name}: answer for ${id} was never used.`);
+      if (!answered.has(id) && !skippedDetail)
+        throw new Error(`${scenario.name}: answer for ${id} was never used.`);
     for (const expectation of scenario.expect) {
       const result = run.nodes.find((node) => node.nodeId === expectation.nodeId);
-      if (!result || result.status !== "succeeded")
+      if (!result || result.status !== "succeeded") {
+        if (skippedDetail) continue;
         throw new Error(`${scenario.name}: expected ${expectation.nodeId} to be reached.`);
+      }
       if (expectation.output) {
         const actual = readPath(result.outputs?.[expectation.output], expectation.path ?? "");
         if (!isDeepStrictEqual(actual, expectation.equals))
@@ -266,10 +281,12 @@ export async function verifyFlow(
     }
     checks.push({
       name: scenario.name,
-      status: "passed",
-      detail: scenario.expect.length
-        ? `${scenario.expect.length} model-authored expectations passed.`
-        : "Sample path completed; behavior was not asserted.",
+      status: skippedDetail ? "skipped" : "passed",
+      detail:
+        skippedDetail ??
+        (scenario.expect.length
+          ? `${scenario.expect.length} model-authored expectations passed.`
+          : "Sample path completed; behavior was not asserted."),
     });
   }
   const uncovered = document.nodes.filter(

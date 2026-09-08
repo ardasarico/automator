@@ -43,10 +43,6 @@ interface WireMessage {
   tool_calls?: WireToolCall[];
   tool_call_id?: string;
 }
-interface WireCompletion {
-  choices?: { message?: WireMessage }[];
-  error?: { message?: string };
-}
 
 function toWire(message: ChatMessage): WireMessage {
   const wire: WireMessage = { role: message.role, content: message.content };
@@ -60,18 +56,31 @@ function toWire(message: ChatMessage): WireMessage {
   return wire;
 }
 
-function fromWire(call: WireToolCall): ToolCall {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function fromWire(call: unknown): ToolCall {
+  if (
+    !isRecord(call) ||
+    typeof call.id !== "string" ||
+    !call.id.trim() ||
+    call.type !== "function" ||
+    !isRecord(call.function) ||
+    typeof call.function.name !== "string" ||
+    !call.function.name.trim() ||
+    typeof call.function.arguments !== "string"
+  )
+    throw new LanguageModelError("invalid_response", "The model sent an invalid tool call");
   let parsed: unknown;
   try {
     parsed = call.function.arguments ? JSON.parse(call.function.arguments) : {};
   } catch {
     throw new LanguageModelError("invalid_response", "The model sent unreadable tool arguments");
   }
-  const args =
-    typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {};
-  return { id: call.id, name: call.function.name, arguments: args };
+  if (!isRecord(parsed))
+    throw new LanguageModelError("invalid_response", "The model sent non-object tool arguments");
+  return { id: call.id, name: call.function.name, arguments: parsed };
 }
 
 function responseFormat(format: ChatRequest["responseFormat"]) {
@@ -229,9 +238,9 @@ function createChatCompletionsModel({
         timedOut ? "The model did not answer in time" : "The model could not be reached",
       );
     }
-    let payload: WireCompletion;
+    let payload: unknown;
     try {
-      payload = (await response.json()) as WireCompletion;
+      payload = await response.json();
     } catch {
       throw new LanguageModelError(
         "invalid_response",
@@ -239,18 +248,33 @@ function createChatCompletionsModel({
         response.status,
       );
     }
-    if (!response.ok)
+    if (!response.ok) {
+      const detail =
+        isRecord(payload) && isRecord(payload.error) && typeof payload.error.message === "string"
+          ? payload.error.message
+          : undefined;
       throw new LanguageModelError(
         "upstream",
-        `${provider} answered ${response.status}${payload.error?.message ? `: ${payload.error.message}` : ""}`,
+        `${provider} answered ${response.status}${detail ? `: ${detail}` : ""}`,
         response.status,
       );
-    const message = payload.choices?.[0]?.message;
-    if (!message)
+    }
+    const choice = isRecord(payload) && Array.isArray(payload.choices) ? payload.choices[0] : null;
+    const message = isRecord(choice) ? choice.message : null;
+    if (!isRecord(message))
       throw new LanguageModelError("invalid_response", "The model answered with no choices");
+    if (message.content != null && typeof message.content !== "string")
+      throw new LanguageModelError("invalid_response", "The model sent invalid message content");
+    if (message.tool_calls != null && !Array.isArray(message.tool_calls))
+      throw new LanguageModelError("invalid_response", "The model sent invalid tool calls");
+    const toolCalls = (message.tool_calls ?? []).map(fromWire);
+    if (new Set(toolCalls.map((call) => call.id)).size !== toolCalls.length)
+      throw new LanguageModelError("invalid_response", "The model sent duplicate tool call ids");
+    if (!message.content && toolCalls.length === 0)
+      throw new LanguageModelError("invalid_response", "The model answered with no content");
     return {
       content: message.content ?? null,
-      toolCalls: (message.tool_calls ?? []).map(fromWire),
+      toolCalls,
     };
   };
 }

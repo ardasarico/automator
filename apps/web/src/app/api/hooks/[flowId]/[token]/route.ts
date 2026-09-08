@@ -17,8 +17,29 @@ export async function POST(
   const target = new URL(buildPath(webhookTriggerContract, { flowId, token }), apiUrl);
   target.search = new URL(req.url).search;
   const headers = new Headers(req.headers);
-  // Hop-by-hop and origin-bound headers stay on this side.
-  for (const name of ["host", "connection", "content-length", "cookie", "authorization"])
+  // Connection can name additional headers that apply only to the incoming connection.
+  const connectionHeaders = (headers.get("connection") ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name));
+  // Fetch frames the buffered body itself; incoming transport and session headers stay here.
+  for (const name of [
+    ...connectionHeaders,
+    "host",
+    "connection",
+    "content-length",
+    "transfer-encoding",
+    "keep-alive",
+    "te",
+    "trailer",
+    "upgrade",
+    "expect",
+    "proxy-connection",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "cookie",
+    "authorization",
+  ])
     headers.delete(name);
   try {
     const response = await fetch(target, {
@@ -28,12 +49,15 @@ export async function POST(
       cache: "no-store",
       signal: AbortSignal.timeout(65_000),
     });
+    const responseHeaders = new Headers({
+      "Content-Type": response.headers.get("content-type") ?? "application/json",
+      "Cache-Control": "no-store",
+    });
+    const retryAfter = response.headers.get("retry-after");
+    if (retryAfter !== null) responseHeaders.set("Retry-After", retryAfter);
     return new NextResponse(await response.text(), {
       status: response.status,
-      headers: {
-        "Content-Type": response.headers.get("content-type") ?? "application/json",
-        "Cache-Control": "no-store",
-      },
+      headers: responseHeaders,
     });
   } catch (error) {
     console.warn(

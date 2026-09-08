@@ -17,30 +17,35 @@ export function RunHistory({
   runs,
   filtered = false,
   nextHref,
+  latestHref,
 }: {
   runs: readonly FlowRunSummary[];
   /** True when the list is narrowed to one flow, so the empty state says so. */
   filtered?: boolean;
   nextHref?: string;
+  /** Present on a cursor page, preserving the flow filter when returning to the latest runs. */
+  latestHref?: string;
 }) {
   if (runs.length === 0) {
     return (
       <section className={styles.empty} aria-labelledby="runs-empty-title">
         <EmptyStateIllustration icon={<RiPlayCircleLine />} />
         <h2 id="runs-empty-title" className="mt-6 text-panel text-balance">
-          {filtered ? "No runs for this flow yet" : "No runs yet"}
+          {latestHref ? "No older runs" : filtered ? "No runs for this flow yet" : "No runs yet"}
         </h2>
         <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
-          {filtered
-            ? "Runs appear here once Simulate, a webhook call, the schedule or an onchain event starts this flow."
-            : "Save a flow and press Simulate on its canvas. Every run of a saved flow is kept here."}
+          {latestHref
+            ? "There are no runs on this page. Return to the latest runs to see recent activity."
+            : filtered
+              ? "Runs appear here once Simulate, a webhook call, the schedule or an onchain event starts this flow."
+              : "Save a flow and press Simulate on its canvas. Every run of a saved flow is kept here."}
         </p>
         <Button
           variant="outline"
           className="mt-6"
-          render={<Link href={filtered ? "/runs" : "/flows"} />}
+          render={<Link href={latestHref ?? (filtered ? "/runs" : "/flows")} />}
         >
-          {filtered ? "Show all runs" : "Go to flows"}
+          {latestHref ? "View latest runs" : filtered ? "Show all runs" : "Go to flows"}
         </Button>
       </section>
     );
@@ -102,12 +107,19 @@ export function RunHistory({
           </tbody>
         </table>
       </div>
-      {nextHref && (
-        <div className="mt-6 flex justify-center">
-          <Button variant="outline" render={<Link href={nextHref} />}>
-            Load older runs
-          </Button>
-        </div>
+      {(latestHref || nextHref) && (
+        <nav aria-label="Run history pages" className="mt-6 flex flex-wrap justify-center gap-3">
+          {latestHref && (
+            <Button variant="outline" render={<Link href={latestHref} />}>
+              View latest runs
+            </Button>
+          )}
+          {nextHref && (
+            <Button variant="outline" render={<Link href={nextHref} />}>
+              View older runs
+            </Button>
+          )}
+        </nav>
       )}
     </section>
   );

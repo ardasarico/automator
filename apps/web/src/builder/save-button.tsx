@@ -5,7 +5,7 @@ import { RiSaveLine } from "@remixicon/react";
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { FlowRequestError, saveFlowRequest } from "../flows/client";
 import { serializeFlow } from "./document";
-import { useBuilderStore } from "./store-provider";
+import { useBuilderStore, useBuilderStoreApi } from "./store-provider";
 import { useAccessToken } from "../auth/access-token";
 
 type SaveState = "idle" | "saving" | "saved" | "failed";
@@ -27,11 +27,8 @@ const failureMessages: Record<string, string> = {
  */
 export function useSaveFlow() {
   const getAccessToken = useAccessToken();
-  const meta = useBuilderStore((state) => state.meta);
-  const nodes = useBuilderStore((state) => state.nodes);
-  const edges = useBuilderStore((state) => state.edges);
+  const store = useBuilderStoreApi();
   const dirty = useBuilderStore((state) => state.dirty);
-  const markSaved = useBuilderStore((state) => state.markSaved);
   const [state, setState] = useState<SaveState>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const inFlight = useRef<Promise<SaveOutcome> | null>(null);
@@ -39,14 +36,21 @@ export function useSaveFlow() {
   const canSave = dirty || state === "failed";
   const save = useCallback((): Promise<SaveOutcome> => {
     if (inFlight.current) return inFlight.current;
-    if (!canSave) return Promise.resolve({ ok: true });
+    const current = store.getState();
+    if (!current.dirty && state !== "failed") return Promise.resolve({ ok: true });
     setState("saving");
     setMessage(null);
-    const { id, ...input } = serializeFlow(meta, nodes, edges);
+    const document = serializeFlow(current.meta, current.nodes, current.edges);
+    const { id, ...input } = document;
     const attempt = (async (): Promise<SaveOutcome> => {
       try {
         await saveFlowRequest(id, await getAccessToken(), input);
-        markSaved();
+        if (!current.markSaved(document)) {
+          const message = "The flow changed while saving. Save again to keep the latest changes.";
+          setState("idle");
+          setMessage(message);
+          return { ok: false, message };
+        }
         setState("saved");
         return { ok: true };
       } catch (error) {
@@ -61,7 +65,7 @@ export function useSaveFlow() {
     })();
     inFlight.current = attempt;
     return attempt;
-  }, [canSave, edges, getAccessToken, markSaved, meta, nodes]);
+  }, [getAccessToken, state, store]);
 
   return { save, state, message, canSave, dirty };
 }

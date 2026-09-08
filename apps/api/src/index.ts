@@ -9,6 +9,7 @@ import { createQuickJsSandbox } from "./sandbox/quickjs";
 import { createScheduler } from "./scheduler";
 import { createSecretsCrypto } from "./secrets/crypto";
 import { createSecretsResolver } from "./secrets/resolver";
+import { createBalanceReader } from "./watch/balances";
 import { createWorldVerifier } from "./world/verify";
 
 const config = readConfig();
@@ -31,10 +32,16 @@ const identity = withE2eIdentity(
 );
 // Signing needs a Privy client of its own: the identity provider keeps its client private.
 const signing =
-  config.privyAuthorizationKey && config.privyAppId && config.privyAppSecret
+  config.privyAuthorizationKey && config.privySignerId && config.privyAppId && config.privyAppSecret
     ? {
-        privy: new PrivyClient({ appId: config.privyAppId, appSecret: config.privyAppSecret }),
+        privy: new PrivyClient({
+          appId: config.privyAppId,
+          appSecret: config.privyAppSecret,
+          timeout: 10_000,
+          maxRetries: 0,
+        }),
         authorizationKey: config.privyAuthorizationKey,
+        signerId: config.privySignerId,
       }
     : undefined;
 // Every registry chain, with the environment's RPC overrides; a run picks its flow's chain.
@@ -57,11 +64,12 @@ const app = createApp({
   log: true,
   rateLimits: config.rateLimits,
   flowVersions: database.flowVersions,
+  triggerIssues: database.triggerClaims,
 }).listen({ hostname: "::", port: config.port });
 
 console.log(`API listening on ${app.server?.url}`);
 
-// Schedule and onchain-event triggers run in this process, on the flow's own chain.
+// Schedule, onchain-event and watch triggers run in this process, on the flow's own chain.
 const scheduler = createScheduler({
   flows: database.flows,
   runs: database.runs,
@@ -73,6 +81,18 @@ const scheduler = createScheduler({
   chainFactory,
   eventCursors: database.eventCursors,
   eventReaderFor: (chainId) => chainFactory.chain(chainId)?.eventReader,
+  watchState: database.watchState,
+  watchSources: {
+    chainReaderFor: (chainId) => chainFactory.chain(chainId)?.reader,
+    ...(config.tokenApiKey
+      ? {
+          balances: createBalanceReader({
+            apiKey: config.tokenApiKey,
+            ...(config.tokenApiUrl ? { baseUrl: config.tokenApiUrl } : {}),
+          }),
+        }
+      : {}),
+  },
   log: (line) => console.log(line),
 });
 if (config.databaseUrl) scheduler.start();
@@ -80,6 +100,7 @@ if (config.databaseUrl) scheduler.start();
 async function shutdown() {
   scheduler.stop();
   await app.stop();
+  await scheduler.settle();
   await database.close();
 }
 

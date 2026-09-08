@@ -108,6 +108,8 @@ function fixture(
     visitorToken?: string;
     /** Stubbed World verifier; absent leaves World ID unconfigured. */
     world?: WorldVerifier;
+    /** Replaces a waiting node's timer for cancellation tests. */
+    sleep?: (ms: number) => Promise<void>;
   } = {},
 ) {
   const timestamp = "2026-09-07T10:00:00.000Z";
@@ -149,6 +151,19 @@ function fixture(
       const row = rows.get(id);
       return row && row.flowId === flowId ? row : null;
     },
+    async claim(expected) {
+      const row = rows.get(expected.id);
+      if (
+        !row ||
+        row.status !== "screen" ||
+        row.nodeId !== expected.nodeId ||
+        row.lastRunId !== expected.lastRunId ||
+        row.tokenHash !== expected.tokenHash
+      )
+        return false;
+      rows.set(row.id, { ...row, status: "failed", nodeId: null });
+      return true;
+    },
     async update(id, patch) {
       rows.set(id, { ...rows.get(id)!, ...patch });
     },
@@ -160,7 +175,7 @@ function fixture(
       runs,
       sessions,
       engine: {
-        sleep: async () => {},
+        sleep: options.sleep ?? (async () => {}),
         fetch: (async (url: string | URL | Request, init?: RequestInit) => {
           posted.push({ url: String(url), body: JSON.parse(String(init?.body)) });
           return Response.json({ id: "m1", channel_id: "c1" });
@@ -175,10 +190,16 @@ function fixture(
       world: options.world,
     }),
   );
-  const post = (path: string, body?: unknown, headers: Record<string, string> = {}) =>
+  const post = (
+    path: string,
+    body?: unknown,
+    headers: Record<string, string> = {},
+    signal?: AbortSignal,
+  ) =>
     app.handle(
       new Request(`http://localhost${path}`, {
         method: "POST",
+        signal,
         headers: {
           ...(body === undefined ? {} : { "Content-Type": "application/json" }),
           ...headers,
@@ -186,7 +207,7 @@ function fixture(
         body: body === undefined ? undefined : JSON.stringify(body),
       }),
     );
-  return { post, created, rows, posted, snapshots, records };
+  return { post, created, rows, posted, snapshots, records, runs };
 }
 
 async function start(post: ReturnType<typeof fixture>["post"], flowId = "flow-1") {
@@ -197,6 +218,162 @@ async function start(post: ReturnType<typeof fixture>["post"], flowId = "flow-1"
 }
 
 describe("mini-app sessions", () => {
+  test("form constraints are enforced before the owner's steps run and invalid answers stay retryable", async () => {
+    const flow = structuredClone(document);
+    flow.nodes.find((node) => node.id === "form")!.config.fields = [
+      { id: "email", type: "email", label: "Email", required: true },
+      { id: "count", type: "number", label: "Count", required: true },
+    ];
+    const { post, posted, rows } = fixture({
+      flow,
+      secrets: { hook: "https://discord.com/api/webhooks/1/abc" },
+    });
+    const session = await start(post);
+    const path = `/public/flows/flow-1/sessions/${session.sessionId}/answer`;
+    for (const data of [
+      undefined,
+      { email: "bad", count: "1" },
+      { email: "a@b.c", count: "Infinity" },
+      { email: "a@b.c", count: "1", recipient: "attacker" },
+    ]) {
+      expect(
+        (await post(path, { token: session.token, nodeId: "form", port: "submitted", data }))
+          .status,
+      ).toBe(400);
+    }
+    expect(posted).toHaveLength(0);
+    expect(rows.get(session.sessionId)?.nodeId).toBe("form");
+    expect(
+      (
+        await post(path, {
+          token: session.token,
+          nodeId: "form",
+          port: "submitted",
+          data: { email: "a@b.c", count: "1.5" },
+        })
+      ).status,
+    ).toBe(200);
+    expect(posted).toHaveLength(1);
+  });
+
+  test("concurrent answers execute the owner's side effect once", async () => {
+    const { post, posted, created } = fixture({
+      secrets: { hook: "https://discord.com/api/webhooks/1/abc" },
+    });
+    const session = await start(post);
+    const path = `/public/flows/flow-1/sessions/${session.sessionId}/answer`;
+    const body = {
+      token: session.token,
+      nodeId: "form",
+      port: "submitted",
+      data: { email: "qa@example.com" },
+    };
+    const responses = await Promise.all([post(path, body), post(path, body)]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    expect(posted).toHaveLength(1);
+    expect(created).toHaveLength(2);
+  });
+
+  test.each(["start", "answer"] as const)(
+    "a disconnected %s request cancels a pending wait before the owner's notification",
+    async (phase) => {
+      const flow = structuredClone(document);
+      flow.nodes.push({
+        id: "wait",
+        type: "logic.wait",
+        position: { x: 0, y: 0 },
+        label: "Wait",
+        config: { seconds: 30 },
+      });
+      flow.edges = [
+        ...(phase === "answer" ? [flow.edges[0]!] : []),
+        {
+          id: "to-wait",
+          source: phase === "start" ? "t" : "form",
+          sourceHandle: phase === "start" ? "visitor" : "submitted",
+          target: "wait",
+          targetHandle: "data",
+        },
+        {
+          id: "to-message",
+          source: "wait",
+          sourceHandle: "done",
+          target: "d",
+          targetHandle: "message",
+        },
+        flow.edges[2]!,
+      ];
+      const waiting = Promise.withResolvers<void>();
+      const timer = Promise.withResolvers<void>();
+      const { post, posted, rows, created } = fixture({
+        flow,
+        secrets: { hook: "https://discord.com/api/webhooks/1/abc" },
+        sleep: async () => {
+          waiting.resolve();
+          await timer.promise;
+        },
+      });
+      const session = phase === "answer" ? await start(post) : undefined;
+      const controller = new AbortController();
+      const response = post(
+        session
+          ? `/public/flows/flow-1/sessions/${session.sessionId}/answer`
+          : "/public/flows/flow-1/sessions",
+        session ? { token: session.token, nodeId: "form", port: "submitted" } : undefined,
+        {},
+        controller.signal,
+      );
+      await waiting.promise;
+      controller.abort();
+      // The original timer may finish after the caller leaves; downstream effects must not.
+      timer.resolve();
+      const result = await response;
+      expect(result.status).toBe(phase === "start" ? 201 : 200);
+      expect(await result.json()).toMatchObject({ status: "failed", code: "cancelled" });
+      expect(posted).toHaveLength(0);
+      expect(created.at(-1)?.run.status).toBe("failed");
+      expect([...rows.values()].at(-1)).toMatchObject({ status: "failed", nodeId: null });
+    },
+  );
+
+  test("a delayed answer cannot advance a different screen with the same port", async () => {
+    const flow: FlowDocument = {
+      ...document,
+      nodes: [
+        document.nodes[0]!,
+        { id: "one", type: "screen.page", position: { x: 0, y: 0 }, label: "One", config: {} },
+        { id: "two", type: "screen.page", position: { x: 0, y: 0 }, label: "Two", config: {} },
+      ],
+      edges: [
+        { id: "a", source: "t", sourceHandle: "visitor", target: "one", targetHandle: "data" },
+        { id: "b", source: "one", sourceHandle: "next", target: "two", targetHandle: "data" },
+      ],
+    };
+    const { post, rows } = fixture({ flow });
+    const session = await start(post);
+    const path = `/public/flows/flow-1/sessions/${session.sessionId}/answer`;
+    const body = { token: session.token, nodeId: "one", port: "next" };
+    expect((await post(path, body)).status).toBe(200);
+    expect((await post(path, body)).status).toBe(409);
+    expect(rows.get(session.sessionId)?.nodeId).toBe("two");
+  });
+
+  test("a storage failure after effects consumes the screen instead of sending twice", async () => {
+    const { post, rows, posted, runs } = fixture({
+      secrets: { hook: "https://discord.com/api/webhooks/1/abc" },
+    });
+    const session = await start(post);
+    runs.create = async () => {
+      throw new Error("storage unavailable");
+    };
+    const path = `/public/flows/flow-1/sessions/${session.sessionId}/answer`;
+    const body = { token: session.token, nodeId: "form", port: "submitted" };
+    expect((await post(path, body)).status).toBe(500);
+    expect(rows.get(session.sessionId)).toMatchObject({ status: "failed", nodeId: null });
+    expect((await post(path, body)).status).toBe(409);
+    expect(posted).toHaveLength(1);
+  });
+
   test("resolves screen inputs, variables and trigger data across visitor pauses", async () => {
     const flow: FlowDocument = {
       ...document,
@@ -258,6 +435,7 @@ describe("mini-app sessions", () => {
     const answer = async (port: string, data?: Record<string, string>) => {
       const response = await post(`/public/flows/flow-1/sessions/${opened.sessionId}/answer`, {
         token: opened.token,
+        nodeId: port === "submitted" ? "form" : "page",
         port,
         data,
       });
@@ -306,6 +484,7 @@ describe("mini-app sessions", () => {
     const answer = (port: string) =>
       post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
         token: session.token,
+        nodeId: port === "submitted" ? "form" : "done",
         port,
         data: { email: "qa@example.com" },
       });
@@ -315,7 +494,7 @@ describe("mini-app sessions", () => {
     expect(await final.json()).toMatchObject({ status: "end" });
     expect(posted).toHaveLength(1);
     expect(created.at(-1)!.run.nodes.find((n) => n.nodeId === "join")?.outputs).toEqual({
-      merged: [{ messageId: "m1", channelId: "c1" }, { email: "qa@example.com" }],
+      merged: [{ messageId: "m1", channelId: "c1" }, { action: "next" }],
     });
   });
 
@@ -327,6 +506,7 @@ describe("mini-app sessions", () => {
     snapshots.clear();
     const response = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
       token: session.token,
+      nodeId: "form",
       port: "submitted",
     });
     expect(response.status).toBe(409);
@@ -360,6 +540,7 @@ describe("mini-app sessions", () => {
     const session = await start(post);
     const response = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
       token: session.token,
+      nodeId: "form",
       port: "submitted",
       data: { email: "ada@example.com" },
     });
@@ -384,11 +565,13 @@ describe("mini-app sessions", () => {
 
     const end = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
       token: session.token,
+      nodeId: "done",
       port: "next",
     });
     expect(((await end.json()) as MiniAppSession).status).toBe("end");
     const again = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
       token: session.token,
+      nodeId: "done",
       port: "next",
     });
     expect(again.status).toBe(409);
@@ -399,6 +582,7 @@ describe("mini-app sessions", () => {
     const session = await start(post);
     const response = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
       token: session.token,
+      nodeId: "form",
       port: "submitted",
       data: { email: "ada@example.com" },
     });
@@ -428,6 +612,7 @@ describe("mini-app sessions", () => {
     const session = await start(post);
     const response = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
       token: session.token,
+      nodeId: "form",
       port: "submitted",
       data: { email: "ada@example.com" },
     });
@@ -441,7 +626,12 @@ describe("mini-app sessions", () => {
     const visitor = { "x-forwarded-for": "203.0.113.9, 10.0.0.1" };
     const session = await start((path, body) => post(path, body, visitor));
     const path = `/public/flows/flow-1/sessions/${session.sessionId}/answer`;
-    const answer = { token: session.token, port: "submitted", data: { email: "a@b.c" } };
+    const answer = {
+      token: session.token,
+      nodeId: "form",
+      port: "submitted",
+      data: { email: "a@b.c" },
+    };
     expect((await post(path, answer, visitor)).status).toBe(200);
     const limited = await post(path, answer, visitor);
     expect(limited.status).toBe(429);
@@ -472,14 +662,19 @@ describe("mini-app sessions", () => {
     const { post } = fixture();
     const session = await start(post);
     const path = `/public/flows/flow-1/sessions/${session.sessionId}/answer`;
-    expect((await post(path, { token: "nope", port: "submitted" })).status).toBe(404);
-    expect((await post(path, { token: session.token, port: "cancelled" })).status).toBe(400);
+    expect((await post(path, { token: "nope", nodeId: "form", port: "submitted" })).status).toBe(
+      404,
+    );
+    expect(
+      (await post(path, { token: session.token, nodeId: "form", port: "cancelled" })).status,
+    ).toBe(400);
     expect((await post(path, { port: "submitted" })).status).toBe(400);
     expect((await post("/public/flows/other/sessions")).status).toBe(404);
     expect(
       (
         await post(`/public/flows/other/sessions/${session.sessionId}/answer`, {
           token: session.token,
+          nodeId: "form",
           port: "submitted",
         })
       ).status,
@@ -495,19 +690,20 @@ const proof: WorldProof = {
 };
 
 function stubWorld(verdict: "accept" | "reject" | "down") {
-  const calls: { action: string; signal: string; proof: WorldProof }[] = [];
+  const calls: Parameters<WorldVerifier["verify"]>[0][] = [];
   let nonce = 0;
   const world: WorldVerifier = {
     requestContext(action) {
       nonce += 1;
+      const createdAt = Math.floor(Date.now() / 1000);
       return {
         appId: "app_123",
         environment: "staging",
         rpContext: {
           rp_id: "rp_456",
-          nonce: `0x${nonce}`,
-          created_at: 1,
-          expires_at: 301,
+          nonce: nonce === 1 ? proof.nonce : `${proof.nonce}-${nonce}`,
+          created_at: createdAt,
+          expires_at: createdAt + 300,
           signature: `0xsig-${action}`,
         },
       };
@@ -540,12 +736,70 @@ async function answer(
 ) {
   const response = await post(`/public/flows/flow-2/sessions/${session.sessionId}/answer`, {
     token: session.token,
+    nodeId: body.port === "user" ? "login" : "verify",
     ...body,
   });
   return { status: response.status, json: (await response.json()) as MiniAppSession };
 }
 
 describe("identity screens in sessions", () => {
+  test("binds World proofs to the current session's issued nonce before contacting the verifier", async () => {
+    const { world, calls } = stubWorld("accept");
+    const { post, rows } = fixture({ visitorToken: "good-jwt", world });
+    const first = await start(post, "flow-2");
+    const second = await start(post, "flow-2");
+    const issued = await answer(post, first, { port: "user", privyToken: "good-jwt" });
+    const other = await answer(post, second, { port: "user", privyToken: "good-jwt" });
+    expect(issued.json.screen?.world?.rpContext.nonce).not.toBe(
+      other.json.screen?.world?.rpContext.nonce,
+    );
+    expect(rows.get(first.sessionId)).toMatchObject({
+      worldNonce: issued.json.screen?.world?.rpContext.nonce,
+      worldExpiresAt: issued.json.screen?.world?.rpContext.expires_at,
+    });
+    expect((await answer(post, second, { port: "verified", worldProof: proof })).status).toBe(400);
+    expect(calls).toHaveLength(0);
+    expect(rows.get(second.sessionId)?.nodeId).toBe("verify");
+    const accepted = await answer(post, first, { port: "verified", worldProof: proof });
+    expect(accepted.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(rows.get(first.sessionId)).toMatchObject({ worldNonce: null, worldExpiresAt: null });
+  });
+
+  test("an expired World request is rejected without verifying or advancing its screen", async () => {
+    const { world, calls } = stubWorld("accept");
+    const { post, rows } = fixture({ visitorToken: "good-jwt", world });
+    const session = await start(post, "flow-2");
+    await answer(post, session, { port: "user", privyToken: "good-jwt" });
+    rows.get(session.sessionId)!.worldExpiresAt = Math.floor(Date.now() / 1000) - 1;
+    expect((await answer(post, session, { port: "verified", worldProof: proof })).status).toBe(400);
+    expect(calls).toHaveLength(0);
+    expect(rows.get(session.sessionId)?.nodeId).toBe("verify");
+  });
+
+  test("opening directly onto a World screen stores its issued request", async () => {
+    const { world } = stubWorld("accept");
+    const flow: FlowDocument = {
+      ...document,
+      nodes: [document.nodes[0]!, { ...gated.nodes[2]!, config: { action: "claim" } }],
+      edges: [
+        {
+          id: "a",
+          source: "t",
+          sourceHandle: "visitor",
+          target: "verify",
+          targetHandle: "visitor",
+        },
+      ],
+    };
+    const { post, rows } = fixture({ flow, world });
+    const session = await start(post);
+    expect(rows.get(session.sessionId)).toMatchObject({
+      worldNonce: session.screen?.world?.rpContext.nonce,
+      worldExpiresAt: session.screen?.world?.rpContext.expires_at,
+    });
+  });
+
   test("starts on the login screen with its parsed config", async () => {
     const { post } = fixture();
     const session = await start(post, "flow-2");
@@ -617,7 +871,7 @@ describe("identity screens in sessions", () => {
     const session = await start(post, "flow-2");
     await answer(post, session, { port: "user", privyToken: "good-jwt" });
     const done = await answer(post, session, { port: "verified", worldProof: proof });
-    expect(calls).toEqual([{ action: "claim", signal: "0xAda", proof }]);
+    expect(calls).toEqual([{ action: "claim", signal: "0xAda", verificationLevel: "orb", proof }]);
     expect(done.json.status).toBe("end");
     expect(done.json.steps).toEqual([{ nodeId: "d", label: "Announce", status: "succeeded" }]);
   });

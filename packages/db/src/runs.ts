@@ -42,7 +42,8 @@ export function decodeRunCursor(value: string): RunCursor {
   const [startedAt, id] = parsed as unknown[];
   if (typeof startedAt !== "string" || typeof id !== "string" || id.length === 0)
     throw new RunCursorError();
-  if (Number.isNaN(Date.parse(startedAt))) throw new RunCursorError();
+  const date = new Date(startedAt);
+  if (Number.isNaN(date.getTime()) || date.toISOString() !== startedAt) throw new RunCursorError();
   return { startedAt, id };
 }
 
@@ -147,11 +148,17 @@ export function createRunStore(sql: SQL | undefined) {
         : { runs };
     },
     /** When the flow's newest run from `source` started, or `null` without one; for the scheduler. */
-    async latestStartedAt(flowId: string, source: FlowRunSource): Promise<Date | null> {
+    async latestStartedAt(
+      flowId: string,
+      source: FlowRunSource,
+      triggerNodeId?: string,
+    ): Promise<Date | null> {
       const db = connection();
       const rows = await db<{ startedAt: Date }[]>`
         SELECT started_at AS "startedAt" FROM automator_runs
-        WHERE flow_id = ${flowId} AND source = ${source} ORDER BY started_at DESC LIMIT 1`;
+        WHERE flow_id = ${flowId} AND source = ${source}
+          AND (${triggerNodeId ?? null}::text IS NULL OR result->'trigger'->>'nodeId' = ${triggerNodeId ?? null})
+        ORDER BY started_at DESC LIMIT 1`;
       return rows[0]?.startedAt ?? null;
     },
     async find(ownerId: string, id: string): Promise<FlowRunRecord | null> {

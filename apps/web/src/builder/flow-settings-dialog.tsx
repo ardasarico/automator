@@ -22,6 +22,7 @@ import { FlowRequestError, setFlowEnabledRequest } from "../flows/client";
 import { EnableSigningButton } from "./enable-signing-button";
 import { useFlowActivation } from "./flow-activation";
 import { useBuilderStore } from "./store-provider";
+import { TriggerIssues } from "./trigger-issues";
 import { WalletFunds } from "./wallet-funds";
 import { useAccessToken } from "../auth/access-token";
 
@@ -82,7 +83,13 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
   const hasEvent = useBuilderStore((state) =>
     state.nodes.some((node) => node.data.type === "trigger.onchain-event"),
   );
-  const hasUnattended = hasWebhook || hasSchedule || hasEvent;
+  // Price and balance watchers run on the scheduler's ticks, so they activate like the rest.
+  const hasWatch = useBuilderStore((state) =>
+    state.nodes.some(
+      (node) => node.data.type === "trigger.price" || node.data.type === "trigger.balance",
+    ),
+  );
+  const hasUnattended = hasWebhook || hasSchedule || hasEvent || hasWatch;
   const activation = useFlowActivation();
   const [name, setName] = useState(meta.name);
   const [description, setDescription] = useState(meta.description);
@@ -123,12 +130,12 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogPopup className="max-w-md">
-        <form onSubmit={submit}>
+        <form className="flex min-h-0 flex-col" onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>Flow settings</DialogTitle>
             <DialogDescription>
               The name appears in your flows list and run history. Save the flow to keep name and
-              description changes.
+              description changes. Activation and transaction mode changes take effect immediately.
             </DialogDescription>
           </DialogHeader>
           <DialogPanel className="flex flex-col gap-4">
@@ -182,8 +189,8 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
                 <FieldLabel htmlFor="flow-active">Active</FieldLabel>
                 <FieldDescription>
                   {hasUnattended
-                    ? "Lets the webhook, schedule and onchain-event triggers of the saved flow start runs."
-                    : "Add a Webhook, Schedule or Onchain event trigger, then turn this on so it runs on its own."}
+                    ? "Lets webhook, scheduled, onchain-event, price and balance triggers in the saved flow start runs."
+                    : "Add a Webhook, Schedule, Onchain event, Price or Balance trigger, then turn this on so it runs on its own."}
                 </FieldDescription>
               </div>
               <Switch
@@ -221,8 +228,8 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
               <div className="flex flex-col gap-1">
                 <FieldLabel htmlFor="flow-live-mode">Send real transactions</FieldLabel>
                 <FieldDescription>
-                  Simulate runs onchain nodes for real instead of as a dry run. Webhook, scheduled
-                  and onchain-event runs are always live.
+                  Changes Simulate to Run live so onchain nodes send real transactions. Webhook,
+                  scheduled, onchain-event, price and balance runs are always live.
                 </FieldDescription>
               </div>
               <Switch
@@ -231,6 +238,7 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
                 onCheckedChange={activation.setLiveMode}
               />
             </Field>
+            {(hasSchedule || hasEvent || hasWatch) && <TriggerIssues flowId={meta.id} />}
             <WalletFunds chainId={chainId} />
             <Field>
               <FieldLabel>Server signing</FieldLabel>

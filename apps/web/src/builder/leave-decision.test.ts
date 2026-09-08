@@ -57,6 +57,29 @@ describe("reduceLeaveGuard", () => {
     ]);
   });
 
+  test("history destination survives failed saves and competing requests during save", () => {
+    const [pending] = reduceLeaveGuard(idleLeaveGuard, {
+      type: "request",
+      href: "/runs",
+      historyKey: "original-entry",
+      dirty: true,
+    });
+    const [saving] = reduceLeaveGuard(pending, { type: "choose", choice: "save" });
+    expect(reduceLeaveGuard(saving, { type: "request", href: "/flows", dirty: true })).toEqual([
+      saving,
+      null,
+    ]);
+    const [failed] = reduceLeaveGuard(saving, { type: "save-failed", message: "Unavailable" });
+    expect(reduceLeaveGuard(failed, { type: "choose", choice: "leave" })).toEqual([
+      idleLeaveGuard,
+      { type: "navigate", href: "/runs", historyKey: "original-entry" },
+    ]);
+    expect(reduceLeaveGuard(saving, { type: "saved" })).toEqual([
+      idleLeaveGuard,
+      { type: "navigate", href: "/runs", historyKey: "original-entry" },
+    ]);
+  });
+
   test("save outcomes and choices are ignored while idle", () => {
     expect(reduceLeaveGuard(idleLeaveGuard, { type: "saved" })).toEqual([idleLeaveGuard, null]);
     expect(reduceLeaveGuard(idleLeaveGuard, { type: "choose", choice: "leave" })).toEqual([

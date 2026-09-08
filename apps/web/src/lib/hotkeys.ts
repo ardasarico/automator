@@ -7,8 +7,8 @@ import { useEffect, useRef } from "react";
  *
  * Scopes are a priority ladder rather than an explicit activation stack: when a combo has
  * handlers in more than one scope, only the handlers in the highest-priority scope run.
- * A dialog can therefore claim a combo simply by registering it, and the canvas or global
- * handler for the same combo stays silent until the dialog unmounts.
+ * Open dialogs suspend canvas and global shortcuts, including events from their portaled
+ * controls. Dialog handlers can still claim a combo by registering in the dialog scope.
  */
 export type HotkeyScope = "global" | "canvas" | "dialog";
 
@@ -59,21 +59,40 @@ function matches(combo: ParsedCombo, event: KeyboardEvent): boolean {
 }
 
 function isEditable(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return Boolean(target.closest("input, textarea, select, [contenteditable=true]"));
+  if (!(target instanceof Element)) return false;
+  if (target.closest("input, textarea, select")) return true;
+  for (let element: Element | null = target; element; element = element.parentElement) {
+    const editable = element.getAttribute("contenteditable")?.toLowerCase();
+    if (editable === "" || editable === "true" || editable === "plaintext-only") return true;
+    if (editable === "false") return false;
+  }
+  return false;
 }
 
 const registrations = new Set<Registration>();
 let listening = false;
 
 function onKeyDown(event: KeyboardEvent) {
+  // A field can own a shortcut, such as sending the AI prompt with Cmd/Ctrl+Enter.
+  if (event.defaultPrevented || event.isComposing) return;
   const editable = isEditable(event.target);
+  // Base UI portals may put a dialog's select/menu popup outside the dialog element.
+  const dialogOpen = Boolean(
+    document.querySelector('[role="dialog"][data-open], [role="alertdialog"][data-open]'),
+  );
   const candidates = [...registrations].filter(
     (entry) => matches(entry.combo, event) && (entry.allowInEditable || !editable),
   );
-  if (candidates.length === 0) return;
-  const top = Math.max(...candidates.map((entry) => scopePriority[entry.scope]));
-  for (const entry of candidates) {
+  const activeCandidates = dialogOpen
+    ? candidates.filter((entry) => entry.scope === "dialog")
+    : candidates;
+  if (activeCandidates.length === 0) {
+    // Keep suspended app shortcuts such as Cmd/Ctrl+S from invoking browser actions.
+    if (candidates.length > 0) event.preventDefault();
+    return;
+  }
+  const top = Math.max(...activeCandidates.map((entry) => scopePriority[entry.scope]));
+  for (const entry of activeCandidates) {
     if (scopePriority[entry.scope] === top) entry.handler(event);
   }
 }

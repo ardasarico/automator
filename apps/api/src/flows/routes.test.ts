@@ -92,13 +92,18 @@ function fixture(overrides: Partial<FlowStore> = {}, users?: UserStore, log = fa
     findForWebhook: async (id, token) => {
       const record = records.get(id);
       return record && record.enabled && record.webhookToken === token
-        ? { ownerId: record.ownerId, record: strip(record) }
+        ? { ownerId: record.ownerId, record: strip(record), pollingRevision: "0" }
         : null;
     },
     listEnabled: async () =>
       [...records.values()]
         .filter((record) => record.enabled)
-        .map((record) => ({ ownerId: record.ownerId, record: strip(record) })),
+        .map((record) => ({
+          ownerId: record.ownerId,
+          record: strip(record),
+          pollingRevision: "0",
+        })),
+    isCurrentPoll: async () => true,
     ...overrides,
   };
   const identity: IdentityProvider = {

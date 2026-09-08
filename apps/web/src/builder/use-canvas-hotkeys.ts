@@ -4,9 +4,8 @@ import { useHotkey } from "../lib/hotkeys";
 import { useBuilderStore } from "./store-provider";
 
 /**
- * The canvas keyboard shortcuts, in the hotkey registry's "canvas" scope so a dialog can
- * claim any of them by registering the same combo. Undo/redo and duplicate stay quiet while
- * typing in a field; save works everywhere, since the browser's own Cmd+S is never wanted.
+ * Canvas shortcuts are suspended while a dialog is open. Undo/redo and duplicate stay quiet
+ * while typing in a field; save also works in fields when the canvas shortcuts are active.
  */
 export function useCanvasHotkeys({ save, run }: { save: () => void; run: () => void }) {
   const undo = useBuilderStore((state) => state.undo);

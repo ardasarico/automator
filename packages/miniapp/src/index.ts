@@ -14,4 +14,4 @@ export {
   type ScreenNode,
 } from "./engine";
 export { type EngineOptions, type SessionState } from "./session";
-export { decodeDocumentHash, encodeDocumentHash } from "./document-hash";
+export { openPreview, receivePreview } from "./preview-handoff";

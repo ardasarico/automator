@@ -77,12 +77,12 @@ test("an Origin from another host is refused", async () => {
 
 test("the forwarded host decides the origin comparison behind a proxy", async () => {
   const allowed = await post(
-    { ...signedIn, "x-forwarded-host": "app.automator.dev" },
+    { ...signedIn, "x-forwarded-host": "app.automator.dev", "x-forwarded-proto": "https" },
     "http://10.0.0.4:3000/api/auth/session",
   );
   expect(allowed.status).toBe(200);
   const refused = await post(
-    { ...signedIn, "x-forwarded-host": "other.automator.dev" },
+    { ...signedIn, "x-forwarded-host": "other.automator.dev", "x-forwarded-proto": "https" },
     "http://10.0.0.4:3000/api/auth/session",
   );
   expect(refused.status).toBe(403);
@@ -90,12 +90,20 @@ test("the forwarded host decides the origin comparison behind a proxy", async ()
 
 test("a comma-separated forwarded host list uses the last entry", async () => {
   const allowed = await post(
-    { ...signedIn, "x-forwarded-host": "other.automator.dev, app.automator.dev" },
+    {
+      ...signedIn,
+      "x-forwarded-host": "other.automator.dev, app.automator.dev",
+      "x-forwarded-proto": "https",
+    },
     "http://10.0.0.4:3000/api/auth/session",
   );
   expect(allowed.status).toBe(200);
   const refused = await post(
-    { ...signedIn, "x-forwarded-host": "app.automator.dev, other.automator.dev" },
+    {
+      ...signedIn,
+      "x-forwarded-host": "app.automator.dev, other.automator.dev",
+      "x-forwarded-proto": "https",
+    },
     "http://10.0.0.4:3000/api/auth/session",
   );
   expect(refused.status).toBe(403);
@@ -170,6 +178,17 @@ test("DELETE clears the cookie for a same-origin request", async () => {
 test("DELETE without an Origin header is refused", async () => {
   const response = await DELETE(
     new Request("https://app.automator.dev/api/auth/session", { method: "DELETE" }),
+  );
+  expect(response.status).toBe(403);
+  expect(response.headers.get("set-cookie")).toBeNull();
+});
+
+test("DELETE from the same host over another scheme cannot clear the cookie", async () => {
+  const response = await DELETE(
+    new Request("https://app.automator.dev/api/auth/session", {
+      method: "DELETE",
+      headers: { origin: "http://app.automator.dev" },
+    }),
   );
   expect(response.status).toBe(403);
   expect(response.headers.get("set-cookie")).toBeNull();

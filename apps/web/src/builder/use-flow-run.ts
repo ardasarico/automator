@@ -6,7 +6,7 @@ import { RunRequestError, runFlowRequest, runSavedFlowRequest } from "./run-clie
 import { useFlowActivation } from "./flow-activation";
 import { useRunStore } from "./run-store-provider";
 import { useBuilderStore } from "./store-provider";
-import { simulationTriggerPayload } from "./trigger-payload";
+import { findSimulationTrigger, triggerSamplePayload } from "./trigger-payload";
 import { useAccessToken } from "../auth/access-token";
 
 const failureMessages: Record<string, string> = {
@@ -51,28 +51,45 @@ export function useFlowRun() {
     start();
     try {
       const token = await getAccessToken();
+      if (controller.current !== current) return;
       const document = serializeFlow(meta, nodes, edges);
       // The starting trigger's sample payload, so a webhook flow simulates with realistic input.
-      const trigger = { payload: simulationTriggerPayload(document.nodes, document.edges) };
-      const result = dirty
-        ? await runFlowRequest(token, { document, trigger, screens: "auto", mode }, current.signal)
-        : (
-            await runSavedFlowRequest(
-              token,
-              meta.id,
-              { trigger, screens: "auto", mode },
-              current.signal,
-            )
-          ).run;
-      if (controller.current === current) finish(result);
+      const starting = findSimulationTrigger(document.nodes, document.edges);
+      const trigger = starting
+        ? { nodeId: starting.id, payload: triggerSamplePayload(starting) }
+        : { payload: {} };
+      if (dirty) {
+        const result = await runFlowRequest(
+          token,
+          { document, trigger, screens: "auto", mode },
+          current.signal,
+        );
+        if (controller.current === current) finish(result, document);
+      } else {
+        const record = await runSavedFlowRequest(
+          token,
+          meta.id,
+          { trigger, screens: "auto", mode },
+          current.signal,
+        );
+        if (controller.current === current) finish(record.run, record.document);
+      }
     } catch (caught) {
       if (controller.current !== current) return;
       const code = caught instanceof RunRequestError ? caught.code : "unavailable";
       fail(failureMessages[code] ?? "The flow could not be run. Please try again.");
+    } finally {
+      if (controller.current === current) controller.current = null;
     }
   }, [dirty, edges, fail, finish, getAccessToken, meta, mode, nodes, start]);
 
-  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(
+    () => () => {
+      controller.current?.abort();
+      controller.current = null;
+    },
+    [],
+  );
 
   return { status, error, running: status === "running", run, stop };
 }

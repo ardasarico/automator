@@ -5,7 +5,7 @@ export interface EmbeddedWallet {
   /** Privy's wallet id, needed for server-side signing. */
   id: string;
   address: string;
-  /** True once the user has added the app's signer to this wallet. */
+  /** Privy's broad delegation flag; never proves this app's configured signer is granted. */
   delegated: boolean;
 }
 

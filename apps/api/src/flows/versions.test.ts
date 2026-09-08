@@ -3,6 +3,8 @@ import {
   getFlowVersionContract,
   listFlowVersionsContract,
   parseResponse,
+  Value,
+  type FlowDocument,
   type FlowDocumentInput,
   type FlowRecord,
   type FlowVersionRecord,
@@ -10,7 +12,6 @@ import {
 import type { FlowStore, FlowVersionStore } from "@automator/db";
 import { createApp } from "../app";
 import type { IdentityProvider } from "../auth/privy";
-import { graphChanged } from "./versions";
 
 const input: FlowDocumentInput = {
   version: 1,
@@ -22,6 +23,17 @@ const input: FlowDocumentInput = {
   ],
   edges: [{ id: "e1", source: "n1", target: "n2", sourceHandle: "out", targetHandle: "in" }],
 };
+
+/** The fake store captures graph changes, like the transactional SQL store. */
+function graphChanged(before: FlowDocument, after: FlowDocument): boolean {
+  const graph = ({ version, chainId, nodes, edges }: FlowDocument) => ({
+    version,
+    chainId,
+    nodes,
+    edges,
+  });
+  return !Value.Equal(graph(before), graph(after));
+}
 
 /** In-memory flows and versions with the SQL stores' owner scoping and numbering. */
 function fixture() {
@@ -39,18 +51,21 @@ function fixture() {
       const record = owned(ownerId, id);
       return record ? strip(record) : null;
     },
-    create: async (ownerId, body) => {
+    create: async (ownerId, body, options) => {
       const id = `flow-${records.size + 1}`;
       const now = stamp();
       const record = { ownerId, flow: { ...body, id }, createdAt: now, updatedAt: now };
       records.set(id, record);
+      if (options?.recordVersion) await store.record(ownerId, id, body);
       return strip(record);
     },
-    update: async (ownerId, id, body) => {
+    update: async (ownerId, id, body, options) => {
       const record = owned(ownerId, id);
       if (!record) return null;
       const next = { ...record, flow: { ...body, id }, updatedAt: stamp() };
       records.set(id, next);
+      if (options?.recordVersion && graphChanged(record.flow, next.flow))
+        await store.record(ownerId, id, body);
       return strip(next);
     },
   } satisfies Partial<FlowStore> as unknown as FlowStore;
@@ -117,23 +132,6 @@ function fixture() {
     (await (await request("/flows", "POST", token, input)).json()) as FlowRecord;
   return { request, create };
 }
-
-describe("graphChanged", () => {
-  const document = { ...input, id: "flow-1" };
-  test("ignores the name and description", () => {
-    expect(graphChanged(document, { ...document, name: "Other", description: "x" })).toBe(false);
-  });
-  test("sees nodes, edges and the chain", () => {
-    expect(graphChanged(document, { ...document, edges: [] })).toBe(true);
-    expect(graphChanged(document, { ...document, chainId: 4801 })).toBe(true);
-    expect(
-      graphChanged(document, {
-        ...document,
-        nodes: [document.nodes[0]!, { ...document.nodes[1]!, label: "Charge" }],
-      }),
-    ).toBe(true);
-  });
-});
 
 describe("flow version routes", () => {
   test.each([undefined, "forged"])("token %s answers 401", async (token) => {

@@ -344,11 +344,18 @@ li:hover > .cardActions {
   align-items: flex-start;
   gap: 6px;
   height: 100%;
+  width: 100%;
+  text-align: start;
+  cursor: pointer;
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--card);
   transition: border-color 150ms;
+}
+.startCard:disabled {
+  cursor: wait;
+  opacity: 0.64;
 }
 .startCard:focus-visible {
   outline: 2px solid var(--ring);

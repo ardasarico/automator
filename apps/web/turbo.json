@@ -2,15 +2,33 @@
   "extends": ["//"],
   "tasks": {
     "dev": {
-      "passThroughEnv": ["PORT", "API_URL", "NEXT_PUBLIC_PRIVY_APP_ID"]
+      "passThroughEnv": [
+        "PORT",
+        "API_URL",
+        "NEXT_PUBLIC_PRIVY_APP_ID",
+        "NEXT_PUBLIC_PRIVY_SIGNER_ID",
+        "NEXT_PUBLIC_RUNTIME_URL",
+        "NEXT_PUBLIC_E2E_TOKEN"
+      ]
     },
     "start": {
-      "passThroughEnv": ["PORT", "API_URL", "NEXT_PUBLIC_PRIVY_APP_ID"]
+      "passThroughEnv": [
+        "PORT",
+        "API_URL",
+        "NEXT_PUBLIC_PRIVY_APP_ID",
+        "NEXT_PUBLIC_PRIVY_SIGNER_ID",
+        "NEXT_PUBLIC_RUNTIME_URL"
+      ]
     },
     "build": {
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"],
       "inputs": ["$TURBO_DEFAULT$", ".env", ".env.*"],
-      "env": ["API_URL", "NEXT_PUBLIC_PRIVY_APP_ID"]
+      "env": [
+        "API_URL",
+        "NEXT_PUBLIC_PRIVY_APP_ID",
+        "NEXT_PUBLIC_PRIVY_SIGNER_ID",
+        "NEXT_PUBLIC_RUNTIME_URL"
+      ]
     },
     "typecheck": {
       "outputs": [".next/types/**", "*.tsbuildinfo"]

@@ -32,7 +32,7 @@ import {
   RiBracesLine,
   RiDeleteBinLine,
 } from "@remixicon/react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { categoryLabels, getCatalogEntry } from "./catalog";
 import type { BuilderNode } from "./document";
@@ -176,8 +176,11 @@ function ConfigField({ id, name, property, value, onChange, variables = [] }: Fi
           size="sm"
           min={property.minimum}
           max={property.maximum}
-          value={typeof value === "number" ? value : ""}
-          onChange={(event) => onChange(event.target.valueAsNumber)}
+          step={property.type === "integer" ? 1 : "any"}
+          value={typeof value === "number" && Number.isFinite(value) ? value : ""}
+          onChange={(event) =>
+            onChange(event.target.value === "" ? "" : event.target.valueAsNumber)
+          }
         />
         <Help text={property.description} />
       </Field>
@@ -325,22 +328,24 @@ function StringListField({
   onChange,
 }: Omit<FieldProps, "name"> & { label: string }) {
   const text = Array.isArray(value) ? value.filter((v) => typeof v === "string").join(", ") : "";
+  const [draft, setDraft] = useState({ stored: text, text });
   return (
     <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <Input
         id={id}
         size="sm"
-        defaultValue={text}
+        value={draft.stored === text ? draft.text : text}
         placeholder="One, two, three"
-        onChange={(event) =>
-          onChange(
-            event.target.value
-              .split(",")
-              .map((item) => item.trim())
-              .filter((item) => item !== ""),
-          )
-        }
+        onChange={(event) => {
+          const input = event.target.value;
+          const items = input
+            .split(",")
+            .map((item) => item.trim())
+            .filter((item) => item !== "");
+          setDraft({ stored: items.join(", "), text: input });
+          onChange(items);
+        }}
       />
       <Help text={property.description ?? "Separate items with commas."} />
     </Field>
@@ -530,7 +535,17 @@ export function NodeSettings({ node, onBack }: { node: BuilderNode; onBack(): vo
   );
   const entry = getCatalogEntry(node.data.type);
   const schema = configSchemas[node.data.type];
-  const config = schema ? parseNodeConfig(schema, node.data.config) : undefined;
+  let config: unknown;
+  let invalid = false;
+  if (schema) {
+    try {
+      config = parseNodeConfig(schema, node.data.config);
+    } catch {
+      // Half-written settings must remain editable; strict validation belongs to the run gate.
+      config = Value.Default(schema, structuredClone(node.data.config));
+      invalid = true;
+    }
+  }
   const properties = schema ? (schema.properties as Record<string, Property>) : {};
 
   return (
@@ -561,6 +576,11 @@ export function NodeSettings({ node, onBack }: { node: BuilderNode; onBack(): vo
           onChange={(patch) => setNodeConfig(node.id, patch)}
           variables={variables}
         />
+        {invalid && (
+          <p role="alert" className="text-caption text-destructive-text">
+            Some settings are incomplete or invalid. Correct them before running the flow.
+          </p>
+        )}
         {!schema && (
           <p className="text-caption text-muted-foreground">This node has no settings yet.</p>
         )}

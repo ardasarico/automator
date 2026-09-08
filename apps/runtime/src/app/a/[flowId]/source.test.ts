@@ -7,12 +7,12 @@ describe("resolveRuntimeSource", () => {
     expect(resolveRuntimeSource({ hasPreviewFlag: false, published: true })).toBe("session");
   });
 
-  test("an unpublished or unknown flow plays the URL fragment", () => {
-    expect(resolveRuntimeSource({ hasPreviewFlag: false, published: false })).toBe("fragment");
-    expect(resolveRuntimeSource({ hasPreviewFlag: false, published: null })).toBe("fragment");
+  test("an unpublished or unknown flow without a preview flag is missing", () => {
+    expect(resolveRuntimeSource({ hasPreviewFlag: false, published: false })).toBe("missing");
+    expect(resolveRuntimeSource({ hasPreviewFlag: false, published: null })).toBe("missing");
   });
 
-  test("the preview flag always plays the fragment, even for a published flow", () => {
-    expect(resolveRuntimeSource({ hasPreviewFlag: true, published: true })).toBe("fragment");
+  test("the preview flag always requires the builder handoff, even for a published flow", () => {
+    expect(resolveRuntimeSource({ hasPreviewFlag: true, published: true })).toBe("preview");
   });
 });

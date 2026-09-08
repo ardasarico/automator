@@ -180,3 +180,39 @@ test("nested loops keep the inner Done join inside the outer body", async () => 
     merged: [inner, { items: [1, 2], results: [{ merged: inner }, { merged: inner }], count: 2 }],
   });
 });
+
+test.each(["[1,2]", "[]"])(
+  "rejects outside inputs to an Item body before any delivery (%s)",
+  async (items) => {
+    const document = flow(
+      [
+        node("start", "trigger.manual"),
+        node("external", "logic.set-variable", { name: "shared", value: "outside" }),
+        node("loop", "logic.for-each", { items }),
+        node("merge", "logic.merge", { mode: "list" }),
+        node("send", "notify.discord", {
+          webhookUrl: "https://discord.com/api/webhooks/1/qa",
+          content: "QA",
+        }),
+      ],
+      [
+        edge("start", "run", "external", "value"),
+        edge("external", "value", "loop", "items"),
+        edge("external", "value", "merge", "a"),
+        edge("loop", "item", "merge", "b"),
+        edge("merge", "merged", "send", "message"),
+      ],
+    );
+    let deliveries = 0;
+    const run = await runFlow(document, {
+      fetch: (async () => {
+        deliveries += 1;
+        return Response.json({ id: "message" });
+      }) as unknown as typeof fetch,
+    });
+    expect(run.status).toBe("failed");
+    expect(run.error).toContain("inputs from outside");
+    expect(run.nodes.every((result) => result.status === "skipped")).toBe(true);
+    expect(deliveries).toBe(0);
+  },
+);

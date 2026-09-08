@@ -1,12 +1,12 @@
-import { Button } from "@automator/ui/button";
 import { RiGitForkLine } from "@remixicon/react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { WorkspaceBreadcrumbs } from "../../../../components/workspace-breadcrumbs";
+import { FlowActionButton } from "../../../../flows/action-button";
+import { createFlowAction, forkFlowAction } from "../../../../flows/actions";
 import { CopyLinkButton } from "../../../../marketplace/copy-link-button";
 import { FlowPreview } from "../../../../marketplace/flow-preview";
-import { forkHref, type MarketplaceItem } from "../../../../marketplace/listing";
+import type { MarketplaceItem } from "../../../../marketplace/listing";
 import { ListingMarks } from "../../../../marketplace/listing-marks";
 import { findMarketplaceItem } from "../../../../marketplace/server";
 
@@ -21,7 +21,7 @@ const dateFormat = new Intl.DateTimeFormat("en", {
 const forkCountFormat = new Intl.NumberFormat("en");
 
 async function loadListing(slug: string) {
-  const listing = await findMarketplaceItem(decodeURIComponent(slug));
+  const listing = await findMarketplaceItem(slug);
   if (!listing) notFound();
   return listing;
 }
@@ -79,14 +79,18 @@ export default async function ListingPage({ params }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <CopyLinkButton path={`/marketplace/${listing.slug}`} />
-            <Button
-              render={<Link href={forkHref(listing)} />}
+            <CopyLinkButton path={`/marketplace/${encodeURIComponent(listing.slug)}`} />
+            <FlowActionButton
+              action={
+                listing.author.kind === "automator"
+                  ? createFlowAction.bind(null, { example: listing.slug })
+                  : forkFlowAction.bind(null, listing.slug)
+              }
               aria-label={`Fork flow: ${listing.name}`}
             >
               <RiGitForkLine aria-hidden="true" />
               Fork flow
-            </Button>
+            </FlowActionButton>
           </div>
         </div>
       </header>

@@ -6,7 +6,7 @@ import type {
 } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
-import { act } from "react";
+import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 GlobalRegistrator.register();
@@ -57,7 +57,7 @@ const first: FlowVersionRecord = {
 };
 
 const calls: string[] = [];
-let answer: (url: string) => Response = () => Response.json(listing);
+let answer: (url: string) => Response | Promise<Response> = () => Response.json(listing);
 const originalFetch = globalThis.fetch;
 let container: HTMLDivElement;
 let root: Root;
@@ -77,9 +77,27 @@ function Probe() {
 function SaveTap() {
   const markSaved = useBuilderStore((state) => state.markSaved);
   return (
-    <button type="button" data-testid="save" onClick={markSaved}>
+    <button type="button" data-testid="save" onClick={() => markSaved()}>
       save
     </button>
+  );
+}
+
+function HistoryHarness() {
+  const [visible, setVisible] = useState(true);
+  const setMeta = useBuilderStore((state) => state.setMeta);
+  return (
+    <>
+      {visible && <FlowHistory />}
+      <button type="button" data-testid="edit" onClick={() => setMeta({ name: "Latest edit" })}>
+        edit
+      </button>
+      <button type="button" data-testid="hide" onClick={() => setVisible(false)}>
+        hide history
+      </button>
+      <Probe />
+      <SaveTap />
+    </>
   );
 }
 
@@ -112,9 +130,7 @@ async function mount(flow: FlowDocument = document) {
     root.render(
       <BuilderStoreProvider document={flow}>
         <ReactFlowProvider>
-          <FlowHistory />
-          <Probe />
-          <SaveTap />
+          <HistoryHarness />
         </ReactFlowProvider>
       </BuilderStoreProvider>,
     );
@@ -167,6 +183,43 @@ describe("FlowHistory", () => {
     expect(listCalls()).toHaveLength(2);
     expect(container.querySelector('[role="status"]')).toBeNull();
     expect(probe()).toBe("First draft:t:clean");
+  });
+
+  test("a pending restore preserves edits made while the version is loading", async () => {
+    let resolveVersion: (response: Response) => void;
+    answer = (url) =>
+      url.endsWith("/versions/1")
+        ? new Promise<Response>((resolve) => {
+            resolveVersion = resolve;
+          })
+        : Response.json(listing);
+    await mount();
+    await click('button[aria-label="Restore v1"]');
+    await click('[data-testid="edit"]');
+    await act(async () => resolveVersion!(Response.json(first)));
+    await settle();
+
+    expect(probe()).toBe("Latest edit:t,d:dirty");
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "The flow changed while loading this version. Restore it again to replace the latest changes.",
+    );
+  });
+
+  test("a restore that finishes after leaving History does not replace the canvas", async () => {
+    let resolveVersion: (response: Response) => void;
+    answer = (url) =>
+      url.endsWith("/versions/1")
+        ? new Promise<Response>((resolve) => {
+            resolveVersion = resolve;
+          })
+        : Response.json(listing);
+    await mount();
+    await click('button[aria-label="Restore v1"]');
+    await click('[data-testid="hide"]');
+    await act(async () => resolveVersion!(Response.json(first)));
+    await settle();
+
+    expect(probe()).toBe("Ping:t,d:clean");
   });
 
   test("a failed request shows the error in place", async () => {

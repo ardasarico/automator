@@ -1,6 +1,7 @@
 "use client";
 
 import { chainName, type Wallet } from "@automator/contracts";
+import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useRef, useState } from "react";
 import { useAccessToken } from "../auth/access-token";
 import { fetchWallet, WalletRequestError } from "./wallet-client";
@@ -18,39 +19,59 @@ const failures: Record<string, string> = {
  * nothing on that chain, without pointing at faucets.
  */
 export function WalletFunds({ chainId }: { chainId: number }) {
+  const { user } = usePrivy();
+  const embeddedWallet = user?.linkedAccounts.find(
+    (account) =>
+      account.type === "wallet" &&
+      account.chainType === "ethereum" &&
+      account.walletClientType === "privy",
+  );
+  const address = embeddedWallet && "address" in embeddedWallet ? embeddedWallet.address : "";
+  return <WalletFundsForAccount key={`${user?.id}:${address}`} chainId={chainId} />;
+}
+
+function WalletFundsForAccount({ chainId }: { chainId: number }) {
   const getAccessToken = useAccessToken();
   const cache = useRef(new Map<number, Wallet>());
-  const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{
+    chainId: number;
+    wallet: Wallet | null;
+    error: string | null;
+    loading: boolean;
+  }>({ chainId, wallet: null, error: null, loading: true });
 
   useEffect(() => {
     const cached = cache.current.get(chainId);
     if (cached) {
-      setWallet(cached);
-      setError(null);
+      setResult({ chainId, wallet: cached, error: null, loading: false });
       return;
     }
     const controller = new AbortController();
-    setWallet(null);
-    setError(null);
-    setLoading(true);
+    setResult({ chainId, wallet: null, error: null, loading: true });
     void (async () => {
       try {
-        const fetched = await fetchWallet(await getAccessToken(), chainId, controller.signal);
+        const token = await getAccessToken();
+        if (controller.signal.aborted) return;
+        const fetched = await fetchWallet(token, chainId, controller.signal);
+        if (controller.signal.aborted) return;
         cache.current.set(chainId, fetched);
-        if (!controller.signal.aborted) setWallet(fetched);
+        setResult({ chainId, wallet: fetched, error: null, loading: false });
       } catch (caught) {
         if (controller.signal.aborted) return;
         const code = caught instanceof WalletRequestError ? caught.code : "unavailable";
-        setError(failures[code] ?? failures.unavailable!);
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        setResult({
+          chainId,
+          wallet: null,
+          error: failures[code] ?? failures.unavailable!,
+          loading: false,
+        });
       }
     })();
     return () => controller.abort();
   }, [chainId, getAccessToken]);
 
+  const { wallet, error, loading } =
+    result.chainId === chainId ? result : { wallet: null, error: null, loading: true };
   if (error)
     return (
       <p className="text-caption text-muted-foreground" role="status">

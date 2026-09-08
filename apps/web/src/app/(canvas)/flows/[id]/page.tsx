@@ -35,6 +35,7 @@ export default async function FlowPage({ params, searchParams }: Props) {
       enabled={record.enabled ?? false}
       webhookToken={record.webhookToken ?? null}
       initialRun={initialRun}
+      initialRunDocument={initialRun ? run!.document : null}
       gettingStarted={checklist !== "dismissed"}
       focusAi={ai !== undefined}
     />

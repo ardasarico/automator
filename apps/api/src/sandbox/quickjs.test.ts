@@ -50,4 +50,44 @@ describe("QuickJS sandbox", () => {
   test("returns undefined for no return value", async () => {
     expect(await sandbox.run("const x = 1;", null, {}, limits)).toBeUndefined();
   });
+
+  test("preserves JSON keys without interpreting __proto__ as a prototype setter", async () => {
+    const input = JSON.parse('{"__proto__":{"role":"admin"},"name":"visitor"}');
+    const vars = JSON.parse('{"__proto__":{"allowed":true}}');
+    expect(
+      await sandbox.run(
+        "return { input, vars, role: input.role ?? null, allowed: vars.allowed ?? false };",
+        input,
+        vars,
+        limits,
+      ),
+    ).toEqual({ input, vars, role: null, allowed: false });
+  });
+
+  test("serializes the returned value even when code replaces JSON helpers", async () => {
+    expect(
+      await sandbox.run(
+        'JSON.stringify = () => "42"; JSON.parse = () => null; return { balance: 7 };',
+        null,
+        {},
+        limits,
+      ),
+    ).toEqual({ balance: 7 });
+  });
+
+  test.each(["NaN", "Infinity", "-Infinity"])(
+    "rejects %s instead of silently serializing it as null",
+    async (value) => {
+      await expect(
+        sandbox.run(`Number.isFinite = () => true; return { amount: ${value} };`, null, {}, limits),
+      ).rejects.toThrow("non-finite number");
+    },
+  );
+
+  test("rejects asynchronous and non-JSON return values", async () => {
+    await expect(sandbox.run("return Promise.resolve(42);", null, {}, limits)).rejects.toThrow(
+      "synchronously",
+    );
+    await expect(sandbox.run("return () => 42;", null, {}, limits)).rejects.toThrow("JSON value");
+  });
 });

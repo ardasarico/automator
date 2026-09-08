@@ -65,7 +65,7 @@ function fixture(persisted = false, callsPerMinute?: number) {
       },
     }),
   );
-  const post = (body: unknown, token?: string) =>
+  const post = (body: unknown, token?: string, signal?: AbortSignal) =>
     app.handle(
       new Request(`http://localhost${runFlowContract.path}`, {
         method: "POST",
@@ -74,14 +74,22 @@ function fixture(persisted = false, callsPerMinute?: number) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
+        signal,
       }),
     );
-  const call = (path: string, method: string, body?: unknown, token = "alice") =>
+  const call = (
+    path: string,
+    method: string,
+    body?: unknown,
+    token = "alice",
+    signal?: AbortSignal,
+  ) =>
     app.handle(
       new Request(`http://localhost${path}`, {
         method,
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal,
       }),
     );
   return {
@@ -94,6 +102,16 @@ function fixture(persisted = false, callsPerMinute?: number) {
 }
 
 describe("POST /flows/run", () => {
+  test("a cancelled request never starts an external action", async () => {
+    const { post, posted } = fixture();
+    const response = await post({ document }, "alice", AbortSignal.abort());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      status: "failed",
+      error: "The run was cancelled.",
+    });
+    expect(posted).toEqual([]);
+  });
   test("requires a valid token", async () => {
     const { post, posted } = fixture();
     expect((await post({ document })).status).toBe(401);
@@ -170,6 +188,17 @@ describe("POST /flows/run", () => {
 });
 
 describe("persisted runs", () => {
+  test("a cancelled saved run records cancellation without executing external actions", async () => {
+    const { call, posted, runRecords } = fixture(true);
+    const response = await call("/flows/flow-1/runs", "POST", {}, "alice", AbortSignal.abort());
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      run: { status: "failed", error: "The run was cancelled." },
+    });
+    expect(posted).toEqual([]);
+    expect(runRecords).toHaveLength(1);
+    expect(runRecords[0]?.run.status).toBe("failed");
+  });
   test("the persisted routes are absent without stores", async () => {
     const { call } = fixture();
     expect((await call("/flows/flow-1/runs", "POST", {})).status).toBe(404);

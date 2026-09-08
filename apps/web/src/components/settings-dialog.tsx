@@ -76,6 +76,8 @@ function shortAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+const connectedAppsUnavailable = "Connected apps are unavailable right now. Try again shortly.";
+
 /**
  * What the user's flows can talk to: the Privy embedded wallet (with the server signing
  * grant) and the notification channels they have stored credentials for. Derived from the
@@ -88,12 +90,40 @@ function ConnectedApps({ open, onNavigate }: { open: boolean; onNavigate: () => 
   const error = useSecrets((state) => state.error);
   const load = useSecrets((state) => state.load);
   const channels = useSecrets((state) => state.secrets);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function retryChannels() {
+    setPending(true);
+    setTokenError(null);
+    try {
+      await load(await getAccessToken());
+    } catch {
+      setTokenError(connectedAppsUnavailable);
+    } finally {
+      setPending(false);
+    }
+  }
 
   useEffect(() => {
-    if (open && status === "idle") void getAccessToken().then(load);
+    if (!open || status !== "idle") return;
+    let cancelled = false;
+    void getAccessToken()
+      .then((token) => {
+        if (!cancelled) return load(token);
+      })
+      .catch(() => {
+        if (!cancelled) setTokenError(connectedAppsUnavailable);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open, status, getAccessToken, load]);
 
   const detected = detectChannels(channels.map((secret) => secret.name));
+  const loadError =
+    tokenError ??
+    (status === "failed" ? (error ?? "Connected apps are unavailable right now.") : null);
 
   return (
     <div className="pt-2">
@@ -131,19 +161,26 @@ function ConnectedApps({ open, onNavigate }: { open: boolean; onNavigate: () => 
               : `${channel.hint} Secrets live in a flow's Variables panel.`
           }
         >
-          {channel.connected ? (
+          {loadError && !pending ? (
+            <span className="text-caption text-muted-foreground">Status unavailable</span>
+          ) : channel.connected ? (
             <Badge variant="success">Connected</Badge>
-          ) : status === "loading" || status === "idle" ? (
+          ) : pending || status === "loading" || status === "idle" ? (
             <span className="text-caption text-muted-foreground">Checking…</span>
           ) : (
             <Badge variant="outline">Not connected</Badge>
           )}
         </DetailRow>
       ))}
-      {status === "failed" && error && (
-        <p role="alert" className="pt-4 text-caption text-destructive-text">
-          {error}
-        </p>
+      {loadError && !pending && (
+        <div className="flex flex-wrap items-center gap-3 pt-4">
+          <p role="alert" className="text-caption text-destructive-text">
+            {loadError}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void retryChannels()}>
+            Retry
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -178,6 +215,7 @@ function Usage({ open }: { open: boolean }) {
   const getAccessToken = useAccessToken();
   const [usage, setUsage] = useState<AccountUsage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -197,13 +235,26 @@ function Usage({ open }: { open: boolean }) {
     return () => {
       cancelled = true;
     };
-  }, [open, getAccessToken]);
+  }, [open, getAccessToken, attempt]);
 
   if (error) {
     return (
-      <p role="alert" className="py-5 text-caption text-destructive-text">
-        {error}
-      </p>
+      <div className="flex flex-wrap items-center gap-3 py-5">
+        <p role="alert" className="text-caption text-destructive-text">
+          {error}
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setUsage(null);
+            setError(null);
+            setAttempt((value) => value + 1);
+          }}
+        >
+          Retry
+        </Button>
+      </div>
     );
   }
   if (!usage) {
@@ -223,13 +274,13 @@ function Usage({ open }: { open: boolean }) {
       <dl className="pt-2">
         <UsageRow
           term="Flows"
-          detail={`${usage.activeFlows} active (webhook, schedule and onchain-event triggers on)`}
+          detail={`${usage.activeFlows} active (webhook, schedule, onchain-event and watch triggers on)`}
         >
           {usage.flows}
         </UsageRow>
         <UsageRow
           term="Runs in the last 30 days"
-          detail={`${runs.manual} Simulate · ${runs.webhook} webhook · ${runs.schedule} schedule · ${runs.miniapp} mini-app · ${runs.event} onchain event`}
+          detail={`${runs.manual} Simulate · ${runs.webhook} webhook · ${runs.schedule} schedule · ${runs.miniapp} mini-app · ${runs.event} onchain event · ${runs.watch} watch`}
         >
           {totalRuns(usage)}
         </UsageRow>

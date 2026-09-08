@@ -9,6 +9,7 @@ import {
   type MarketplaceListingDetail,
 } from "@automator/contracts";
 import type { SQL } from "bun";
+import { recordFlowVersion } from "./flow-versions";
 
 type ListingRow = {
   id: string;
@@ -158,6 +159,10 @@ export function createListingStore(sql: SQL | undefined) {
                 (id, slug, flow_id, owner_id, name, description, document, node_types)
               VALUES (${crypto.randomUUID()}, ${slug}, ${flow.id}, ${ownerId}, ${name},
                 ${input.description}, ${document}::jsonb, ${nodeTypes}::jsonb)
+              ON CONFLICT (flow_id) DO UPDATE SET
+                name = EXCLUDED.name, description = EXCLUDED.description,
+                document = EXCLUDED.document, node_types = EXCLUDED.node_types, updated_at = now()
+              WHERE automator_listings.owner_id = EXCLUDED.owner_id
               RETURNING *
             )
             SELECT l.id, l.slug, l.name, l.description, l.node_types AS "nodeTypes",
@@ -198,6 +203,11 @@ export function createListingStore(sql: SQL | undefined) {
             created_at AS "createdAt", updated_at AS "updatedAt"`;
         const flow = rows[0];
         if (!flow) throw new Error("Fork creation failed");
+        await recordFlowVersion(tx, ownerId, flow.id, {
+          ...flow.document,
+          name: flow.name,
+          description: flow.description,
+        });
         await tx`UPDATE automator_listings SET fork_count = fork_count + 1 WHERE slug = ${slug}`;
         return {
           flow: {
