@@ -92,29 +92,61 @@ export const waitConfigSchema = Type.Object({
 export type WaitConfig = Static<typeof waitConfigSchema>;
 
 export const discordMessageConfigSchema = Type.Object({
-  webhookUrl: Type.String({ default: "", secret: true }),
-  content: Type.String({ default: "" }),
-  username: Type.String({ default: "" }),
+  webhookUrl: Type.String({
+    default: "",
+    secret: true,
+    title: "Webhook URL",
+    description: "The Discord channel webhook to post through.",
+  }),
+  content: Type.String({ default: "", title: "Message", description: "What to post." }),
+  username: Type.String({
+    default: "",
+    title: "Post as",
+    description: "Overrides the name Discord shows for the webhook. Optional.",
+  }),
 });
 export type DiscordMessageConfig = Static<typeof discordMessageConfigSchema>;
 
 export const generateTextConfigSchema = Type.Object({
-  prompt: Type.String({ default: "{{input.prompt}}" }),
-  instructions: Type.String({ default: "" }),
+  prompt: Type.String({
+    default: "{{input.prompt}}",
+    description: "What to write. Reference earlier steps with {{…}} templates.",
+  }),
+  instructions: Type.String({
+    default: "",
+    title: "System instructions",
+    description: "Standing rules for the model, such as tone, length or format. Optional.",
+  }),
 });
 export type GenerateTextConfig = Static<typeof generateTextConfigSchema>;
 
 export const classifyConfigSchema = Type.Object({
-  text: Type.String({ default: "{{input.text}}" }),
-  labels: Type.Array(Type.String(), { default: [] }),
-  instructions: Type.String({ default: "" }),
+  text: Type.String({ default: "{{input.text}}", description: "The text to classify." }),
+  labels: Type.Array(Type.String(), {
+    default: [],
+    description: "The labels to choose between. The node outputs exactly one of them.",
+  }),
+  instructions: Type.String({
+    default: "",
+    title: "System instructions",
+    description: "How to decide between the labels, when the names alone are not enough. Optional.",
+  }),
 });
 export type ClassifyConfig = Static<typeof classifyConfigSchema>;
 
 export const extractConfigSchema = Type.Object({
-  text: Type.String({ default: "{{input.text}}" }),
-  schema: Type.String({ default: '{"type":"object","properties":{}}' }),
-  instructions: Type.String({ default: "" }),
+  text: Type.String({ default: "{{input.text}}", description: "The text to read values out of." }),
+  schema: Type.String({
+    default: '{"type":"object","properties":{}}',
+    title: "Result shape",
+    contentMediaType: "application/json",
+    description: "A JSON Schema object describing the fields to extract.",
+  }),
+  instructions: Type.String({
+    default: "",
+    title: "System instructions",
+    description: "Extra guidance on how to read the text. Optional.",
+  }),
 });
 export type ExtractConfig = Static<typeof extractConfigSchema>;
 
@@ -124,12 +156,36 @@ export type AgentTool = (typeof agentTools)[number];
 export const agentConfigSchema = Type.Object({
   instructions: Type.String({
     default: "You are a careful assistant. Use tools only when needed.",
+    title: "System instructions",
+    description: "Standing rules the agent follows on every step.",
   }),
-  task: Type.String({ default: "{{input.prompt}}" }),
-  tools: Type.Array(Type.Union(agentTools.map((tool) => Type.Literal(tool))), { default: [] }),
-  allowedHosts: Type.Array(Type.String(), { default: [] }),
-  discordWebhookUrl: Type.String({ default: "", secret: true }),
-  maxSteps: Type.Number({ minimum: 1, maximum: 20, default: 5 }),
+  task: Type.String({
+    default: "{{input.prompt}}",
+    description: "What to do on this run. Reference earlier steps with {{…}} templates.",
+  }),
+  tools: Type.Array(Type.Union(agentTools.map((tool) => Type.Literal(tool))), {
+    default: [],
+    description: "The only actions this agent may take. It cannot use anything left unchecked.",
+  }),
+  allowedHosts: Type.Array(Type.String(), {
+    default: [],
+    title: "Allowed hosts",
+    description:
+      "Hostnames the HTTP tool may reach, such as api.example.com. Blank blocks every request.",
+  }),
+  discordWebhookUrl: Type.String({
+    default: "",
+    secret: true,
+    title: "Discord webhook",
+    description: "Where the Discord tool posts.",
+  }),
+  maxSteps: Type.Number({
+    minimum: 1,
+    maximum: 20,
+    default: 5,
+    title: "Step limit",
+    description: "How many tool calls the agent may make before the run stops it.",
+  }),
 });
 export type AgentConfig = Static<typeof agentConfigSchema>;
 

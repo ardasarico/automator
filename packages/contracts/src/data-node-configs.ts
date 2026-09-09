@@ -6,10 +6,20 @@ import { conditionOperators } from "./condition-operators";
  * table or column picker instead of a text input, the way `secret` marks a redacted field.
  */
 const tableIdField = () =>
-  Type.String({ default: "", tableRef: true, description: "The table this node works on." });
+  Type.String({
+    default: "",
+    tableRef: true,
+    title: "Table",
+    description: "The table this node works on.",
+  });
 
-const columnField = (description?: string) =>
-  Type.String({ default: "", columnRef: true, ...(description ? { description } : {}) });
+const columnField = (description?: string, title = "Column") =>
+  Type.String({
+    default: "",
+    columnRef: true,
+    title,
+    ...(description ? { description } : {}),
+  });
 
 export const dataFilterRowSchema = Type.Object({
   column: columnField(),
@@ -38,6 +48,7 @@ const valuesField = () =>
 const targetField = () =>
   Type.Union([Type.Literal("record"), Type.Literal("filter")], {
     default: "record",
+    title: "Find the record by",
     description: "Whether the record is named by id or found by a filter.",
   });
 
@@ -50,16 +61,28 @@ export type CreateRecordConfig = Static<typeof createRecordConfigSchema>;
 export const findRecordsConfigSchema = Type.Object({
   tableId: tableIdField(),
   filters: filtersField("Every filter has to match for a record to be returned."),
-  sortColumn: columnField("Blank sorts by creation time."),
-  sortDirection: Type.Union([Type.Literal("asc"), Type.Literal("desc")], { default: "desc" }),
-  limit: Type.Integer({ default: 25, minimum: 1, maximum: 100 }),
+  sortColumn: columnField("Blank sorts by creation time.", "Sort by"),
+  sortDirection: Type.Union([Type.Literal("asc"), Type.Literal("desc")], {
+    default: "desc",
+    title: "Order",
+  }),
+  limit: Type.Integer({
+    default: 25,
+    minimum: 1,
+    maximum: 100,
+    title: "Most records to return",
+  }),
 });
 export type FindRecordsConfig = Static<typeof findRecordsConfigSchema>;
 
 export const updateRecordConfigSchema = Type.Object({
   tableId: tableIdField(),
   target: targetField(),
-  recordId: Type.String({ default: "{{input.record.id}}" }),
+  recordId: Type.String({
+    default: "{{input.record.id}}",
+    title: "Record",
+    description: "The id of the record to change, used when the target is a record.",
+  }),
   filters: filtersField("Used when the target is a filter; the first match is updated."),
   values: valuesField(),
 });
@@ -68,7 +91,11 @@ export type UpdateRecordConfig = Static<typeof updateRecordConfigSchema>;
 export const deleteRecordConfigSchema = Type.Object({
   tableId: tableIdField(),
   target: targetField(),
-  recordId: Type.String({ default: "{{input.record.id}}" }),
+  recordId: Type.String({
+    default: "{{input.record.id}}",
+    title: "Record",
+    description: "The id of the record to delete, used when the target is a record.",
+  }),
   filters: filtersField("Used when the target is a filter; the first match is deleted."),
 });
 export type DeleteRecordConfig = Static<typeof deleteRecordConfigSchema>;

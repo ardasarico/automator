@@ -1,6 +1,8 @@
 /** The slice of a JSON Schema property this form engine reads. */
 export type Property = {
   type?: string;
+  /** The label to show. Falls back to a humanized property key when a schema sets none. */
+  title?: string;
   anyOf?: { const?: unknown }[];
   description?: string;
   /** The standard JSON Schema hint; `date-time` renders a datetime control over a UTC ISO string. */
@@ -62,6 +64,11 @@ export const multilineKeys = new Set([
   "description",
   "samplePayload",
 ]);
+
+/** The label for a field: the schema's own words when it has them, its key humanized otherwise. */
+export function fieldLabel(name: string, property: Pick<Property, "title">): string {
+  return property.title ?? humanize(name);
+}
 
 export function humanize(key: string) {
   const words = key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]/g, " ");

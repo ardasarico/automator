@@ -92,3 +92,11 @@ test("a plain string property still renders the text input it always did", async
   await act(async () => type(input, "hell"));
   expect(changes).toEqual(["hell"]);
 });
+
+test("a property key names the field only when the schema offers no title", async () => {
+  await mount({ type: "string" }, "");
+  expect(container.textContent).toContain("Due");
+  await mount({ type: "string", title: "Due date" }, "");
+  expect(container.textContent).toContain("Due date");
+  expect(container.textContent).not.toContain("Due<");
+});

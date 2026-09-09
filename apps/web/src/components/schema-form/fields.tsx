@@ -12,6 +12,7 @@ import { useState } from "react";
 import { ColumnRefField, OperatorField, TableRefField } from "./data-ref-fields";
 import { MultiSelectField } from "./multi-select-field";
 import {
+  fieldLabel,
   humanize,
   isRecord,
   itemTitle,
@@ -40,7 +41,7 @@ export function ConfigField({
   preview,
   context,
 }: FieldProps) {
-  const label = humanize(name);
+  const label = fieldLabel(name, property);
   const options = property.anyOf
     ?.map((option) => option.const)
     .filter((option): option is string => typeof option === "string");

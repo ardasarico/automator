@@ -12,7 +12,7 @@ export {
   toLocalInput,
 } from "./fields";
 export { humanizeOption, MultiSelectField } from "./multi-select-field";
-export { humanize, isRecord, itemTitle, multilineKeys, singular } from "./schema";
+export { fieldLabel, humanize, isRecord, itemTitle, multilineKeys, singular } from "./schema";
 export type {
   FieldContext,
   FieldProps,
