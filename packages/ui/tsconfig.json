@@ -1,5 +1,8 @@
 {
   "extends": "@automator/typescript-config/react.json",
+  "compilerOptions": {
+    "types": ["bun", "react", "react-dom"]
+  },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules"]
 }

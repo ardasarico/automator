@@ -29,10 +29,28 @@ export const PALETTE: Record<DitherColor, Seed> = {
   grey: { fill: [92, 92, 100], line: [140, 140, 150], star: [165, 165, 175] },
 };
 
+/**
+ * A series colour: one of the kit's own hues, or a seed resolved from the design system's
+ * tokens — the palette above is fixed RGB, which cannot be right in both themes.
+ */
+export type SeriesColor = DitherColor | Seed;
+
 export const rgb = ([r, g, b]: Rgb, k = 1, a = 1) =>
   `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},${a})`;
 
-export const seedOfColor = (color: DitherColor): Seed => PALETTE[color];
+export const seedOfColor = (color: SeriesColor): Seed =>
+  isDitherColor(color) ? PALETTE[color] : color;
+
+/** Lifts a colour toward white, for the line and star tiers of a token-built seed. */
+export function lighten([r, g, b]: Rgb, amount: number): Rgb {
+  const lift = (channel: number) => channel + (255 - channel) * amount;
+  return [lift(r), lift(g), lift(b)];
+}
+
+/** The three tiers a seed needs, from one colour: the fill, its line and its sparkle. */
+export function seedFromRgb(fill: Rgb): Seed {
+  return { fill, line: lighten(fill, 0.45), star: lighten(fill, 0.7) };
+}
 
 export const isDitherColor = (value: unknown): value is DitherColor =>
   typeof value === "string" && value in PALETTE;

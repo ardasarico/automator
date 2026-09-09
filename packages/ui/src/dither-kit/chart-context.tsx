@@ -5,7 +5,7 @@ import type { ScaleLinear } from "d3-scale";
 import { createContext, use, useCallback, useMemo, useState } from "react";
 import type { CommonChart } from "./common-context";
 import type { BloomInput } from "./dither-paint";
-import type { DitherColor, Seed } from "./palette";
+import type { Seed, SeriesColor } from "./palette";
 import { seedOfColor } from "./palette";
 import {
   buildBandScale,
@@ -21,7 +21,10 @@ import type { Dimensions } from "./use-chart-dimensions";
 /** Which chart root a part is composed under — drives the boundary guards. */
 export type ChartType = "area" | "bar" | "line" | "pie" | "radar";
 
-export type ChartConfig = Record<string, { label?: string; color: DitherColor }>;
+/** No bar grows past this, however few categories there are. */
+export const MAX_BAR_WIDTH = 24;
+
+export type ChartConfig = Record<string, { label?: string; color: SeriesColor }>;
 
 export type Margins = {
   top: number;
@@ -311,14 +314,15 @@ export function useChartController({
     (i: number, si: number, n: number) => {
       const center = xCenter(i);
       if (stacked) {
-        const w = bandwidth * 0.9;
+        /* Capped: a chart of three categories should read as three bars, not three panels. */
+        const w = Math.min(bandwidth * 0.9, MAX_BAR_WIDTH);
         return { x: center - w / 2, width: w };
       }
       const slot = bandwidth / Math.max(n, 1);
-      return {
-        x: center - bandwidth / 2 + si * slot + slot * 0.08,
-        width: slot * 0.84,
-      };
+      const w = Math.min(slot * 0.84, MAX_BAR_WIDTH);
+      /* The group keeps its centre, so capped bars sit together under their tick. */
+      const groupWidth = w * n;
+      return { x: center - groupWidth / 2 + si * w, width: w };
     },
     [xCenter, stacked, bandwidth],
   );

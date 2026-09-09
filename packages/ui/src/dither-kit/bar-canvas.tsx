@@ -12,7 +12,8 @@ import {
   prefersReducedMotion,
 } from "./dither-paint";
 
-type Bars = { top: number[]; base: number[] }; // per data index, in backing rows
+// per data index, in backing rows; `empty` marks the rows where the series has no value
+type Bars = { top: number[]; base: number[]; empty: boolean[] };
 
 // Fraction of the timeline spent staggering bar starts — the rest is each bar's
 // own grow window, so the rise sweeps across the chart as a wave.
@@ -48,6 +49,7 @@ export function BarCanvas() {
       out[key] = {
         top: band.map((b) => (y(b[1]) / h) * (rows - 1)),
         base: band.map((b) => (y(b[0]) / h) * (rows - 1)),
+        empty: band.map((b) => b[0] === b[1]),
       };
     }
     return out;
@@ -81,6 +83,9 @@ export function BarCanvas() {
     const animate = state.current.animate && !reduce;
     const duration = state.current.animationDuration;
     const fx = cols / Math.max(width, 1);
+    const fy = rows / Math.max(height, 1);
+    /* A 2px strip of the surface between stacked segments, so the pile reads as parts. */
+    const gapRows = 2 * fy;
 
     // Eased grow factor for bar `i` at global progress `prog`.
     const barProgress = (i: number, len: number, prog: number) => {
@@ -93,6 +98,7 @@ export function BarCanvas() {
       const s = state.current;
       c.clearRect(0, 0, cols, rows);
       const stacked = s.stackType === "stacked" || s.stackType === "percent";
+      const zeroRow = (s.y(0) / Math.max(height, 1)) * (rows - 1);
       const keys = s.configKeys;
       keys.forEach((key, si) => {
         const t = targetsRef.current[key];
@@ -102,6 +108,8 @@ export function BarCanvas() {
         const emphasis = s.selectedDataKey ?? s.focusDataKey;
         const selDim = emphasis !== null && emphasis !== key ? 0.3 : 1;
         for (let i = 0; i < s.dataLength; i++) {
+          /* A series with nothing on this day draws nothing: a 1px mark would read as one. */
+          if (t.empty[i]) continue;
           const bp = barProgress(i, s.dataLength, prog);
           const base = t.base[i] ?? rows - 1;
           const grown = base + ((t.top[i] ?? base) - base) * bp;
@@ -109,7 +117,13 @@ export function BarCanvas() {
           // sit above the baseline (smaller pixel), negative ones below it —
           // paintColumn wants the higher edge first, so order the pair.
           const top = Math.min(grown, base);
-          const bottom = Math.max(grown, base);
+          /* Only segments resting on another one are trimmed; the bottom keeps the baseline. */
+          const floor = Math.max(grown, base);
+          /* A thin segment would vanish into its own gap, so the gap yields to the segment. */
+          const bottom =
+            stacked && zeroRow - base > 0.5
+              ? floor - Math.min(gapRows, (floor - top) * 0.4)
+              : floor;
           const active = s.hoverIndex === i;
           const hoverDim = s.hoverIndex != null && !active && s.isMouseInChart ? 0.5 : 1;
           const slot = s.barSlot(i, si, keys.length);
@@ -191,7 +205,7 @@ export function BarCanvas() {
 
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [cols, rows, width]);
+  }, [cols, rows, width, height]);
 
   const bloomActive = ctx.bloomOnHover ? ctx.isMouseInChart || ctx.hovered : true;
   const bloom = bloomLayerStyle(ctx.bloom, bloomActive);

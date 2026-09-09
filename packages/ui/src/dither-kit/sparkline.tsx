@@ -6,12 +6,12 @@ import { Area } from "./area";
 import { AreaChart } from "./area-chart";
 import type { AreaVariant } from "./chart-context";
 import type { BloomInput } from "./dither-paint";
-import type { DitherColor } from "./palette";
+import type { SeriesColor } from "./palette";
 
 export type SparklineProps = {
   /** Plain numeric series — the common sparkline case. */
   data: number[];
-  color: DitherColor;
+  color: SeriesColor;
   variant?: AreaVariant;
   /** Controlled crosshair position (e.g. a committed point). */
   markerIndex?: number | null;
