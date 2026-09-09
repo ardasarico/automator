@@ -1,29 +1,3 @@
-.page {
-  container: flows / inline-size;
-  width: 100%;
-  max-width: 1440px;
-  margin-inline: auto;
-  padding-block: 8px 48px;
-  padding-inline: 16px;
-}
-.header,
-.headerActions,
-.toolbarActions,
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-.header {
-  min-height: 40px;
-}
-.headerActions,
-.toolbarActions {
-  justify-content: flex-end;
-  gap: 12px;
-}
 .empty {
   display: flex;
   flex-direction: column;
@@ -36,7 +10,7 @@
   isolation: isolate;
   justify-content: center;
   min-height: 420px;
-  margin-block: 20px 48px;
+  margin-block: 4px 48px;
   padding-block: 64px;
 }
 .emptyHero::before {
@@ -55,7 +29,7 @@
 }
 .exampleGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
   gap: 16px;
 }
 .exampleCard {
@@ -89,7 +63,6 @@
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
-
 .exampleCard:has(.exampleLink:hover) {
   border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
 }
@@ -101,22 +74,17 @@
   gap: 12px;
   margin-top: auto;
 }
-.collection {
-  margin-top: 32px;
-}
-.toolbar {
-  margin-bottom: 24px;
-}
+/* The search sits on the title bar, so it matches the small button beside it. */
 .search {
   display: flex;
+  height: 30px;
+  width: min(100%, 240px);
   align-items: center;
   gap: 8px;
-  width: min(100%, 320px);
-  padding-inline: 12px;
+  padding-inline: 10px;
   border: 1px solid var(--input);
   border-radius: var(--radius-lg);
   background: var(--background);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent);
   transition:
     border-color 150ms var(--ease-press),
     box-shadow 150ms var(--ease-press);
@@ -132,37 +100,79 @@
   color: var(--muted-foreground);
   pointer-events: none;
 }
+
 /*
- * A card carries what there is to know about a flow: whether it is live, what it does, what
- * starts it and how big it is. It used to spend two thirds of its height on one placeholder
- * glyph that was identical on every card, so the glyph is gone and the facts took its place.
+ * A card leads with the flow's own shape, drawn from its stored node positions, so the list
+ * is scanned by what each flow looks like rather than by a glyph every card repeats.
  */
 .flowGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
   gap: 16px;
-}
-.flowGrid > li {
-  min-width: 0;
 }
 .flowCard {
   position: relative;
   display: flex;
+  min-width: 0;
   height: 100%;
   flex-direction: column;
-  gap: 6px;
-  padding: 14px 16px 12px;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   background: var(--card);
   transition: border-color 150ms;
 }
-.cardTop {
+.cardShape {
+  position: relative;
+  height: 112px;
+  flex: none;
+  border-bottom: 1px solid var(--border);
+  /* The canvas's own surface and grid, at half strength: a piece of the canvas it opens,
+   * quiet enough to sit behind a wall of cards. */
+  background-color: var(--canvas);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--canvas-grid) 55%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 10px 10px;
+}
+.cardShapeEmpty {
   display: flex;
-  min-height: 28px;
+  height: 100%;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.cardState {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 8px;
+}
+.cardBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 12px;
+}
+.cardHeading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
   gap: 8px;
+}
+.cardName {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
 }
 /* Stretched over the whole card so the title is the hit target, under the menu's own layer. */
 .cardLink::after {
@@ -178,33 +188,22 @@
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
-.cardDescription {
-  display: -webkit-box;
+.cardTrigger,
+.cardRun {
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   color: var(--muted-foreground);
-  text-wrap: pretty;
 }
-.cardFooter {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 12px;
-  margin-top: auto;
-  padding-top: 10px;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
+.cardRun {
+  margin-top: 2px;
 }
-
 .cardActions {
   position: relative;
   z-index: 1;
+  margin-inline-end: -4px;
   opacity: 0;
   transition: opacity 150ms;
 }
@@ -218,16 +217,12 @@
     opacity: 1;
   }
 }
-.flowMeta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-  color: var(--muted-foreground);
+@media (hover: hover) {
+  .flowCard:hover {
+    border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
+  }
 }
+
 .tableWrap {
   max-width: 100%;
   overflow-x: auto;
@@ -242,32 +237,55 @@
 .table th,
 .table td {
   text-align: start;
-  padding: 18px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
 }
+.table th:first-child,
+.table td:first-child {
+  padding-inline-start: 0;
+}
+.table th:last-child,
+.table td:last-child {
+  padding-inline-end: 0;
+}
 .table thead th {
+  padding-block: 8px;
   font-weight: 400;
   color: var(--muted-foreground);
-  padding-block: 10px;
   white-space: nowrap;
 }
 .table tbody th {
-  min-width: 320px;
-  width: 60%;
+  min-width: 260px;
+  width: 40%;
 }
 .table td {
   white-space: nowrap;
 }
 .tableFlow {
-  display: flex;
+  display: inline-flex;
+  max-width: 100%;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+}
+/* The card's shape at row scale: enough of a silhouette to recognise a flow while scanning.
+ * The dot grid is left off here — at this size it competes with the shape it sits behind. */
+.tableShape {
+  display: block;
+  width: 80px;
+  height: 30px;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--canvas);
 }
 .flowName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--text-label);
   line-height: var(--text-label--line-height);
   font-weight: var(--text-label--font-weight);
-  overflow-wrap: anywhere;
 }
 .tableFlow:hover .flowName {
   text-decoration: underline;
@@ -278,74 +296,38 @@
   outline-offset: 3px;
   border-radius: var(--radius-sm);
 }
-@media (hover: hover) {
-  .flowCard:hover {
-    border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
-  }
+.tableState {
+  margin-inline-start: 10px;
 }
-@container flows (min-width: 1180px) {
-  .flowGrid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.tableTrigger,
+.tableEdited {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted-foreground);
+  font-weight: 400;
 }
-@container flows (max-width: 812px) {
-  .flowGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@container flows (max-width: 536px) {
-  .flowGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-@container flows (max-width: 680px) {
-  .exampleGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@container flows (max-width: 420px) {
-  .exampleGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .empty {
-    padding-block: 40px;
-  }
-  .emptyHero {
-    min-height: 360px;
-    margin-block: 16px 32px;
-    padding-block: 48px;
-  }
-  .headerActions {
-    justify-content: flex-start;
-  }
-}
-@media (max-width: 600px) {
-  .page {
-    padding-block-end: 40px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .flowCard {
-    transition: none;
-  }
-}
-
-.flowFacts {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+.numeric {
+  width: 1px;
+  text-align: end;
+  color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
-.flowTriggers {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.tableActions {
+  width: 1px;
 }
-.flowTriggers img,
-.flowTriggers svg {
-  width: 14px;
-  height: 14px;
+.rowActions {
+  display: inline-flex;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.table tbody tr:hover .rowActions,
+.rowActions:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .rowActions {
+    opacity: 1;
+  }
 }
 
 .startGrid {
@@ -405,13 +387,24 @@
   color: var(--muted-foreground);
   text-wrap: pretty;
 }
-@container flows (max-width: 680px) {
+@media (max-width: 680px) {
   .startGrid {
     grid-template-columns: minmax(0, 1fr);
   }
+  .empty {
+    padding-block: 40px;
+  }
+  .emptyHero {
+    min-height: 360px;
+    margin-block: 0 32px;
+    padding-block: 48px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .startCard {
+  .flowCard,
+  .startCard,
+  .cardActions,
+  .rowActions {
     transition: none;
   }
 }

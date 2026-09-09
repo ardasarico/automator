@@ -1,0 +1,53 @@
+/* The workspace page frame: a 48px title bar, a 44px toolbar and a content region that
+ * scrolls on its own, so the bars stay put. No rule reaches the edge — the toolbar's stops
+ * at the page gutter, and the rows below line up with it. */
+.frame {
+  --page-gutter: 24px;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+.titleBar {
+  display: flex;
+  height: 48px;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding-inline: var(--page-gutter);
+}
+.title {
+  font-size: var(--text-section);
+  line-height: var(--text-section--line-height);
+  font-weight: var(--text-section--font-weight);
+}
+.titleActions {
+  display: flex;
+  min-width: 0;
+  margin-inline-start: auto;
+  align-items: center;
+  gap: 8px;
+}
+.toolbar {
+  position: relative;
+  display: flex;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding-inline: var(--page-gutter);
+}
+.toolbar::after {
+  content: "";
+  position: absolute;
+  inset-inline: var(--page-gutter);
+  bottom: 0;
+  height: 1px;
+  background: var(--border);
+}
+.content {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 20px var(--page-gutter) 32px;
+}

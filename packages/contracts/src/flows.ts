@@ -1,6 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { Check } from "@sinclair/typebox/value";
 import { chainIdSchema, defaultChainId, type ChainId } from "./chains";
+import { flowRunStatusSchema } from "./run-status";
 import { apiErrorResponses } from "./contract";
 
 export const flowNodeTypes = [
@@ -65,6 +66,33 @@ export const flowTriggerSummarySchema = Type.Object({
 });
 export type FlowTriggerSummary = Static<typeof flowTriggerSummarySchema>;
 
+/**
+ * The flow's shape, as a list can draw it: the node positions and the wires between them,
+ * without the configuration a document carries. Enough for a miniature, cheap to send.
+ */
+export const flowOutlineSchema = Type.Object({
+  nodes: Type.Array(
+    Type.Object({
+      id: Type.String({ minLength: 1 }),
+      type: flowNodeTypeSchema,
+      x: Type.Number(),
+      y: Type.Number(),
+    }),
+  ),
+  edges: Type.Array(
+    Type.Object({ source: Type.String({ minLength: 1 }), target: Type.String({ minLength: 1 }) }),
+  ),
+});
+export type FlowOutline = Static<typeof flowOutlineSchema>;
+
+/** How the flow last ended, so a list can say it without opening the runs. */
+export const flowLastRunSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  status: flowRunStatusSchema,
+  startedAt: Type.String(),
+});
+export type FlowLastRun = Static<typeof flowLastRunSchema>;
+
 export const flowSummarySchema = Type.Object({
   id: Type.String({ minLength: 1 }),
   name: Type.String(),
@@ -75,6 +103,9 @@ export const flowSummarySchema = Type.Object({
   /* The same triggers written as sentence fragments, for lists that say what starts a flow. */
   triggers: Type.Array(flowTriggerSummarySchema),
   nodeCount: Type.Integer({ minimum: 0 }),
+  outline: flowOutlineSchema,
+  /* Absent until the flow has run once. */
+  lastRun: Type.Optional(flowLastRunSchema),
 });
 export type FlowSummary = Static<typeof flowSummarySchema>;
 
@@ -108,6 +139,19 @@ export const flowDocumentSchema = Type.Object({
   edges: Type.Array(flowEdgeSchema),
 });
 export type FlowDocument = Static<typeof flowDocumentSchema>;
+
+/** The outline a list carries, taken from a full document. */
+export function documentOutline(document: Pick<FlowDocument, "nodes" | "edges">): FlowOutline {
+  return {
+    nodes: document.nodes.map(({ id, type, position }) => ({
+      id,
+      type,
+      x: position.x,
+      y: position.y,
+    })),
+    edges: document.edges.map(({ source, target }) => ({ source, target })),
+  };
+}
 
 export function flowChainId(document: Pick<FlowDocument, "chainId">): ChainId {
   return document.chainId ?? defaultChainId;

@@ -4,6 +4,7 @@ import type {
   FlowDocumentInput,
   FlowNodeType,
   FlowRecord,
+  FlowRunStatus,
   FlowSummary,
 } from "@automator/contracts";
 import type { SQL } from "bun";
@@ -77,25 +78,66 @@ export function createFlowStore(sql: SQL | undefined) {
     async list(ownerId: string): Promise<FlowSummary[]> {
       const db = connection();
       const rows = await db<
-        (Omit<FlowSummary, "updatedAt" | "triggerTypes" | "triggers"> & {
+        (Omit<FlowSummary, "updatedAt" | "triggerTypes" | "triggers" | "outline" | "lastRun"> & {
           updatedAt: Date;
-          nodes: { id: string; type: FlowNodeType; config?: Record<string, unknown> }[];
+          nodes: {
+            id: string;
+            type: FlowNodeType;
+            config?: Record<string, unknown>;
+            x: number | null;
+            y: number | null;
+          }[];
+          edges: { source: string; target: string }[];
+          lastRunId: string | null;
+          lastRunStatus: FlowRunStatus | null;
+          lastRunStartedAt: Date | null;
         })[]
       >`
-        SELECT id, name, description, updated_at AS "updatedAt", enabled,
-          jsonb_array_length(document->'nodes') AS "nodeCount",
+        SELECT f.id, f.name, f.description, f.updated_at AS "updatedAt", f.enabled,
+          jsonb_array_length(f.document->'nodes') AS "nodeCount",
           (SELECT coalesce(jsonb_agg(jsonb_build_object(
-                    'id', n->>'id', 'type', n->>'type', 'config', n->'config')
+                    'id', n->>'id', 'type', n->>'type', 'config', n->'config',
+                    'x', n->'position'->'x', 'y', n->'position'->'y')
                   ORDER BY ordinality), '[]'::jsonb)
-             FROM jsonb_array_elements(document->'nodes') WITH ORDINALITY AS t(n, ordinality)) AS nodes
-        FROM automator_flows
-        WHERE owner_id = ${ownerId} ORDER BY updated_at DESC, id`;
-      return rows.map(({ nodes, ...row }) => ({
-        ...row,
-        updatedAt: row.updatedAt.toISOString(),
-        triggerTypes: documentTriggerTypes(nodes),
-        triggers: documentTriggers(nodes),
-      }));
+             FROM jsonb_array_elements(f.document->'nodes') WITH ORDINALITY AS t(n, ordinality)) AS nodes,
+          (SELECT coalesce(jsonb_agg(jsonb_build_object('source', e->>'source', 'target', e->>'target')
+                  ORDER BY ordinality), '[]'::jsonb)
+             FROM jsonb_array_elements(f.document->'edges') WITH ORDINALITY AS t(e, ordinality)) AS edges,
+          run.id AS "lastRunId", run.status AS "lastRunStatus", run.started_at AS "lastRunStartedAt"
+        FROM automator_flows f
+        /* One run per flow, off the (flow_id, started_at DESC) index. */
+        LEFT JOIN LATERAL (
+          SELECT r.id, r.status, r.started_at FROM automator_runs r
+          WHERE r.flow_id = f.id ORDER BY r.started_at DESC, r.id LIMIT 1
+        ) run ON true
+        WHERE f.owner_id = ${ownerId} ORDER BY f.updated_at DESC, f.id`;
+      return rows.map(
+        ({ nodes, edges, lastRunId, lastRunStatus, lastRunStartedAt, ...row }): FlowSummary => ({
+          ...row,
+          updatedAt: row.updatedAt.toISOString(),
+          triggerTypes: documentTriggerTypes(nodes),
+          triggers: documentTriggers(nodes),
+          outline: {
+            /* A document written before positions were stored would carry nulls. */
+            nodes: nodes.map((node) => ({
+              id: node.id,
+              type: node.type,
+              x: node.x ?? 0,
+              y: node.y ?? 0,
+            })),
+            edges,
+          },
+          ...(lastRunId && lastRunStatus && lastRunStartedAt
+            ? {
+                lastRun: {
+                  id: lastRunId,
+                  status: lastRunStatus,
+                  startedAt: lastRunStartedAt.toISOString(),
+                },
+              }
+            : {}),
+        }),
+      );
     },
     async find(ownerId: string, id: string): Promise<FlowRecord | null> {
       const db = connection();

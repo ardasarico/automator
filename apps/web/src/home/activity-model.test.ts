@@ -12,6 +12,7 @@ function flow(overrides: Partial<FlowSummary> = {}): FlowSummary {
     triggerTypes: ["trigger.schedule"],
     triggers: [{ nodeId: "n1", type: "trigger.schedule", summary: "every 1h" }],
     nodeCount: 3,
+    outline: { nodes: [], edges: [] },
     ...overrides,
   };
 }

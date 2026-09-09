@@ -94,6 +94,13 @@ describe.skipIf(!url)("live PostgreSQL schema", () => {
             },
           ],
           nodeCount: 2,
+          outline: {
+            nodes: [
+              { id: "n1", type: "trigger.miniapp-open", x: 0, y: 0 },
+              { id: "n2", type: "usdc.payment", x: 300, y: 0 },
+            ],
+            edges: [{ source: "n1", target: "n2" }],
+          },
         },
       ]);
 

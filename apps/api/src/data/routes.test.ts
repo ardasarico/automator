@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   deleteDataTableContract,
+  documentOutline,
   documentTriggers,
   getDataTableContract,
   listDataRecordsContract,
@@ -194,6 +195,7 @@ function fixture(options: { callsPerMinute?: number; flows?: readonly FlowDocume
             triggerTypes: documentTriggerTypes(document.nodes),
             triggers: documentTriggers(document.nodes),
             nodeCount: document.nodes.length,
+            outline: documentOutline(document),
           }))
         : [],
     find: async (ownerId: string, id: string) => {

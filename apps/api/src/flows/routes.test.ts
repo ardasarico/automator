@@ -1,5 +1,6 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import {
+  documentOutline,
   documentTriggers,
   getFlowContract,
   listFlowsContract,
@@ -49,6 +50,7 @@ function fixture(overrides: Partial<FlowStore> = {}, users?: UserStore, log = fa
           triggerTypes: documentTriggerTypes(flow.nodes),
           triggers: documentTriggers(flow.nodes),
           nodeCount: flow.nodes.length,
+          outline: documentOutline(flow),
         })),
     find: async (ownerId, id) => {
       const record = owned(ownerId, id);
@@ -182,6 +184,13 @@ describe("flow routes", () => {
             { nodeId: "n1", type: "trigger.miniapp-open", summary: "when someone opens the app" },
           ],
           nodeCount: 2,
+          outline: {
+            nodes: [
+              { id: "n1", type: "trigger.miniapp-open", x: 0, y: 0 },
+              { id: "n2", type: "usdc.payment", x: 300, y: 0 },
+            ],
+            edges: [{ source: "n1", target: "n2" }],
+          },
         },
       ],
     });

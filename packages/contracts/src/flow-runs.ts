@@ -1,6 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { apiErrorResponses } from "./contract";
 import { flowDocumentSchema } from "./flows";
+import { flowRunStatusSchema } from "./run-status";
 
 export const flowRunNodeStatusSchema = Type.Union([
   Type.Literal("succeeded"),
@@ -20,17 +21,14 @@ export const flowRunNodeResultSchema = Type.Object({
 });
 export type FlowRunNodeResult = Static<typeof flowRunNodeResultSchema>;
 
-export const flowRunStatuses = ["succeeded", "failed", "waiting"] as const;
-export type FlowRunStatus = (typeof flowRunStatuses)[number];
-/* Unsafe preserves the literal union that mapping to Type.Union would widen. */
-export const flowRunStatusSchema = Type.Unsafe<FlowRunStatus>(
-  Type.Union(flowRunStatuses.map((status) => Type.Literal(status))),
-);
-
-/** Narrows a status read from a query string, which arrives as an arbitrary string. */
-export function isFlowRunStatus(value: string): value is FlowRunStatus {
-  return (flowRunStatuses as readonly string[]).includes(value);
-}
+/* The run status lives in its own module because the flow summary carries a last run, and
+ * flows.ts cannot import this one back. */
+export {
+  flowRunStatuses,
+  flowRunStatusSchema,
+  isFlowRunStatus,
+  type FlowRunStatus,
+} from "./run-status";
 
 export const flowRunTriggerSchema = Type.Object({
   nodeId: Type.Union([Type.String(), Type.Null()]),

@@ -1,0 +1,27 @@
+.lastRun {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+.never {
+  color: var(--muted-foreground);
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 9999px;
+  background: var(--muted-foreground);
+}
+.lastRun[data-status="succeeded"] .dot {
+  background: var(--success-foreground);
+}
+.lastRun[data-status="failed"] .dot {
+  background: var(--destructive-text);
+}
+.lastRun[data-status="waiting"] .dot {
+  background: var(--warning-foreground);
+}
