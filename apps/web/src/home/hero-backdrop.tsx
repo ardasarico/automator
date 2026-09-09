@@ -31,9 +31,12 @@ function readTokens(names: readonly string[]): string[] | null {
   }
 }
 
-/* Three steps of the blue ramp: the highlight stays blue, or the whole field reads as silver. */
-const tokens = ["--brand", "--blue-300", "--blue-200"] as const;
-const fallback = ["#3b6f8f", "#7fb4d6", "#a8cde3"];
+/*
+ * Three steps of the blue ramp — the highlight stays blue, or the whole field reads as silver —
+ * and the page's own ground, which light mode paints behind the threads.
+ */
+const tokens = ["--brand", "--blue-300", "--blue-200", "--muted"] as const;
+const fallback = ["#3b6f8f", "#7fb4d6", "#a8cde3", "#141619"];
 
 /* One read per theme, kept by reference: the store below must hand back a stable value. */
 const readings = new Map<string, string[]>();
@@ -56,7 +59,7 @@ export function HeroBackdrop() {
   const light = resolvedTheme === "light";
   /* The page renders on the server, where no palette can be read; the browser reads it and the
    * threads only ever reach WebGL, so the two passes cannot disagree about any markup. */
-  const [brand, bright, ink] = useSyncExternalStore(
+  const [brand, bright, ink, ground] = useSyncExternalStore(
     subscribe,
     () => coloursFor(resolvedTheme ?? "dark"),
     () => fallback,
@@ -87,7 +90,7 @@ export function HeroBackdrop() {
         mouseInteraction={false}
         mouseStrength={0}
         lightMode={light}
-        backgroundColor={light ? "#FCFCFC" : "#141619"}
+        backgroundColor={ground ?? fallback[3]!}
       />
       <span className={styles.scrim} />
     </div>

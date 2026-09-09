@@ -14,12 +14,16 @@
   isolation: isolate;
 }
 
-/* The travelling backdrop sits behind everything in the hero and reaches nothing else. */
+/*
+ * The travelling backdrop sits behind everything in the hero and runs on past its bottom, so
+ * the threads and the scrim's own fade finish below the row underneath rather than being cut
+ * at the hero's edge.
+ */
 .backdrop {
   position: absolute;
-  inset: 0;
+  inset: 0 0 auto;
+  height: calc(100% + 120px);
   z-index: -1;
-  overflow: hidden;
   pointer-events: none;
 }
 .canvas {
@@ -28,7 +32,6 @@
   height: 100%;
   /* The animation reads its ink from here, so it follows the theme without knowing about it. */
   color: var(--foreground);
-  opacity: 0.9;
 }
 /*
  * Two jobs: hold the middle calm enough to read the prompt against, and let the field die out
@@ -112,8 +115,14 @@
   flex: none;
 }
 
-/* The second way in, in the same column as the prompt above it. */
+/*
+ * The second way in, in the same column as the prompt above it. The hero is positioned, so its
+ * backdrop would paint over whatever follows; this row claims its own layer and reads at full
+ * contrast while the field runs out behind it.
+ */
 .examplesSection {
+  position: relative;
+  z-index: 1;
   margin: 0 auto;
   width: 100%;
   max-width: 1168px;
