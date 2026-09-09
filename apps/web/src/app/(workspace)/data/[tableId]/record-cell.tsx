@@ -6,7 +6,7 @@ import { Input } from "@automator/ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@automator/ui/select";
 import { Spinner } from "@automator/ui/spinner";
 import { useRef, useState } from "react";
-import { RecordValue } from "./record-browser";
+import { RecordValue } from "./record-value";
 import { useAccessToken } from "../../../../auth/access-token";
 import { fromLocalInput, toLocalInput } from "../../../../components/schema-form";
 import { DataRequestError, updateDataRecordRequest } from "../../../../data/client";

@@ -44,11 +44,16 @@ export type DataRecordFilter = {
   value?: unknown;
 };
 export type DataRecordSort = { column: string; direction: "asc" | "desc" };
+/** A free-text match across the named columns: an OR, where `filters` are an AND. */
+export type DataRecordSearch = { columns: readonly string[]; text: string };
 export type DataRecordQuery = {
   filters?: readonly DataRecordFilter[];
   sort?: DataRecordSort;
+  search?: DataRecordSearch;
   limit?: number;
 };
+/** `truncated` says more rows matched than the limit, so the caller can say so rather than guess. */
+export type DataRecordFindResult = { records: DataRecord[]; truncated: boolean };
 
 type RecordRow = {
   id: string;
@@ -91,6 +96,11 @@ function asText(value: unknown): string {
   if (value === undefined || value === null) return "";
   if (typeof value === "string") return value;
   return JSON.stringify(value) ?? "";
+}
+
+/** Escapes LIKE's wildcards, so a search for "50%" matches a literal per cent sign. */
+function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (match) => `\\${match}`);
 }
 
 /**
@@ -183,7 +193,7 @@ export function createDataRecordStore(sql: SQL | undefined) {
       ownerId: string,
       tableId: string,
       query: DataRecordQuery = {},
-    ): Promise<DataRecord[]> {
+    ): Promise<DataRecordFindResult> {
       const db = connection();
       const limit = Math.min(
         Math.max(query.limit ?? dataRecordListDefaultLimit, 1),
@@ -192,17 +202,27 @@ export function createDataRecordStore(sql: SQL | undefined) {
       let conditions = db``;
       for (const filter of query.filters ?? [])
         conditions = db`${conditions} AND ${filterCondition(db, filter)}`;
+      const search = query.search;
+      if (search && search.columns.length > 0 && search.text !== "") {
+        const pattern = `%${escapeLike(search.text)}%`;
+        /* FALSE seeds the chain so an OR list of any length composes without a special case. */
+        let matches = db`FALSE`;
+        for (const column of search.columns)
+          matches = db`${matches} OR r."values"->>${column} ILIKE ${pattern}`;
+        conditions = db`${conditions} AND (${matches})`;
+      }
       const sort = query.sort;
       const order = !sort
         ? db``
         : sort.direction === "asc"
           ? db`r."values"->>${sort.column} ASC NULLS LAST,`
           : db`r."values"->>${sort.column} DESC NULLS LAST,`;
+      // One row past the limit answers whether anything was left behind.
       const rows = await db<RecordRow[]>`
         SELECT ${db.unsafe(columns)} FROM automator_data_records r
         WHERE r.owner_id = ${ownerId} AND r.table_id = ${tableId} ${conditions}
-        ORDER BY ${order} r.created_at DESC, r.id DESC LIMIT ${limit}`;
-      return rows.map(toRecord);
+        ORDER BY ${order} r.created_at DESC, r.id DESC LIMIT ${limit + 1}`;
+      return { records: rows.slice(0, limit).map(toRecord), truncated: rows.length > limit };
     },
     async create(
       ownerId: string,

@@ -1,0 +1,437 @@
+/*
+ * The Data section: a rail of tables beside the records of the one that is open. The rail is the
+ * section's own navigation, so collapsing it moves the list into a menu rather than removing it.
+ */
+.split {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+.main {
+  min-width: 0;
+  flex: 1;
+}
+/* Too narrow for both: the open record takes the pane and the grid waits behind Back. */
+@media (max-width: 1000px) {
+  .split:has(> aside) .main {
+    display: none;
+  }
+}
+
+.rail {
+  display: flex;
+  width: 200px;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  border-inline-end: 1px solid var(--border);
+  background: var(--card);
+}
+.railCollapsed {
+  width: 44px;
+}
+/* The head shares the page's title-bar line, so the band label and the h1 sit together. */
+.railHead {
+  display: flex;
+  height: 48px;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 12px 6px;
+}
+.railCollapsed .railHead {
+  justify-content: center;
+  padding-inline: 4px;
+}
+.railLabel {
+  flex: 1;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.railStrip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 4px;
+}
+.railList {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  padding-inline: 8px;
+}
+.railRow {
+  display: flex;
+  height: 30px;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 8px;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+}
+.railRow > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  opacity: 0.7;
+}
+.railRow[aria-current="page"] {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.railRow:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .railRow:hover {
+    color: var(--foreground);
+  }
+}
+.railName {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+}
+.railCount {
+  flex: none;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.railFoot {
+  flex: none;
+  padding: 8px;
+}
+.railNew {
+  display: flex;
+  width: 100%;
+  height: 30px;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 8px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+}
+.railNew > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.railNew:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .railNew:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+}
+
+/*
+ * A card leads with the table's own columns and their types, so the gallery is scanned by what
+ * each table holds rather than by a glyph every card repeats.
+ */
+.tableGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.tableCard {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  transition: border-color 150ms;
+}
+.cardSchema {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+.cardColumn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.cardColumn > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0.7;
+}
+.cardColumnName {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cardColumnType {
+  flex: none;
+  opacity: 0.7;
+}
+/* An empty table still needs a face: the strip keeps the card's height without inventing columns. */
+.cardNoColumns {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.cardBody {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 12px;
+}
+.cardName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+.cardDescription {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+.cardMeta {
+  margin-top: auto;
+  padding-top: 6px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+/* Stretched over the whole card so the title is the hit target. */
+.cardLink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-xl);
+}
+.cardLink:focus-visible {
+  outline: none;
+}
+.cardLink:focus-visible::after {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+@media (hover: hover) {
+  .tableCard:hover {
+    border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tableCard {
+    transition: none;
+  }
+}
+
+/*
+ * The record grid. The header stays put while the rows scroll, so a wide table can be read
+ * without losing which column is which.
+ */
+.gridWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: start;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.grid th,
+.grid td {
+  text-align: start;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0;
+  background: var(--background);
+  font-weight: 400;
+}
+.grid tbody th {
+  font-weight: 400;
+}
+/* The row number, and the width the expand control needs: neither takes room from the data. */
+.gutter {
+  width: 1px;
+  padding-inline: 12px 8px !important;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.rowEnd {
+  width: 1px;
+  padding-inline-start: 8px !important;
+}
+.firstCell {
+  min-width: 160px;
+}
+.columnHead {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 12px;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.columnHead > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0.7;
+}
+.columnHead:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+@media (hover: hover) {
+  .columnHead:hover {
+    color: var(--foreground);
+  }
+}
+.columnName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.columnHead > svg.columnChevron {
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.columnHead:hover > svg.columnChevron,
+.columnHead:focus-visible > svg.columnChevron {
+  opacity: 0.7;
+}
+/* The expand control is quiet until the row is wanted, so the grid reads as data, not as buttons. */
+.expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.expand > svg {
+  width: 14px;
+  height: 14px;
+}
+.grid tbody tr:hover .expand,
+.expand:focus-visible {
+  opacity: 1;
+}
+.expand:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+@media (hover: none) {
+  .expand {
+    opacity: 1;
+  }
+}
+.newRow {
+  border-bottom: 0 !important;
+  padding-inline: 4px !important;
+}
+
+/* A filter, shown as what it says rather than as an icon with a count. */
+.chips {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding-inline: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.chipClear {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--muted-foreground);
+}
+.chipClear > svg {
+  width: 12px;
+  height: 12px;
+}
+.chipClear:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+@media (hover: hover) {
+  .chipClear:hover {
+    color: var(--foreground);
+  }
+}
+.note {
+  margin-inline-start: auto;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+@media (prefers-reduced-motion: reduce) {
+  .expand,
+  .columnHead > svg.columnChevron {
+    transition: none;
+  }
+}

@@ -25,11 +25,11 @@ export function createDataFactory({
       return {
         mode,
         table: (tableId) => dataTables.get(ownerId, tableId),
-        find: (tableId, query) => dataRecords.find(ownerId, tableId, query),
+        find: async (tableId, query) => (await dataRecords.find(ownerId, tableId, query)).records,
         async resolve(tableId, target) {
           if ("recordId" in target) return dataRecords.get(ownerId, tableId, target.recordId);
           const found = await dataRecords.find(ownerId, tableId, { ...target.query, limit: 1 });
-          return found[0] ?? null;
+          return found.records[0] ?? null;
         },
         async create(tableId, values) {
           writing("create a record");

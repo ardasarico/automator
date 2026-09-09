@@ -49,9 +49,39 @@ test("each table links to its records and counts its columns and records", () =>
   expect(html).toContain('href="/data/tbl-signups"');
   expect(html).toContain("Signups");
   expect(html).toContain("Everyone who asked for an invite.");
-  expect(html).toContain(">2<");
-  expect(html).toContain(">12<");
+  expect(html).toContain("12 records");
+  expect(html).toContain("2 columns");
   expect(html).toContain("Sep 8, 2026");
+});
+
+test("a card leads with the table's own columns and their types", () => {
+  const html = renderToString(<DataBrowser tables={[signups]} />);
+  expect(html).toContain("Email");
+  expect(html).toContain("Invited");
+  expect(html).toContain("text");
+  expect(html).toContain("checkbox");
+});
+
+test("a card counts the columns it had no room for", () => {
+  const wide = {
+    ...signups,
+    columns: ["a", "b", "c", "d", "e", "f"].map((id) => ({
+      id,
+      name: id.toUpperCase(),
+      type: "text" as const,
+      required: false,
+    })),
+  };
+  const html = renderToString(<DataBrowser tables={[wide]} />);
+  expect(html).toContain("2 more columns");
+  // The fifth column onwards is counted, not drawn.
+  expect(html).not.toContain(">F<");
+});
+
+test("a table with no columns still has a face", () => {
+  const html = renderToString(<DataBrowser tables={[{ ...signups, columns: [] }]} />);
+  expect(html).toContain("No columns yet");
+  expect(html).toContain("0 columns");
 });
 
 test("tables are listed by last edited first", () => {

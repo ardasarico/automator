@@ -9,8 +9,10 @@ import { RiAddLine, RiArrowDownSLine, RiSearchLine, RiTableLine } from "@remixic
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
-import styles from "../flows/flows.module.css";
+import { PageFrame } from "../../../components/page-frame";
+import flowStyles from "../flows/flows.module.css";
+import { ColumnTypeIcon, columnTypeLabel } from "./column-types";
+import styles from "./data.module.css";
 import { TableDialog } from "./table-dialog";
 
 type TableSort = "updated" | "name";
@@ -24,6 +26,57 @@ const dateFormat = new Intl.DateTimeFormat("en", {
   timeZone: "UTC",
 });
 
+/** How many columns a card shows before it stops: enough to recognise a table, not to read it. */
+const shownColumns = 4;
+
+function TableCard({ table }: { table: DataTable }) {
+  const shown = table.columns.slice(0, shownColumns);
+  const rest = table.columns.length - shown.length;
+  return (
+    <article className={styles.tableCard}>
+      <div className={styles.cardSchema}>
+        {shown.length === 0 ? (
+          <p className={styles.cardNoColumns}>No columns yet</p>
+        ) : (
+          shown.map((column) => (
+            <p key={column.id} className={styles.cardColumn}>
+              <ColumnTypeIcon type={column.type} />
+              <span className={styles.cardColumnName}>{column.name}</span>
+              <span className={styles.cardColumnType}>{columnTypeLabel(column.type)}</span>
+            </p>
+          ))
+        )}
+        {rest > 0 && (
+          <p className={styles.cardNoColumns}>
+            {rest === 1 ? "1 more column" : `${rest} more columns`}
+          </p>
+        )}
+      </div>
+      <div className={styles.cardBody}>
+        <h3 className={styles.cardName}>
+          <Link
+            href={`/data/${encodeURIComponent(table.id)}`}
+            className={styles.cardLink}
+            aria-label={`${table.name} table`}
+          >
+            {table.name}
+          </Link>
+        </h3>
+        {table.description && <p className={styles.cardDescription}>{table.description}</p>}
+        <p className={styles.cardMeta}>
+          {table.recordCount === 1 ? "1 record" : `${table.recordCount} records`} ·{" "}
+          {table.columns.length === 1 ? "1 column" : `${table.columns.length} columns`} ·{" "}
+          <time dateTime={table.updatedAt}>{dateFormat.format(new Date(table.updatedAt))}</time>
+        </p>
+      </div>
+    </article>
+  );
+}
+
+/**
+ * What `/data` shows when no table is open: every table led by its own columns, so the gallery is
+ * scanned by what each one holds. Opening a table hands the pane to its records.
+ */
 export function DataBrowser({ tables }: { tables: readonly DataTable[] }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
@@ -37,21 +90,20 @@ export function DataBrowser({ tables }: { tables: readonly DataTable[] }) {
         : Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
     );
 
-  return (
-    <>
-      <header className={styles.header}>
-        <WorkspaceBreadcrumbs current="Data" />
-        {tables.length > 0 && (
-          <div className={styles.headerActions}>
-            <Button onClick={() => setCreating(true)}>
-              <RiAddLine aria-hidden="true" />
-              New table
-            </Button>
-          </div>
-        )}
-      </header>
-      {tables.length === 0 ? (
-        <section className={styles.empty} aria-labelledby="data-empty-title">
+  const dialog = creating && (
+    <TableDialog
+      onClose={() => setCreating(false)}
+      onSaved={(saved) => {
+        setCreating(false);
+        router.push(`/data/${encodeURIComponent(saved.id)}`);
+      }}
+    />
+  );
+
+  if (tables.length === 0)
+    return (
+      <PageFrame title="Data">
+        <section className={flowStyles.empty} aria-labelledby="data-empty-title">
           <EmptyStateIllustration icon={<RiTableLine />} />
           <h2 id="data-empty-title" className="mt-6 text-panel text-balance">
             Create your first table
@@ -65,109 +117,76 @@ export function DataBrowser({ tables }: { tables: readonly DataTable[] }) {
             Create a table
           </Button>
         </section>
-      ) : (
-        <section aria-label="Your tables" className={styles.collection}>
-          <div className={styles.toolbar}>
-            <div className={styles.search}>
-              <RiSearchLine aria-hidden="true" />
-              <Input
-                unstyled
-                type="search"
-                aria-label="Search tables"
-                placeholder="Search tables…"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                className="min-w-0 flex-1 [&_input]:px-0"
-              />
-            </div>
-            <div className={styles.toolbarActions}>
-              <Menu>
-                <MenuTrigger render={<Button variant="outline" />}>
-                  {sortLabels[sort]}
-                  <RiArrowDownSLine aria-hidden="true" />
-                </MenuTrigger>
-                <MenuPopup align="end">
-                  <MenuRadioGroup
-                    value={sort}
-                    onValueChange={(next) => setSort(next as TableSort)}
-                    aria-label="Sort tables"
-                  >
-                    <MenuRadioItem value="updated">{sortLabels.updated}</MenuRadioItem>
-                    <MenuRadioItem value="name">{sortLabels.name}</MenuRadioItem>
-                  </MenuRadioGroup>
-                </MenuPopup>
-              </Menu>
-            </div>
+        {dialog}
+      </PageFrame>
+    );
+
+  return (
+    <PageFrame
+      title="Data"
+      actions={
+        <>
+          <div className={flowStyles.search}>
+            <RiSearchLine aria-hidden="true" />
+            <Input
+              unstyled
+              type="search"
+              aria-label="Search tables"
+              placeholder="Search tables…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="min-w-0 flex-1 [&_input]:h-7 [&_input]:px-0 [&_input]:leading-7"
+            />
           </div>
-          <p className="sr-only" role="status">
-            {visible.length === 1 ? "1 table found" : `${visible.length} tables found`}
-          </p>
-          {visible.length === 0 ? (
-            <div className={styles.empty}>
-              <EmptyStateIllustration icon={<RiSearchLine />} />
-              <h2 className="mt-6 text-panel">No matching tables</h2>
-              <p className="mt-3 text-body text-muted-foreground">
-                Try another name, or clear your search.
-              </p>
-              <Button variant="outline" className="mt-6" onClick={() => setQuery("")}>
-                Clear search
-              </Button>
-            </div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <caption className="sr-only">Your tables, sorted by {sortLabels[sort]}</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Name</th>
-                    <th scope="col">Columns</th>
-                    <th scope="col">Records</th>
-                    <th scope="col">Updated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((table) => (
-                    <tr key={table.id}>
-                      <th scope="row">
-                        <Link
-                          href={`/data/${encodeURIComponent(table.id)}`}
-                          className={styles.tableFlow}
-                          aria-label={`${table.name} table`}
-                        >
-                          <span className="min-w-0">
-                            <span className={styles.flowName}>{table.name}</span>
-                            {table.description && (
-                              <span className="mt-1 line-clamp-2 block text-caption font-normal text-muted-foreground">
-                                {table.description}
-                              </span>
-                            )}
-                          </span>
-                        </Link>
-                      </th>
-                      <td className="tabular-nums">{table.columns.length}</td>
-                      <td className="tabular-nums">{table.recordCount}</td>
-                      <td>
-                        <time dateTime={table.updatedAt}>
-                          {dateFormat.format(new Date(table.updatedAt))}
-                        </time>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
-      {creating && (
-        <TableDialog
-          onClose={() => setCreating(false)}
-          onSaved={(saved) => {
-            setCreating(false);
-            router.push(`/data/${encodeURIComponent(saved.id)}`);
-          }}
-        />
-      )}
-    </>
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <RiAddLine aria-hidden="true" />
+            New table
+          </Button>
+        </>
+      }
+      toolbar={
+        <Menu>
+          <MenuTrigger render={<Button variant="outline" size="sm" />}>
+            {sortLabels[sort]}
+            <RiArrowDownSLine aria-hidden="true" />
+          </MenuTrigger>
+          <MenuPopup align="start">
+            <MenuRadioGroup
+              value={sort}
+              onValueChange={(next) => setSort(next as TableSort)}
+              aria-label="Sort tables"
+            >
+              <MenuRadioItem value="updated">{sortLabels.updated}</MenuRadioItem>
+              <MenuRadioItem value="name">{sortLabels.name}</MenuRadioItem>
+            </MenuRadioGroup>
+          </MenuPopup>
+        </Menu>
+      }
+    >
+      <section aria-label="Your tables">
+        <p className="sr-only" role="status">
+          {visible.length === 1 ? "1 table found" : `${visible.length} tables found`}
+        </p>
+        {visible.length === 0 ? (
+          <div className={flowStyles.empty}>
+            <EmptyStateIllustration icon={<RiSearchLine />} />
+            <h2 className="mt-6 text-panel">No matching tables</h2>
+            <p className="mt-3 text-body text-muted-foreground">
+              Try another name, or clear your search.
+            </p>
+            <Button variant="outline" className="mt-6" onClick={() => setQuery("")}>
+              Clear search
+            </Button>
+          </div>
+        ) : (
+          <div className={styles.tableGrid}>
+            {visible.map((table) => (
+              <TableCard key={table.id} table={table} />
+            ))}
+          </div>
+        )}
+      </section>
+      {dialog}
+    </PageFrame>
   );
 }

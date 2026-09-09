@@ -3,6 +3,7 @@ import {
   createDataTableContract,
   deleteDataRecordContract,
   deleteDataTableContract,
+  getDataRecordContract,
   getDataTableContract,
   isDataRecordInput,
   isDataRecordPatch,
@@ -11,7 +12,10 @@ import {
   listDataRecordsContract,
   listDataTablesContract,
   normalizeRecordValues,
+  parseDataRecordFilters,
   parseDataRecordListLimit,
+  parseDataRecordSearch,
+  parseDataRecordSort,
   updateDataRecordContract,
   updateDataTableContract,
   validateRecordValues,
@@ -46,6 +50,13 @@ export interface DataDependencies {
 }
 
 type Failure = { status: 404 | 409 | 422; error: ApiErrorCode };
+
+/** The columns a free-text search reads — the ones holding text a reader would recognise. */
+function searchable(table: DataTable): string[] {
+  return table.columns
+    .filter((column) => ["text", "select", "address"].includes(column.type))
+    .map((column) => column.id);
+}
 
 /**
  * Maps a store guard to its response and rethrows everything else. A cap is a conflict the caller
@@ -173,15 +184,33 @@ export function createDataRoutes({
     .get(
       listDataRecordsContract.path,
       async ({ claims, params, query, status }) => {
-        if (!(await dataTables.get(claims.id, params.id)))
-          return status(404, { error: "not_found" });
+        const table = await dataTables.get(claims.id, params.id);
+        if (!table) return status(404, { error: "not_found" });
         const limit = parseDataRecordListLimit(query.limit);
-        if (limit === null) return status(400, { error: "invalid_request" });
+        const filters = parseDataRecordFilters(query.filters, table.columns);
+        const sort = parseDataRecordSort(query.sort, table.columns);
+        const search = parseDataRecordSearch(query.q);
+        if (limit === null || filters === null || sort === null || search === null)
+          return status(400, { error: "invalid_request" });
         try {
-          return await dataRecords.list(claims.id, params.id, {
-            ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+          /* Plain reads keep paging by cursor. A query answers one page of matches instead:
+           * the sort is over a JSONB value, which the keyset cursor cannot follow. */
+          if (!filters?.length && !sort && search === undefined)
+            return await dataRecords.list(claims.id, params.id, {
+              ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+              ...(limit === undefined ? {} : { limit }),
+            });
+          const found = await dataRecords.find(claims.id, params.id, {
+            ...(filters?.length ? { filters } : {}),
+            ...(sort ? { sort } : {}),
+            ...(search === undefined
+              ? {}
+              : { search: { columns: searchable(table), text: search } }),
             ...(limit === undefined ? {} : { limit }),
           });
+          return found.truncated
+            ? { records: found.records, truncated: true }
+            : { records: found.records };
         } catch (error) {
           const failure = failureFor(error, "record");
           return status(failure.status, { error: failure.error });
@@ -191,6 +220,19 @@ export function createDataRoutes({
         params: listDataRecordsContract.params,
         query: listDataRecordsContract.query,
         response: listDataRecordsContract.response,
+      },
+    )
+    .get(
+      getDataRecordContract.path,
+      async ({ claims, params, status }) => {
+        if (!(await dataTables.get(claims.id, params.id)))
+          return status(404, { error: "not_found" });
+        const record = await dataRecords.get(claims.id, params.id, params.recordId);
+        return record ?? status(404, { error: "not_found" });
+      },
+      {
+        params: getDataRecordContract.params,
+        response: getDataRecordContract.response,
       },
     )
     .post(
@@ -242,8 +284,22 @@ export function createDataRoutes({
             if (outcome === "invalid") return status(422, { error: "invalid_record" });
             return outcome ?? status(404, { error: "not_found" });
           }
-          const values = readValues(table, patch);
+          /* Only `values` is a record body; the rest of the patch says how to apply it. */
+          const values = readValues(table, { values: patch.values });
           if (!values) return status(422, { error: "invalid_record" });
+          if (patch.expectedUpdatedAt !== undefined) {
+            // A replace with an expectation goes under the same row lock a merge uses.
+            const outcome = await dataRecords.merge(
+              claims.id,
+              params.id,
+              params.recordId,
+              () => values,
+              { expectedUpdatedAt: patch.expectedUpdatedAt },
+            );
+            if (outcome === "conflict") return status(409, { error: "conflict" });
+            if (outcome === "invalid") return status(422, { error: "invalid_record" });
+            return outcome ?? status(404, { error: "not_found" });
+          }
           const record = await dataRecords.update(claims.id, params.id, params.recordId, values);
           return record ?? status(404, { error: "not_found" });
         } catch (error) {

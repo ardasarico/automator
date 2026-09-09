@@ -83,9 +83,14 @@ async function readRecords(tableId: string): Promise<readonly DataRecord[]> {
   return ((await response.json()) as { records: DataRecord[] }).records;
 }
 
-/** The record rows of the table on screen, counted by the action every row carries. */
+/** The record rows of the table on screen, counted by the control that opens each one. */
 function recordRows(page: Page) {
-  return page.getByRole("button", { name: /^Edit record: / });
+  return page.getByRole("link", { name: /^Open record / });
+}
+
+/** The record panel beside the grid, which is where a whole record is read and edited. */
+function recordPanel(page: Page, name: string | RegExp) {
+  return page.getByRole("complementary", { name });
 }
 
 test.beforeEach(async ({ context }) => {
@@ -128,12 +133,17 @@ test("the empty data section creates its first table through the dialog", async 
   await expect(page.getByRole("heading", { name: "No records yet" })).toBeVisible();
   await page.goto("/data");
   await page.getByRole("searchbox", { name: "Search tables" }).fill(name);
-  const row = page.getByRole("link", { name: `${name} table`, exact: true });
-  await expect(row).toBeVisible();
-  await expect(page.getByRole("row").filter({ hasText: name })).toContainText("2");
+  const card = page.getByRole("article").filter({ hasText: name });
+  await expect(card).toBeVisible();
+  // The card leads with the columns it was given and counts them.
+  await expect(card).toContainText("Email");
+  await expect(card).toContainText("Signed up");
+  await expect(card).toContainText("2 columns");
+  // The rail carries the same table, so moving between tables never needs the gallery.
+  await expect(page.getByRole("navigation", { name: "Tables" })).toContainText(name);
 });
 
-test("a record is added, edited and deleted from the record dialog", async ({ page }) => {
+test("a record is added, edited and deleted from the record panel", async ({ page }) => {
   const table = await seedTable(`E2E people ${Date.now()}`, [
     { id: "email", name: "Email", type: "text", required: true },
     { id: "score", name: "Score", type: "number", required: false },
@@ -145,8 +155,9 @@ test("a record is added, edited and deleted from the record dialog", async ({ pa
   await page.goto(`/data/${table.id}`);
   await expect(page.getByRole("heading", { name: "No records yet" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Add record", exact: true }).first().click();
-  const adding = page.getByRole("dialog", { name: "Add record" });
+  await page.getByRole("link", { name: "Add record", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/data\/[^/?]+\/new$/);
+  const adding = recordPanel(page, "New record");
   await adding.getByLabel("Email", { exact: true }).fill(email);
   await adding.getByLabel("Score", { exact: true }).fill("42");
   await adding.getByRole("switch", { name: "Active", exact: true }).click();
@@ -160,20 +171,27 @@ test("a record is added, edited and deleted from the record dialog", async ({ pa
 
   const row = page.getByRole("row").filter({ hasText: email });
   await expect(row).toContainText("42");
-  await expect(row).toContainText("Yes");
   await expect(row).toContainText("silver");
   await expect(row).toContainText("0x1111…1111");
+  // A checkbox column is a control in the grid rather than text, so it is read by its state.
+  const active = row.getByRole("checkbox", { name: "Active of this record" });
+  await expect(active).toBeChecked();
 
-  await page.getByRole("button", { name: `Edit record: ${email}`, exact: true }).click();
-  const editing = page.getByRole("dialog", { name: "Edit record" });
+  await page.getByRole("link", { name: "Open record 1", exact: true }).click();
+  const editing = recordPanel(page, `Record: ${email}`);
   await editing.getByLabel("Score", { exact: true }).fill("7");
   await editing.getByRole("switch", { name: "Active", exact: true }).click();
   await editing.getByRole("button", { name: "Save record", exact: true }).click();
+  // Saving keeps the record open; the grid behind it catches up.
+  await expect(row.getByRole("cell").filter({ hasText: /^7$/ })).toBeVisible();
+  await expect(active).not.toBeChecked();
+  await editing.getByRole("link", { name: "Close panel", exact: true }).click();
   await expect(editing).not.toBeVisible();
-  await expect(row).toContainText("7");
-  await expect(row).toContainText("No");
 
-  await page.getByRole("button", { name: `Delete record: ${email}`, exact: true }).click();
+  await page.getByRole("link", { name: "Open record 1", exact: true }).click();
+  const open = recordPanel(page, `Record: ${email}`);
+  await open.getByRole("button", { name: "Record actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Delete record", exact: true }).click();
   const removing = page.getByRole("dialog", { name: "Delete this record?" });
   await removing.getByRole("button", { name: "Delete record", exact: true }).click();
   await expect(removing).not.toBeVisible();
@@ -217,7 +235,8 @@ test("deleting a table a flow uses asks twice and names the flow", async ({ page
   ]);
 
   await page.goto(`/data/${table.id}`);
-  await page.getByRole("button", { name: "Delete table", exact: true }).click();
+  await page.getByRole("button", { name: "Table actions", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Delete table", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: `Delete “${table.name}”?` });
   await dialog.getByRole("button", { name: "Delete table", exact: true }).click();
 

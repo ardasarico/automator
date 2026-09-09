@@ -300,15 +300,92 @@ export function parseDataRecordListLimit(value: string | undefined): number | un
   return limit >= 1 && limit <= dataRecordListMaxLimit ? limit : null;
 }
 
+export const dataRecordFilterMaxCount = 10;
+export const dataRecordSearchMaxLength = 200;
+
+export type DataRecordFilterInput = {
+  column: string;
+  operator: ConditionOperator;
+  value: string;
+};
+export type DataRecordSortInput = { column: string; direction: "asc" | "desc" };
+
+/**
+ * The filters a record list may carry, as the JSON array the query string holds. Every parser
+ * here answers the same three ways as `parseDataRecordListLimit`: `undefined` for an absent
+ * parameter, `null` for one the route must refuse, and a value for one it can use — so a
+ * malformed query is a 400 rather than a silently different result.
+ */
+export function parseDataRecordFilters(
+  value: string | undefined,
+  columns: readonly DataColumn[],
+): DataRecordFilterInput[] | undefined | null {
+  if (value === undefined) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed) || parsed.length > dataRecordFilterMaxCount) return null;
+  const byId = new Map(columns.map((column) => [column.id, column]));
+  const filters: DataRecordFilterInput[] = [];
+  for (const entry of parsed) {
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return null;
+    const { column, operator, value: raw } = entry as Record<string, unknown>;
+    if (typeof column !== "string" || typeof operator !== "string") return null;
+    const known = byId.get(column);
+    // A column the table does not have is refused, so a stale filter cannot read as "no matches".
+    if (!known || !isDataFilterOperatorAllowed(known.type, operator as ConditionOperator))
+      return null;
+    if (raw !== undefined && raw !== null && !["string", "number", "boolean"].includes(typeof raw))
+      return null;
+    filters.push({
+      column,
+      operator: operator as ConditionOperator,
+      value: raw === undefined || raw === null ? "" : String(raw),
+    });
+  }
+  return filters;
+}
+
+export function parseDataRecordSort(
+  value: string | undefined,
+  columns: readonly DataColumn[],
+): DataRecordSortInput | undefined | null {
+  if (value === undefined) return undefined;
+  /* Column ids never contain a colon, but reading from the last one costs nothing. */
+  const separator = value.lastIndexOf(":");
+  if (separator <= 0) return null;
+  const column = value.slice(0, separator);
+  const direction = value.slice(separator + 1);
+  if (direction !== "asc" && direction !== "desc") return null;
+  if (!columns.some((candidate) => candidate.id === column)) return null;
+  return { column, direction };
+}
+
+/** A blank search is no search: it must not narrow the list to nothing. */
+export function parseDataRecordSearch(value: string | undefined): string | undefined | null {
+  if (value === undefined) return undefined;
+  if (value.length > dataRecordSearchMaxLength) return null;
+  const text = value.trim();
+  return text === "" ? undefined : text;
+}
+
 export const dataRecordListQuerySchema = Type.Object({
   cursor: Type.Optional(Type.String({ minLength: 1 })),
   limit: Type.Optional(Type.String({ minLength: 1 })),
+  filters: Type.Optional(Type.String({ minLength: 1 })),
+  sort: Type.Optional(Type.String({ minLength: 1 })),
+  q: Type.Optional(Type.String({ maxLength: dataRecordSearchMaxLength })),
 });
 export type DataRecordListQuery = Static<typeof dataRecordListQuerySchema>;
 
 export const dataRecordListSchema = Type.Object({
   records: Type.Array(dataRecordSchema),
   nextCursor: Type.Optional(Type.String({ minLength: 1 })),
+  /** A filtered or sorted list answers at most one page: this says the reader is not seeing all. */
+  truncated: Type.Optional(Type.Boolean()),
 });
 export type DataRecordList = Static<typeof dataRecordListSchema>;
 
@@ -318,6 +395,12 @@ export const listDataRecordsContract = {
   params: tableParamsSchema,
   query: dataRecordListQuerySchema,
   response: { 200: dataRecordListSchema, ...apiErrorResponses },
+} as const;
+export const getDataRecordContract = {
+  method: "GET",
+  path: "/data/tables/:id/records/:recordId",
+  params: recordParamsSchema,
+  response: { 200: dataRecordSchema, ...apiErrorResponses },
 } as const;
 export const createDataRecordContract = {
   method: "POST",

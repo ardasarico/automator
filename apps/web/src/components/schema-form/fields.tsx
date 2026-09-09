@@ -8,20 +8,22 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@au
 import { Switch } from "@automator/ui/switch";
 import { Textarea } from "@automator/ui/textarea";
 import { RiAddLine, RiArrowDownLine, RiArrowUpLine, RiDeleteBinLine } from "@remixicon/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ColumnRefField, OperatorField, TableRefField } from "./data-ref-fields";
 import { MultiSelectField } from "./multi-select-field";
 import {
   fieldLabel,
   humanize,
+  insertTemplate,
   isRecord,
   itemTitle,
-  multilineKeys,
   singular,
+  textFieldShape,
   type FieldContext,
   type FieldProps,
   type PreviewTemplate,
   type Property,
+  type TextSelection,
   type VariableOption,
 } from "./schema";
 import { TemplatePreviews } from "./template-preview";
@@ -142,38 +144,17 @@ export function ConfigField({
     );
   }
   if (property.type === "string") {
-    const text = typeof value === "string" ? value : "";
     return (
-      <Field>
-        <div className="flex w-full items-center justify-between gap-2">
-          <FieldLabel htmlFor={id}>{label}</FieldLabel>
-          {variables.length > 0 && (
-            <VariablePicker
-              options={variables}
-              onPick={(template) => onChange(text === "" ? template : `${text} ${template}`)}
-            />
-          )}
-        </div>
-        {multilineKeys.has(name) ? (
-          <Textarea id={id} rows={4} value={text} onChange={(e) => onChange(e.target.value)} />
-        ) : (
-          <Input
-            id={id}
-            size="sm"
-            value={text}
-            placeholder={property.secret ? "{{secrets.name}}" : undefined}
-            onChange={(e) => onChange(e.target.value)}
-          />
-        )}
-        <TemplatePreviews text={text} preview={preview} />
-        <Help
-          text={
-            property.secret
-              ? `${property.description ? `${property.description} ` : ""}Keep it out of the flow: store it in Variables and reference it as {{secrets.name}}.`
-              : property.description
-          }
-        />
-      </Field>
+      <StringField
+        id={id}
+        name={name}
+        label={label}
+        property={property}
+        value={value}
+        onChange={onChange}
+        variables={variables}
+        preview={preview}
+      />
     );
   }
   if (property.type === "array" && property.items?.anyOf) {
@@ -232,6 +213,98 @@ export function ConfigField({
     );
   }
   return <p className="text-caption text-muted-foreground">{label} is not editable here yet.</p>;
+}
+
+/**
+ * A string setting, and the only field a variable can be picked into. It remembers where the caret
+ * was so a pick lands there instead of trailing the value the field already holds, and it gives
+ * prose and code the room a single line never had.
+ */
+export function StringField({
+  id,
+  name,
+  label,
+  property,
+  value,
+  onChange,
+  variables = [],
+  preview,
+}: FieldProps & { label: string }) {
+  const text = typeof value === "string" ? value : "";
+  const shape = textFieldShape(name, property);
+  const control = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const selection = useRef<TextSelection | null>(null);
+  const pending = useRef<number | null>(null);
+
+  /* The menu takes focus while it is open, so the pick hands it back where the text now ends. */
+  useEffect(() => {
+    const caret = pending.current;
+    const element = control.current;
+    pending.current = null;
+    if (caret === null || !element) return;
+    element.focus();
+    element.setSelectionRange(caret, caret);
+    selection.current = { start: caret, end: caret };
+  });
+
+  const track = (element: HTMLInputElement | HTMLTextAreaElement) => {
+    selection.current = { start: element.selectionStart ?? 0, end: element.selectionEnd ?? 0 };
+  };
+  const shared = {
+    id,
+    ref: (element: HTMLInputElement | HTMLTextAreaElement | null) => {
+      control.current = element;
+    },
+    value: text,
+    onSelect: (event: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      track(event.currentTarget),
+    onBlur: (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      track(event.currentTarget),
+    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      track(event.currentTarget);
+      onChange(event.target.value);
+    },
+  };
+
+  return (
+    <Field>
+      <div className="flex w-full items-center justify-between gap-2">
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+        {variables.length > 0 && (
+          <VariablePicker
+            options={variables}
+            onPick={(template) => {
+              const next = insertTemplate(text, template, selection.current ?? undefined);
+              pending.current = next.caret;
+              onChange(next.text);
+            }}
+          />
+        )}
+      </div>
+      {shape === "line" ? (
+        <Input
+          {...shared}
+          size="sm"
+          placeholder={property.secret ? "{{secrets.name}}" : undefined}
+        />
+      ) : (
+        <Textarea
+          {...shared}
+          rows={shape === "code" ? 10 : 4}
+          spellCheck={shape === "code" ? false : undefined}
+          className={shape === "code" ? "min-h-32 font-mono text-xs sm:text-xs" : undefined}
+        />
+      )}
+      <TemplatePreviews text={text} preview={preview} />
+      <Help
+        text={
+          property.secret
+            ? `${property.description ? `${property.description} ` : ""}Keep it out of the flow: store it in Variables and reference it as {{secrets.name}}.`
+            : property.description
+        }
+      />
+    </Field>
+  );
 }
 
 export function JsonField({

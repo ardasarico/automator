@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { RecordsView, loadTable } from "./records-view";
-import type { SearchParams } from "./record-query";
+import { RecordsView, loadTable } from "../records-view";
+import type { SearchParams } from "../record-query";
 
 type Props = {
-  params: Promise<{ tableId: string }>;
+  params: Promise<{ tableId: string; recordId: string }>;
   searchParams: Promise<SearchParams>;
 };
 
@@ -12,6 +12,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: table ? `${table.name} · Data · Automator` : "Data · Automator" };
 }
 
-export default async function DataTablePage({ params, searchParams }: Props) {
+/** The same grid, with the record open beside it in the `panel` slot. */
+export default async function DataRecordPage({ params, searchParams }: Props) {
   return <RecordsView tableId={(await params).tableId} searchParams={searchParams} />;
 }

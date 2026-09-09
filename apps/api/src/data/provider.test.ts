@@ -39,7 +39,7 @@ function stores() {
     },
     find: async (ownerId: string, tableId: string, query: unknown = {}) => {
       note("records.find", ownerId, tableId, query);
-      return owned(ownerId) ? [record] : [];
+      return { records: owned(ownerId) ? [record] : [], truncated: false };
     },
     create: async (ownerId: string, tableId: string, values: Record<string, unknown>) => {
       note("records.create", ownerId, tableId, values);

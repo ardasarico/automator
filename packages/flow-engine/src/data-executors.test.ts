@@ -109,8 +109,12 @@ function matches(record: DataRecord, filter: DataFilter): boolean {
       return stored.toLowerCase().includes(value.toLowerCase());
     case "greater_than":
       return stored !== "" && (numeric ? Number(stored) > Number(value) : stored > value);
+    case "greater_or_equal":
+      return stored !== "" && (numeric ? Number(stored) >= Number(value) : stored >= value);
     case "less_than":
       return stored !== "" && (numeric ? Number(stored) < Number(value) : stored < value);
+    case "less_or_equal":
+      return stored !== "" && (numeric ? Number(stored) <= Number(value) : stored <= value);
     case "is_empty":
       return stored === "";
     case "is_not_empty":

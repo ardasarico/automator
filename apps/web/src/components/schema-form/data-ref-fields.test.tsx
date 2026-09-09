@@ -38,7 +38,7 @@ test("the table and column pickers read the account's tables", async () => {
         let state = { tables: [], loading: false, error: null, refresh: async () => {} };
         mock.module("../../data/tables-context", () => ({ useDataTables: () => state }));
 
-        const { findRecordsConfigSchema } = await import("@automator/contracts");
+        const { conditionOperators, findRecordsConfigSchema } = await import("@automator/contracts");
         const { ConfigField, ObjectFields } = await import("./fields");
 
         let container;
@@ -179,7 +179,7 @@ test("a filter row only offers the operators its column type supports", async ()
         const state = { tables: [customers], loading: false, error: null, refresh: async () => {} };
         mock.module("../../data/tables-context", () => ({ useDataTables: () => state }));
 
-        const { findRecordsConfigSchema } = await import("@automator/contracts");
+        const { conditionOperators, findRecordsConfigSchema } = await import("@automator/contracts");
         const { ObjectFields } = await import("./fields");
 
         let container;
@@ -246,10 +246,10 @@ test("a filter row only offers the operators its column type supports", async ()
 
         // With no column picked there is nothing to narrow by, so the whole list stays offered.
         await render(settings("tbl_customers", { column: "", operator: "equals", value: "" }));
-        assert.equal((await operators()).length, 7);
+        assert.equal((await operators()).length, conditionOperators.length);
         await unmount();
         await render(settings("", { column: "paid", operator: "contains", value: "" }));
-        assert.equal((await operators()).length, 7);
+        assert.equal((await operators()).length, conditionOperators.length);
         await unmount();
 
         // A stored operator the column cannot take stays selected, and says why it cannot be used.

@@ -1,6 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { conditionOperators } from "./condition-operators";
 import { dataNodeConfigSchemas } from "./data-node-configs";
+import { defaultInterval, intervalFormats } from "./interval";
 import { filterConfigSchema, mergeConfigSchema, switchConfigSchema } from "./logic-configs";
 import { forEachConfigSchema, runCodeConfigSchema } from "./loop-configs";
 import { emailConfigSchema, telegramMessageConfigSchema } from "./notify-configs";
@@ -31,7 +32,11 @@ export const webhookTriggerConfigSchema = Type.Object({
 export type WebhookTriggerConfig = Static<typeof webhookTriggerConfigSchema>;
 
 export const scheduleTriggerConfigSchema = Type.Object({
-  every: Type.String({ default: "1h" }),
+  every: Type.String({
+    default: defaultInterval,
+    title: "Every",
+    description: `How often the flow runs, as a whole number and a unit: ${intervalFormats}. The unit is required; a bare number is not an interval.`,
+  }),
   samplePayload: samplePayloadField({}),
 });
 export type ScheduleTriggerConfig = Static<typeof scheduleTriggerConfigSchema>;
@@ -67,7 +72,13 @@ export function samplePayloadProblem(text: string): string | null {
   }
 }
 
-export { conditionOperators, type ConditionOperator } from "./condition-operators";
+export {
+  conditionOperators,
+  isOrderingOperator,
+  orderingOperators,
+  type ConditionOperator,
+  type OrderingOperator,
+} from "./condition-operators";
 export * from "./data-node-configs";
 
 export const conditionConfigSchema = Type.Object({

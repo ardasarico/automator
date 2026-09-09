@@ -1,5 +1,6 @@
 export const SIDEBAR_COOKIE = "workspace_sidebar";
 export const FLOWS_VIEW_COOKIE = "flows_view";
+export const DATA_RAIL_COOKIE = "data_rail";
 export const BUILDER_CHECKLIST_COOKIE = "builder_checklist";
 
 const DAY_IN_SECONDS = 24 * 60 * 60;

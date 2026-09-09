@@ -9,6 +9,7 @@ import {
   isDataFilterOperatorAllowed,
   dataColumnSchema,
   dataColumnTypes,
+  dataRecordListQuerySchema,
   dataRecordSchema,
   dataTableSchema,
   deleteDataTableContract,
@@ -17,7 +18,10 @@ import {
   listDataRecordsContract,
   listDataTablesContract,
   normalizeRecordValues,
+  parseDataRecordFilters,
   parseDataRecordListLimit,
+  parseDataRecordSearch,
+  parseDataRecordSort,
   updateDataTableContract,
   validateRecordValues,
   type DataColumn,
@@ -388,5 +392,74 @@ describe("data endpoint contracts", () => {
     expect(parseDataRecordListLimit("0")).toBeNull();
     expect(parseDataRecordListLimit("101")).toBeNull();
     expect(parseDataRecordListLimit("ten")).toBeNull();
+  });
+
+  test("a filter list parses from its JSON form", () => {
+    expect(parseDataRecordFilters(undefined, columns)).toBeUndefined();
+    expect(
+      parseDataRecordFilters('[{"column":"title","operator":"contains","value":"ace"}]', columns),
+    ).toEqual([{ column: "title", operator: "contains", value: "ace" }]);
+    expect(parseDataRecordFilters('[{"column":"paid","operator":"is_empty"}]', columns)).toEqual([
+      { column: "paid", operator: "is_empty", value: "" },
+    ]);
+  });
+
+  test("a filter naming a column the table lacks is rejected", () => {
+    expect(
+      parseDataRecordFilters('[{"column":"nope","operator":"equals","value":"x"}]', columns),
+    ).toBeNull();
+  });
+
+  test("a filter is rejected when its operator is unknown or its column type forbids it", () => {
+    expect(
+      parseDataRecordFilters('[{"column":"title","operator":"sounds_like","value":"x"}]', columns),
+    ).toBeNull();
+    /* dataColumnOperators gives checkbox no contains. */
+    expect(
+      parseDataRecordFilters('[{"column":"paid","operator":"contains","value":"x"}]', columns),
+    ).toBeNull();
+  });
+
+  test("malformed filter JSON is rejected rather than ignored", () => {
+    expect(parseDataRecordFilters("not json", columns)).toBeNull();
+    expect(parseDataRecordFilters('{"column":"title"}', columns)).toBeNull();
+    expect(parseDataRecordFilters("[]", columns)).toEqual([]);
+  });
+
+  test("a sort parses from column and direction", () => {
+    expect(parseDataRecordSort(undefined, columns)).toBeUndefined();
+    expect(parseDataRecordSort("title:asc", columns)).toEqual({
+      column: "title",
+      direction: "asc",
+    });
+    expect(parseDataRecordSort("title:desc", columns)).toEqual({
+      column: "title",
+      direction: "desc",
+    });
+  });
+
+  test("a sort is rejected without a direction, or on a column the table lacks", () => {
+    expect(parseDataRecordSort("title", columns)).toBeNull();
+    expect(parseDataRecordSort("title:sideways", columns)).toBeNull();
+    expect(parseDataRecordSort("nope:asc", columns)).toBeNull();
+  });
+
+  test("a search is trimmed, and an empty one is no search at all", () => {
+    expect(parseDataRecordSearch(undefined)).toBeUndefined();
+    expect(parseDataRecordSearch("  ada  ")).toBe("ada");
+    expect(parseDataRecordSearch("   ")).toBeUndefined();
+    expect(parseDataRecordSearch("x".repeat(201))).toBeNull();
+  });
+
+  test("the record list query carries the filter, sort and search", () => {
+    const query = dataRecordListQuerySchema;
+    expect(Value.Check(query, {})).toBe(true);
+    expect(Value.Check(query, { filters: "[]", sort: "title:asc", q: "ada" })).toBe(true);
+  });
+
+  test("a truncated record list says so, rather than leaving it to be inferred", () => {
+    const response = listDataRecordsContract.response[200];
+    expect(Value.Check(response, { records: [], truncated: true })).toBe(true);
+    expect(Value.Check(response, { records: [], truncated: "yes" })).toBe(false);
   });
 });

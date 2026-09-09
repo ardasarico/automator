@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { act } from "react";
 import type { Root } from "react-dom/client";
 import { navigationModule } from "../../../../auth/test-navigation";
+import type { RecordQuery } from "./record-query";
 
 GlobalRegistrator.register();
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -72,9 +73,11 @@ afterEach(async () => {
 
 afterAll(() => GlobalRegistrator.unregister());
 
-async function mount(records: readonly DataRecord[] | null) {
+async function mount(records: readonly DataRecord[] | null, query: RecordQuery = { filters: [] }) {
   await act(async () => {
-    root.render(<RecordBrowser table={table} records={records} retryHref="/data/tbl-1" />);
+    root.render(
+      <RecordBrowser table={table} records={records} query={query} retryHref="/data/tbl-1" />,
+    );
   });
 }
 
@@ -140,7 +143,11 @@ test("editing a cell patches only that column and keeps the saved value on the p
 test("a table with no records offers to add the first one", async () => {
   await mount([]);
   expect(container.textContent).toContain("No records yet");
-  expect(button("Add record")).toBeDefined();
+  // Adding is a link now, because the new record opens in the panel beside the grid.
+  const add = Array.from(document.querySelectorAll<HTMLAnchorElement>("a")).filter(
+    (node) => node.getAttribute("href") === "/data/tbl-1/new",
+  );
+  expect(add.length).toBeGreaterThan(0);
 });
 
 test("a records outage keeps the table's actions and offers a retry", async () => {
@@ -150,26 +157,37 @@ test("a records outage keeps the table's actions and offers a retry", async () =
   expect(button("Edit columns")).toBeDefined();
 });
 
-test("deleting a record asks first and only then sends the request", async () => {
-  await mount([record]);
-  await act(async () => button("Delete record: a@b.co").click());
-  expect(document.querySelector("[data-slot=dialog-title]")?.textContent).toBe(
-    "Delete this record?",
-  );
-  expect(calls).toEqual([]);
-
-  await act(async () => button("Delete record").click());
-  expect(calls).toEqual([{ url: "/api/data/tables/tbl-1/records/rec-1", method: "DELETE" }]);
-  expect(document.querySelector("[data-slot=dialog-title]")).toBeNull();
+test("every row can be opened in the panel, carrying the query it was found under", async () => {
+  await mount([record], { filters: [], search: "ada" });
+  const open = document.querySelector<HTMLAnchorElement>('a[aria-label="Open record 1"]');
+  expect(open?.getAttribute("href")).toBe("/data/tbl-1/rec-1?q=ada");
 });
 
-test("a failed delete keeps the confirmation open with the reason", async () => {
-  await mount([record]);
-  await act(async () => button("Delete record: a@b.co").click());
-  answer = () => Response.json({ error: "unavailable" }, { status: 503 });
-  await act(async () => button("Delete record").click());
-  expect(document.querySelector("[role=alert]")?.textContent).toBe(
-    "The record could not be deleted. Please try again.",
-  );
-  expect(document.querySelector("[data-slot=dialog-title]")).not.toBeNull();
+test("a filter is shown as what it says, with a way to take it off", async () => {
+  await mount([record], {
+    filters: [{ column: "email", operator: "contains", value: "ada" }],
+  });
+  expect(container.textContent).toContain("Email contains ada");
+  expect(button("Remove the filter on Email")).toBeDefined();
+});
+
+test("a narrowed list that hit the cap says so instead of implying it is the whole table", async () => {
+  await act(async () => {
+    root.render(
+      <RecordBrowser
+        table={table}
+        records={[record]}
+        query={{ filters: [], search: "a" }}
+        truncated
+        retryHref="/data/tbl-1"
+      />,
+    );
+  });
+  expect(container.textContent).toContain("Showing the first 100 matches");
+});
+
+test("a narrowed list that matches nothing offers to clear the filters, not to add a record", async () => {
+  await mount([], { filters: [{ column: "email", operator: "contains", value: "zz" }] });
+  expect(container.textContent).toContain("No records match");
+  expect(container.textContent).toContain("Clear filters");
 });

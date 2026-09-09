@@ -246,7 +246,7 @@ describe.skipIf(!url)("live PostgreSQL data tables", () => {
       ];
       for (const values of rows) await records.create("did:privy:test-a", table.id, values);
       const titles = async (query: Parameters<typeof records.find>[2]) =>
-        (await records.find("did:privy:test-a", table.id, query))
+        (await records.find("did:privy:test-a", table.id, query)).records
           .map((record) => String(record.values.title))
           .sort();
 
@@ -343,7 +343,7 @@ describe.skipIf(!url)("live PostgreSQL data tables", () => {
       const ascending = await records.find("did:privy:test-a", table.id, {
         sort: { column: "title", direction: "asc" },
       });
-      expect(ascending.map((record) => record.values.title)).toEqual([
+      expect(ascending.records.map((record) => record.values.title)).toEqual([
         "Ada Lovelace",
         "Grace Hopper",
         "Linus",
@@ -351,13 +351,58 @@ describe.skipIf(!url)("live PostgreSQL data tables", () => {
       const descending = await records.find("did:privy:test-a", table.id, {
         sort: { column: "title", direction: "desc" },
       });
-      expect(descending.map((record) => record.values.title)).toEqual([
+      expect(descending.records.map((record) => record.values.title)).toEqual([
         "Linus",
         "Grace Hopper",
         "Ada Lovelace",
       ]);
-      expect(await records.find("did:privy:test-a", table.id, { limit: 2 })).toHaveLength(2);
-      expect(await records.find("did:privy:test-b", table.id, {})).toEqual([]);
+      const capped = await records.find("did:privy:test-a", table.id, { limit: 2 });
+      expect(capped.records).toHaveLength(2);
+      // Three rows exist, so a limit of two leaves one behind and says so.
+      expect(capped.truncated).toBe(true);
+      const whole = await records.find("did:privy:test-a", table.id, { limit: 3 });
+      expect(whole.truncated).toBe(false);
+      expect((await records.find("did:privy:test-b", table.id, {})).records).toEqual([]);
+
+      await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
+    } finally {
+      await sql.close({ timeout: 5 });
+    }
+  });
+
+  test.skipIf(!url)("searches across the named columns, case-insensitively", async () => {
+    const sql = connect();
+    try {
+      const { tables, records } = await reset(sql);
+      const table = await tables.create("did:privy:test-a", {
+        name: "Searchable",
+        columns: [
+          { id: "title", name: "Title", type: "text", required: false },
+          { id: "note", name: "Note", type: "text", required: false },
+        ],
+      });
+      for (const values of [
+        { title: "Ada Lovelace", note: "analytical engine" },
+        { title: "Grace Hopper", note: "compiler" },
+        { title: "Discount", note: "50% off" },
+      ])
+        await records.create("did:privy:test-a", table.id, values);
+
+      const found = async (text: string, columns = ["title", "note"]) =>
+        (await records.find("did:privy:test-a", table.id, { search: { columns, text } })).records
+          .map((record) => String(record.values.title))
+          .sort();
+
+      // The search is an OR: a hit in either column is enough.
+      expect(await found("lovelace")).toEqual(["Ada Lovelace"]);
+      expect(await found("compiler")).toEqual(["Grace Hopper"]);
+      expect(await found("ADA")).toEqual(["Ada Lovelace"]);
+      // Narrowing the columns narrows the search.
+      expect(await found("compiler", ["title"])).toEqual([]);
+      // The wildcards are escaped, so these are literal characters and not "match anything".
+      expect(await found("50%")).toEqual(["Discount"]);
+      expect(await found("%")).toEqual(["Discount"]);
+      expect(await found("_")).toEqual([]);
 
       await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
     } finally {
@@ -382,7 +427,7 @@ describe.skipIf(!url)("live PostgreSQL data tables", () => {
           await records.find("did:privy:test-a", table.id, {
             filters: [{ column: "code", operator, value: "9" }],
           })
-        )
+        ).records
           .map((record) => String(record.values.code))
           .sort();
 

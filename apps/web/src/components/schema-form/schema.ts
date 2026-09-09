@@ -30,11 +30,19 @@ export type FieldContext = {
   columnId?: string;
 };
 
+/**
+ * What a variable resolves to. The picker shows it, so a numeric comparison is not wired to an
+ * object by mistake: `Number({…})` is NaN, and a condition on it is quietly false forever.
+ */
+export type VariableKind = "text" | "number" | "boolean" | "object" | "list";
+
 /** A template the caller offers for insertion into a string field. */
 export type VariableOption = {
   template: string;
   source: string;
   label: string;
+  /** Left out when the shape is only known at run time, such as a model's own answer. */
+  kind?: VariableKind;
 };
 
 /** What a template resolved to in the evidence the caller offers, usually the last run. */
@@ -57,13 +65,73 @@ export type FieldProps = {
   context?: FieldContext;
 };
 
-export const multilineKeys = new Set([
-  "content",
-  "body",
-  "message",
-  "description",
-  "samplePayload",
+/** How much room a string field needs, and whether it holds code rather than prose. */
+export type TextFieldShape = "line" | "multiline" | "code";
+
+/*
+ * A schema says what it can — `contentMediaType` already routes JSON to a checked editor — but the
+ * node schemas carry no hint for prose or source, so the rest is keyed by the property names they
+ * share. Anything absent stays a single line.
+ */
+const textFieldShapes = new Map<string, TextFieldShape>([
+  ["body", "multiline"],
+  ["code", "code"],
+  ["content", "multiline"],
+  ["description", "multiline"],
+  ["instructions", "multiline"],
+  ["message", "multiline"],
+  ["prompt", "multiline"],
+  ["samplePayload", "multiline"],
+  ["task", "multiline"],
+  ["text", "multiline"],
 ]);
+
+export function textFieldShape(name: string, property: Pick<Property, "contentMediaType">) {
+  const mediaType = property.contentMediaType ?? "";
+  if (mediaType.endsWith("javascript") || mediaType.endsWith("typescript")) return "code";
+  return textFieldShapes.get(name) ?? "line";
+}
+
+/** Where the caret sits in a text control, as the DOM reports it. */
+export type TextSelection = { start: number; end: number };
+
+/** One `{{…}}` template, the unit a pick swaps rather than splits. */
+const placeholder = /\{\{[^{}]*\}\}/g;
+const onlyPlaceholder = /^\{\{[^{}]*\}\}$/;
+
+/**
+ * Where a picked variable lands in the text a field already holds. Appending was never right: the
+ * fields that most want a variable start life holding a default placeholder, so the pick has to
+ * replace what is there rather than sit beside it and resolve to nonsense.
+ */
+export function insertTemplate(
+  text: string,
+  template: string,
+  selection?: TextSelection,
+): { text: string; caret: number } {
+  const replace = (from: number, to: number) => ({
+    text: `${text.slice(0, from)}${template}${text.slice(to)}`,
+    caret: from + template.length,
+  });
+  if (selection) {
+    const start = Math.max(0, Math.min(selection.start, selection.end, text.length));
+    const end = Math.max(0, Math.min(Math.max(selection.start, selection.end), text.length));
+    // A selection says exactly what to swap, whatever it covers.
+    if (start !== end) return replace(start, end);
+    // A field whose whole value is one placeholder is a slot for a single value, not a sentence.
+    if (onlyPlaceholder.test(text.trim())) return { text: template, caret: template.length };
+    for (const match of text.matchAll(placeholder)) {
+      const from = match.index;
+      const to = from + match[0].length;
+      // Inside an existing template, but not at either edge, where the writer means to add text.
+      if (start > from && start < to) return replace(from, to);
+    }
+    return replace(start, start);
+  }
+  if (onlyPlaceholder.test(text.trim())) return { text: template, caret: template.length };
+  const next = text === "" ? template : `${text} ${template}`;
+  return { text: next, caret: next.length };
+}
 
 /** The label for a field: the schema's own words when it has them, its key humanized otherwise. */
 export function fieldLabel(name: string, property: Pick<Property, "title">): string {

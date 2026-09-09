@@ -4,6 +4,7 @@ import {
   documentOutline,
   documentTriggers,
   getDataTableContract,
+  getDataRecordContract,
   listDataRecordsContract,
   listDataTablesContract,
   parseResponse,
@@ -132,8 +133,50 @@ function fixture(options: { callsPerMinute?: number; flows?: readonly FlowDocume
     },
     get: async (ownerId, tableId, id) =>
       ownedRecords(ownerId, tableId).find((record) => record.id === id) ?? null,
-    find: async (ownerId, tableId, query = {}) =>
-      ownedRecords(ownerId, tableId).slice(0, query.limit ?? 25),
+    find: async (ownerId, tableId, query = {}) => {
+      /* Enough of the store's semantics for the route's own behaviour to be observable: the
+       * operators the SQL is tested against live in packages/db's integration suite. */
+      const text = (record: DataRecord, column: string) => {
+        const value = record.values[column];
+        return value === undefined || value === null ? "" : String(value);
+      };
+      let matched = ownedRecords(ownerId, tableId).filter((record) =>
+        (query.filters ?? []).every((filter) => {
+          const value = text(record, filter.column);
+          const wanted = filter.value === undefined ? "" : String(filter.value);
+          switch (filter.operator) {
+            case "equals":
+              return value === wanted;
+            case "not_equals":
+              return value !== wanted;
+            case "contains":
+              return value.toLowerCase().includes(wanted.toLowerCase());
+            case "is_empty":
+              return value === "";
+            case "is_not_empty":
+              return value !== "";
+            default:
+              return true;
+          }
+        }),
+      );
+      const search = query.search;
+      if (search && search.columns.length > 0)
+        matched = matched.filter((record) =>
+          search.columns.some((column) =>
+            text(record, column).toLowerCase().includes(search.text.toLowerCase()),
+          ),
+        );
+      const sort = query.sort;
+      if (sort)
+        matched = [...matched].sort((left, right) =>
+          sort.direction === "asc"
+            ? text(left, sort.column).localeCompare(text(right, sort.column))
+            : text(right, sort.column).localeCompare(text(left, sort.column)),
+        );
+      const limit = query.limit ?? 25;
+      return { records: matched.slice(0, limit), truncated: matched.length > limit };
+    },
     create: async (ownerId, tableId, values) => {
       if (!ownedTable(ownerId, tableId)) return null;
       if (ownedRecords(ownerId, tableId).length >= recordCap)
@@ -462,6 +505,35 @@ describe("data record routes", () => {
     expect(await stale.json()).toEqual({ error: "conflict" });
   });
 
+  test("a replacing patch may carry the updatedAt the caller saw, and is refused when stale", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+    const posted = await request(`/data/tables/${created.id}/records`, "POST", "alice", {
+      values: { email: "ada@lovelace.dev" },
+    });
+    const record = (await posted.json()) as DataRecord;
+
+    const fresh = await request(
+      `/data/tables/${created.id}/records/${record.id}`,
+      "PATCH",
+      "alice",
+      { values: { email: "ada@byron.uk" }, expectedUpdatedAt: record.updatedAt },
+    );
+    expect(fresh.status).toBe(200);
+    const saved = (await fresh.json()) as DataRecord;
+    expect(saved.values).toEqual({ email: "ada@byron.uk" });
+
+    // The caller is now holding a stale copy, and the second write is refused rather than applied.
+    const stale = await request(
+      `/data/tables/${created.id}/records/${record.id}`,
+      "PATCH",
+      "alice",
+      { values: { email: "someone@else.test" }, expectedUpdatedAt: record.updatedAt },
+    );
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toEqual({ error: "conflict" });
+  });
+
   test("a merge patch that would empty a required column is unprocessable", async () => {
     const { request, createTable } = fixture();
     const created = await createTable();
@@ -529,6 +601,147 @@ describe("data record routes", () => {
     if (last.status !== 200) throw new Error("expected a page");
     expect(last.data.records.map((record) => record.values.email)).toEqual(["c@d.co"]);
     expect(last.data.nextCursor).toBeUndefined();
+  });
+
+  test("one record reads back on its own, and another owner's does not", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+    const posted = await request(`/data/tables/${created.id}/records`, "POST", "alice", {
+      values: { email: "ada@lovelace.dev" },
+    });
+    const { id } = (await posted.json()) as { id: string };
+
+    const response = await request(`/data/tables/${created.id}/records/${id}`, "GET", "alice");
+    const read = parseResponse(getDataRecordContract, response.status, await response.json());
+    if (read.status !== 200) throw new Error("expected the record");
+    expect(read.data.values.email).toBe("ada@lovelace.dev");
+
+    const stranger = await request(`/data/tables/${created.id}/records/${id}`, "GET", "bob");
+    expect(stranger.status).toBe(404);
+    const missing = await request(`/data/tables/${created.id}/records/nope`, "GET", "alice");
+    expect(missing.status).toBe(404);
+  });
+
+  test("a filter narrows the list to the records that match", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+    for (const email of ["ada@lovelace.dev", "grace@hopper.io"])
+      await request(`/data/tables/${created.id}/records`, "POST", "alice", { values: { email } });
+
+    const filters = encodeURIComponent(
+      JSON.stringify([{ column: "email", operator: "contains", value: "ada" }]),
+    );
+    const response = await request(
+      `/data/tables/${created.id}/records?filters=${filters}`,
+      "GET",
+      "alice",
+    );
+    const page = parseResponse(listDataRecordsContract, response.status, await response.json());
+    if (page.status !== 200) throw new Error("expected a page");
+    expect(page.data.records.map((record) => record.values.email)).toEqual(["ada@lovelace.dev"]);
+  });
+
+  test("a search matches across the table's text and address columns", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+    await request(`/data/tables/${created.id}/records`, "POST", "alice", {
+      values: { email: "ada@lovelace.dev" },
+    });
+    await request(`/data/tables/${created.id}/records`, "POST", "alice", {
+      values: { email: "grace@hopper.io" },
+    });
+
+    const response = await request(`/data/tables/${created.id}/records?q=hopper`, "GET", "alice");
+    const page = parseResponse(listDataRecordsContract, response.status, await response.json());
+    if (page.status !== 200) throw new Error("expected a page");
+    expect(page.data.records.map((record) => record.values.email)).toEqual(["grace@hopper.io"]);
+  });
+
+  test("a sorted list orders by the named column", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+    for (const email of ["grace@hopper.io", "ada@lovelace.dev"])
+      await request(`/data/tables/${created.id}/records`, "POST", "alice", { values: { email } });
+
+    const response = await request(
+      `/data/tables/${created.id}/records?sort=email:asc`,
+      "GET",
+      "alice",
+    );
+    const page = parseResponse(listDataRecordsContract, response.status, await response.json());
+    if (page.status !== 200) throw new Error("expected a page");
+    expect(page.data.records.map((record) => record.values.email)).toEqual([
+      "ada@lovelace.dev",
+      "grace@hopper.io",
+    ]);
+  });
+
+  test("a filtered list pages no further, and says when more matched than it shows", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+    for (const email of ["ada@lovelace.dev", "ada@byron.uk"])
+      await request(`/data/tables/${created.id}/records`, "POST", "alice", { values: { email } });
+
+    const filters = encodeURIComponent(
+      JSON.stringify([{ column: "email", operator: "contains", value: "ada" }]),
+    );
+    const response = await request(
+      `/data/tables/${created.id}/records?filters=${filters}&limit=1`,
+      "GET",
+      "alice",
+    );
+    const page = parseResponse(listDataRecordsContract, response.status, await response.json());
+    if (page.status !== 200) throw new Error("expected a page");
+    expect(page.data.records).toHaveLength(1);
+    expect(page.data.nextCursor).toBeUndefined();
+    expect(page.data.truncated).toBe(true);
+  });
+
+  test("a filter the table cannot answer is a bad request, not an empty page", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+
+    const unknownColumn = encodeURIComponent(
+      JSON.stringify([{ column: "nickname", operator: "equals", value: "ada" }]),
+    );
+    const missing = await request(
+      `/data/tables/${created.id}/records?filters=${unknownColumn}`,
+      "GET",
+      "alice",
+    );
+    expect(missing.status).toBe(400);
+    expect(await missing.json()).toEqual({ error: "invalid_request" });
+
+    /* "seats" is a number column, and dataColumnOperators gives numbers no "contains". */
+    const wrongOperator = encodeURIComponent(
+      JSON.stringify([{ column: "seats", operator: "contains", value: "2" }]),
+    );
+    const forbidden = await request(
+      `/data/tables/${created.id}/records?filters=${wrongOperator}`,
+      "GET",
+      "alice",
+    );
+    expect(forbidden.status).toBe(400);
+
+    const malformed = await request(
+      `/data/tables/${created.id}/records?filters=nonsense`,
+      "GET",
+      "alice",
+    );
+    expect(malformed.status).toBe(400);
+  });
+
+  test("an unreadable sort is a bad request", async () => {
+    const { request, createTable } = fixture();
+    const created = await createTable();
+    for (const sort of ["email", "email:sideways", "nickname:asc"]) {
+      const response = await request(
+        `/data/tables/${created.id}/records?sort=${sort}`,
+        "GET",
+        "alice",
+      );
+      expect(response.status).toBe(400);
+    }
   });
 
   test("an unreadable limit is a bad request and an unreadable cursor is unprocessable", async () => {

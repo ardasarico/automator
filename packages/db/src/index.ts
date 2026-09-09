@@ -64,7 +64,9 @@ export {
   dataRecordMaxBytes,
   DataRecordCursorError,
   type DataRecordFilter,
+  type DataRecordFindResult,
   type DataRecordQuery,
+  type DataRecordSearch,
   type DataRecordSort,
   type DataRecordStore,
 } from "./data-records";
