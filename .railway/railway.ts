@@ -131,7 +131,35 @@ export default defineRailway(() => {
     replicas: { sfo: 1 },
   });
 
+  const landing = service("landing", {
+    source: github("ardasarico/automator", { branch: "main" }),
+    build: {
+      builder: "RAILPACK",
+      buildCommand: "bun run build --filter=@automator/landing",
+      watchPatterns: [
+        "/apps/landing/**",
+        "/packages/ui/**",
+        "/packages/tailwind-config/**",
+        "/packages/typescript-config/**",
+        "/package.json",
+        "/bun.lock",
+        "/turbo.json",
+        "/.railway/**",
+      ],
+    },
+    start: "bun run --filter @automator/landing start",
+    healthcheck: "/health",
+    healthcheckTimeout: 60,
+    deploy: { restartPolicyMaxRetries: 3 },
+    env: {
+      NODE_ENV: "production",
+      PORT: "3004",
+      RAILPACK_NODE_VERSION: "22",
+    },
+    replicas: { sfo: 1 },
+  });
+
   return project("automator", {
-    resources: [Postgres, api, web, runtime, postgresVolume],
+    resources: [Postgres, api, web, runtime, landing, postgresVolume],
   });
 });

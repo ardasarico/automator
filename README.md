@@ -6,7 +6,7 @@ Automator makes onchain automation visible: build a flow from nodes or from a se
 
 <!-- TODO: link the demo video and the ETHOnline submission once they exist. -->
 
-[Live app](https://automator.ardasari.co) · Demo video · ETHOnline submission
+[Live app](https://app.automator.ardasari.co) · Demo video · ETHOnline submission
 
 ## How it works
 
