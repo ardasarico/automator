@@ -16,7 +16,7 @@ mock.module("../auth/access-token", () => ({
   useAccessToken: () => getAccessToken,
 }));
 
-const { useFlowRun } = await import("./use-flow-run");
+const { useFlowRun, useSimulationTriggers } = await import("./use-flow-run");
 const { FlowActivationProvider, useFlowActivation } = await import("./flow-activation");
 const { BuilderStoreProvider, useBuilderStore } = await import("./store-provider");
 const { RunStoreProvider, useRunStore } = await import("./run-store-provider");
@@ -41,6 +41,7 @@ const document: FlowDocument = {
       label: "Second",
       config: { samplePayload: '{"source":"second"}' },
     },
+    { id: "hold", type: "logic.wait", position: { x: 300, y: 0 }, label: "Hold", config: {} },
   ],
   edges: [],
 };
@@ -62,19 +63,29 @@ const record: FlowRunRecord = {
 };
 
 let controller: ReturnType<typeof useFlowRun>;
+let simulation: ReturnType<typeof useSimulationTriggers>;
 let state: RunState;
 let setName: (name: string) => void;
 let setLiveMode: (live: boolean) => void;
+let selectNode: (id: string | null) => void;
 function Probe() {
   const runController = useFlowRun();
+  const triggers = useSimulationTriggers();
   const runState = useRunStore((value) => value);
   const setMeta = useBuilderStore((value) => value.setMeta);
+  const nodes = useBuilderStore((value) => value.nodes);
+  const onNodesChange = useBuilderStore((value) => value.onNodesChange);
   const activation = useFlowActivation();
   useEffect(() => {
     controller = runController;
+    simulation = triggers;
     state = runState;
     setName = (name) => setMeta({ name });
     setLiveMode = activation.setLiveMode;
+    selectNode = (id) =>
+      onNodesChange(
+        nodes.map((node) => ({ type: "select", id: node.id, selected: node.id === id })),
+      );
   });
   return <output>{runState.status}</output>;
 }
@@ -142,6 +153,51 @@ describe("useFlowRun", () => {
     });
     expect(state.run).toEqual(run);
     expect(state.document?.name).toBe("Executed snapshot");
+  });
+
+  test("every starting trigger is offered, and the selected one starts the run", async () => {
+    expect(simulation.triggers.map((trigger) => trigger.id)).toEqual(["first", "second"]);
+    expect(simulation.activeId).toBe("first");
+
+    await act(async () => selectNode("second"));
+    expect(simulation.activeId).toBe("second");
+    await act(async () => {
+      void controller.run();
+    });
+    expect(requests[0]!.body).toEqual({
+      trigger: { nodeId: "second", payload: { source: "second" } },
+      screens: "auto",
+      mode: "dry-run",
+    });
+
+    // Naming a trigger outright beats the selection, and selecting something else clears it.
+    await act(async () => {
+      void controller.run("first");
+    });
+    expect(requests[1]!.body).toMatchObject({
+      trigger: { nodeId: "first", payload: { source: "first" } },
+    });
+    await act(async () => selectNode(null));
+    expect(simulation.activeId).toBe("first");
+  });
+
+  test("a selected node that cannot start a run leaves the header and the run on the same trigger", async () => {
+    // The normal state while editing: something selected on the canvas that is not a trigger.
+    await act(async () => selectNode("hold"));
+    expect(simulation.activeId).toBe("first");
+    await act(async () => {
+      void controller.run();
+    });
+    expect(requests[0]!.body).toMatchObject({
+      trigger: { nodeId: "first", payload: { source: "first" } },
+    });
+
+    // The header hands the run what it displays, so the two agree by construction, not by luck.
+    await act(async () => {
+      void controller.run(simulation.activeId ?? undefined);
+    });
+    const sent = requests[1]!.body.trigger as { nodeId: string | null };
+    expect(sent.nodeId).toBe(simulation.activeId);
   });
 
   test("unsaved live runs send and retain the canvas snapshot from the start", async () => {

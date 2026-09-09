@@ -22,7 +22,7 @@ import {
   RiLayoutMasonryLine,
   RiSubtractLine,
 } from "@remixicon/react";
-import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { isFlowNodeType, type CatalogEntry } from "./catalog";
 import { nodeHalfSize, nodeTypes } from "./flow-node";
 import styles from "./flow-builder.module.css";
@@ -57,54 +57,135 @@ function clamp(at: number, available: number, size: number): number {
 /** Only a node with an input can receive the dropped connection; triggers have none. */
 const acceptsConnection = (entry: CatalogEntry) => flowNodePorts[entry.type].inputs.length > 0;
 
-/** Where the next node lands when it is added without a drop point. */
-function useCenterPosition(): () => XYPosition {
-  const { getViewport } = useReactFlow();
+type Box = { x: number; y: number; width: number; height: number };
+
+/** Clear space kept around a placed node, so neighbouring cards never hide each other's ports. */
+const nodeGap = { x: 40, y: 24 };
+/** A node is only measured once it mounts; until then its card's own dimensions stand in. */
+const defaultNodeSize = { width: nodeHalfSize.x * 2, height: nodeHalfSize.y * 2 };
+/** The gap that reads as "the step after this one" rather than "somewhere near it". */
+const nextStepGap = 60;
+/** Candidates per column, and columns, tried before the search gives up on finding free space. */
+const searchRows = 6;
+const searchColumns = 10;
+/** How far inside the viewport a placed node has to sit before it counts as visible. */
+const revealMargin = 24;
+
+function overlaps(a: Box, b: Box): boolean {
+  return (
+    a.x < b.x + b.width + nodeGap.x &&
+    b.x < a.x + a.width + nodeGap.x &&
+    a.y < b.y + b.height + nodeGap.y &&
+    b.y < a.y + a.height + nodeGap.y
+  );
+}
+
+/**
+ * Where a node added without a drop point lands. Clicking the palette used to drop every node on
+ * the middle of the view, so each one buried the last; this puts it in the nearest free space —
+ * next to the selected node when there is one, since that is the step being built on — and pans
+ * to it when that space falls outside the view.
+ */
+function useNodePlacement(): (insert: (position: XYPosition) => void) => void {
+  const { getViewport, setCenter } = useReactFlow();
   const reactFlowStore = useStoreApi();
-  const count = useBuilderStore((state) => state.nodes.length);
-  return useCallback(() => {
-    const { x, y, zoom } = getViewport();
-    const { width, height } = reactFlowStore.getState();
-    const nudge = (count % 6) * 24;
-    return {
-      x: (width / 2 - x) / zoom - nodeHalfSize.x + nudge,
-      y: (height / 2 - y) / zoom - nodeHalfSize.y + nudge,
-    };
-  }, [count, getViewport, reactFlowStore]);
+  return useCallback(
+    (insert) => {
+      const { nodeLookup, width, height } = reactFlowStore.getState();
+      const taken: Box[] = [];
+      let selected: Box | undefined;
+      for (const node of nodeLookup.values()) {
+        const box = {
+          x: node.internals.positionAbsolute.x,
+          y: node.internals.positionAbsolute.y,
+          width: node.measured.width ?? defaultNodeSize.width,
+          height: node.measured.height ?? defaultNodeSize.height,
+        };
+        taken.push(box);
+        if (node.selected && !selected) selected = box;
+      }
+
+      const { x, y, zoom } = getViewport();
+      const view = { x: -x / zoom, y: -y / zoom, width: width / zoom, height: height / zoom };
+      const origin = selected
+        ? { x: selected.x + selected.width + nextStepGap, y: selected.y }
+        : {
+            x: view.x + view.width / 2 - defaultNodeSize.width / 2,
+            y: view.y + view.height / 2 - defaultNodeSize.height / 2,
+          };
+      const step = {
+        x: defaultNodeSize.width + nodeGap.x,
+        y: defaultNodeSize.height + nodeGap.y,
+      };
+
+      let position = origin;
+      for (let attempt = 0; attempt < searchRows * searchColumns; attempt += 1) {
+        position = {
+          x: origin.x + Math.floor(attempt / searchRows) * step.x,
+          y: origin.y + (attempt % searchRows) * step.y,
+        };
+        if (!taken.some((box) => overlaps({ ...position, ...defaultNodeSize }, box))) break;
+      }
+
+      insert(position);
+      const inside =
+        position.x >= view.x + revealMargin &&
+        position.y >= view.y + revealMargin &&
+        position.x + defaultNodeSize.width <= view.x + view.width - revealMargin &&
+        position.y + defaultNodeSize.height <= view.y + view.height - revealMargin;
+      if (!inside)
+        void setCenter(
+          position.x + defaultNodeSize.width / 2,
+          position.y + defaultNodeSize.height / 2,
+          { zoom, duration: 200 },
+        );
+    },
+    [getViewport, reactFlowStore, setCenter],
+  );
 }
 
 export function useAddNodeAtCenter(): (type: FlowNodeType) => void {
-  const center = useCenterPosition();
+  const place = useNodePlacement();
   const addNode = useBuilderStore((state) => state.addNode);
   return useCallback(
     (type) => {
-      addNode(type, center());
+      place((position) => addNode(type, position));
     },
-    [addNode, center],
+    [addNode, place],
   );
 }
 
-/** Inserts a configured node, such as a saved one, in the middle of the canvas. */
+/** Inserts a configured node, such as a saved one, in the first free space on the canvas. */
 export function useInsertNodeAtCenter(): (input: NodeTemplate) => void {
-  const center = useCenterPosition();
+  const place = useNodePlacement();
   const insertNode = useBuilderStore((state) => state.insertNode);
   return useCallback(
     (input) => {
-      insertNode(input, center());
+      place((position) => insertNode(input, position));
     },
-    [center, insertNode],
+    [insertNode, place],
   );
 }
 
+/**
+ * Rearranges the graph and then brings the result back into view. The fit has to wait for the
+ * commit that carries the new positions, or it frames where the nodes used to be.
+ */
 function useTidyUp() {
   const nodes = useBuilderStore((state) => state.nodes);
   const edges = useBuilderStore((state) => state.edges);
   const setNodePositions = useBuilderStore((state) => state.setNodePositions);
   const { fitView } = useReactFlow();
+  const [tidied, setTidied] = useState(0);
+  useEffect(() => {
+    if (tidied === 0) return;
+    const frame = window.requestAnimationFrame(() => void fitView({ padding: 0.2, duration: 200 }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [fitView, tidied]);
   return useCallback(() => {
     setNodePositions(layoutFlowPositions(nodes, edges));
-    window.requestAnimationFrame(() => void fitView({ padding: 0.2, duration: 200 }));
-  }, [edges, fitView, nodes, setNodePositions]);
+    setTidied((count) => count + 1);
+  }, [edges, nodes, setNodePositions]);
 }
 
 function ZoomPanel() {
@@ -127,7 +208,10 @@ function ZoomPanel() {
         >
           <RiLayoutMasonryLine aria-hidden="true" />
         </TooltipTrigger>
-        <TooltipPopup side="top">Tidy up: arrange left to right</TooltipPopup>
+        <TooltipPopup side="top" className="max-w-72">
+          Tidy up: lay connected nodes out left to right, stack the unconnected ones, and fit the
+          flow in view.
+        </TooltipPopup>
       </Tooltip>
       <Button variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => zoomIn()}>
         <RiAddLine />

@@ -398,7 +398,9 @@ async function execute(
       continue;
     }
     if (halted || !shouldRun) {
-      record({ nodeId: node.id, status: "skipped" });
+      // Say which of the two it was: a halt on one branch must not read as a missing edge here.
+      const skipReason = halted ? "run-stopped" : "no-input";
+      record({ nodeId: node.id, status: "skipped", skipReason });
       propagate(node, {});
       continue;
     }

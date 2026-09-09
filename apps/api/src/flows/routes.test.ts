@@ -6,6 +6,7 @@ import {
   listFlowsContract,
   parseResponse,
   type FlowDocumentInput,
+  type FlowProblem,
   type FlowRecord,
 } from "@automator/contracts";
 import {
@@ -23,7 +24,14 @@ const input: FlowDocumentInput = {
   description: "Verify, pay, issue.",
   nodes: [
     { id: "n1", type: "trigger.miniapp-open", position: { x: 0, y: 0 }, label: "Open", config: {} },
-    { id: "n2", type: "usdc.payment", position: { x: 300, y: 0 }, label: "Pay", config: {} },
+    {
+      id: "n2",
+      type: "usdc.payment",
+      position: { x: 300, y: 0 },
+      label: "Pay",
+      /* Configured, so this fixture is a flow the activation gate lets through. */
+      config: { to: "0x1111111111111111111111111111111111111111", amount: "10" },
+    },
   ],
   edges: [{ id: "e1", source: "n1", target: "n2", sourceHandle: "out", targetHandle: "in" }],
 };
@@ -267,6 +275,94 @@ describe("flow routes", () => {
       flows: { enabled: boolean }[];
     };
     expect(listed.flows[0]?.enabled).toBe(true);
+  });
+
+  describe("the activation gate", () => {
+    /* A payment with no recipient: an error the builder shows and a run would fail on. */
+    const broken: FlowDocumentInput = {
+      ...input,
+      nodes: [input.nodes[0]!, { ...input.nodes[1]!, config: {} }],
+    };
+    /* A Discord post with no webhook: a blank secret, which is a warning, not a fault. */
+    const warned: FlowDocumentInput = {
+      ...input,
+      nodes: [
+        input.nodes[0]!,
+        {
+          id: "n2",
+          type: "notify.discord",
+          position: { x: 300, y: 0 },
+          label: "Tell the team",
+          config: { webhookUrl: "", content: "Someone paid" },
+        },
+      ],
+    };
+
+    async function stored(document: FlowDocumentInput) {
+      const context = fixture();
+      const created = (await (
+        await context.request("/flows", "POST", "alice", document)
+      ).json()) as FlowRecord;
+      return { ...context, id: created.flow.id };
+    }
+
+    test("refuses to activate a stored flow that has an error, and says which", async () => {
+      const { request, records, id } = await stored(broken);
+      const refused = await request(`/flows/${id}`, "PATCH", "alice", { enabled: true });
+      expect(refused.status).toBe(422);
+      const body = (await refused.json()) as { error: string; problems?: FlowProblem[] };
+      expect(body.error).toBe("invalid_flow");
+      expect(body.problems).toEqual([
+        { severity: "error", nodeId: "n2", message: "“Pay” needs a recipient address." },
+      ]);
+      // The refusal has to leave the flow off, not merely report on the way past.
+      expect(records.get(id)?.enabled).toBeFalsy();
+    });
+
+    test("a blank secret is a warning, so it does not block activation", async () => {
+      const { request, records, id } = await stored(warned);
+      const allowed = await request(`/flows/${id}`, "PATCH", "alice", { enabled: true });
+      expect(allowed.status).toBe(200);
+      expect(records.get(id)?.enabled).toBe(true);
+    });
+
+    test("deactivating is always allowed, however broken the flow is", async () => {
+      const { request, records, id } = await stored(input);
+      expect((await request(`/flows/${id}`, "PATCH", "alice", { enabled: true })).status).toBe(200);
+      // Break the stored document underneath a live flow, as editing and saving would.
+      const live = records.get(id)!;
+      records.set(id, {
+        ...live,
+        flow: { ...live.flow, nodes: broken.nodes.map((n) => ({ ...n })) },
+      });
+      const off = await request(`/flows/${id}`, "PATCH", "alice", { enabled: false });
+      expect(off.status).toBe(200);
+      expect(records.get(id)?.enabled).toBe(false);
+      // …and it stays refused on the way back on.
+      expect((await request(`/flows/${id}`, "PATCH", "alice", { enabled: true })).status).toBe(422);
+    });
+
+    test("the gate reads the stored document, so a client cannot talk its way past it", async () => {
+      const { request, records, id } = await stored(broken);
+      // The patch body carries no document at all; there is nothing here for a client to fake.
+      for (const patch of [{ enabled: true }, { enabled: true, appPublished: true }])
+        expect((await request(`/flows/${id}`, "PATCH", "alice", patch)).status).toBe(422);
+      expect(records.get(id)?.enabled).toBeFalsy();
+      expect(records.get(id)?.appPublished).toBeFalsy();
+    });
+
+    test("publishing the app is not gated, only activation is", async () => {
+      const { request, records, id } = await stored(broken);
+      expect((await request(`/flows/${id}`, "PATCH", "alice", { appPublished: true })).status).toBe(
+        200,
+      );
+      expect(records.get(id)?.appPublished).toBe(true);
+    });
+
+    test("a flow that is not the caller's is not found rather than checked", async () => {
+      const { request, id } = await stored(broken);
+      expect((await request(`/flows/${id}`, "PATCH", "bob", { enabled: true })).status).toBe(404);
+    });
   });
 
   test("patch publishes the app separately from activation and rejects an empty patch", async () => {

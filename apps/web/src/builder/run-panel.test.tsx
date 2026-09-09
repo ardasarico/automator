@@ -184,6 +184,27 @@ describe("RunPanel", () => {
     expect(link.href).toBe(`https://worldchain-sepolia.explorer.alchemy.com/tx/${hash}`);
   });
 
+  test("a skipped node says whether it lacked an input or the run had already stopped", async () => {
+    const inspect = async (result: FlowRun["nodes"][number]) => {
+      await mount({ ...run, nodes: [{ nodeId: "t", status: "succeeded", outputs: {} }, result] });
+      const step = Array.from(container.querySelectorAll<HTMLButtonElement>("ol button")).find(
+        (button) => button.textContent?.includes("Post"),
+      )!;
+      await act(async () => step.click());
+      return container.textContent ?? "";
+    };
+    expect(await inspect({ nodeId: "d", status: "skipped", skipReason: "no-input" })).toContain(
+      "No incoming edge fired, so this node did not run.",
+    );
+    expect(await inspect({ nodeId: "d", status: "skipped", skipReason: "run-stopped" })).toContain(
+      "The run stopped at an earlier node, so this one did not run.",
+    );
+    /* A run recorded before the reason existed must not claim a missing edge either. */
+    const legacy = await inspect({ nodeId: "d", status: "skipped" });
+    expect(legacy).toContain("This node did not run.");
+    expect(legacy).not.toContain("No incoming edge fired");
+  });
+
   test("a historical result remains inspectable after its canvas node was removed", async () => {
     const snapshot = structuredClone(document);
     snapshot.nodes.push({

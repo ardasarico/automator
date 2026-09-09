@@ -3,6 +3,7 @@ import { Check } from "@sinclair/typebox/value";
 import { chainIdSchema, defaultChainId, type ChainId } from "./chains";
 import { flowRunStatusSchema } from "./run-status";
 import { apiErrorResponses } from "./contract";
+import { flowActivationRefusalSchema } from "./flow-problems";
 
 export const flowNodeTypes = [
   "trigger.schedule",
@@ -251,7 +252,9 @@ export const patchFlowContract = {
   path: "/flows/:id",
   params: flowParamsSchema,
   body: flowPatchSchema,
-  response: { 200: flowRecordSchema, ...apiErrorResponses },
+  /* 422 widens the shared error with the problems that stopped an activation. It is a widening,
+   * not a rival: `problems` is optional, so a plain refusal still matches. */
+  response: { 200: flowRecordSchema, ...apiErrorResponses, 422: flowActivationRefusalSchema },
 } as const;
 export const deleteFlowContract = {
   method: "DELETE",

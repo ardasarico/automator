@@ -5,7 +5,7 @@ import {
   waitConfigSchema,
 } from "@automator/contracts";
 import { aiExecutors } from "./ai-executors";
-import { compare } from "./compare";
+import { compareForNode } from "./compare";
 import { dataExecutors } from "./data-executors";
 import { logicExecutors } from "./logic-executors";
 import { loopExecutors } from "./loop-executors";
@@ -42,7 +42,9 @@ export const defaultExecutors: ExecutorRegistry = {
     async run(context) {
       const { left, operator, right } = context.config(conditionConfigSchema);
       const value = context.inputs.value;
-      return compare(left, operator, right) ? { true: value } : { false: value };
+      return compareForNode("Condition", left, operator, right)
+        ? { true: value }
+        : { false: value };
     },
   },
 
@@ -81,4 +83,4 @@ export const defaultExecutors: ExecutorRegistry = {
   ...loopExecutors,
 };
 
-export { compare } from "./compare";
+export { compare, ComparisonError, compareForNode } from "./compare";

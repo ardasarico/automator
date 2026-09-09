@@ -1,0 +1,115 @@
+/// <reference types="bun" />
+import { GlobalRegistrator } from "@happy-dom/global-registrator";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from "bun:test";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+
+GlobalRegistrator.register();
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+mock.module("../auth/access-token", () => ({
+  e2eSession: false,
+  useAccessToken: () => async () => "privy-token",
+}));
+/* The backdrop pulls in a WebGL vendor bundle that has nothing to do with drafting. */
+mock.module("./hero-backdrop", () => ({ HeroBackdrop: () => null }));
+/* The action reaches the API through server-only modules; only its call is under test here. */
+mock.module("server-only", () => ({}));
+
+const actions = await import("../flows/actions");
+const { HomePrompt } = await import("./prompt");
+
+/* Installed per test and taken down again: the export is shared with every other test file. */
+let createFlow: ReturnType<typeof spyOn<typeof actions, "createFlowAction">>;
+
+const answer = {
+  kind: "flow",
+  summary: "Posts the balance to Discord.",
+  document: {
+    version: 1,
+    name: "Balance",
+    description: "",
+    nodes: [
+      { id: "t", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Run", config: {} },
+    ],
+    edges: [],
+  },
+};
+
+let response: unknown = answer;
+let status = 200;
+const originalFetch = globalThis.fetch;
+let container: HTMLDivElement;
+let root: Root;
+
+beforeAll(() => {
+  globalThis.fetch = (async () => Response.json(response, { status })) as unknown as typeof fetch;
+});
+beforeEach(() => {
+  createFlow = spyOn(actions, "createFlowAction").mockResolvedValue(undefined);
+  response = answer;
+  status = 200;
+  window.sessionStorage.clear();
+});
+afterEach(async () => {
+  await act(async () => root?.unmount());
+  container?.remove();
+  createFlow.mockRestore();
+});
+afterAll(async () => {
+  globalThis.fetch = originalFetch;
+  await GlobalRegistrator.unregister();
+});
+
+async function draft(text: string) {
+  container = window.document.createElement("div");
+  window.document.body.append(container);
+  root = createRoot(container);
+  await act(async () => root.render(<HomePrompt />));
+  const textarea = container.querySelector("textarea")!;
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
+    textarea,
+    text,
+  );
+  const key = Object.keys(textarea).find((name) => name.startsWith("__reactProps"))!;
+  const props = (textarea as unknown as Record<string, { onChange(event: unknown): void }>)[key]!;
+  await act(async () => props.onChange({ target: textarea, currentTarget: textarea }));
+  await act(async () => {
+    container.querySelector("form")!.requestSubmit();
+  });
+}
+
+describe("HomePrompt", () => {
+  test("hands the answer to the canvas and only then creates the flow", async () => {
+    await draft("Post my balance to Discord");
+
+    expect(createFlow.mock.calls).toEqual([[{ ai: true }]]);
+    expect(window.sessionStorage.getItem("automator.pending-prompt")).toBe(
+      "Post my balance to Discord",
+    );
+    expect(JSON.parse(window.sessionStorage.getItem("automator.ai-draft-answer")!)).toEqual(answer);
+  });
+
+  test("a failed draft creates no flow and says why", async () => {
+    status = 422;
+    response = { error: "invalid_flow", detail: "Balance check: unknown output result on n3." };
+    await draft("Post my balance to Discord");
+
+    expect(createFlow).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem("automator.ai-draft-answer")).toBeNull();
+    const alert = container.querySelector('[role="alert"]')!;
+    expect(alert.textContent).toContain("unknown output result on n3");
+    // The prompt stays in the box, so rephrasing does not mean retyping.
+    expect(container.querySelector("textarea")!.value).toBe("Post my balance to Discord");
+  });
+});

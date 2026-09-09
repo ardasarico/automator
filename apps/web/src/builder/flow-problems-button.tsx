@@ -1,7 +1,14 @@
 "use client";
 
 import { Button } from "@automator/ui/button";
-import { Menu, MenuGroupLabel, MenuItem, MenuPopup, MenuTrigger } from "@automator/ui/menu";
+import {
+  Menu,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuItem,
+  MenuPopup,
+  MenuTrigger,
+} from "@automator/ui/menu";
 import { RiAlertLine, RiErrorWarningLine } from "@remixicon/react";
 import { useReactFlow } from "@xyflow/react";
 import { getCatalogEntry } from "./catalog";
@@ -57,24 +64,27 @@ export function FlowProblemsButton() {
         {label}
       </MenuTrigger>
       <MenuPopup align="start" className="max-w-96">
-        <MenuGroupLabel>
-          {errors > 0 ? "Problems to fix before running" : "Warnings"}
-        </MenuGroupLabel>
-        {problems.map((problem, index) => {
-          const name = nodeLabel(problem);
-          return (
-            <MenuItem
-              key={`${problem.nodeId ?? "flow"}-${index}`}
-              disabled={!problem.nodeId}
-              onClick={() => reveal(problem)}
-            >
-              <span className={styles.problemItem} data-severity={problem.severity}>
-                {name && <span className={styles.problemNode}>{name}</span>}
-                <span>{problem.message}</span>
-              </span>
-            </MenuItem>
-          );
-        })}
+        {/* The label names the list, so it has to sit inside the group: Base UI throws otherwise. */}
+        <MenuGroup>
+          <MenuGroupLabel>
+            {errors > 0 ? "Problems to fix before running" : "Warnings"}
+          </MenuGroupLabel>
+          {problems.map((problem, index) => {
+            const name = nodeLabel(problem);
+            return (
+              <MenuItem
+                key={`${problem.nodeId ?? "flow"}-${index}`}
+                disabled={!problem.nodeId}
+                onClick={() => reveal(problem)}
+              >
+                <span className={styles.problemItem} data-severity={problem.severity}>
+                  {name && <span className={styles.problemNode}>{name}</span>}
+                  <span>{problem.message}</span>
+                </span>
+              </MenuItem>
+            );
+          })}
+        </MenuGroup>
       </MenuPopup>
     </Menu>
   );

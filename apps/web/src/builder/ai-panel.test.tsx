@@ -69,6 +69,9 @@ function Probe() {
 
 const calls: Array<{ url: string; body: unknown }> = [];
 let response: unknown = proposal;
+let status = 200;
+/* Set to hold the answer back, so the panel's waiting state can be inspected mid-request. */
+let deferred: Promise<void> | null = null;
 const originalFetch = globalThis.fetch;
 let container: HTMLDivElement;
 let root: Root;
@@ -76,12 +79,18 @@ let root: Root;
 beforeAll(() => {
   globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
     calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
-    return Response.json(response);
+    if (deferred) await deferred;
+    // Real fetch rejects once the signal aborts; the panel's cancel path depends on it.
+    if (init?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    return Response.json(response, { status });
   }) as unknown as typeof fetch;
 });
 beforeEach(() => {
   calls.length = 0;
   response = proposal;
+  status = 200;
+  deferred = null;
+  window.sessionStorage.clear();
 });
 afterEach(async () => {
   await act(async () => root?.unmount());
@@ -92,14 +101,14 @@ afterAll(async () => {
   await GlobalRegistrator.unregister();
 });
 
-async function mount() {
+async function mount({ focusOnMount = false } = {}) {
   container = window.document.createElement("div");
   window.document.body.append(container);
   root = createRoot(container);
   await act(async () => {
     root.render(
       <BuilderStoreProvider document={document}>
-        <AiStoreProvider>
+        <AiStoreProvider focusOnMount={focusOnMount}>
           <ReactFlowProvider>
             <AiPanel />
             <Probe />
@@ -202,6 +211,96 @@ describe("AiPanel", () => {
     expect(connections.textContent).toContain("Run · run → Post · message");
     expect(container.querySelectorAll('[data-kind="changed"]')).toHaveLength(0);
     expect(container.querySelector('[data-testid="probe"]')?.textContent).toContain("hi");
+  });
+
+  test("a rejected draft says what was wrong with it, not just that something was", async () => {
+    status = 422;
+    response = {
+      error: "invalid_flow",
+      detail: "Balance above threshold: unknown output result on n3.",
+    };
+    await mount();
+    await act(async () => type(container.querySelector("textarea")!, "Check my balance"));
+    await act(async () => buttonNamed("Send")!.click());
+
+    const alert = container.querySelector('[role="alert"]')!;
+    expect(alert.textContent).toContain("could not produce a valid flow");
+    expect(alert.textContent).toContain("unknown output result on n3");
+  });
+
+  test("a report where nothing ran is not presented as a checked flow", async () => {
+    await mount();
+    await act(async () => type(container.querySelector("textarea")!, "Say hello instead"));
+    await act(async () => buttonNamed("Send")!.click());
+
+    const checks = container.querySelector('[aria-label="Automatic checks"]')!;
+    expect(checks.textContent).toContain("could not exercise this flow");
+  });
+
+  test("a draft that failed its checks is offered, but never as a checked one", async () => {
+    response = {
+      ...proposal,
+      verification: {
+        checks: [
+          {
+            name: "Automatic checks",
+            status: "failed",
+            detail: "Balance above 10: n3: Condition: needs a number on the left.",
+          },
+        ],
+        warnings: ["This draft did not pass its automatic checks."],
+      },
+    };
+    await mount();
+    await act(async () => type(container.querySelector("textarea")!, "Check my balance"));
+    await act(async () => buttonNamed("Send")!.click());
+
+    const checks = container.querySelector('[aria-label="Automatic checks"]')!;
+    expect(checks.textContent).toContain("did not pass its checks");
+    expect(checks.textContent).toContain("Failed: Automatic checks");
+    expect(checks.textContent).toContain("needs a number on the left");
+    expect(checks.textContent).not.toContain("no external actions");
+    /* Still applicable: the point is that the user can see the fault and fix it on the canvas. */
+    expect(buttonNamed("Apply changes")).toBeDefined();
+  });
+
+  test("the wait shows elapsed time and stays interruptible", async () => {
+    let release = () => {};
+    deferred = new Promise<void>((resolve) => (release = resolve));
+    await mount();
+    await act(async () => type(container.querySelector("textarea")!, "Draft something slow"));
+    await act(async () => {
+      buttonNamed("Send")!.click();
+    });
+
+    const waiting = container.querySelector('[role="status"]')!;
+    expect(waiting.textContent).toContain("Drafting the flow");
+    expect(waiting.textContent).toContain("0:00");
+    await act(async () => buttonNamed("Stop")!.click());
+    release();
+    await act(async () => {});
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Stopped");
+    expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+
+  test("an answer drafted on Home is replayed here instead of asked again", async () => {
+    window.sessionStorage.setItem("automator.pending-prompt", "Post my balance to Discord");
+    window.sessionStorage.setItem("automator.ai-draft-answer", JSON.stringify(proposal));
+    await mount({ focusOnMount: true });
+
+    expect(calls).toHaveLength(0);
+    expect(container.textContent).toContain("Post my balance to Discord");
+    expect(container.textContent).toContain("Changed the message.");
+    expect(buttonNamed("Replace canvas")).toBeDefined();
+    expect(window.sessionStorage.getItem("automator.ai-draft-answer")).toBeNull();
+  });
+
+  test("a handover that lost its answer asks the model from here", async () => {
+    window.sessionStorage.setItem("automator.pending-prompt", "Post my balance to Discord");
+    await mount({ focusOnMount: true });
+
+    expect(calls).toHaveLength(1);
+    expect((calls[0]!.body as { prompt: string }).prompt).toBe("Post my balance to Discord");
   });
 
   test("composing text does not submit through the local keyboard shortcut", async () => {

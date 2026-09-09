@@ -190,3 +190,22 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* The wait: what is happening, how long it has taken, and the way out of it. */
+.waiting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.elapsed {
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A failed check is the one thing in this card that must not be read past. */
+.preview [data-failed] {
+  color: var(--destructive-text);
+  font-weight: 500;
+}

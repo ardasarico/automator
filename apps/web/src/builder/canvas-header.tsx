@@ -10,9 +10,19 @@ import {
   AlertDialogPopup,
   AlertDialogTitle,
 } from "@automator/ui/alert-dialog";
+import { Badge } from "@automator/ui/badge";
 import { Button } from "@automator/ui/button";
+import {
+  Menu,
+  MenuGroupLabel,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuTrigger,
+} from "@automator/ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import {
+  RiArrowDownSLine,
   RiArrowGoBackLine,
   RiArrowGoForwardLine,
   RiPlayLine,
@@ -23,6 +33,8 @@ import {
 import { useState } from "react";
 import { useShortcut } from "../lib/shortcuts";
 import { useBuilderDialogs } from "./builder-dialogs";
+import { getCatalogEntry } from "./catalog";
+import { CatalogIconMark } from "./catalog-icon";
 import styles from "./flow-builder.module.css";
 import { useFlowActivation } from "./flow-activation";
 import { FlowProblemsButton } from "./flow-problems-button";
@@ -32,7 +44,8 @@ import { useRunStore } from "./run-store-provider";
 import { SaveButton, useSaveFlowController } from "./save-button";
 import { useBuilderStore } from "./store-provider";
 import { useCanvasHotkeys } from "./use-canvas-hotkeys";
-import { useFlowRun } from "./use-flow-run";
+import { useFlowRun, useSimulationTriggers, type SimulationTrigger } from "./use-flow-run";
+import { useSelectNode } from "./use-select-node";
 
 /** A control whose tooltip names both what it does and the key that does it. */
 function HeaderAction({
@@ -96,6 +109,97 @@ function UndoRedo() {
   );
 }
 
+/** A trigger reads by the name on its card, falling back to what the catalog calls it. */
+function triggerName(trigger: SimulationTrigger): string {
+  return trigger.label || getCatalogEntry(trigger.type).label;
+}
+
+/**
+ * Which trigger the next run starts from. A flow with one starting trigger needs no control at
+ * all, so this appears only once there is a genuine choice; picking selects the node on the
+ * canvas, which is what the run reads, so the two can never disagree.
+ */
+function TriggerPicker({ disabled }: { disabled: boolean }) {
+  const { triggers, activeId } = useSimulationTriggers();
+  const selectNode = useSelectNode();
+  if (triggers.length < 2) return null;
+  const active = triggers.find((trigger) => trigger.id === activeId);
+  const name = active ? triggerName(active) : "No trigger";
+  return (
+    <Menu>
+      <MenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className={styles.triggerPicker}
+            disabled={disabled}
+            aria-label={`Starting trigger: ${name}`}
+          />
+        }
+      >
+        {active && <CatalogIconMark icon={getCatalogEntry(active.type).icon} />}
+        <span className={styles.triggerPickerName}>{name}</span>
+        <RiArrowDownSLine aria-hidden="true" />
+      </MenuTrigger>
+      <MenuPopup align="start" className="max-w-80">
+        <MenuRadioGroup value={activeId ?? ""} onValueChange={(next) => selectNode(String(next))}>
+          {/* The label names the group, so it has to sit inside it: Base UI throws otherwise. */}
+          <MenuGroupLabel>Start the run from</MenuGroupLabel>
+          {triggers.map((trigger) => {
+            const kind = getCatalogEntry(trigger.type).label;
+            const name = triggerName(trigger);
+            return (
+              <MenuRadioItem key={trigger.id} value={trigger.id}>
+                <span className={styles.triggerPickerItem}>
+                  <span className={styles.triggerPickerItemName}>{name}</span>
+                  {/* Only a renamed node needs its kind spelled out under the name it was given. */}
+                  {name !== kind && <span className={styles.triggerPickerItemType}>{kind}</span>}
+                </span>
+              </MenuRadioItem>
+            );
+          })}
+        </MenuRadioGroup>
+      </MenuPopup>
+    </Menu>
+  );
+}
+
+/**
+ * The saved flow is starting runs on its own right now. This is about the flow, not about the run
+ * the header is set up to make, which is what the Simulate/Live control beside it decides.
+ */
+function ActiveFlowBadge() {
+  const { enabled } = useFlowActivation();
+  const dialogs = useBuilderDialogs();
+  if (!enabled) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Badge
+            variant="success"
+            render={
+              <button
+                type="button"
+                aria-label="Active flow: open Flow settings"
+                onClick={() => dialogs.open("settings")}
+              />
+            }
+          />
+        }
+      >
+        <span className={styles.activeDot} aria-hidden="true" />
+        Active
+      </TooltipTrigger>
+      <TooltipPopup side="bottom" className="max-w-72">
+        This flow is active: its saved version starts its own runs from the webhook, schedule,
+        onchain-event, price and balance triggers it has. Open Flow settings to turn it off.
+      </TooltipPopup>
+    </Tooltip>
+  );
+}
+
 /** Named once per session before the first run that signs anything. */
 function LiveRunConfirmation({ onConfirm, onClose }: { onConfirm(): void; onClose(): void }) {
   const meta = useBuilderStore((state) => state.meta);
@@ -128,6 +232,8 @@ function LiveRunConfirmation({ onConfirm, onClose }: { onConfirm(): void; onClos
 
 export function CanvasHeader() {
   const { running, error, run, stop: stopSimulation } = useFlowRun();
+  // The header hands the run the trigger it is showing, so the two can never name different ones.
+  const { activeId } = useSimulationTriggers();
   const { liveMode } = useFlowActivation();
   const runLabel = liveMode ? "Run live" : "Run";
   const runError = useRunStore((state) => state.run?.error ?? null);
@@ -144,7 +250,7 @@ export function CanvasHeader() {
       setConfirming(true);
       return;
     }
-    void run();
+    void run(activeId ?? undefined);
   }
 
   useCanvasHotkeys({ save: () => void saving.save(), run: startRun });
@@ -170,6 +276,7 @@ export function CanvasHeader() {
           {runLabel} <span className={styles.shortcutHint}>{runShortcut}</span>
         </TooltipPopup>
       </Tooltip>
+      <TriggerPicker disabled={running} />
       {running && (
         <>
           <Tooltip>
@@ -203,6 +310,7 @@ export function CanvasHeader() {
         </p>
       )}
       <div className={styles.headerEnd}>
+        <ActiveFlowBadge />
         <Tooltip>
           <TooltipTrigger
             render={
@@ -228,7 +336,7 @@ export function CanvasHeader() {
           onClose={() => setConfirming(false)}
           onConfirm={() => {
             setLiveConfirmed(true);
-            void run();
+            void run(activeId ?? undefined);
           }}
         />
       )}

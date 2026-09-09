@@ -21,7 +21,11 @@ class FlowRequestError extends Error {
     super(code);
   }
 }
+/* mock.module writes to Bun's process-global registry, so a partial mock breaks every later suite
+ * that imports the real module. Keep the untouched exports by spreading them back in. */
+const flowsClient = await import("../flows/client");
 mock.module("../flows/client", () => ({
+  ...flowsClient,
   FlowRequestError,
   saveFlowRequest: (_id: string, _token: string, input: { name: string }) =>
     new Promise<void>((resolve, reject) => {

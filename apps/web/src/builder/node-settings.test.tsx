@@ -244,4 +244,53 @@ describe("NodeSettings", () => {
     await act(async () => undo!());
     expect(container.querySelector<HTMLInputElement>("#ai-labels")!.value).toBe("Original");
   });
+
+  test("keeps a long resolved value inside the panel and lets the reader open it", async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    const long = "0xD8dA6BF26964aF9D7eEd9e03E53415D37aA96045 lives at Example Street 1, Berlin";
+    const run: FlowRun = {
+      id: "run-2",
+      flowId: "f",
+      status: "succeeded",
+      startedAt: "2026-09-08T10:00:00.000Z",
+      finishedAt: "2026-09-08T10:00:01.000Z",
+      trigger: { nodeId: "t", payload: {} },
+      variables: {},
+      nodes: [
+        { nodeId: "t", status: "succeeded", outputs: { visitor: {} } },
+        { nodeId: "form", status: "succeeded", outputs: { submitted: { address: long } } },
+      ],
+    };
+    const node = hydrateFlow(document).nodes.find((n) => n.id === "d")!;
+    container = window.document.createElement("div");
+    window.document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <BuilderStoreProvider document={document}>
+          <RunStoreProvider initialRun={run} initialDocument={document}>
+            <NodeSettings
+              node={{
+                ...node,
+                data: { ...node.data, config: { content: "{{input.message.address}}" } },
+              }}
+              onBack={() => {}}
+            />
+          </RunStoreProvider>
+        </BuilderStoreProvider>,
+      );
+    });
+    const value = container.querySelector<HTMLButtonElement>("dd button")!;
+    expect(value).not.toBeNull();
+    // Clipped to the panel, with the whole value a hover or a click away.
+    expect(value.className).toContain("truncate");
+    expect(value.title).toContain(long);
+    expect(value.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => value.click());
+    expect(container.querySelector<HTMLButtonElement>("dd button")!.className).toContain(
+      "whitespace-pre-wrap",
+    );
+    expect(container.querySelector("dl")!.className).toContain("w-full");
+  });
 });

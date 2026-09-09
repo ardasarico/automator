@@ -1,6 +1,6 @@
 import { filterConfigSchema, mergeConfigSchema, switchConfigSchema } from "@automator/contracts";
 import { NodeExecutionError, type ExecutorRegistry } from "./executor";
-import { compare } from "./compare";
+import { compare, compareForNode } from "./compare";
 
 function readPath(item: unknown, path: string): unknown {
   if (!path) return item;
@@ -55,8 +55,10 @@ export const logicExecutors: ExecutorRegistry = {
         throw new NodeExecutionError("Filter needs a list of items to filter");
       const kept: unknown[] = [];
       const dropped: unknown[] = [];
-      for (const item of items)
-        (compare(readPath(item, field), operator, value) ? kept : dropped).push(item);
+      for (const [index, item] of items.entries()) {
+        const where = `Filter, item ${index + 1} of ${items.length}`;
+        (compareForNode(where, readPath(item, field), operator, value) ? kept : dropped).push(item);
+      }
       return { kept, dropped };
     },
   },

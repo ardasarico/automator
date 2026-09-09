@@ -1,6 +1,7 @@
 import {
   createFlowContract,
   deleteFlowContract,
+  findActivationBlockers,
   findFlowDocumentProblem,
   getFlowContract,
   isFlowDocumentInput,
@@ -15,6 +16,9 @@ import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
 import type { IdentityProvider } from "../auth/privy";
 import { isStoredDocumentValid } from "./stored";
+
+/** Matches `maxItems` on the refusal contract; a long list is a wall of text anyway. */
+const activationProblemLimit = 50;
 
 export interface FlowDependencies {
   flows: FlowStore;
@@ -77,6 +81,17 @@ export function createFlowRoutes({ flows, identity, versions, log = false }: Flo
       patchFlowContract.path,
       async ({ claims, params, body, status }) => {
         if (!isFlowPatch(body)) return status(422, { error: "invalid_flow" });
+        // Activation is the last point at which a broken flow can still be stopped: past here the
+        // scheduler runs it unattended and the owner only learns from run history. The stored
+        // document is checked, not the client's, so a direct API call cannot skip this. Only
+        // errors block — a fork blanks every secret, and those warnings are a normal live state.
+        // Deactivating is never refused: a live flow must always be switchable off.
+        if (body.enabled === true) {
+          const stored = await flows.find(claims.id, params.id);
+          if (!stored) return status(404, { error: "not_found" });
+          const problems = findActivationBlockers(stored.flow).slice(0, activationProblemLimit);
+          if (problems.length > 0) return status(422, { error: "invalid_flow", problems });
+        }
         let record = null;
         if (body.enabled !== undefined)
           record = await flows.setEnabled(claims.id, params.id, body.enabled);
@@ -87,6 +102,8 @@ export function createFlowRoutes({ flows, identity, versions, log = false }: Flo
       {
         params: patchFlowContract.params,
         body: Type.Unknown(),
+        // The contract's 422 carries the problems that blocked activation; Elysia cleans a
+        // response to the schema it is given, so they reach the client only because it does.
         response: patchFlowContract.response,
       },
     )

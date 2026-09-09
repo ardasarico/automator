@@ -14,8 +14,13 @@ const options: readonly {
   body: string;
 }[] = [
   {
+    /*
+     * The description is collected where the drafting happens, on Home. Creating the flow here
+     * first would persist an "Untitled flow" before the user has said anything, and leaving
+     * without asking — or a draft that fails — would leave that empty flow behind.
+     */
     id: "ai",
-    action: createFlowAction.bind(null, { ai: true }),
+    href: "/?draft=1",
     icon: RiSparklingLine,
     title: "Describe it to AI",
     body: "Say what should happen; the assistant drafts the nodes and you refine them.",

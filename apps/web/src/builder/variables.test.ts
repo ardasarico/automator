@@ -29,10 +29,10 @@ describe("listVariables", () => {
     ]);
   });
 
-  test("expands a form's fields when the form feeds the node directly", () => {
+  test("expands a form's fields when the form feeds the node directly, object last", () => {
     expect(listVariables("save", nodes, edges).slice(0, 2)).toEqual([
-      { template: "{{input.value}}", source: "Node form", label: "Submitted" },
-      { template: "{{input.value.email}}", source: "Node form", label: "Email" },
+      { template: "{{input.value.email}}", source: "Node form", label: "Email", kind: "text" },
+      { template: "{{input.value}}", source: "Node form", label: "Submitted", kind: "object" },
     ]);
   });
 
@@ -48,24 +48,140 @@ describe("listVariables", () => {
       { source: "login", target: "verify", sourceHandle: "user", targetHandle: "visitor" },
       { source: "verify", target: "d", sourceHandle: "verified", targetHandle: "message" },
     ];
+    const login = { source: "Node login", kind: "text" } as const;
     expect(listVariables("verify", identity, wires).slice(0, 5)).toEqual([
-      { template: "{{input.visitor}}", source: "Node login", label: "User" },
-      { template: "{{input.visitor.userId}}", source: "Node login", label: "User id" },
-      { template: "{{input.visitor.email}}", source: "Node login", label: "Email" },
-      { template: "{{input.visitor.wallet}}", source: "Node login", label: "Wallet" },
-      { template: "{{input.visitor.loginMethod}}", source: "Node login", label: "Login method" },
+      { template: "{{input.visitor.userId}}", ...login, label: "User id" },
+      { template: "{{input.visitor.email}}", ...login, label: "Email" },
+      { template: "{{input.visitor.wallet}}", ...login, label: "Wallet" },
+      { template: "{{input.visitor.loginMethod}}", ...login, label: "Login method" },
+      {
+        template: "{{input.visitor}}",
+        source: "Node login",
+        label: "User details",
+        kind: "object",
+      },
     ]);
     const options = listVariables("d", identity, wires);
     expect(options).toContainEqual({
       template: "{{input.message.nullifierHash}}",
       source: "Node verify",
       label: "Nullifier hash",
+      kind: "text",
     });
     expect(options).toContainEqual({
       template: "{{vars.visitor.email}}",
       source: "Node login",
       label: "Email",
+      kind: "text",
     });
+  });
+
+  test("offers a balance's amount as a number before the object it sits in", () => {
+    const graph = [
+      node("t", "trigger.manual"),
+      node("bal", "usdc.balance"),
+      node("if", "logic.condition"),
+    ];
+    const wires = [
+      { source: "t", target: "bal", sourceHandle: "run", targetHandle: "in" },
+      { source: "bal", target: "if", sourceHandle: "balance", targetHandle: "value" },
+    ];
+    // The numeric leaf leads: {{input.value}} is an object, and Number({…}) is NaN forever.
+    expect(listVariables("if", graph, wires).slice(0, 4)).toEqual([
+      {
+        template: "{{input.value.formatted}}",
+        source: "Node bal",
+        label: "Balance",
+        kind: "number",
+      },
+      {
+        template: "{{input.value.raw}}",
+        source: "Node bal",
+        label: "Balance in base units",
+        kind: "number",
+      },
+      {
+        template: "{{input.value.address}}",
+        source: "Node bal",
+        label: "Wallet address",
+        kind: "text",
+      },
+      {
+        template: "{{input.value}}",
+        source: "Node bal",
+        label: "Balance details",
+        kind: "object",
+      },
+    ]);
+  });
+
+  test("carries a shape through a condition, the way the bundled example writes it by hand", () => {
+    // usdc-balance-alert reads {{input.message.formatted}} after its condition; the True port
+    // hands on the balance the condition read, so its leaves have to survive the step.
+    const graph = [
+      node("start", "trigger.manual"),
+      node("balance", "usdc.balance"),
+      node("check", "logic.condition"),
+      node("notify", "notify.discord"),
+    ];
+    const wires = [
+      { source: "start", target: "balance", sourceHandle: "run", targetHandle: "wallet" },
+      { source: "balance", target: "check", sourceHandle: "balance", targetHandle: "value" },
+      { source: "check", target: "notify", sourceHandle: "true", targetHandle: "message" },
+    ];
+    expect(listVariables("notify", graph, wires).slice(0, 4)).toEqual([
+      {
+        template: "{{input.message.formatted}}",
+        source: "Node check",
+        label: "Balance",
+        kind: "number",
+      },
+      {
+        template: "{{input.message.raw}}",
+        source: "Node check",
+        label: "Balance in base units",
+        kind: "number",
+      },
+      {
+        template: "{{input.message.address}}",
+        source: "Node check",
+        label: "Wallet address",
+        kind: "text",
+      },
+      { template: "{{input.message}}", source: "Node check", label: "True", kind: "object" },
+    ]);
+  });
+
+  test("expands the receipts, wallets and deliveries other nodes hand on", () => {
+    const templates = (type: FlowNode["type"], handle: string) =>
+      listVariables(
+        "x",
+        [node("s", type), node("x", "notify.discord")],
+        [{ source: "s", target: "x", sourceHandle: handle, targetHandle: "message" }],
+      ).map((option) => option.template);
+
+    expect(templates("usdc.payout", "receipt")).toEqual([
+      "{{input.message.amount}}",
+      "{{input.message.to}}",
+      "{{input.message.hash}}",
+      "{{input.message.token}}",
+      "{{input.message.simulated}}",
+      "{{input.message}}",
+    ]);
+    expect(templates("privy.wallet", "wallet")).toEqual([
+      "{{input.message.address}}",
+      "{{input.message.chainId}}",
+      "{{input.message.chainName}}",
+      "{{input.message}}",
+    ]);
+    expect(templates("notify.email", "sent")).toEqual([
+      "{{input.message.id}}",
+      "{{input.message.to}}",
+      "{{input.message}}",
+    ]);
+    // A port whose value only the run knows still offers itself, and nothing invented.
+    expect(templates("ai.generate-text", "text")).toEqual(["{{input.message}}"]);
+    expect(templates("logic.run-code", "output")).toEqual(["{{input.message}}"]);
   });
 
   test("is empty for a node with nothing upstream", () => {
@@ -90,7 +206,7 @@ describe("listVariables", () => {
       [{ source: "w", target: "x" }],
     );
     expect(options.slice(1)).toEqual([
-      { template: "{{trigger}}", source: "Node w", label: "Payload" },
+      { template: "{{trigger}}", source: "Node w", label: "Payload", kind: "object" },
       { template: "{{trigger.method}}", source: "Node w", label: "method" },
       { template: "{{trigger.body}}", source: "Node w", label: "body" },
     ]);
@@ -119,7 +235,7 @@ describe("listVariables", () => {
     );
     expect(options).toEqual([
       { template: "{{input.input}}", source: "Node w", label: "Output" },
-      { template: "{{trigger}}", source: "Node w", label: "Payload" },
+      { template: "{{trigger}}", source: "Node w", label: "Payload", kind: "object" },
       { template: "{{trigger.method}}", source: "Node w", label: "method" },
       { template: "{{trigger.headers}}", source: "Node w", label: "headers" },
       { template: "{{trigger.query}}", source: "Node w", label: "query" },
@@ -144,11 +260,21 @@ describe("listVariables", () => {
       { source: "find", target: "d", sourceHandle: "found", targetHandle: "message" },
     ];
     expect(listVariables("d", graph, wires, [], [table]).slice(0, 5)).toEqual([
-      { template: "{{input.message}}", source: "Node find", label: "Found" },
-      { template: "{{input.message.count}}", source: "Node find", label: "Match count" },
-      { template: "{{input.message.first.id}}", source: "Node find", label: "Record id" },
+      {
+        template: "{{input.message.count}}",
+        source: "Node find",
+        label: "Match count",
+        kind: "number",
+      },
+      {
+        template: "{{input.message.first.id}}",
+        source: "Node find",
+        label: "Record id",
+        kind: "text",
+      },
       { template: "{{input.message.first.values.email}}", source: "Node find", label: "Email" },
       { template: "{{input.message.first.values.plan}}", source: "Node find", label: "Plan" },
+      { template: "{{input.message}}", source: "Node find", label: "Found", kind: "object" },
     ]);
     // The empty branch carries no record, and an unlisted table offers no columns.
     expect(
@@ -177,9 +303,9 @@ describe("listVariables", () => {
     ];
     const tables = [{ id: "tbl_customers", columns: [{ id: "email", name: "Email" }] }];
     expect(listVariables("d", graph, wires, [], tables).slice(0, 3)).toEqual([
-      { template: "{{input.message}}", source: "Node make", label: "Record" },
-      { template: "{{input.message.id}}", source: "Node make", label: "Record id" },
+      { template: "{{input.message.id}}", source: "Node make", label: "Record id", kind: "text" },
       { template: "{{input.message.values.email}}", source: "Node make", label: "Email" },
+      { template: "{{input.message}}", source: "Node make", label: "Record", kind: "object" },
     ]);
   });
 });

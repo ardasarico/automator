@@ -1,6 +1,9 @@
 import {
+  defaultInterval,
   flowChainId,
+  intervalFormats,
   onchainEventTriggerConfigSchema,
+  parseInterval,
   parseNodeConfig,
   type FlowNode,
   type FlowRecord,
@@ -44,22 +47,21 @@ export interface SchedulerDependencies {
   watchSources?: WatchSources;
 }
 
-const units: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
-
-export function parseInterval(text: string): number | null {
-  const match = /^\s*(\d+)\s*([smhd])?\s*$/i.exec(text);
-  if (!match) return null;
-  const amount = Number(match[1]);
-  const milliseconds = amount * units[(match[2] ?? "m").toLowerCase()]!;
-  return Number.isSafeInteger(milliseconds) && milliseconds > 0 ? milliseconds : null;
-}
-
-function scheduleTriggers(nodes: readonly FlowNode[]): { node: FlowNode; every: number }[] {
+/**
+ * The schedule triggers this scheduler can fire on. An interval it cannot read is reported
+ * rather than skipped in silence: such a trigger never fires, and the flow looks healthy.
+ */
+function scheduleTriggers(
+  nodes: readonly FlowNode[],
+  unreadable: (node: FlowNode, text: string) => void,
+): { node: FlowNode; every: number }[] {
   const triggers: { node: FlowNode; every: number }[] = [];
   for (const node of nodes) {
     if (node.type !== "trigger.schedule") continue;
-    const every = parseInterval(String(node.config.every ?? "1h"));
-    if (every !== null) triggers.push({ node, every });
+    const text = String(node.config.every ?? defaultInterval);
+    const every = parseInterval(text);
+    if (every === null) unreadable(node, text);
+    else triggers.push({ node, every });
   }
   return triggers;
 }
@@ -369,7 +371,11 @@ export function createScheduler({
       const flowId = record.flow.id;
       if (inFlight.has(flowId)) continue;
       try {
-        const schedules = scheduleTriggers(record.flow.nodes);
+        const schedules = scheduleTriggers(record.flow.nodes, (node, text) =>
+          log(
+            `Flow ${flowId} trigger ${node.id} never fires: "${text}" is not an interval such as ${intervalFormats}`,
+          ),
+        );
         const events = eventTriggers(record.flow.nodes);
         const due: { node: FlowNode; every: number }[] = [];
         for (const { node, every } of schedules) {

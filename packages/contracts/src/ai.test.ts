@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { Value } from "@sinclair/typebox/value";
 import {
+  aiErrorDetail,
+  aiErrorDetailMaxLength,
+  aiFlowTestSchema,
   explainRunContract,
   generateFlowContract,
   generateFlowResponseSchema,
@@ -126,5 +129,29 @@ describe("redaction", () => {
     expect(redacted.error).toBe(`sent ${redactedValue}`);
     expect(redacted.nodes[0]!.outputs).toEqual({ run: { token: redactedValue } });
     expect(redacted.nodes[1]!.error).toBe(`bad ${redactedValue}`);
+  });
+
+  test("aiErrorDetail redacts, collapses to one line and bounds the length", () => {
+    expect(aiErrorDetail("Scenario:\n  n2.value expected 1, got {{secrets.hook}}")).toBe(
+      `Scenario: n2.value expected 1, got ${redactedValue}`,
+    );
+    expect(aiErrorDetail("   ")).toBeUndefined();
+    const long = aiErrorDetail("x".repeat(1000))!;
+    expect(long.length).toBe(aiErrorDetailMaxLength);
+    expect(long.endsWith("\u2026")).toBe(true);
+  });
+
+  test("an expectation may compare with equals, greaterThan, lessThan or contains", () => {
+    const scenario = (expectation: unknown) => ({ name: "Balance", expect: [expectation] });
+    expect(Value.Check(aiFlowTestSchema, scenario({ nodeId: "n2" }))).toBe(true);
+    expect(
+      Value.Check(aiFlowTestSchema, scenario({ nodeId: "n2", output: "value", greaterThan: 10 })),
+    ).toBe(true);
+    expect(
+      Value.Check(aiFlowTestSchema, scenario({ nodeId: "n2", output: "value", contains: "USDC" })),
+    ).toBe(true);
+    expect(
+      Value.Check(aiFlowTestSchema, scenario({ nodeId: "n2", output: "value", greaterThan: "10" })),
+    ).toBe(false);
   });
 });

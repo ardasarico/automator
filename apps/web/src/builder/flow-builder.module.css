@@ -259,6 +259,91 @@
   margin-inline: 4px;
   background: var(--border);
 }
+/* Reads as a live state at a glance, and does not look like the run-mode control beside it. */
+.activeDot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Names the trigger the next run starts from; only shown when a flow has more than one. */
+.triggerPicker {
+  max-width: 200px;
+}
+.triggerPickerName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.triggerPickerItem {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.triggerPickerItemName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.triggerPickerItemType {
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+
+/* The flow name doubles as its rename control, so it has to look pressable rather than printed. */
+.flowTitleHeading {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  font-weight: 500;
+}
+.flowTitle {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding-inline: 4px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+.flowTitle:hover {
+  background: var(--accent);
+}
+.flowTitle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+}
+.flowTitleIcon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--muted-foreground);
+  opacity: 0.56;
+}
+.flowTitlePencil {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--muted-foreground);
+  opacity: 0;
+}
+.flowTitle:hover .flowTitlePencil,
+.flowTitle:focus-visible .flowTitlePencil {
+  opacity: 0.72;
+}
+
 /* The key that runs a control, shown beside its name in a tooltip. */
 .shortcutHint {
   margin-inline-start: 6px;

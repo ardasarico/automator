@@ -408,3 +408,61 @@
     transition: none;
   }
 }
+
+/*
+ * The page's own shape while the flows are being read. The controls keep their real size so
+ * the bars do not resize, and the cards and rows sit on the grids above, so arriving fills
+ * the shape in rather than replacing it.
+ */
+.ghostSearch {
+  width: min(100%, 240px);
+  height: 30px;
+  border-radius: var(--radius-lg);
+}
+.ghostAction {
+  width: 96px;
+  height: 28px;
+  border-radius: var(--radius-lg);
+}
+.ghostSort {
+  width: 108px;
+  height: 28px;
+  border-radius: var(--radius-lg);
+}
+.ghostView {
+  width: 62px;
+  height: 28px;
+  margin-inline-start: auto;
+  border-radius: var(--radius-lg);
+}
+.ghostName {
+  width: 58%;
+  height: 0.9lh;
+}
+.ghostTrigger {
+  width: 74%;
+  height: 0.8lh;
+  margin-top: 6px;
+}
+.ghostRun {
+  width: 44%;
+  height: 0.8lh;
+  margin-top: 8px;
+}
+.ghostFlowName {
+  width: 148px;
+  height: 0.9lh;
+}
+/* Sized to the words each column holds, so the header rules keep their real widths. */
+.ghostCell {
+  width: 108px;
+  height: 0.8lh;
+}
+.ghostCellSm {
+  width: 64px;
+  height: 0.8lh;
+}
+.numeric .ghostCellSm {
+  width: 24px;
+  margin-inline-start: auto;
+}

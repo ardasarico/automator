@@ -76,6 +76,18 @@ function ExplainButton({ nodeId }: { nodeId?: string }) {
   );
 }
 
+/* A skipped node did not necessarily lack an edge: the run may have stopped elsewhere first. */
+function skippedMessage(result: FlowRunNodeResult): string {
+  switch (result.skipReason) {
+    case "no-input":
+      return "No incoming edge fired, so this node did not run.";
+    case "run-stopped":
+      return "The run stopped at an earlier node, so this one did not run.";
+    default:
+      return "This node did not run.";
+  }
+}
+
 function Outputs({ result, chainId }: { result: FlowRunNodeResult; chainId: number }) {
   const outputs = result.outputs ?? {};
   const handles = outputHandles(result);
@@ -96,9 +108,7 @@ function Outputs({ result, chainId }: { result: FlowRunNodeResult; chainId: numb
       </>
     );
   if (result.status === "skipped")
-    return (
-      <p className={styles.runDetailMuted}>No incoming edge fired, so this node did not run.</p>
-    );
+    return <p className={styles.runDetailMuted}>{skippedMessage(result)}</p>;
   if (result.status === "waiting")
     return <p className={styles.runDetailMuted}>The run stopped here until a visitor acts.</p>;
   if (handles.length === 0)

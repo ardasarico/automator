@@ -5,6 +5,7 @@ import {
   flowChainId,
   redactFlowSecrets,
   restoreFlowSecrets,
+  type AiVerification,
   type FlowDocument,
   type FlowEdge,
   type FlowNode,
@@ -13,10 +14,10 @@ import { Button } from "@automator/ui/button";
 import { Checkbox } from "@automator/ui/checkbox";
 import { Field, FieldLabel } from "@automator/ui/field";
 import { Textarea } from "@automator/ui/textarea";
-import { RiRestartLine, RiSendPlaneLine } from "@remixicon/react";
+import { RiCloseLine, RiRestartLine, RiSendPlaneLine } from "@remixicon/react";
 import { useReactFlow } from "@xyflow/react";
 import { useEffect, useRef, useState } from "react";
-import { describeAiFailure, generateFlowRequest } from "./ai-client";
+import { describeAiFailure, formatElapsed, generateFlowRequest, takeAiAnswer } from "./ai-client";
 import { historyOf, type AiProposal, type AiTurn } from "./ai-store";
 import { useAiStore } from "./ai-store-provider";
 import { takePendingPrompt } from "../home/pending-prompt";
@@ -79,6 +80,39 @@ const proposalStates: Record<Exclude<AiProposal["state"], "pending">, string> = 
   stale: "Superseded by a later change",
 };
 
+/**
+ * A report where every scenario was skipped proves nothing, and a flow presented as checked on
+ * the strength of it reads as verified when it is not.
+ */
+export function verificationHeading(verification: AiVerification): string {
+  /* Loudest first: a draft that failed its checks is still on offer, and must not read as one
+     that passed them. */
+  if (verification.checks.some((check) => check.status === "failed"))
+    return "This flow did not pass its checks";
+  if (verification.checks.length === 0) return "Automatic checks did not run";
+  if (verification.checks.every((check) => check.status === "skipped"))
+    return "Automatic checks could not exercise this flow";
+  return "Automatic checks · no external actions";
+}
+
+const checkLabels: Record<AiVerification["checks"][number]["status"], string> = {
+  passed: "Passed",
+  failed: "Failed",
+  skipped: "Not tested",
+};
+
+/** Mounted only while a request is in flight, so each wait starts its own count at zero. */
+function Elapsed() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    // Measured against the clock, not counted in ticks: a throttled tab must not undercount.
+    const started = Date.now();
+    const timer = setInterval(() => setSeconds((Date.now() - started) / 1000), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return <span className={styles.elapsed}>{formatElapsed(seconds)}</span>;
+}
+
 function ProposalCard({
   turn,
   proposal,
@@ -96,6 +130,7 @@ function ProposalCard({
   const hasNodes = nodes.length > 0;
   if (proposal.state !== "pending")
     return <p className={styles.proposalState}>{proposalStates[proposal.state]}</p>;
+  const failedCheck = proposal.verification?.checks.some((check) => check.status === "failed");
   const current = serializeFlow(meta, nodes, edges);
   const next = proposalDocument(proposal, current);
   const changes = diffNodes(current.nodes, next.nodes);
@@ -113,11 +148,15 @@ function ProposalCard({
     <div className={styles.preview} role="region" aria-label="Proposed flow">
       {proposal.verification && (
         <div className="space-y-2 text-caption wrap-anywhere" aria-label="Automatic checks">
-          <p>Automatic checks · no external actions</p>
+          {/* Nothing was exercised, or something failed: saying "checked" here would be the lie
+              the panel used to tell. */}
+          <p data-failed={failedCheck ? "" : undefined}>
+            {verificationHeading(proposal.verification)}
+          </p>
           <ul>
             {proposal.verification.checks.map((check, index) => (
               <li key={index}>
-                {check.status === "passed" ? "Passed" : "Not tested"}: {check.name} — {check.detail}
+                {checkLabels[check.status]}: {check.name} — {check.detail}
               </li>
             ))}
           </ul>
@@ -168,7 +207,7 @@ function ProposalCard({
         <Button variant="ghost" size="sm" onClick={onDiscard}>
           Discard
         </Button>
-        <Button size="sm" onClick={onApply}>
+        <Button size="sm" variant={failedCheck ? "outline" : undefined} onClick={onApply}>
           {proposal.replaces && hasNodes ? "Replace canvas" : "Apply changes"}
         </Button>
       </div>
@@ -207,6 +246,8 @@ export function AiPanel() {
   const hasNodes = nodes.length > 0;
   const [prompt, setPrompt] = useState("");
   const [edit, setEdit] = useState(true);
+  /* The wait runs into minutes, so the panel stays interruptible for as long as it lasts. */
+  const request = useRef<AbortController | null>(null);
   const thread = useRef<HTMLDivElement>(null);
   const promptField = useRef<HTMLTextAreaElement>(null);
   const focusRequests = useAiStore((state) => state.focusRequests);
@@ -223,9 +264,10 @@ export function AiPanel() {
   }, [focusRequests]);
 
   /*
-   * Home creates the flow and hands the prompt over, so the first answer is drawn here rather
-   * than behind a spinner on Home. Only a canvas opened for the AI collects it, and the prompt
-   * is read once: reloading this page does not ask again.
+   * Home asks the model before it creates anything, so a draft that fails never becomes a flow.
+   * What arrives here is the question and its answer, replayed into the thread as if it had been
+   * asked from this panel. Both are read once: reloading this page neither replays nor re-asks.
+   * A handover that lost its answer still carries the prompt, and asks again from here.
    */
   const handedOver = useRef(false);
   const latestSend = useRef<(text: string) => Promise<void>>(async () => {});
@@ -237,8 +279,11 @@ export function AiPanel() {
     if (handedOver.current || focusRequests === 0) return;
     handedOver.current = true;
     const text = takePendingPrompt();
-    if (text !== null) void latestSend.current(text);
-  }, [focusRequests]);
+    if (text === null) return;
+    const drafted = takeAiAnswer();
+    if (drafted === null) void latestSend.current(text);
+    else answer(ask(text), drafted, { replaces: true });
+  }, [focusRequests, ask, answer]);
 
   async function send(handed?: string) {
     const text = (handed ?? prompt).trim();
@@ -246,15 +291,26 @@ export function AiPanel() {
     const askId = ask(text);
     if (handed === undefined) setPrompt("");
     const { id: _id, ...document } = serializeFlow(meta, nodes, edges);
+    const controller = new AbortController();
+    request.current = controller;
     try {
-      const result = await generateFlowRequest(await getAccessToken(), {
-        prompt: text,
-        ...(editing ? { document: redactFlowSecrets(document) } : {}),
-        history: historyOf(turns),
-      });
+      const result = await generateFlowRequest(
+        await getAccessToken(),
+        {
+          prompt: text,
+          ...(editing ? { document: redactFlowSecrets(document) } : {}),
+          history: historyOf(turns),
+        },
+        controller.signal,
+      );
       answer(askId, result, { replaces: !editing });
     } catch (error) {
-      fail(askId, describeAiFailure(error));
+      fail(
+        askId,
+        controller.signal.aborted ? "Stopped before the model answered." : describeAiFailure(error),
+      );
+    } finally {
+      if (request.current === controller) request.current = null;
     }
   }
 
@@ -320,9 +376,28 @@ export function AiPanel() {
           ),
         )}
         {pending && (
-          <p className={styles.thinking} role="status">
-            Creating and checking the flow…
-          </p>
+          <div className={styles.waiting} role="status">
+            <p className={styles.thinking}>
+              Drafting the flow… <Elapsed />
+            </p>
+            {/* One request: the panel names what the wait covers rather than inventing a
+                progress bar it cannot measure. */}
+            <p className={styles.thinking}>
+              It drafts, checks the result, and repairs it once if the checks fail. A couple of
+              minutes is normal.
+            </p>
+            <div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => request.current?.abort()}
+              >
+                <RiCloseLine aria-hidden="true" />
+                Stop
+              </Button>
+            </div>
+          </div>
         )}
       </div>
       <form

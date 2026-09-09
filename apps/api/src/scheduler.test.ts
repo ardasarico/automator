@@ -5,7 +5,7 @@ import { createStubChain, defaultExecutors, type ChainReader } from "@automator/
 import type { EventFilter, EventLog, EventReader } from "./chain/events";
 import type { ChainFactory } from "./chain/provider";
 import { memoryEventCursors, memoryStores, memoryWatchState } from "./runs/test-stores";
-import { createScheduler, parseInterval } from "./scheduler";
+import { createScheduler } from "./scheduler";
 import type { WatchSources } from "./watch/poll";
 
 function scheduled(id: string, every: string): FlowDocument {
@@ -33,22 +33,6 @@ function scheduled(id: string, every: string): FlowDocument {
     edges: [{ id: "e", source: "s", sourceHandle: "tick", target: "v", targetHandle: "value" }],
   };
 }
-
-describe("parseInterval", () => {
-  test.each([
-    ["30s", 30_000],
-    ["10m", 600_000],
-    ["1h", 3_600_000],
-    ["2d", 172_800_000],
-    ["15", 900_000],
-    [" 5 M ", 300_000],
-  ])("%s -> %d ms", (text, ms) => {
-    expect(parseInterval(text)).toBe(ms);
-  });
-  test.each(["", "0m", "abc", "1w", "-5m", "999999999999999999999d"])("rejects %s", (text) => {
-    expect(parseInterval(text)).toBeNull();
-  });
-});
 
 describe("scheduler", () => {
   function fixture() {
@@ -159,6 +143,24 @@ describe("scheduler", () => {
       "s",
       "fast",
       "fast",
+    ]);
+  });
+
+  test("an interval the scheduler cannot read is reported instead of silently skipped", async () => {
+    const stores = memoryStores([
+      { ownerId: "alice", flow: scheduled("weekly", "every Monday"), enabled: true },
+      /* A bare number has no unit, so it is not an interval either. */
+      { ownerId: "alice", flow: scheduled("bare", "30"), enabled: true },
+      { ownerId: "alice", flow: scheduled("hourly", "1h"), enabled: true },
+    ]);
+    const lines: string[] = [];
+    const scheduler = createScheduler({ ...stores, log: (line) => lines.push(line) });
+    expect(await scheduler.tick()).toEqual(["hourly"]);
+    await scheduler.settle();
+    expect(stores.runRecords.map((record) => record.run.flowId)).toEqual(["hourly"]);
+    expect(lines.filter((line) => line.includes("never fires"))).toEqual([
+      'Flow weekly trigger s never fires: "every Monday" is not an interval such as 30s, 15m, 1h or 7d',
+      'Flow bare trigger s never fires: "30" is not an interval such as 30s, 15m, 1h or 7d',
     ]);
   });
 

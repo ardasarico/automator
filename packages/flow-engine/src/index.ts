@@ -7,6 +7,7 @@ export {
   type NodeExecutor,
 } from "./executor";
 export { defaultExecutors } from "./executors";
+export { compare, ComparisonError, compareForNode } from "./compare";
 export type {
   ChainMode,
   ChainProvider,

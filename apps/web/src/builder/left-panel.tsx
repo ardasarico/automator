@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@automator/ui/button";
+import { Input } from "@automator/ui/input";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import {
   RiArrowLeftLine,
@@ -9,6 +10,7 @@ import {
   RiFlowChart,
   RiHistoryLine,
   RiListUnordered,
+  RiPencilLine,
   RiSettings3Line,
   RiStackLine,
 } from "@remixicon/react";
@@ -34,6 +36,76 @@ const sections: readonly { id: SectionId; label: string; icon: RemixiconComponen
   { id: "outline", label: "Outline", icon: RiListUnordered },
   { id: "history", label: "History", icon: RiHistoryLine },
 ];
+
+/** Matches the limit the settings dialog enforces on the same field. */
+const nameLimit = 120;
+
+/**
+ * The flow name, renamed where it is read. Renaming used to live at the bottom of the icon rail,
+ * behind Flow settings, while the name itself looked like a label and did nothing when clicked.
+ * The edit goes through `setMeta`, so Save picks it up like any other change.
+ */
+function FlowTitle() {
+  const name = useBuilderStore((state) => state.meta.name);
+  const setMeta = useBuilderStore((state) => state.setMeta);
+  const [draft, setDraft] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
+  const editing = draft !== null;
+  // Opening the field selects the name, so the common case of replacing it takes one keystroke.
+  useEffect(() => {
+    if (editing) field.current?.select();
+  }, [editing]);
+
+  function commit() {
+    const trimmed = (draft ?? "").trim();
+    if (trimmed && trimmed !== name) setMeta({ name: trimmed });
+    setDraft(null);
+  }
+
+  return (
+    <h1 className={styles.flowTitleHeading}>
+      {!editing ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                className={styles.flowTitle}
+                aria-label={`Rename flow: ${name}`}
+                onClick={() => setDraft(name)}
+              />
+            }
+          >
+            <RiFlowChart aria-hidden="true" className={styles.flowTitleIcon} />
+            <span className="truncate">{name}</span>
+            <RiPencilLine aria-hidden="true" className={styles.flowTitlePencil} />
+          </TooltipTrigger>
+          <TooltipPopup side="bottom">Rename flow</TooltipPopup>
+        </Tooltip>
+      ) : (
+        <Input
+          ref={field}
+          size="sm"
+          aria-label="Flow name"
+          className="min-w-0 flex-1"
+          maxLength={nameLimit}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commit();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              setDraft(null);
+            }
+          }}
+        />
+      )}
+    </h1>
+  );
+}
 
 function SidebarButton({
   label,
@@ -79,7 +151,6 @@ export function LeftPanel() {
   usePanelEscape(compact && panel === "left", closePanel);
   const [section, setSection] = useState<SectionId>("nodes");
   const dialogs = useBuilderDialogs();
-  const name = useBuilderStore((state) => state.meta.name);
   const selectedNode = useBuilderStore((state) => {
     const selected = state.nodes.filter((node) => node.selected);
     return selected.length === 1 ? selected[0] : undefined;
@@ -155,13 +226,7 @@ export function LeftPanel() {
         role={compact ? "dialog" : undefined}
       >
         <div className={styles.panelHeader}>
-          <h1 className="flex min-w-0 flex-1 items-center gap-1.5 px-1 text-caption font-medium">
-            <RiFlowChart
-              aria-hidden="true"
-              className="size-3.5 flex-none text-muted-foreground opacity-56"
-            />
-            <span className="truncate">{name}</span>
-          </h1>
+          <FlowTitle />
           <Button
             className={styles.compactControl}
             variant="ghost"

@@ -1,5 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
-import { apiErrorResponses } from "./contract";
+import { apiErrorCodeSchema } from "./contract";
 import { flowRunNodeResultSchema, flowRunStatusSchema, flowRunTriggerSchema } from "./flow-runs";
 import { flowDocumentInputSchema } from "./flows";
 
@@ -21,6 +21,23 @@ export const generateFlowRequestSchema = Type.Object({
 });
 export type GenerateFlowRequest = Static<typeof generateFlowRequestSchema>;
 
+/**
+ * One assertion about a run. `nodeId` alone asserts the node was reached; naming an `output`
+ * (with an optional `path` into it) asserts a value was produced there, and a comparison
+ * narrows that to a concrete claim. Several comparisons on one expectation all have to hold.
+ */
+export const aiFlowExpectationSchema = Type.Object({
+  nodeId: Type.String(),
+  output: Type.Optional(Type.String()),
+  path: Type.Optional(Type.String()),
+  equals: Type.Optional(Type.Unknown()),
+  greaterThan: Type.Optional(Type.Number()),
+  lessThan: Type.Optional(Type.Number()),
+  contains: Type.Optional(Type.String()),
+  screenBody: Type.Optional(Type.String()),
+});
+export type AiFlowExpectation = Static<typeof aiFlowExpectationSchema>;
+
 export const aiFlowTestSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 120 }),
   triggerNodeId: Type.Optional(Type.String()),
@@ -34,16 +51,7 @@ export const aiFlowTestSchema = Type.Object({
       }),
     ),
   ),
-  expect: Type.Array(
-    Type.Object({
-      nodeId: Type.String(),
-      output: Type.Optional(Type.String()),
-      path: Type.Optional(Type.String()),
-      equals: Type.Optional(Type.Unknown()),
-      screenBody: Type.Optional(Type.String()),
-    }),
-    { minItems: 1, maxItems: 12 },
-  ),
+  expect: Type.Array(aiFlowExpectationSchema, { minItems: 1, maxItems: 12 }),
 });
 export type AiFlowTest = Static<typeof aiFlowTestSchema>;
 
@@ -51,7 +59,9 @@ export const aiVerificationSchema = Type.Object({
   checks: Type.Array(
     Type.Object({
       name: Type.String(),
-      status: Type.Union([Type.Literal("passed"), Type.Literal("skipped")]),
+      /* passed: asserted and true. failed: asserted and false — a real problem in the flow.
+         skipped: not exercised, which asserts nothing either way. */
+      status: Type.Union([Type.Literal("passed"), Type.Literal("failed"), Type.Literal("skipped")]),
       detail: Type.String(),
     }),
     { maxItems: 8 },
@@ -77,11 +87,37 @@ export type AiMessageAnswer = Static<typeof aiMessageAnswerSchema>;
 export const generateFlowResponseSchema = Type.Union([aiFlowAnswerSchema, aiMessageAnswerSchema]);
 export type GenerateFlowResponse = Static<typeof generateFlowResponseSchema>;
 
+/**
+ * AI failures keep the stable `error` code for programmatic handling and add a short,
+ * human-readable `detail` so the panel can say what actually went wrong instead of
+ * "the model could not produce a valid flow". Build it with `aiErrorDetail`, never from a
+ * raw upstream payload.
+ */
+export const aiErrorDetailMaxLength = 300;
+
+export const aiErrorSchema = Type.Object({
+  error: apiErrorCodeSchema,
+  detail: Type.Optional(Type.String({ maxLength: aiErrorDetailMaxLength })),
+});
+export type AiError = Static<typeof aiErrorSchema>;
+
+const aiErrorResponses = {
+  400: aiErrorSchema,
+  401: aiErrorSchema,
+  403: aiErrorSchema,
+  404: aiErrorSchema,
+  409: aiErrorSchema,
+  422: aiErrorSchema,
+  429: aiErrorSchema,
+  500: aiErrorSchema,
+  503: aiErrorSchema,
+} as const;
+
 export const generateFlowContract = {
   method: "POST",
   path: "/ai/flows",
   body: generateFlowRequestSchema,
-  response: { 200: generateFlowResponseSchema, ...apiErrorResponses },
+  response: { 200: generateFlowResponseSchema, ...aiErrorResponses },
 } as const;
 
 export const explainRunRequestSchema = Type.Object({
@@ -103,7 +139,7 @@ export const explainRunContract = {
   method: "POST",
   path: "/ai/runs/explain",
   body: explainRunRequestSchema,
-  response: { 200: explainRunResponseSchema, ...apiErrorResponses },
+  response: { 200: explainRunResponseSchema, ...aiErrorResponses },
 } as const;
 
 export const redactedValue = "[redacted]";
@@ -167,4 +203,17 @@ export function redactRunOutputs<T extends ExplainRunRequest["run"]>(run: T): T 
       ...(node.error === undefined ? {} : { error: redactSensitiveText(node.error) }),
     })),
   };
+}
+
+/**
+ * Turns an internal failure message into a detail safe to show the user: secrets redacted,
+ * whitespace collapsed to one line and the length bounded. Returns undefined when nothing
+ * useful is left, so the caller falls back to the generic wording for the code.
+ */
+export function aiErrorDetail(message: string): string | undefined {
+  const text = redactSensitiveText(message).replace(/\s+/g, " ").trim();
+  if (text === "") return undefined;
+  return text.length > aiErrorDetailMaxLength
+    ? `${text.slice(0, aiErrorDetailMaxLength - 1).trimEnd()}\u2026`
+    : text;
 }

@@ -121,6 +121,65 @@ describe("runFlow", () => {
       ["no", "skipped"],
     ]);
     expect(run.nodes[1]!.outputs).toEqual({ true: { amount: 10 } });
+    expect(run.nodes[3]!.skipReason).toBe("no-input");
+  });
+
+  test("a condition that cannot order its operands fails the node instead of taking a branch", async () => {
+    const run = await runFlow(
+      flow(
+        [
+          node("t", "trigger.manual"),
+          node("c", "logic.condition", {
+            left: "{{input.value}}",
+            operator: "greater_than",
+            right: "10",
+          }),
+          node("yes", "logic.set-variable", { name: "outcome", value: "big" }),
+          node("no", "logic.set-variable", { name: "outcome", value: "small" }),
+        ],
+        [
+          edge("t", "run", "c", "value"),
+          edge("c", "true", "yes", "value"),
+          edge("c", "false", "no", "value"),
+        ],
+      ),
+      {
+        // The whole balance object, the mistake that used to answer false and pay out anyway.
+        trigger: { payload: { address: "0xabc", raw: "20000000", formatted: "20" } },
+        now: fixedNow,
+        sleep: noSleep,
+      },
+    );
+    expect(run.status).toBe("failed");
+    expect(run.nodes[1]).toMatchObject({ status: "failed" });
+    expect(run.nodes[1]!.error).toMatch(/^Condition: “greater than” needs a number on the left/);
+    expect(run.variables).toEqual({});
+    expect(run.nodes.map((result) => result.status)).toEqual([
+      "succeeded",
+      "failed",
+      "skipped",
+      "skipped",
+    ]);
+  });
+
+  test("greater_or_equal answers a threshold at its boundary", async () => {
+    const run = await runFlow(
+      flow(
+        [
+          node("t", "trigger.manual"),
+          node("c", "logic.condition", {
+            left: "{{input.value.amount}}",
+            operator: "greater_or_equal",
+            right: "10",
+          }),
+          node("yes", "logic.set-variable", { name: "outcome", value: "enough" }),
+        ],
+        [edge("t", "run", "c", "value"), edge("c", "true", "yes", "value")],
+      ),
+      { trigger: { payload: { amount: 10 } }, now: fixedNow, sleep: noSleep },
+    );
+    expect(run.status).toBe("succeeded");
+    expect(run.variables).toEqual({ outcome: "enough" });
   });
 
   test("a failed node stops the run and later nodes are skipped", async () => {
@@ -144,7 +203,42 @@ describe("runFlow", () => {
     );
     expect(run.status).toBe("failed");
     expect(run.nodes[1]).toMatchObject({ status: "failed", error: "Discord answered 429" });
-    expect(run.nodes[2]).toEqual({ nodeId: "after", status: "skipped" });
+    expect(run.nodes[2]).toEqual({
+      nodeId: "after",
+      status: "skipped",
+      skipReason: "run-stopped",
+    });
+  });
+
+  test("a halt marks an untouched branch as stopped, not as missing an input", async () => {
+    const run = await runFlow(
+      flow(
+        [
+          node("t", "trigger.manual"),
+          node("boom", "notify.discord", {
+            webhookUrl: "https://discord.com/api/webhooks/1/abc",
+            content: "x",
+          }),
+          node("other", "logic.set-variable", { name: "a", value: "1" }),
+          node("later", "logic.set-variable", { name: "b", value: "2" }),
+        ],
+        // "other" hangs off the trigger on its own branch: nothing upstream of it failed.
+        [
+          edge("t", "run", "boom", "message"),
+          edge("t", "run", "other", "value"),
+          edge("other", "value", "later", "value"),
+        ],
+      ),
+      {
+        now: fixedNow,
+        sleep: noSleep,
+        fetch: fakeFetch(() => new Response("nope", { status: 429 })),
+      },
+    );
+    expect(run.status).toBe("failed");
+    const reasons = new Map(run.nodes.map((result) => [result.nodeId, result.skipReason]));
+    expect(reasons.get("other")).toBe("run-stopped");
+    expect(reasons.get("later")).toBe("run-stopped");
   });
 
   test("rejects a Discord webhook URL that is not Discord's", async () => {

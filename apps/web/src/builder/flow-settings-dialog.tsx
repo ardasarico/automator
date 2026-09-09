@@ -22,6 +22,8 @@ import { FlowRequestError, setFlowEnabledRequest } from "../flows/client";
 import { EnableSigningButton } from "./enable-signing-button";
 import { useFlowActivation } from "./flow-activation";
 import { useBuilderStore } from "./store-provider";
+import { useFlowProblems } from "./use-flow-problems";
+import type { FlowProblem } from "./validation";
 import { TriggerIssues } from "./trigger-issues";
 import { WalletFunds } from "./wallet-funds";
 import { useAccessToken } from "../auth/access-token";
@@ -82,12 +84,15 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
     ),
   );
   const hasUnattended = hasWebhook || hasSchedule || hasEvent || hasWatch;
+  const dirty = useBuilderStore((state) => state.dirty);
+  const problems = useFlowProblems();
   const activation = useFlowActivation();
   const [name, setName] = useState(meta.name);
   const [description, setDescription] = useState(meta.description);
   const [chainId, setChainId] = useState(meta.chainId ?? defaultChainId);
   const [toggling, setToggling] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
+  const [blockers, setBlockers] = useState<FlowProblem[] | null>(null);
   const trimmedName = name.trim();
   const webhookUrl =
     activation.webhookToken && typeof window !== "undefined"
@@ -106,14 +111,20 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
   async function toggle(enabled: boolean) {
     setToggling(true);
     setActivationError(null);
+    setBlockers(null);
     try {
       const record = await setFlowEnabledRequest(meta.id, await getAccessToken(), enabled);
       activation.setEnabled(record.enabled ?? enabled);
     } catch (caught) {
       const code = caught instanceof FlowRequestError ? caught.code : "unavailable";
-      setActivationError(
-        activationFailures[code] ?? "The change could not be saved. Please try again.",
-      );
+      // The API refuses to run a flow it can see is broken. It checked the saved flow, so name
+      // the errors the canvas found rather than repeating a code the reader cannot act on.
+      if (enabled && code === "invalid_flow")
+        setBlockers(problems.filter((problem) => problem.severity === "error"));
+      else
+        setActivationError(
+          activationFailures[code] ?? "The change could not be saved. Please try again.",
+        );
     } finally {
       setToggling(false);
     }
@@ -196,6 +207,38 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
               <p role="alert" className="text-caption text-destructive-text">
                 {activationError}
               </p>
+            )}
+            {blockers && blockers.length > 0 && (
+              <div role="alert" className="flex flex-col gap-1">
+                <p className="text-caption text-destructive-text">
+                  This flow still has problems, so it was not turned on. Fix them, save, and try
+                  again.
+                </p>
+                <ul className="text-caption text-muted-foreground list-disc pl-4">
+                  {blockers.map((problem, index) => (
+                    <li key={`${problem.nodeId ?? "flow"}-${index}`}>{problem.message}</li>
+                  ))}
+                </ul>
+                {dirty && (
+                  <p className="text-caption text-muted-foreground">
+                    The check reads the saved flow, not your unsaved edits.
+                  </p>
+                )}
+              </div>
+            )}
+            {/* The canvas found nothing, yet the saved flow was refused: the two disagree, which a
+             * flow saved before a check existed can do. Never show a refusal over an empty list. */}
+            {blockers && blockers.length === 0 && (
+              <div role="alert" className="flex flex-col gap-1">
+                <p className="text-caption text-destructive-text">
+                  The saved flow has problems this editor cannot see, so it was not turned on.
+                </p>
+                <p className="text-caption text-muted-foreground">
+                  {dirty
+                    ? "Save your changes and try again."
+                    : "Reload the page to fetch the saved flow, then check its problems list."}
+                </p>
+              </div>
             )}
             {hasWebhook && webhookUrl && (
               <Field>
