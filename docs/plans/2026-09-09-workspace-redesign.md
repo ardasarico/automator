@@ -123,6 +123,47 @@ One continuous surface with the page's own gutter; **no rule reaches the edge**.
 - The panel shows the step list and step outputs. **No canvas in the panel** — a
   plain link to the flow is enough.
 
+## Data
+
+One working surface, not an index and a detail page. The tables live in a rail
+on the left of the section; the selected table's records fill the rest. Three
+shells were drawn in UI Lab over the same fixtures before this was settled: the
+rail, an index of schema cards with a switcher on the detail page, and tables as
+tabs. The rail won because it removes a navigation step and holds its shape as
+tables are added; the schema cards survive as what `/data` shows when no table
+is chosen, so browsing and creating tables still have a surface.
+
+- **Routing** mirrors Runs: `data/layout.tsx` reads the tables, renders the rail
+  beside `children` and a `@panel` slot. `/data` is the card gallery,
+  `/data/<table>` the grid, `/data/<table>/<record>` the grid with the record
+  open. Under 1000 px the panel takes the pane, as on Runs.
+- **The rail** is 200 px on `--card`, its head on the title bar's line, 30 px
+  rows carrying the name and the record count, `+ New table` at the foot. It
+  collapses with the sidebar's own cookie-restored idiom, and **collapsing moves
+  the navigation rather than removing it**: the table name in the title bar
+  becomes a menu of the tables. Below 900 px it collapses on its own.
+- **The gallery** leads each card with the table's first four columns and their
+  types — the Data answer to the flow-shape miniature on Flows — over the name,
+  the description and `N records · M columns · edited`.
+- **The grid** carries the column type on every header, a row-number gutter whose
+  hover reveals the expand control, and values drawn by type: `select` as a chip,
+  `address` as shortened code, `number` right-aligned and tabular, `datetime`
+  through `LocalTime`. Cell editing stays inline. The last row is `+ New record`.
+- **Paging is two-armed and says which arm it is on.** Unfiltered, the existing
+  25-record cursor pages. Filtered or sorted, the store's `find` answers at most
+  100 matches and the toolbar says so — the response carries `truncated` rather
+  than letting the reader infer it from a full page.
+- **The panel** is the shared `SidePanel`: the record's label over its timestamps,
+  every column as a labelled field with its type icon, editing through the same
+  `expectedUpdatedAt` conflict check the cells use, delete in its menu.
+  `Add record` opens it empty at `/data/<table>/new`, and `RecordDialog` goes.
+- **Filter, sort and search are real, and cheap because the SQL exists.**
+  `find` already filters with every operator and sorts, tested operator by
+  operator; only the list endpoint never offered it. The query gains `filters`,
+  `sort` and `q`, parsed and validated in `packages/contracts` beside
+  `parseDataRecordListLimit`. One new SQL branch is needed: `q` is an OR over the
+  text, address and select columns, where `find` only ANDs its filters.
+
 ## Home
 
 A prompt-first entry page, in the shape of v0 / Lovable, over a dashboard.
@@ -163,7 +204,7 @@ or settings, not pages.
 
 ## Still to design
 
-Data, Contracts, Connections, Wallet, Marketplace, empty states, onboarding and
+Contracts, Connections, Wallet, empty states, onboarding and
 login, the settings dialog, and narrow-viewport behaviour — which
 `docs/web-ui.md` still records as out of scope.
 

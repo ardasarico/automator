@@ -1619,9 +1619,298 @@ Expected: pass. Leave uncommitted, and tell Arda the plan is done and what remai
 
 ---
 
+### Task 14: Record queries gain filters, sort and search
+
+`packages/db`'s `find` already filters with every operator and sorts, tested
+operator by operator; the list endpoint never offered it. This task opens that
+door and adds the one branch `find` lacks: a search across a table's text
+columns.
+
+**Files:**
+
+- Modify: `packages/contracts/src/data-tables.ts`
+- Modify: `packages/contracts/src/data-tables.test.ts`
+- Modify: `packages/db/src/data-records.ts`
+- Modify: `packages/db/src/data.integration.test.ts`
+
+**Interfaces:**
+
+- Produces: `parseDataRecordFilters(value)` → `DataFilterRow[] | null` (null on
+  malformed JSON, an unknown operator, or an operator the column type forbids)
+  and `parseDataRecordSort(value)` → `{ column, direction } | null`, beside the
+  existing `parseDataRecordListLimit`.
+- Produces: `dataRecordListQuerySchema` gains optional `filters`, `sort` and `q`;
+  `dataRecordListSchema` gains optional `truncated`.
+- Produces: `DataRecordQuery` gains `search?: { columns: readonly string[]; text: string }`.
+
+- [ ] **Step 1: Write the failing contract tests**
+
+In `data-tables.test.ts`: `parseDataRecordFilters` accepts a well-formed array,
+rejects malformed JSON, rejects an unknown operator, and rejects `contains` on a
+`checkbox` column (`isDataFilterOperatorAllowed` already encodes that rule).
+`parseDataRecordSort` accepts `name:asc` and `name:desc`, rejects `name:sideways`
+and a bare `name`.
+
+- [ ] **Step 2: Run them to verify they fail**
+
+Run: `bun test packages/contracts/src/data-tables.test.ts`
+Expected: FAIL — the parsers do not exist.
+
+- [ ] **Step 3: Write the parsers and widen the schemas**
+
+Follow `parseDataRecordListLimit`'s shape: `undefined` in means `undefined` out,
+a malformed value means `null`, so the route answers 400 rather than guessing.
+`filters` is a JSON array of `{ column, operator, value? }`; `sort` is
+`<column>:asc|desc`; `q` is a plain string, trimmed, capped at 200 characters.
+
+- [ ] **Step 4: Run the contract tests to verify they pass**
+
+Run: `bun test packages/contracts/src/data-tables.test.ts`
+
+- [ ] **Step 5: Add the search branch to the store**
+
+`find` ANDs its filters; search is an OR over the columns the caller names:
+
+```ts
+const search = query.search;
+const searching =
+  !search || search.columns.length === 0
+    ? db``
+    : db`AND (${search.columns
+        .map((column) => db`r."values"->>${column} ILIKE ${`%${escapeLike(search.text)}%`}`)
+        .reduce((left, right) => db`${left} OR ${right}`)})`;
+```
+
+Escape `%`, `_` and the escape character itself before interpolating, so a search
+for `50%` does not become a wildcard. Fetch `limit + 1` rows and return
+`{ records, truncated }` rather than a bare array, so the caller reports the cap
+from knowledge instead of inferring it from a full page. Update the one existing
+caller — the `data.findRecords` executor — to read `.records`.
+
+- [ ] **Step 6: Extend the integration test**
+
+Beside the existing operator sweep, assert that a search matches across two text
+columns, that it is case-insensitive, that `%` is matched literally, and that
+`truncated` is true only when more rows exist than the limit.
+
+- [ ] **Step 7: Run the tests**
+
+Run: `bun test packages/contracts packages/db`
+Expected: PASS. The integration tests skip without `DATABASE_URL`; run them
+against the local test database before moving on and say so.
+
+- [ ] **Step 8: Verify and hold**
+
+Run: `bun run format && bun run lint && bun run typecheck`
+
+---
+
+### Task 15: The records endpoint serves the query
+
+**Files:**
+
+- Modify: `apps/api/src/data/routes.ts`
+- Modify: `apps/api/src/data/routes.test.ts`
+
+**Interfaces:**
+
+- Consumes: the Task 14 parsers and `DataRecordQuery`.
+- Produces: `GET /data/tables/:id/records` honouring `filters`, `sort` and `q`.
+
+- [ ] **Step 1: Write the failing route tests**
+
+A filtered request returns only matching records; an unknown column in a filter
+answers 400; a filter whose operator its column type forbids answers 400; `q`
+matches across text columns; a filtered response carries no `cursor` and sets
+`truncated` when the cap is hit; an unfiltered request still pages by cursor.
+
+- [ ] **Step 2: Run them to verify they fail**
+
+- [ ] **Step 3: Wire the route**
+
+Parse the three parameters; `null` from any parser answers 400 `invalid_query`.
+Validate every named column against the table's own columns — a filter naming a
+column the table does not have is a 400, not an empty result. With no filter, no
+sort and no search, keep today's cursor path untouched. Otherwise call `find`
+with the table's text, address and select column ids as the search columns.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `bun test apps/api/src/data`
+
+- [ ] **Step 5: Verify and hold**
+
+Run: `bun run format && bun run lint && bun run typecheck`
+
+---
+
+### Task 16: The Data section's shell — rail and gallery
+
+**Files:**
+
+- Create: `apps/web/src/app/(workspace)/data/layout.tsx`
+- Create: `apps/web/src/app/(workspace)/data/data.module.css`
+- Create: `apps/web/src/app/(workspace)/data/table-rail.tsx`
+- Create: `apps/web/src/app/(workspace)/data/table-rail.test.tsx`
+- Create: `apps/web/src/app/(workspace)/data/@panel/default.tsx`
+- Modify: `apps/web/src/app/(workspace)/data/page.tsx`
+- Modify: `apps/web/src/app/(workspace)/data/data-browser.tsx`
+- Modify: `apps/web/src/app/(workspace)/data/data-browser.test.tsx`
+
+**Interfaces:**
+
+- Consumes: `PageFrame`, `listDataTables`, the sidebar's cookie idiom.
+- Produces: `TableRail` — `{ tables, activeId?, collapsed }`; `DataBrowser`
+  becomes the card gallery.
+
+- [ ] **Step 1: Write the failing tests**
+
+`TableRail` renders one link per table with its record count, marks the active
+one with `aria-current="page"`, and still renders `New table` with no tables.
+`DataBrowser` renders each table's first four column names and their types, its
+record count and its description, and keeps today's empty state.
+
+- [ ] **Step 2: Run them to verify they fail**
+
+- [ ] **Step 3: Build the layout, the rail and the gallery**
+
+`layout.tsx` mirrors `runs/layout.tsx`: read the tables once, render
+`<TableRail>` beside `{children}` and `{panel}`. The rail is 200 px on `--card`
+with its head on the title bar's line, 30 px rows, `+ New table` at the foot, and
+a collapse control whose state rides the same cookie idiom as the sidebar.
+Collapsing does not remove the navigation — Task 17's title bar shows the table
+menu instead — and below 900 px the rail collapses on its own.
+
+The gallery keeps `PageFrame title="Data"` with the search and `New table` in the
+title bar, and swaps the current row table for cards that lead with the schema
+strip. `apps/ui-lab/src/app/patterns/data/page.tsx` holds the drawn version.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `bun test "apps/web/src/app/(workspace)/data"`
+
+- [ ] **Step 5: Check it in the browser**
+
+`/data` in both themes, rail open and collapsed, and with one table and none.
+
+- [ ] **Step 6: Verify and hold**
+
+Run: `bun run format && bun run lint && bun run typecheck`
+
+---
+
+### Task 17: The record grid
+
+**Files:**
+
+- Create: `apps/web/src/app/(workspace)/data/[tableId]/record-grid.tsx`
+- Create: `apps/web/src/app/(workspace)/data/[tableId]/record-grid.test.tsx`
+- Create: `apps/web/src/app/(workspace)/data/[tableId]/record-query.ts`
+- Create: `apps/web/src/app/(workspace)/data/[tableId]/record-query.test.ts`
+- Modify: `apps/web/src/app/(workspace)/data/[tableId]/page.tsx`
+- Modify: `apps/web/src/app/(workspace)/data/[tableId]/record-browser.tsx`
+- Modify: `apps/web/src/data/server.ts`
+
+**Interfaces:**
+
+- Consumes: `RecordCell`, `LocalTime`, the Task 15 query.
+- Produces: `recordsHref(tableId, query)` and its parser, so the toolbar's state
+  lives in the URL and the server renders it.
+
+- [ ] **Step 1: Write the failing tests**
+
+`record-query` round-trips a filter, a sort and a search through the URL and
+drops empty parts. The grid renders a column header per column carrying its type,
+draws a `select` as a chip, an `address` shortened, a `number` right-aligned, and
+gives every row an expand control linking to the record.
+
+- [ ] **Step 2: Run them to verify they fail**
+
+- [ ] **Step 3: Build the grid**
+
+Header cells carry the type icon; a row-number gutter reveals the expand control
+on hover and focus; the last row is `+ New record`; the header is sticky within
+the content region. Cell editing stays `RecordCell`, untouched.
+
+The toolbar carries `Filter`, `Sort` and the record search, each writing to the
+URL. Unfiltered, keep the existing cursor pager. Filtered or sorted, show the
+`find` results and, when `truncated`, say "Showing the first 100 matches" — never
+imply the table holds only what is on screen.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `bun test "apps/web/src/app/(workspace)/data"`
+
+- [ ] **Step 5: Check it in the browser**
+
+Filter, sort and search against the local test database; confirm the truncation
+note appears only when it is true, and that the grid does not scroll the page
+horizontally at 1280 px with the rail open.
+
+- [ ] **Step 6: Verify and hold**
+
+Run: `bun run format && bun run lint && bun run typecheck`
+
+---
+
+### Task 18: The record panel
+
+**Files:**
+
+- Create: `apps/web/src/app/(workspace)/data/@panel/[tableId]/[recordId]/page.tsx`
+- Create: `apps/web/src/app/(workspace)/data/record-panel.tsx`
+- Create: `apps/web/src/app/(workspace)/data/record-panel.test.tsx`
+- Modify: `apps/web/src/data/server.ts`
+- Delete: `apps/web/src/app/(workspace)/data/[tableId]/record-dialog.tsx` and its test
+- Delete: `apps/ui-lab/src/app/patterns/data/page.tsx` and its `lab-shell.tsx` entry
+- Modify: `docs/web-ui.md`
+
+**Interfaces:**
+
+- Consumes: `SidePanel`, the record PATCH client, `validateRecordValues`.
+- Produces: `RecordPanel` — `{ table, record }`, where an absent record is the
+  create state at `/data/<table>/new`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Every column renders as a labelled field carrying its type; the panel's heading
+is the record's label; the create state's heading says so and its save control
+reads `Add record`; a `select` column renders its options.
+
+- [ ] **Step 2: Run them to verify they fail**
+
+- [ ] **Step 3: Build the panel and retire the dialog**
+
+Reuse the dialog's field rendering and validation rather than writing a second
+copy, then delete the dialog. Saving carries `expectedUpdatedAt`, and a 409
+conflict tells the reader the record changed elsewhere and offers to reload —
+the same rule `RecordCell` already follows. Delete lives in the panel's menu and
+keeps its confirmation.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `bun test "apps/web/src/app/(workspace)/data"`
+
+- [ ] **Step 5: Check it in the browser**
+
+Open a record, edit a field, close with Escape, and confirm Back closes the panel
+rather than leaving the section.
+
+- [ ] **Step 6: Update the documentation**
+
+Describe the Data section in `docs/web-ui.md` as it now is. Implemented
+behaviour only.
+
+- [ ] **Step 7: Verify and hold**
+
+Run: `bun run format && bun run lint && bun run typecheck && bun test && bun run build`
+Expected: all pass. Leave uncommitted.
+
+---
+
 ## Self-review
 
-**Spec coverage.** Shell → Task 2. Information architecture → Tasks 1, 2, 12 (Contracts is explicitly out of scope and named as its own plan). Page frame → Tasks 3, 6, 7, 8. Flows → Tasks 4, 5, 6. Runs → Task 7. Home → Tasks 9, 10, 11. Charts → Task 9. Connections → Task 12. Deferred features → not implemented, as specified. Documentation → Task 13.
+**Spec coverage.** Data → Tasks 14-18. Shell → Task 2. Information architecture → Tasks 1, 2, 12 (Contracts is explicitly out of scope and named as its own plan). Page frame → Tasks 3, 6, 7, 8. Flows → Tasks 4, 5, 6. Runs → Task 7. Home → Tasks 9, 10, 11. Charts → Task 9. Connections → Task 12. Deferred features → not implemented, as specified. Documentation → Task 13.
 
 **Known gaps, stated rather than hidden.** "Spent today" is dropped because no cost tracking exists. The Contracts page is a separate plan, so the sidebar ships with seven entries, not eight. Two `apps/web` e2e failures predate this work and are expected to remain.
 
