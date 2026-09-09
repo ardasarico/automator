@@ -10,7 +10,7 @@ import {
 } from "@automator/ui/segmented-control";
 import { RiArrowDownSLine, RiCompass3Line, RiSearchLine } from "@remixicon/react";
 import { useSearchParams } from "next/navigation";
-import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
+import { PageFrame } from "../../../components/page-frame";
 import {
   browseListings,
   isListingCategory,
@@ -89,88 +89,90 @@ export function MarketplaceBrowser({
   const searching = query.trim().length > 0 || category !== null;
 
   return (
-    <div className={styles.page}>
-      <header className={styles.header}>
-        <div className="min-w-0">
-          <WorkspaceBreadcrumbs current="Marketplace" />
-          <p className={styles.intro}>
-            Flows shared by Automator and the community. Fork one to make it yours.
-          </p>
+    <PageFrame
+      title="Marketplace"
+      actions={
+        <div className={styles.search}>
+          <RiSearchLine aria-hidden="true" />
+          <Input
+            unstyled
+            type="search"
+            aria-label="Search the marketplace"
+            placeholder="Search flows…"
+            value={query}
+            onChange={(event) => apply({ q: event.target.value }, true)}
+            className="min-w-0 flex-1 [&_input]:h-7 [&_input]:px-0 [&_input]:leading-7"
+          />
         </div>
-      </header>
-      <section aria-label="Shared flows">
-        <div className={styles.toolbar}>
-          <div className={styles.search}>
-            <RiSearchLine aria-hidden="true" />
-            <Input
-              unstyled
-              type="search"
-              aria-label="Search the marketplace"
-              placeholder="Search flows…"
-              value={query}
-              onChange={(event) => apply({ q: event.target.value }, true)}
-              className="min-w-0 flex-1 [&_input]:px-0"
-            />
+      }
+      banner={
+        <p className={styles.intro}>
+          Flows shared by Automator and the community. Fork one to make it yours.
+        </p>
+      }
+      toolbar={
+        <>
+          <div role="group" aria-label="Show flows" className={segmentedControlRootClassName}>
+            {filters.map((value) => (
+              <Button
+                key={value}
+                variant="ghost"
+                size="sm"
+                className={segmentedControlItemVariants({ state: "pressed" })}
+                data-pressed={filter === value ? "" : undefined}
+                aria-pressed={filter === value}
+                onClick={() => apply({ show: value === "all" ? null : value })}
+              >
+                {listingFilterLabels[value]}
+              </Button>
+            ))}
           </div>
-          <div className={styles.toolbarActions}>
-            <div role="group" aria-label="Show flows" className={segmentedControlRootClassName}>
-              {filters.map((value) => (
-                <Button
-                  key={value}
-                  variant="ghost"
-                  className={segmentedControlItemVariants({ state: "pressed" })}
-                  data-pressed={filter === value ? "" : undefined}
-                  aria-pressed={filter === value}
-                  onClick={() => apply({ show: value === "all" ? null : value })}
-                >
-                  {listingFilterLabels[value]}
-                </Button>
-              ))}
-            </div>
-            {/* A menu rather than a chip row: the same shape as Sort, so the toolbar reads as one. */}
-            <Menu>
-              <MenuTrigger render={<Button variant="outline" />}>
-                {category ? listingCategoryLabels[category] : "All categories"}
-                <RiArrowDownSLine aria-hidden="true" />
-              </MenuTrigger>
-              <MenuPopup align="end">
-                <MenuRadioGroup
-                  value={category ?? allCategories}
-                  onValueChange={(next) =>
-                    apply({ category: next === allCategories ? null : String(next) })
-                  }
-                  aria-label="Filter by category"
-                >
-                  <MenuRadioItem value={allCategories}>All categories</MenuRadioItem>
-                  {categories.map((value) => (
-                    <MenuRadioItem key={value} value={value}>
-                      {listingCategoryLabels[value]}
-                    </MenuRadioItem>
-                  ))}
-                </MenuRadioGroup>
-              </MenuPopup>
-            </Menu>
-            <Menu>
-              <MenuTrigger render={<Button variant="outline" />}>
-                {listingSortLabels[sort]}
-                <RiArrowDownSLine aria-hidden="true" />
-              </MenuTrigger>
-              <MenuPopup align="end">
-                <MenuRadioGroup
-                  value={sort}
-                  onValueChange={(next) => apply({ sort: next === "newest" ? null : String(next) })}
-                  aria-label="Sort flows"
-                >
-                  {sorts.map((value) => (
-                    <MenuRadioItem key={value} value={value}>
-                      {listingSortLabels[value]}
-                    </MenuRadioItem>
-                  ))}
-                </MenuRadioGroup>
-              </MenuPopup>
-            </Menu>
-          </div>
-        </div>
+          {/* A menu rather than a chip row: the same shape as Sort, so the toolbar reads as one. */}
+          <Menu>
+            <MenuTrigger render={<Button variant="outline" size="sm" />}>
+              {category ? listingCategoryLabels[category] : "All categories"}
+              <RiArrowDownSLine aria-hidden="true" />
+            </MenuTrigger>
+            <MenuPopup align="start">
+              <MenuRadioGroup
+                value={category ?? allCategories}
+                onValueChange={(next) =>
+                  apply({ category: next === allCategories ? null : String(next) })
+                }
+                aria-label="Filter by category"
+              >
+                <MenuRadioItem value={allCategories}>All categories</MenuRadioItem>
+                {categories.map((value) => (
+                  <MenuRadioItem key={value} value={value}>
+                    {listingCategoryLabels[value]}
+                  </MenuRadioItem>
+                ))}
+              </MenuRadioGroup>
+            </MenuPopup>
+          </Menu>
+          <Menu>
+            <MenuTrigger render={<Button variant="outline" size="sm" />}>
+              {listingSortLabels[sort]}
+              <RiArrowDownSLine aria-hidden="true" />
+            </MenuTrigger>
+            <MenuPopup align="start">
+              <MenuRadioGroup
+                value={sort}
+                onValueChange={(next) => apply({ sort: next === "newest" ? null : String(next) })}
+                aria-label="Sort flows"
+              >
+                {sorts.map((value) => (
+                  <MenuRadioItem key={value} value={value}>
+                    {listingSortLabels[value]}
+                  </MenuRadioItem>
+                ))}
+              </MenuRadioGroup>
+            </MenuPopup>
+          </Menu>
+        </>
+      }
+    >
+      <section aria-label="Shared flows" className={styles.listings}>
         <p className="sr-only" role="status">
           {visible.length === 1 ? "1 flow found" : `${visible.length} flows found`}
         </p>
@@ -209,6 +211,6 @@ export function MarketplaceBrowser({
           </ul>
         )}
       </section>
-    </div>
+    </PageFrame>
   );
 }

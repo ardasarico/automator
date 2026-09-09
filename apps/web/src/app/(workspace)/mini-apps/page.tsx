@@ -1,8 +1,7 @@
 import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { RiAppsLine } from "@remixicon/react";
 import type { Metadata } from "next";
-import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
-import { WorkspacePage } from "../../../components/workspace-page";
+import { PageFrame } from "../../../components/page-frame";
 
 export const metadata: Metadata = { title: "Mini-apps · Automator" };
 
@@ -12,8 +11,7 @@ export const metadata: Metadata = { title: "Mini-apps · Automator" };
  */
 export default function MiniAppsPage() {
   return (
-    <WorkspacePage>
-      <WorkspaceBreadcrumbs current="Mini-apps" />
+    <PageFrame title="Mini-apps">
       <div className="mt-16 flex flex-col items-center gap-3 text-center">
         <EmptyStateIllustration icon={<RiAppsLine aria-hidden="true" className="size-5" />} />
         <p className="text-label">Nothing listed yet</p>
@@ -22,6 +20,6 @@ export default function MiniAppsPage() {
           sessions.
         </p>
       </div>
-    </WorkspacePage>
+    </PageFrame>
   );
 }

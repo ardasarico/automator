@@ -20,3 +20,8 @@
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+/* The wallet stacks four sections in one frame; each one after the first opens with the same
+ * gap, so the page reads as a column rather than a set of cards. */
+.section {
+  margin-top: 32px;
+}

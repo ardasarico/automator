@@ -4,7 +4,7 @@ import { Button } from "@automator/ui/button";
 import { RiCheckLine, RiLinkM } from "@remixicon/react";
 import { useEffect, useState } from "react";
 
-export function CopyLinkButton({ path }: { path: string }) {
+export function CopyLinkButton({ path, size }: { path: string; size?: "default" | "sm" }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export function CopyLinkButton({ path }: { path: string }) {
   }
 
   return (
-    <Button variant="outline" onClick={copy} aria-live="polite">
+    <Button variant="outline" size={size} onClick={copy} aria-live="polite">
       {copied ? <RiCheckLine aria-hidden="true" /> : <RiLinkM aria-hidden="true" />}
       {copied ? "Link copied" : "Copy link"}
     </Button>

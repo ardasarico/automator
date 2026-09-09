@@ -1,10 +1,9 @@
+import { RiAddLine } from "@remixicon/react";
 import { findFlowExample } from "../../../builder/examples";
+import { PageFrame } from "../../../components/page-frame";
 import { UnavailablePanel } from "../../../components/unavailable-panel";
-import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
-import { WorkspacePage } from "../../../components/workspace-page";
 import { FlowActionButton } from "../../../flows/action-button";
 import { createFlowAction } from "../../../flows/actions";
-import { RiAddLine } from "@remixicon/react";
 
 /**
  * Keeps old creation links usable without writing during GET rendering or prefetching.
@@ -20,8 +19,7 @@ export default async function CreatePage({
   const example = findFlowExample(slug);
   const focusAi = (Array.isArray(ai) ? ai[0] : ai) === "1";
   return (
-    <WorkspacePage>
-      <WorkspaceBreadcrumbs current="Create a flow" />
+    <PageFrame title="Create a flow" parents={[{ label: "Flows", href: "/flows" }]}>
       <UnavailablePanel
         icon={<RiAddLine />}
         title={example ? `Create a copy of ${example.name}` : "Create a flow"}
@@ -38,6 +36,6 @@ export default async function CreatePage({
           </FlowActionButton>
         }
       />
-    </WorkspacePage>
+    </PageFrame>
   );
 }

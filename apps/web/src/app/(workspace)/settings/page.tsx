@@ -1,8 +1,7 @@
 import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { RiSettings3Line } from "@remixicon/react";
 import type { Metadata } from "next";
-import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
-import { WorkspacePage } from "../../../components/workspace-page";
+import { PageFrame } from "../../../components/page-frame";
 
 export const metadata: Metadata = { title: "Settings · Automator" };
 
@@ -12,8 +11,7 @@ export const metadata: Metadata = { title: "Settings · Automator" };
  */
 export default function SettingsPage() {
   return (
-    <WorkspacePage>
-      <WorkspaceBreadcrumbs current="Settings" />
+    <PageFrame title="Settings">
       <div className="mt-16 flex flex-col items-center gap-3 text-center">
         <EmptyStateIllustration icon={<RiSettings3Line aria-hidden="true" className="size-5" />} />
         <p className="text-label">Still a dialog</p>
@@ -22,6 +20,6 @@ export default function SettingsPage() {
           after Connections takes the secrets and connected apps.
         </p>
       </div>
-    </WorkspacePage>
+    </PageFrame>
   );
 }

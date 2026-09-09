@@ -6,6 +6,7 @@ import Link from "next/link";
 import { getCatalogEntry, isFlowNodeType } from "../../../builder/catalog";
 import styles from "../flows/flows.module.css";
 import { LocalTime } from "../runs/local-time";
+import walletStyles from "./wallet.module.css";
 
 export function shortHash(hash: string): string {
   return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
@@ -21,7 +22,7 @@ export function WalletTransactions({
   transactions: readonly WalletTransaction[] | null;
 }) {
   return (
-    <section aria-labelledby="wallet-transactions-title" className={styles.collection}>
+    <section aria-labelledby="wallet-transactions-title" className={walletStyles.section}>
       <h2 id="wallet-transactions-title" className="text-label">
         Recent transactions
       </h2>

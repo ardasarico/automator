@@ -6,8 +6,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "../../../auth/server";
 import { hasNoFunds, noFundsMessage } from "../../../builder/wallet-funds-check";
-import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
-import { WorkspacePage } from "../../../components/workspace-page";
+import { PageFrame } from "../../../components/page-frame";
 import { exactAmount, formatAmount } from "../../../wallet/amounts";
 import { getWallet, listWalletTransactions, type WalletLookup } from "../../../wallet/server";
 import flowStyles from "../flows/flows.module.css";
@@ -35,13 +34,12 @@ export default async function WalletPage() {
   const address = wallet?.address ?? user.walletAddress;
   if (!address || lookups.every((lookup) => lookup.status === "missing")) return <NoWallet />;
   return (
-    <WorkspacePage>
-      <WorkspaceBreadcrumbs current="Wallet" />
+    <PageFrame title="Wallet">
       <AddressCard address={address} signing={wallet?.signing} />
       <Balances lookups={lookups} />
       <PaymentLimits />
       <WalletTransactions transactions={transactions} />
-    </WorkspacePage>
+    </PageFrame>
   );
 }
 
@@ -51,7 +49,7 @@ function AddressCard({ address, signing }: { address: string; signing: boolean |
     return url ? [{ chain, url }] : [];
   });
   return (
-    <section aria-labelledby="wallet-address-title" className="mt-6">
+    <section aria-labelledby="wallet-address-title">
       <div className={styles.card}>
         <div>
           <h2 id="wallet-address-title" className="text-label">
@@ -103,7 +101,7 @@ function Amount({ value, symbol }: { value: string; symbol: string }) {
 
 function Balances({ lookups }: { lookups: readonly WalletLookup[] }) {
   return (
-    <section aria-labelledby="wallet-balances-title" className={flowStyles.collection}>
+    <section aria-labelledby="wallet-balances-title" className={styles.section}>
       <h2 id="wallet-balances-title" className="text-label">
         Balances
       </h2>
@@ -146,8 +144,7 @@ function Balances({ lookups }: { lookups: readonly WalletLookup[] }) {
 /** Shown when no chain knows the wallet: the account has none yet. */
 function NoWallet() {
   return (
-    <WorkspacePage>
-      <WorkspaceBreadcrumbs current="Wallet" />
+    <PageFrame title="Wallet">
       <section className={flowStyles.empty} aria-labelledby="wallet-empty-title">
         <EmptyStateIllustration icon={<RiWallet3Line />} />
         <h2 id="wallet-empty-title" className="mt-6 text-panel text-balance">
@@ -162,6 +159,6 @@ function NoWallet() {
         </Button>
       </section>
       <PaymentLimits />
-    </WorkspacePage>
+    </PageFrame>
   );
 }

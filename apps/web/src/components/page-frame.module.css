@@ -17,9 +17,52 @@
   padding-inline: var(--page-gutter);
 }
 .title {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--text-section);
   line-height: var(--text-section--line-height);
   font-weight: var(--text-section--font-weight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The section a detail page came from, on the title's own line and in its own type, so the
+ * heading stays the loudest thing on the row. */
+.breadcrumb {
+  flex: none;
+  /* The chevron sits 6px from each side, cancelling half of the title bar's gap. */
+  margin-inline-end: -6px;
+  font-size: var(--text-section);
+  line-height: var(--text-section--line-height);
+  font-weight: var(--text-section--font-weight);
+}
+.breadcrumb ol,
+.breadcrumb li {
+  display: flex;
+  align-items: center;
+}
+.breadcrumb li {
+  gap: 6px;
+}
+.breadcrumb a {
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  transition: color 150ms var(--ease-press);
+}
+.breadcrumb a:hover {
+  color: var(--foreground);
+}
+.breadcrumb a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+.breadcrumb svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+.breadcrumb svg:dir(rtl) {
+  rotate: 180deg;
 }
 .titleActions {
   display: flex;
@@ -27,6 +70,12 @@
   margin-inline-start: auto;
   align-items: center;
   gap: 8px;
+}
+/* The banner is not a card and not a second surface: the same ground as the page, set apart
+ * by the room around it. */
+.banner {
+  flex: none;
+  padding: 20px var(--page-gutter) 36px;
 }
 .toolbar {
   position: relative;

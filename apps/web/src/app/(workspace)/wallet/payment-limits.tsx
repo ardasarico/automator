@@ -131,7 +131,7 @@ function AccountPaymentLimits() {
     );
 
   return (
-    <section aria-labelledby="payment-limits-title" className="mt-6">
+    <section aria-labelledby="payment-limits-title" className={styles.section}>
       <div className={styles.card}>
         <div>
           <h2 id="payment-limits-title" className="text-label">

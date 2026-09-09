@@ -40,10 +40,9 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  /* Puts the 48px header's centre on the page heading's: 8px content inset plus the
-   * 8px WorkspacePage pad, against a 40px breadcrumb row. Returns to 8px once the page
-   * frame lands with its own 48px title bar. */
-  padding-top: 12px;
+  /* Puts the 48px header's centre on the page heading's: the content inset is 8px and the
+   * page frame opens with its own 48px title bar, so both centres land at 32px. */
+  padding-top: 8px;
   background: var(--background);
 }
 
