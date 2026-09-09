@@ -54,6 +54,17 @@ export const flowNodeTypeSchema = Type.Unsafe<FlowNodeType>(
   Type.Union(flowNodeTypes.map((type) => Type.Literal(type))),
 );
 
+/**
+ * A trigger written as a sentence fragment, so a list can say what starts a flow
+ * ("DCA into ETH runs every 1h") without opening the flow document.
+ */
+export const flowTriggerSummarySchema = Type.Object({
+  nodeId: Type.String({ minLength: 1 }),
+  type: flowNodeTypeSchema,
+  summary: Type.String(),
+});
+export type FlowTriggerSummary = Static<typeof flowTriggerSummarySchema>;
+
 export const flowSummarySchema = Type.Object({
   id: Type.String({ minLength: 1 }),
   name: Type.String(),
@@ -61,6 +72,8 @@ export const flowSummarySchema = Type.Object({
   updatedAt: Type.String(),
   enabled: Type.Boolean(),
   triggerTypes: Type.Array(flowNodeTypeSchema),
+  /* The same triggers written as sentence fragments, for lists that say what starts a flow. */
+  triggers: Type.Array(flowTriggerSummarySchema),
   nodeCount: Type.Integer({ minimum: 0 }),
 });
 export type FlowSummary = Static<typeof flowSummarySchema>;

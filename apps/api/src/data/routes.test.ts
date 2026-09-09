@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   deleteDataTableContract,
+  documentTriggers,
   getDataTableContract,
   listDataRecordsContract,
   listDataTablesContract,
@@ -191,6 +192,7 @@ function fixture(options: { callsPerMinute?: number; flows?: readonly FlowDocume
             updatedAt: "2026-09-08T00:00:00.000Z",
             enabled: false,
             triggerTypes: documentTriggerTypes(document.nodes),
+            triggers: documentTriggers(document.nodes),
             nodeCount: document.nodes.length,
           }))
         : [],

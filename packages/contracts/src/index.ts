@@ -18,6 +18,7 @@ export * from "./sessions";
 export * from "./flow-ports";
 export * from "./ai";
 export * from "./flow-layout";
+export * from "./flow-triggers";
 export * from "./onchain-configs";
 export * from "./watch-configs";
 export * from "./notify-configs";

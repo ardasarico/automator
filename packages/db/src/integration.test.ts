@@ -86,6 +86,13 @@ describe.skipIf(!url)("live PostgreSQL schema", () => {
           updatedAt: created.updatedAt,
           enabled: false,
           triggerTypes: ["trigger.miniapp-open"],
+          triggers: [
+            {
+              nodeId: "n1",
+              type: "trigger.miniapp-open",
+              summary: "when someone opens the app",
+            },
+          ],
           nodeCount: 2,
         },
       ]);

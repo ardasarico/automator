@@ -1,5 +1,6 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import {
+  documentTriggers,
   getFlowContract,
   listFlowsContract,
   parseResponse,
@@ -46,6 +47,7 @@ function fixture(overrides: Partial<FlowStore> = {}, users?: UserStore, log = fa
           updatedAt,
           enabled: enabled ?? false,
           triggerTypes: documentTriggerTypes(flow.nodes),
+          triggers: documentTriggers(flow.nodes),
           nodeCount: flow.nodes.length,
         })),
     find: async (ownerId, id) => {
@@ -176,6 +178,9 @@ describe("flow routes", () => {
           updatedAt: record.updatedAt,
           enabled: false,
           triggerTypes: ["trigger.miniapp-open"],
+          triggers: [
+            { nodeId: "n1", type: "trigger.miniapp-open", summary: "when someone opens the app" },
+          ],
           nodeCount: 2,
         },
       ],

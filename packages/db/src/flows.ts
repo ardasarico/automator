@@ -1,4 +1,4 @@
-import { flowChainId, Value } from "@automator/contracts";
+import { documentTriggers, flowChainId, Value } from "@automator/contracts";
 import type {
   FlowDocument,
   FlowDocumentInput,
@@ -77,21 +77,24 @@ export function createFlowStore(sql: SQL | undefined) {
     async list(ownerId: string): Promise<FlowSummary[]> {
       const db = connection();
       const rows = await db<
-        (Omit<FlowSummary, "updatedAt" | "triggerTypes"> & {
+        (Omit<FlowSummary, "updatedAt" | "triggerTypes" | "triggers"> & {
           updatedAt: Date;
-          nodes: { type: FlowNodeType }[];
+          nodes: { id: string; type: FlowNodeType; config?: Record<string, unknown> }[];
         })[]
       >`
         SELECT id, name, description, updated_at AS "updatedAt", enabled,
           jsonb_array_length(document->'nodes') AS "nodeCount",
-          (SELECT coalesce(jsonb_agg(jsonb_build_object('type', n->>'type')), '[]'::jsonb)
-             FROM jsonb_array_elements(document->'nodes') n) AS nodes
+          (SELECT coalesce(jsonb_agg(jsonb_build_object(
+                    'id', n->>'id', 'type', n->>'type', 'config', n->'config')
+                  ORDER BY ordinality), '[]'::jsonb)
+             FROM jsonb_array_elements(document->'nodes') WITH ORDINALITY AS t(n, ordinality)) AS nodes
         FROM automator_flows
         WHERE owner_id = ${ownerId} ORDER BY updated_at DESC, id`;
       return rows.map(({ nodes, ...row }) => ({
         ...row,
         updatedAt: row.updatedAt.toISOString(),
         triggerTypes: documentTriggerTypes(nodes),
+        triggers: documentTriggers(nodes),
       }));
     },
     async find(ownerId: string, id: string): Promise<FlowRecord | null> {
