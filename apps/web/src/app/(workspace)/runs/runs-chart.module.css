@@ -1,0 +1,94 @@
+/* The days above the list, then what they add up to. Not a card: it belongs to the page,
+ * and the rule under the chart stops where every other rule on the frame stops. */
+.band {
+  display: flex;
+  flex-direction: column;
+}
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.key {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.window {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.tiles {
+  display: flex;
+  align-items: baseline;
+  gap: 28px;
+}
+.tile {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.value {
+  font-size: var(--text-panel);
+  line-height: var(--text-panel--line-height);
+  font-weight: var(--text-panel--font-weight);
+  letter-spacing: var(--text-panel--letter-spacing);
+  font-variant-numeric: tabular-nums;
+}
+.label {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend span {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: var(--radius-xs);
+}
+.plot {
+  height: 148px;
+}
+.chart {
+  width: 100%;
+  height: 100%;
+}
+
+/* The band's shape while the counts are being read: the plot at its real height, so the list
+ * under it does not jump when the days arrive. */
+.ghostPlot {
+  height: 148px;
+  border-radius: var(--radius-lg);
+}
+.ghostValue {
+  width: 30px;
+  height: 0.9lh;
+}
+.ghostLabel {
+  width: 54px;
+  height: 0.8lh;
+}
+.ghostKey {
+  width: 260px;
+  height: 0.8lh;
+}

@@ -11,9 +11,22 @@ export const flowRunNodeStatusSchema = Type.Union([
 ]);
 export type FlowRunNodeStatus = Static<typeof flowRunNodeStatusSchema>;
 
+/**
+ * Why a node was skipped. A run halts on the first failure, so a skipped node either never got an
+ * input or was still queued when the run stopped; saying which keeps the run views from blaming a
+ * missing edge for a halt on another branch.
+ */
+export const flowRunNodeSkipReasonSchema = Type.Union([
+  Type.Literal("no-input"),
+  Type.Literal("run-stopped"),
+]);
+export type FlowRunNodeSkipReason = Static<typeof flowRunNodeSkipReasonSchema>;
+
 export const flowRunNodeResultSchema = Type.Object({
   nodeId: Type.String({ minLength: 1 }),
   status: flowRunNodeStatusSchema,
+  /* Optional: runs recorded before the reason existed carry none. */
+  skipReason: Type.Optional(flowRunNodeSkipReasonSchema),
   startedAt: Type.Optional(Type.String()),
   finishedAt: Type.Optional(Type.String()),
   outputs: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
@@ -123,9 +136,43 @@ export const runSavedFlowContract = {
 export const runListDefaultLimit = 25;
 export const runListMaxLimit = 100;
 
+/**
+ * What a run list can be ordered by. The column headings carry these: a list of runs is read
+ * by outcome and by how long they took as often as by when they started.
+ */
+export const runSortKeys = ["started", "flow", "status", "trigger", "duration"] as const;
+export type RunSortKey = (typeof runSortKeys)[number];
+/* Unsafe preserves the literal union that mapping to Type.Union would widen. */
+export const runSortKeySchema = Type.Unsafe<RunSortKey>(
+  Type.Union(runSortKeys.map((key) => Type.Literal(key))),
+);
+export function isRunSortKey(value: string): value is RunSortKey {
+  return (runSortKeys as readonly string[]).includes(value);
+}
+
+export const runSortDirections = ["asc", "desc"] as const;
+export type RunSortDirection = (typeof runSortDirections)[number];
+export const runSortDirectionSchema = Type.Unsafe<RunSortDirection>(
+  Type.Union(runSortDirections.map((direction) => Type.Literal(direction))),
+);
+export function isRunSortDirection(value: string): value is RunSortDirection {
+  return (runSortDirections as readonly string[]).includes(value);
+}
+
+/** Newest first, longest first, everything else A–Z: what each column means by default. */
+export const runSortDefaults: Record<RunSortKey, RunSortDirection> = {
+  started: "desc",
+  flow: "asc",
+  status: "asc",
+  trigger: "asc",
+  duration: "desc",
+};
+
 const runListPagingSchema = {
   cursor: Type.Optional(Type.String({ minLength: 1 })),
   limit: Type.Optional(Type.String({ minLength: 1 })),
+  sort: Type.Optional(runSortKeySchema),
+  dir: Type.Optional(runSortDirectionSchema),
 };
 
 export function parseRunListLimit(value: string | undefined): number | undefined | null {
@@ -160,6 +207,39 @@ export const listAllRunsContract = {
   query: runListQuerySchema,
   response: { 200: runListSchema, ...apiErrorResponses },
 } as const;
+/**
+ * Runs counted by day and outcome, for the chart above the list. A page of runs cannot answer
+ * this — it is a window, not a history — so the API counts them where they are stored.
+ */
+export const runStatsWindowDays = 14;
+
+export const runStatsDaySchema = Type.Object({
+  /* The UTC day the runs started, as YYYY-MM-DD. */
+  date: Type.String({ minLength: 10, maxLength: 10 }),
+  succeeded: Type.Integer({ minimum: 0 }),
+  failed: Type.Integer({ minimum: 0 }),
+  waiting: Type.Integer({ minimum: 0 }),
+});
+export type RunStatsDay = Static<typeof runStatsDaySchema>;
+
+export const runStatsSchema = Type.Object({
+  /* One entry per day in the window, oldest first, including the days nothing ran. */
+  days: Type.Array(runStatsDaySchema),
+  totals: Type.Object({
+    succeeded: Type.Integer({ minimum: 0 }),
+    failed: Type.Integer({ minimum: 0 }),
+    waiting: Type.Integer({ minimum: 0 }),
+  }),
+});
+export type RunStats = Static<typeof runStatsSchema>;
+
+export const runStatsContract = {
+  method: "GET",
+  path: "/runs/stats",
+  query: Type.Object({ flowId: Type.Optional(Type.String({ minLength: 1 })) }),
+  response: { 200: runStatsSchema, ...apiErrorResponses },
+} as const;
+
 export const getRunContract = {
   method: "GET",
   path: "/runs/:id",

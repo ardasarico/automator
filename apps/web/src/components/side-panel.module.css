@@ -1,0 +1,79 @@
+/* A detail panel beside the list, not over it: the list stays readable and clickable while
+ * one row is open. It carries its own scroll, so the list keeps its position. */
+.panel {
+  display: flex;
+  width: 420px;
+  height: 100%;
+  min-height: 0;
+  flex: none;
+  flex-direction: column;
+  border-inline-start: 1px solid var(--border);
+  background: var(--background);
+}
+.header {
+  display: flex;
+  min-height: 48px;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.titles {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+.subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 16px 20px 32px;
+}
+/* Below the split's own breakpoint the panel takes the whole pane rather than squeezing
+ * the list into a column too narrow to read. */
+@media (max-width: 1000px) {
+  .panel {
+    width: 100%;
+    border-inline-start: 0;
+  }
+}
+
+/* The panel's shape while the row it was opened on is being read. */
+.ghostTitle {
+  width: 58%;
+  height: 0.9lh;
+}
+.ghostMeta {
+  width: 82%;
+  height: 0.8lh;
+}
+.ghostSection {
+  margin-top: 24px;
+}
+.ghostSectionTitle {
+  width: 92px;
+  height: 0.9lh;
+  margin-bottom: 12px;
+}
+.ghostCard {
+  height: 76px;
+  border-radius: var(--radius-xl);
+}

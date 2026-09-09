@@ -6,12 +6,16 @@ import {
   getRunContract,
   listAllRunsContract,
   listFlowsContract,
+  runStatsContract,
   type FlowDocumentInput,
   type FlowRecord,
   type FlowRunRecord,
   type FlowRunStatus,
   type FlowSummary,
   type RunList,
+  type RunSortDirection,
+  type RunSortKey,
+  type RunStats,
 } from "@automator/contracts";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -74,6 +78,8 @@ export async function listRuns(
     status?: FlowRunStatus;
     cursor?: string;
     limit?: number;
+    sort?: RunSortKey;
+    direction?: RunSortDirection;
   } = {},
 ): Promise<RunList> {
   const token = await sessionToken();
@@ -83,8 +89,21 @@ export async function listRuns(
       flowId: options.flowId,
       status: options.status,
       cursor: options.cursor,
+      sort: options.sort,
+      dir: options.direction,
       limit: options.limit === undefined ? undefined : String(options.limit),
     },
+  }).catch(unavailable);
+  if (result.status === 401) redirect("/login");
+  if (result.status !== 200) throw new FlowApiError(result.status);
+  return result.data;
+}
+
+export async function getRunStats(options: { flowId?: string } = {}): Promise<RunStats> {
+  const token = await sessionToken();
+  const result = await request(process.env.API_URL, runStatsContract, {
+    token,
+    query: { flowId: options.flowId },
   }).catch(unavailable);
   if (result.status === 401) redirect("/login");
   if (result.status !== 200) throw new FlowApiError(result.status);

@@ -295,6 +295,40 @@ describe.skipIf(!url)("live PostgreSQL runs", () => {
         const order = Date.parse(current.startedAt) - Date.parse(previous.startedAt);
         expect(order < 0 || (order === 0 && current.id > previous.id)).toBe(true);
       }
+      /* Every column can order the list, and its pages must still walk the whole set once —
+       * these runs all took the same time, so the tie-break carries the paging. */
+      const byDuration = [];
+      let cursor: string | undefined;
+      do {
+        const page = await runs.list("did:privy:test-a", {
+          flowId: flow.id,
+          limit: 3,
+          sort: "duration" as const,
+          direction: "asc" as const,
+          cursor,
+        });
+        byDuration.push(...page.runs);
+        cursor = page.nextCursor;
+      } while (cursor);
+      expect(new Set(byDuration.map((entry) => entry.id)).size).toBe(ids.length);
+
+      const oldestFirst = await runs.list("did:privy:test-a", {
+        flowId: flow.id,
+        limit: 100,
+        sort: "started" as const,
+        direction: "asc" as const,
+      });
+      /* The same runs, walked the other way; ties keep their own order in both directions. */
+      expect(new Set(oldestFirst.runs.map((entry) => entry.id))).toEqual(
+        new Set(everything.runs.map((entry) => entry.id)),
+      );
+      for (let index = 1; index < oldestFirst.runs.length; index += 1) {
+        expect(
+          Date.parse(oldestFirst.runs[index]!.startedAt) >=
+            Date.parse(oldestFirst.runs[index - 1]!.startedAt),
+        ).toBe(true);
+      }
+
       await expect(runs.list("did:privy:test-a", { cursor: "not-a-cursor" })).rejects.toThrow(
         RunCursorError,
       );

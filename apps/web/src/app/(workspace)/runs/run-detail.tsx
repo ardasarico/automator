@@ -16,18 +16,17 @@ import {
 } from "@remixicon/react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { getCatalogEntry, type CatalogIcon } from "../../../../builder/catalog";
-import { CatalogIconMark } from "../../../../builder/catalog-icon";
+import { getCatalogEntry, type CatalogIcon } from "../../../builder/catalog";
+import { CatalogIconMark } from "../../../builder/catalog-icon";
 import {
   elapsedMs,
   formatElapsed,
   outputHandles,
   simulatedAnswer,
   transactionHashes,
-} from "../../../../builder/run-selectors";
-import { WorkspaceBreadcrumbs } from "../../../../components/workspace-breadcrumbs";
-import { LocalTime } from "../local-time";
-import { nodeStatusLabels, runDuration, runSourceLabels, runStatusLabels } from "../run-labels";
+} from "../../../builder/run-selectors";
+import { LocalTime } from "./local-time";
+import { nodeStatusLabels, runDuration, runSourceLabels, runStatusLabels } from "./run-labels";
 import styles from "./run-detail.module.css";
 
 type NodeFacts = { label: string; type?: string; icon?: CatalogIcon };
@@ -77,11 +76,22 @@ function ExplorerLinks({ output, chainId }: { output: unknown; chainId: number }
   );
 }
 
+/* A skipped node did not necessarily lack an edge: the run may have stopped elsewhere first. */
+function skippedMessage(result: FlowRunNodeResult): string {
+  switch (result.skipReason) {
+    case "no-input":
+      return "No incoming edge fired, so this node did not run.";
+    case "run-stopped":
+      return "The run stopped at an earlier node, so this one did not run.";
+    default:
+      return "This node did not run.";
+  }
+}
+
 function StepBody({ result, chainId }: { result: FlowRunNodeResult; chainId: number }) {
   if (result.status === "failed")
     return <p className={styles.error}>{result.error ?? "This node failed."}</p>;
-  if (result.status === "skipped")
-    return <p className={styles.muted}>No incoming edge fired, so this node did not run.</p>;
+  if (result.status === "skipped") return <p className={styles.muted}>{skippedMessage(result)}</p>;
   if (result.status === "waiting")
     return <p className={styles.muted}>The run stopped here until a visitor acts.</p>;
   const outputs = result.outputs ?? {};
@@ -151,7 +161,7 @@ function Step({
 }
 
 export function RunDetail({ record }: { record: FlowRunRecord }) {
-  const { run, document, flowName, source } = record;
+  const { run, document, source } = record;
   const status = runStatusLabels[run.status];
   const duration = runDuration(run.status, run.startedAt, run.finishedAt);
   const chainId = flowChainId(document);
@@ -160,21 +170,24 @@ export function RunDetail({ record }: { record: FlowRunRecord }) {
   const canvasHref = `/flows/${run.flowId}?run=${encodeURIComponent(run.id)}`;
   return (
     <>
-      <WorkspaceBreadcrumbs parents={[{ label: "Runs", href: "/runs" }]} current={flowName} />
-      <div className={styles.header}>
-        <p className={styles.meta}>
-          <Badge variant={status.variant}>{status.label}</Badge>
-          <span>{runSourceLabels[source]}</span>
-          <span>
-            Started <LocalTime value={run.startedAt} />
-          </span>
-          {duration && <span>{duration}</span>}
-        </p>
-        <Button variant="outline" render={<Link href={canvasHref} />}>
-          <RiFlowChart aria-hidden="true" />
-          Open on canvas
-        </Button>
-      </div>
+      <p className={styles.meta}>
+        <Badge variant={status.variant}>{status.label}</Badge>
+        <span>{runSourceLabels[source]}</span>
+        <span>
+          Started <LocalTime value={run.startedAt} />
+        </span>
+        {duration && <span>{duration}</span>}
+      </p>
+      {/* The panel carries no canvas of its own; the flow is one link away. */}
+      <Button
+        variant="outline"
+        size="sm"
+        className={styles.canvasLink}
+        render={<Link href={canvasHref} />}
+      >
+        <RiFlowChart aria-hidden="true" />
+        Open on canvas
+      </Button>
 
       {run.error && (
         <p className={styles.callout}>

@@ -1,10 +1,5 @@
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  margin-top: 8px;
+.canvasLink {
+  margin-top: 12px;
 }
 .meta {
   display: flex;
@@ -20,7 +15,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin-top: 24px;
+  margin-top: 16px;
   padding: 12px 14px;
   border: 1px solid color-mix(in srgb, var(--destructive-text) 24%, transparent);
   border-radius: var(--radius-lg);
@@ -37,7 +32,7 @@
   margin-top: 2px;
 }
 .section {
-  margin-top: 32px;
+  margin-top: 24px;
 }
 .sectionTitle {
   margin-bottom: 12px;

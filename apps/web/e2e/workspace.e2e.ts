@@ -142,7 +142,8 @@ test("a local simulation is inspectable in run history and on its canvas", async
   await expect(page.getByRole("region", { name: "Last run" })).toContainText("Succeeded");
   await page.goto(`/runs?flow=${flow.id}`);
   await page.getByRole("link", { name: `${name} run`, exact: true }).click();
-  await expect(page).toHaveURL(/\/runs\/[^/?]+$/);
+  // Opening a run keeps the list's own filter in the URL, so the panel closes back onto it.
+  await expect(page).toHaveURL(new RegExp(`/runs/[^/?]+\\?flow=${flow.id}$`));
   await expect(page.getByText("Succeeded", { exact: true }).first()).toBeVisible();
   await page.getByRole("link", { name: "Open on canvas", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/flows/${flow.id}\\?run=`));

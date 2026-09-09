@@ -66,7 +66,8 @@ const record: FlowRunRecord = {
         finishedAt: "2026-09-07T10:00:03.000Z",
         error: "Discord answered 401",
       },
-      { nodeId: "x", status: "skipped" },
+      /* On a branch of its own: the run stopped at "d", nothing was missing here. */
+      { nodeId: "x", status: "skipped", skipReason: "run-stopped" },
     ],
     variables: { paid: 5, note: "first batch" },
   },
@@ -74,14 +75,13 @@ const record: FlowRunRecord = {
 
 const html = renderToString(<RunDetail record={record} />);
 
-test("the header names the flow, the outcome, the trigger source and the canvas link", () => {
-  expect(html).toContain("Payday");
+/* The flow name is the panel's own heading, so the detail opens on the outcome instead. */
+test("the detail opens with the outcome, the trigger source and the canvas link", () => {
   expect(html).toContain("Failed");
   expect(html).toContain("Schedule");
   expect(html).toContain("3.0s");
   expect(html).toContain('href="/flows/flow-1?run=run-1"');
   expect(html).toContain("Open on canvas");
-  expect(html).toContain('href="/runs"');
 });
 
 test("the trigger section shows the node that fired and its payload", () => {
@@ -109,7 +109,27 @@ test("every node is a step; failed ones start open with their error, others clos
   expect(payout).toContain(`https://sepolia.basescan.org/tx/${hash}`);
   expect(payout).toContain("View on Base Sepolia");
   expect(skipped).toContain("Skipped");
-  expect(skipped).toContain("No incoming edge fired");
+  expect(skipped).toContain("The run stopped at an earlier node");
+  expect(skipped).not.toContain("No incoming edge fired");
+});
+
+test("a skipped node says which of the two reasons kept it from running", () => {
+  const skipped = (skipReason?: "no-input" | "run-stopped") => {
+    const nodes = [
+      { nodeId: "x" as const, status: "skipped" as const, ...(skipReason ? { skipReason } : {}) },
+    ];
+    const html = renderToString(
+      <RunDetail record={{ ...record, run: { ...record.run, nodes } }} />,
+    );
+    return html.slice(html.indexOf('id="run-steps"'), html.indexOf('id="run-variables"'));
+  };
+  expect(skipped("no-input")).toContain("No incoming edge fired, so this node did not run.");
+  expect(skipped("run-stopped")).toContain(
+    "The run stopped at an earlier node, so this one did not run.",
+  );
+  /* A run recorded before the reason existed must not claim a missing edge either. */
+  expect(skipped()).toContain("This node did not run.");
+  expect(skipped()).not.toContain("No incoming edge fired");
 });
 
 test("final variables are listed as key and value rows", () => {

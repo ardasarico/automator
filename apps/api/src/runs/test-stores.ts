@@ -121,6 +121,22 @@ export function memoryStores(
         .sort((a, b) => Date.parse(b.run.startedAt) - Date.parse(a.run.startedAt))[0];
       return match ? new Date(match.run.startedAt) : null;
     },
+    stats: async (ownerId, options) => {
+      const days = Array.from({ length: options.days }, (_, back) => {
+        const at = new Date(Date.now() - (options.days - 1 - back) * 86_400_000);
+        return { date: at.toISOString().slice(0, 10), succeeded: 0, failed: 0, waiting: 0 };
+      });
+      const totals = { succeeded: 0, failed: 0, waiting: 0 };
+      for (const record of runRecords) {
+        if (record.ownerId !== ownerId) continue;
+        if (options.flowId && record.run.flowId !== options.flowId) continue;
+        const date = record.run.startedAt.slice(0, 10);
+        const day = days.find((entry) => entry.date === date);
+        totals[record.run.status] += 1;
+        if (day) day[record.run.status] += 1;
+      }
+      return { days, totals };
+    },
     list: async (ownerId, options = {}) => {
       const limit = options.limit ?? runListDefaultLimit;
       const ordered = runRecords

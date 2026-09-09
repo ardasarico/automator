@@ -1,6 +1,7 @@
 import {
   runListDefaultLimit,
   runListMaxLimit,
+  runSortDefaults,
   type FlowDocument,
   type FlowRun,
   type FlowRunRecord,
@@ -8,12 +9,18 @@ import {
   type FlowRunStatus,
   type FlowRunSummary,
   type RunList,
+  type RunSortDirection,
+  type RunSortKey,
+  type RunStats,
+  type RunStatsDay,
 } from "@automator/contracts";
 import type { SQL } from "bun";
 
 type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
 
-type RunCursor = { startedAt: string; id: string };
+/* The value the page stopped at, in whatever column the list is ordered by, plus the id that
+ * breaks ties. Keyset paging, so a run inserted while reading cannot shift a page. */
+type RunCursor = { key: string; id: string };
 
 export class RunCursorError extends Error {
   constructor() {
@@ -23,7 +30,7 @@ export class RunCursorError extends Error {
 }
 
 export function encodeRunCursor(cursor: RunCursor): string {
-  return Buffer.from(JSON.stringify([cursor.startedAt, cursor.id])).toString("base64url");
+  return Buffer.from(JSON.stringify([cursor.key, cursor.id])).toString("base64url");
 }
 
 export function decodeRunCursor(value: string): RunCursor {
@@ -34,12 +41,10 @@ export function decodeRunCursor(value: string): RunCursor {
     throw new RunCursorError();
   }
   if (!Array.isArray(parsed) || parsed.length !== 2) throw new RunCursorError();
-  const [startedAt, id] = parsed as unknown[];
-  if (typeof startedAt !== "string" || typeof id !== "string" || id.length === 0)
-    throw new RunCursorError();
-  const date = new Date(startedAt);
-  if (Number.isNaN(date.getTime()) || date.toISOString() !== startedAt) throw new RunCursorError();
-  return { startedAt, id };
+  const [key, id] = parsed as unknown[];
+  if (typeof key !== "string" || key.length === 0) throw new RunCursorError();
+  if (typeof id !== "string" || id.length === 0) throw new RunCursorError();
+  return { key, id };
 }
 
 type RunRow = {
@@ -108,38 +113,96 @@ export function createRunStore(sql: SQL | undefined) {
         status?: FlowRunStatus;
         limit?: number;
         cursor?: string;
+        sort?: RunSortKey;
+        direction?: RunSortDirection;
       } = {},
     ): Promise<RunList> {
       const db = connection();
       const limit = Math.min(Math.max(options.limit ?? runListDefaultLimit, 1), runListMaxLimit);
       const after = options.cursor === undefined ? null : decodeRunCursor(options.cursor);
+      const sort = options.sort ?? "started";
+      const direction = options.direction ?? runSortDefaults[sort];
+      /* The column the list is ordered by, and the cast its cursor value needs to compare. */
+      const order = {
+        started: { column: db`r.started_at`, cast: "timestamptz" },
+        flow: { column: db`f.name`, cast: "text" },
+        status: { column: db`r.status`, cast: "text" },
+        trigger: { column: db`r.source`, cast: "text" },
+        duration: { column: db`r.finished_at - r.started_at`, cast: "interval" },
+      }[sort];
+      const at = after ? db`${after.key}::${db.unsafe(order.cast)}` : db``;
       const rows = await db<
-        (FlowRunSummary & { startedAt: Date; finishedAt: Date; error: string | null })[]
+        (FlowRunSummary & {
+          startedAt: Date;
+          finishedAt: Date;
+          error: string | null;
+          sortKey: string;
+        })[]
       >`
         SELECT r.id, r.flow_id AS "flowId", f.name AS "flowName", r.status, r.source,
           r.started_at AS "startedAt", r.finished_at AS "finishedAt",
-          r.result->>'error' AS "error"
+          r.result->>'error' AS "error",
+          /* The exact value the next page must resume after, as the database rendered it. */
+          (${order.column})::text AS "sortKey"
         FROM automator_runs r JOIN automator_flows f ON f.id = r.flow_id
         WHERE r.owner_id = ${ownerId} ${options.flowId ? db`AND r.flow_id = ${options.flowId}` : db``}
           ${options.status ? db`AND r.status = ${options.status}` : db``}
           ${
             after
-              ? db`AND (r.started_at < ${after.startedAt}::timestamptz
-                OR (r.started_at = ${after.startedAt}::timestamptz AND r.id > ${after.id}))`
+              ? direction === "desc"
+                ? db`AND ((${order.column}) < ${at}
+                  OR ((${order.column}) = ${at} AND r.id > ${after.id}))`
+                : db`AND ((${order.column}) > ${at}
+                  OR ((${order.column}) = ${at} AND r.id > ${after.id}))`
               : db``
           }
-        ORDER BY r.started_at DESC, r.id LIMIT ${limit + 1}`;
+        ORDER BY (${order.column}) ${db.unsafe(direction === "desc" ? "DESC" : "ASC")}, r.id
+        LIMIT ${limit + 1}`;
       const page = rows.slice(0, limit);
-      const runs = page.map(({ error, ...row }) => ({
+      const runs = page.map(({ error, sortKey: _sortKey, ...row }) => ({
         ...row,
         startedAt: row.startedAt.toISOString(),
         finishedAt: row.finishedAt.toISOString(),
         ...(error ? { error } : {}),
       }));
-      const last = runs.at(-1);
+      const last = page.at(-1);
       return rows.length > limit && last
-        ? { runs, nextCursor: encodeRunCursor({ startedAt: last.startedAt, id: last.id }) }
+        ? { runs, nextCursor: encodeRunCursor({ key: last.sortKey, id: last.id }) }
         : { runs };
+    },
+    /**
+     * Runs counted by UTC day and outcome over a window, with the empty days filled in so the
+     * chart has a bar slot for every day rather than a shorter axis.
+     */
+    async stats(ownerId: string, options: { flowId?: string; days: number }): Promise<RunStats> {
+      const db = connection();
+      const days = Math.min(Math.max(Math.trunc(options.days), 1), 90);
+      const rows = await db<{ day: Date; status: FlowRunStatus; count: number }[]>`
+        SELECT date_trunc('day', r.started_at AT TIME ZONE 'UTC') AS day,
+          r.status, count(*)::int AS count
+        FROM automator_runs r
+        WHERE r.owner_id = ${ownerId}
+          AND r.started_at >= (date_trunc('day', now() AT TIME ZONE 'UTC') - make_interval(days => ${days - 1}))
+          ${options.flowId ? db`AND r.flow_id = ${options.flowId}` : db``}
+        GROUP BY 1, 2`;
+      const buckets = new Map<string, RunStatsDay>();
+      const today = new Date();
+      for (let back = days - 1; back >= 0; back -= 1) {
+        const at = new Date(
+          Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - back),
+        );
+        const date = at.toISOString().slice(0, 10);
+        buckets.set(date, { date, succeeded: 0, failed: 0, waiting: 0 });
+      }
+      const totals = { succeeded: 0, failed: 0, waiting: 0 };
+      for (const row of rows) {
+        totals[row.status] += row.count;
+        /* The day comes back without a zone; its own date is what the bucket is keyed by. */
+        const date = row.day.toISOString().slice(0, 10);
+        const bucket = buckets.get(date);
+        if (bucket) bucket[row.status] += row.count;
+      }
+      return { days: [...buckets.values()], totals };
     },
     async latestStartedAt(
       flowId: string,

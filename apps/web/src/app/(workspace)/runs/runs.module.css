@@ -1,20 +1,63 @@
 /*
- * The runs table has five content columns, so it cannot share the Flows table's two-column
- * proportions. Column widths are set here; the flow name takes the slack and everything else
- * sizes to its content.
+ * The runs table has four content columns, so it cannot share the Flows table's proportions.
+ * Column widths are set here; the flow name takes the slack and everything else sizes to its
+ * content. The row that is open in the panel is marked with aria-current.
  */
 
-.toolbar {
-  display: flex;
+/* Each heading is a button: it opens the column's own order and, where the API can filter by
+ * it, that column's filter. There is no toolbar; the controls live on what they act on. */
+.columnTrigger {
+  display: inline-flex;
+  max-width: 100%;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  margin-bottom: 16px;
+  gap: 2px;
+  cursor: pointer;
+  padding: 2px 6px;
+  margin-inline-start: -6px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
 }
-.toolbarGroup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.columnTrigger:hover,
+.columnTrigger[data-popup-open] {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+.columnTrigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.columnTrigger[data-active],
+.columnTrigger[data-filtered] {
+  color: var(--foreground);
+}
+/* A filter is a stronger claim than an order, so it keeps its caret in view. */
+.columnTrigger[data-filtered] .columnCaret {
+  opacity: 0.6;
+}
+.columnMark {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+/* Only on hover: an idle heading should not look like five open menus. */
+.columnCaret {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0;
+}
+.columnTrigger:hover .columnCaret,
+.columnTrigger:focus-visible .columnCaret,
+.columnTrigger[data-popup-open] .columnCaret {
+  opacity: 0.6;
+}
+.choiceItem .choiceMark {
+  opacity: 0;
+}
+.choiceItem[data-checked] .choiceMark {
+  opacity: 1;
 }
 
 /*
@@ -50,13 +93,15 @@
 }
 .table thead th {
   position: sticky;
-  top: 0;
+  top: -20px;
   z-index: 1;
   padding-block: 10px;
   font-weight: 400;
   color: var(--muted-foreground);
   white-space: nowrap;
-  background: var(--background);
+  /* The frame's content region is what scrolls, and it carries the workspace surface. */
+  background: var(--muted);
+  box-shadow: 0 1px var(--border);
 }
 .table tbody th {
   font-weight: 400;
@@ -65,13 +110,16 @@
 .table tbody tr:hover th {
   background: color-mix(in srgb, var(--foreground) 3%, transparent);
 }
+.table tbody tr[aria-current] td,
+.table tbody tr[aria-current] th {
+  background: var(--accent);
+}
 
 /* Content columns sized to their words; the flow name absorbs the rest. */
 .status,
 .trigger,
 .started,
-.duration,
-.canvas {
+.duration {
   width: 1%;
   white-space: nowrap;
 }
@@ -128,4 +176,45 @@
   .runLink {
     min-width: 16ch;
   }
+}
+
+/* Where the list ends: the sentinel that pulls the next page, and what it says while it does. */
+.pageEnd {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-block: 20px 8px;
+}
+.pageNote {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+
+/* The list's shape while the runs are being read. The headings keep the offset their menu
+ * triggers have, so the columns do not shift by six pixels when the real ones arrive. */
+.ghostColumn {
+  display: inline-block;
+  padding: 2px 6px;
+  margin-inline-start: -6px;
+}
+.ghostFlow {
+  width: min(100%, 176px);
+  height: 0.9lh;
+}
+.ghostBadge {
+  width: 62px;
+  height: 18px;
+}
+.ghostCell {
+  width: 84px;
+  height: 0.8lh;
+}
+.ghostDuration {
+  width: 52px;
+  height: 0.8lh;
+  margin-inline-start: auto;
 }

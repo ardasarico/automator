@@ -2,6 +2,7 @@ import { Value } from "@sinclair/typebox/value";
 import { describe, expect, test } from "bun:test";
 import { parseResponse } from "./contract";
 import {
+  flowRunNodeResultSchema,
   flowRunRequestSchema,
   flowRunSchema,
   flowRunSourceSchema,
@@ -14,6 +15,19 @@ import {
   transactionHashes,
   type FlowRun,
 } from "./flow-runs";
+
+describe("flowRunNodeResultSchema", () => {
+  test("a skipped node may say why, and a run recorded before the reason existed still validates", () => {
+    expect(Value.Check(flowRunNodeResultSchema, { nodeId: "n1", status: "skipped" })).toBe(true);
+    for (const skipReason of ["no-input", "run-stopped"])
+      expect(
+        Value.Check(flowRunNodeResultSchema, { nodeId: "n1", status: "skipped", skipReason }),
+      ).toBe(true);
+    expect(
+      Value.Check(flowRunNodeResultSchema, { nodeId: "n1", status: "skipped", skipReason: "why" }),
+    ).toBe(false);
+  });
+});
 
 describe("transactionHashes", () => {
   const hash = `0x${"ab".repeat(32)}`;

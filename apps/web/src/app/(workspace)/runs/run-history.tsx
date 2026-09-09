@@ -1,13 +1,34 @@
-import type { FlowRunStatus, FlowRunSummary } from "@automator/contracts";
+"use client";
+
+import {
+  flowRunStatuses,
+  type FlowRunStatus,
+  type FlowRunSummary,
+  type FlowSummary,
+  type RunSortKey,
+} from "@automator/contracts";
 import { Badge } from "@automator/ui/badge";
 import { Button } from "@automator/ui/button";
 import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
-import { RiFlowChart, RiPlayCircleLine } from "@remixicon/react";
+import { Menu, MenuLinkItem, MenuPopup, MenuSeparator, MenuTrigger } from "@automator/ui/menu";
+import { RiArrowDownSLine, RiArrowUpSLine, RiCheckLine, RiPlayCircleLine } from "@remixicon/react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import flowStyles from "../flows/flows.module.css";
 import { LocalTime } from "./local-time";
 import { runDuration, runSourceLabels, runStatusLabels } from "./run-labels";
+import { runHref, runsHref, type RunListState } from "./run-links";
 import styles from "./runs.module.css";
+import { useRunPages } from "./use-run-pages";
+
+/* Each column says what its own order means, rather than repeating "ascending". */
+const sortWords: Record<RunSortKey, { asc: string; desc: string }> = {
+  started: { desc: "Newest first", asc: "Oldest first" },
+  flow: { asc: "Name A–Z", desc: "Name Z–A" },
+  status: { asc: "Status A–Z", desc: "Status Z–A" },
+  trigger: { asc: "Trigger A–Z", desc: "Trigger Z–A" },
+  duration: { desc: "Longest first", asc: "Shortest first" },
+};
 
 function emptyCopy(status: FlowRunStatus | undefined, filtered: boolean, older: boolean) {
   if (older)
@@ -31,21 +52,123 @@ function emptyCopy(status: FlowRunStatus | undefined, filtered: boolean, older: 
   };
 }
 
-export function RunHistory({
-  runs,
+/**
+ * A column heading that carries its own order, and — where the API can filter by it — its own
+ * filter. The toolbar those controls used to live on is gone: they belong to the column they
+ * act on, and every one of them is a link, so the list stays server-rendered.
+ */
+function ColumnHeader({
+  column,
+  label,
+  state,
+  filter,
   filtered = false,
-  status,
-  nextHref,
-  latestHref,
+  className,
+}: {
+  column: RunSortKey;
+  label: string;
+  state: RunListState;
+  filter?: ReactNode;
+  filtered?: boolean;
+  className?: string;
+}) {
+  const active = state.sort === column;
+  const words = sortWords[column];
+  return (
+    <th scope="col" className={className}>
+      <Menu>
+        <MenuTrigger
+          className={styles.columnTrigger}
+          data-active={active ? "" : undefined}
+          data-filtered={filtered ? "" : undefined}
+          aria-label={`${label} column options`}
+        >
+          {label}
+          {active ? (
+            state.direction === "asc" ? (
+              <RiArrowUpSLine aria-hidden="true" className={styles.columnMark} />
+            ) : (
+              <RiArrowDownSLine aria-hidden="true" className={styles.columnMark} />
+            )
+          ) : (
+            <RiArrowDownSLine aria-hidden="true" className={styles.columnCaret} />
+          )}
+        </MenuTrigger>
+        <MenuPopup align="start">
+          <ChoiceItem
+            href={runsHref({ ...state, sort: column, direction: "desc" })}
+            active={active && state.direction === "desc"}
+          >
+            {words.desc}
+          </ChoiceItem>
+          <ChoiceItem
+            href={runsHref({ ...state, sort: column, direction: "asc" })}
+            active={active && state.direction === "asc"}
+          >
+            {words.asc}
+          </ChoiceItem>
+          {filter}
+        </MenuPopup>
+      </Menu>
+    </th>
+  );
+}
+
+/** A menu choice that says whether it is the one in effect. */
+function ChoiceItem({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <MenuLinkItem
+      render={<Link href={href} scroll={false} />}
+      className={styles.choiceItem}
+      data-checked={active ? "" : undefined}
+      aria-current={active ? "true" : undefined}
+    >
+      <RiCheckLine aria-hidden="true" className={styles.choiceMark} />
+      <span>{children}</span>
+    </MenuLinkItem>
+  );
+}
+
+export function RunHistory({
+  runs: serverRuns,
+  flows = [],
+  state,
+  cursor,
+  nextCursor,
+  selectedId,
 }: {
   runs: readonly FlowRunSummary[];
-  filtered?: boolean;
-  status?: FlowRunStatus;
-  nextHref?: string;
-  latestHref?: string;
+  flows?: readonly FlowSummary[];
+  state: RunListState;
+  /** The page the server rendered, if the URL asked for one past the first. */
+  cursor?: string;
+  nextCursor?: string;
+  selectedId?: string;
 }) {
+  /* A different order, filter or starting page is a different list. */
+  const { runs, loading, failed, more, auto, load, sentinel } = useRunPages({
+    listKey: runsHref(state, cursor),
+    runs: serverRuns,
+    cursor: nextCursor,
+    query: {
+      flowId: state.flowId,
+      status: state.status,
+      sort: state.sort,
+      dir: state.direction,
+    },
+  });
+  const latestHref = cursor ? runsHref(state) : undefined;
+  const filtered = Boolean(state.flowId) || Boolean(state.status);
   if (runs.length === 0) {
-    const copy = emptyCopy(status, filtered, Boolean(latestHref));
+    const copy = emptyCopy(state.status, filtered, Boolean(latestHref));
     return (
       <section className={flowStyles.empty} aria-labelledby="runs-empty-title">
         <EmptyStateIllustration icon={<RiPlayCircleLine />} />
@@ -63,29 +186,88 @@ export function RunHistory({
       </section>
     );
   }
+  const selectedFlow = flows.find((flow) => flow.id === state.flowId);
   return (
-    <section aria-label="Recent runs" className={flowStyles.collection}>
+    <section aria-label="Recent runs">
       <div className={styles.tableWrap}>
         <table className={styles.table}>
-          <caption className="sr-only">Your recent runs, newest first</caption>
+          <caption className="sr-only">
+            Your runs, ordered by {sortWords[state.sort][state.direction].toLowerCase()}
+          </caption>
           <thead>
             <tr>
-              <th scope="col">Flow</th>
-              <th scope="col" className={styles.status}>
-                Status
-              </th>
-              <th scope="col" className={styles.trigger}>
-                Trigger
-              </th>
-              <th scope="col" className={styles.started}>
-                Started
-              </th>
-              <th scope="col" className={styles.duration}>
-                Duration
-              </th>
-              <th scope="col" className={styles.canvas}>
-                <span className="sr-only">Canvas</span>
-              </th>
+              <ColumnHeader
+                column="flow"
+                label={selectedFlow ? selectedFlow.name : "Flow"}
+                filtered={Boolean(state.flowId)}
+                state={state}
+                filter={
+                  <>
+                    <MenuSeparator />
+                    <ChoiceItem
+                      href={runsHref({ ...state, flowId: undefined })}
+                      active={!state.flowId}
+                    >
+                      All flows
+                    </ChoiceItem>
+                    {flows.map((flow) => (
+                      <ChoiceItem
+                        key={flow.id}
+                        href={runsHref({ ...state, flowId: flow.id })}
+                        active={flow.id === state.flowId}
+                      >
+                        {flow.name}
+                      </ChoiceItem>
+                    ))}
+                  </>
+                }
+              />
+              <ColumnHeader
+                column="status"
+                /* A filtered column says what it is filtered to, in place of its own name. */
+                label={state.status ? runStatusLabels[state.status].label : "Status"}
+                filtered={Boolean(state.status)}
+                className={styles.status}
+                state={state}
+                filter={
+                  <>
+                    <MenuSeparator />
+                    <ChoiceItem
+                      href={runsHref({ ...state, status: undefined })}
+                      active={!state.status}
+                    >
+                      Any status
+                    </ChoiceItem>
+                    {flowRunStatuses.map((value) => (
+                      <ChoiceItem
+                        key={value}
+                        href={runsHref({ ...state, status: value })}
+                        active={value === state.status}
+                      >
+                        {runStatusLabels[value].label}
+                      </ChoiceItem>
+                    ))}
+                  </>
+                }
+              />
+              <ColumnHeader
+                column="trigger"
+                label="Trigger"
+                className={styles.trigger}
+                state={state}
+              />
+              <ColumnHeader
+                column="started"
+                label="Started"
+                className={styles.started}
+                state={state}
+              />
+              <ColumnHeader
+                column="duration"
+                label="Duration"
+                className={styles.duration}
+                state={state}
+              />
             </tr>
           </thead>
           <tbody>
@@ -93,10 +275,11 @@ export function RunHistory({
               const badge = runStatusLabels[run.status];
               const duration = runDuration(run.status, run.startedAt, run.finishedAt);
               return (
-                <tr key={run.id}>
+                <tr key={run.id} aria-current={run.id === selectedId ? "true" : undefined}>
                   <th scope="row">
                     <Link
-                      href={`/runs/${encodeURIComponent(run.id)}`}
+                      href={runHref(run.id, state, cursor)}
+                      scroll={false}
                       className={styles.runLink}
                       aria-label={`${run.flowName} run`}
                     >
@@ -119,38 +302,40 @@ export function RunHistory({
                   <td className={styles.duration}>
                     {duration ?? <span className={styles.pending}>—</span>}
                   </td>
-                  <td className={styles.canvas}>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Open ${run.flowName} on canvas`}
-                      render={
-                        <Link href={`/flows/${run.flowId}?run=${encodeURIComponent(run.id)}`} />
-                      }
-                    >
-                      <RiFlowChart aria-hidden="true" />
-                    </Button>
-                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      {(latestHref || nextHref) && (
-        <nav aria-label="Run history pages" className="mt-6 flex flex-wrap justify-center gap-3">
-          {latestHref && (
-            <Button variant="outline" render={<Link href={latestHref} />}>
-              View latest runs
+      {/* The list fetches as it is scrolled, then asks: nothing here moves the page under a
+       * reader who is still reading, and a failure offers the same page again. */}
+      <div ref={sentinel} className={styles.pageEnd}>
+        {failed ? (
+          <>
+            <p className={styles.pageNote}>Those runs did not load.</p>
+            <Button variant="outline" onClick={() => void load()} loading={loading}>
+              Try again
             </Button>
-          )}
-          {nextHref && (
-            <Button variant="outline" render={<Link href={nextHref} />}>
-              View older runs
-            </Button>
-          )}
-        </nav>
-      )}
+          </>
+        ) : more && !auto ? (
+          <Button variant="outline" onClick={() => void load()} loading={loading}>
+            Load older runs
+          </Button>
+        ) : loading ? (
+          <p className={styles.pageNote}>Loading older runs…</p>
+        ) : null}
+        {latestHref && (
+          <Button variant="outline" render={<Link href={latestHref} />}>
+            View latest runs
+          </Button>
+        )}
+      </div>
+      <p aria-live="polite" className="sr-only">
+        {loading
+          ? "Loading older runs"
+          : `${runs.length} ${runs.length === 1 ? "run" : "runs"} loaded`}
+      </p>
     </section>
   );
 }

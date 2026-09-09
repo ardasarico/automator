@@ -1,25 +1,19 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { cache } from "react";
-import { WorkspacePage } from "../../../../components/workspace-page";
-import { getRun } from "../../../../flows/server";
-import { RunDetail } from "./run-detail";
+import { loadRun } from "../load-run";
+import { RunsList } from "../runs-list";
+import type { RunsSearchParams } from "../run-links";
 
-const loadRun = cache((id: string) => getRun(id));
-
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<RunsSearchParams>;
+};
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const record = await loadRun((await params).id);
   return { title: record ? `${record.flowName} run · Automator` : "Run · Automator" };
 }
 
-export default async function RunPage({ params }: Props) {
-  const record = await loadRun((await params).id);
-  if (!record) notFound();
-  return (
-    <WorkspacePage>
-      <RunDetail record={record} />
-    </WorkspacePage>
-  );
+/** The same list, with the open run marked. The run itself is the `panel` slot beside it. */
+export default async function RunsPageWithRun({ params, searchParams }: Props) {
+  return <RunsList searchParams={searchParams} selectedId={(await params).id} />;
 }
