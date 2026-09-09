@@ -1,0 +1,18 @@
+/* One placeholder block. Every skeleton in the workspace shares this ground and this rhythm,
+ * so a page waiting in two places does not look like two different waits. */
+.pulse {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}
