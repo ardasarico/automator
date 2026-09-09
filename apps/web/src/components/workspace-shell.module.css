@@ -13,7 +13,7 @@
   top: 8px;
   padding: 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--popover);
   color: var(--popover-foreground);
   font-size: var(--text-caption);
@@ -32,7 +32,6 @@
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: none;
@@ -41,64 +40,84 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  /* Puts the 48px header's centre on the page heading's: 8px content inset plus the
+   * 8px WorkspacePage pad, against a 40px breadcrumb row. Returns to 8px once the page
+   * frame lands with its own 48px title bar. */
+  padding-top: 12px;
   background: var(--background);
 }
+
+/* Header. The 20px mark sits at 16–36px, centred on 26 in both states. */
 .header {
   position: relative;
   display: flex;
-  width: 260px;
+  width: 240px;
+  height: 48px;
   flex: none;
   align-items: center;
-  padding: 16px 12px 12px;
+  padding-inline: 16px 10px;
 }
 .brand {
   display: flex;
   align-items: center;
-  border-radius: 8px;
+  /* The mark and the wordmark each carry their own bearing; 2px lands them 8px apart. */
+  gap: 2px;
+  border-radius: var(--radius-sm);
 }
 .markSlot {
   display: flex;
-  width: 40px;
-  height: 40px;
+  width: 20px;
+  height: 20px;
   flex: none;
   align-items: center;
   justify-content: center;
 }
+/* Bigger than its 20px slot on purpose: it overflows symmetrically, so the mark grows
+ * without moving its own centre or the wordmark beside it. */
+.mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
 .label {
-  width: 122px;
-  height: 28px;
+  width: 88px;
+  height: 20px;
   overflow: hidden;
   flex: none;
   color: var(--foreground);
   transition: opacity 200ms var(--ease-press);
 }
 .label svg {
+  width: 107px;
+  height: 20px;
   max-width: none;
-  margin-left: -28px;
+  margin-left: -20px;
 }
 .collapseButton {
   margin-left: auto;
   color: var(--muted-foreground);
   cursor: w-resize;
+  transition: opacity 200ms var(--ease-press);
 }
 .expandButton {
   position: absolute;
-  top: 16px;
+  top: 10px;
   inset-inline-start: 12px;
   cursor: e-resize;
 }
-
 .shell[data-state="collapsed"] .markSlot,
-.shell[data-state="collapsed"] .label {
+.shell[data-state="collapsed"] .label,
+.shell[data-state="collapsed"] .collapseButton {
   opacity: 0;
+}
+.toggleIcon {
+  width: 16px;
+  height: 16px;
 }
 .iconStack {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
   place-items: center;
 }
 .iconStack > span {
@@ -116,7 +135,7 @@
   scale: 0.25;
   filter: blur(4px);
 }
-.expandButton:focus-visible .mark {
+.expandButton:focus-visible .markIcon {
   opacity: 0;
   scale: 0.25;
   filter: blur(4px);
@@ -127,7 +146,7 @@
   filter: blur(0);
 }
 @media (hover: hover) {
-  .expandButton:hover .mark {
+  .expandButton:hover .markIcon {
     opacity: 0;
     scale: 0.25;
     filter: blur(4px);
@@ -138,43 +157,75 @@
     filter: blur(0);
   }
 }
+
+/* Navigation. 8px from the nav edge plus 10px inside the row puts a 16px icon at 18–34. */
 .navigation {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 4px;
+  gap: 16px;
+  padding: 8px 8px 0;
+}
+.band {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bandLabel {
+  height: 18px;
   padding-inline: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: opacity 200ms var(--ease-press);
 }
 .navLink {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 8px 12px;
+  gap: 10px;
+  height: 36px;
+  padding-inline: 8px;
   overflow: hidden;
   white-space: nowrap;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   color: var(--muted-foreground);
+  font-size: 16px;
   transition:
     color 150ms var(--ease-press),
     background-color 150ms var(--ease-press),
     scale 150ms var(--ease-press);
 }
 .navIcon {
-  width: 24px;
-  height: 24px;
+  /* 20px starting at 16px keeps the icon centred on 26, the rail's centre. */
+  width: 20px;
+  height: 20px;
   flex: none;
 }
 .navLabel {
   flex: none;
   transition: opacity 200ms var(--ease-press);
 }
-.shell[data-state="collapsed"] .navLabel {
+.navBadge {
+  margin-left: auto;
+  color: var(--destructive-text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition: opacity 200ms var(--ease-press);
+}
+.shell[data-state="collapsed"] .navLabel,
+.shell[data-state="collapsed"] .navBadge,
+.shell[data-state="collapsed"] .bandLabel {
   opacity: 0;
 }
 .navLink[aria-current="page"] {
   color: var(--foreground);
-  background: var(--accent);
+  background: var(--sidebar-accent);
+  font-weight: 500;
 }
 .brand:active,
 .navLink:active {
@@ -183,8 +234,20 @@
 @media (hover: hover) {
   .navLink:hover {
     color: var(--foreground);
-    background: var(--accent);
+    background: var(--sidebar-accent);
   }
+}
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  background: var(--background);
 }
 .contentArea {
   height: 100%;
@@ -197,17 +260,6 @@
 .shell[data-state="open"] .contentArea {
   padding-block-start: 8px;
   padding-inline-end: 8px;
-}
-.footer {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  position: sticky;
-  bottom: 0;
-  margin-top: auto;
-  padding: 8px;
-  padding-bottom: max(8px, env(safe-area-inset-bottom));
-  background: var(--background);
 }
 .content {
   height: 100%;
@@ -225,8 +277,8 @@
 }
 .shell[data-state="open"] .content {
   padding: 0;
-  border-start-start-radius: 16px;
-  border-start-end-radius: 16px;
+  border-start-start-radius: var(--radius-2xl);
+  border-start-end-radius: var(--radius-2xl);
 }
 .shell[data-state="collapsed"] .content {
   border-color: transparent;
@@ -244,7 +296,10 @@
   .iconStack > span,
   .navLink,
   .navLabel,
+  .navBadge,
+  .bandLabel,
   .label,
+  .collapseButton,
   .skipLink,
   .contentArea,
   .content {

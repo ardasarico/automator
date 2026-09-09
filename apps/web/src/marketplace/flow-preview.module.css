@@ -3,7 +3,7 @@
   height: 360px;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--canvas);
 }
 .frame > * {

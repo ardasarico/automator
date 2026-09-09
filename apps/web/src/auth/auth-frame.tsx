@@ -10,7 +10,7 @@ export function AuthFrame({ children }: { children: ReactNode }) {
       <AuthBackground />
       <div className={styles.backgroundBlur} aria-hidden="true" />
       <header className={styles.header}>
-        <Logo markColor="var(--primary)" />
+        <Logo markColor="var(--brand)" />
         <ThemeToggle />
       </header>
       <main className={styles.main}>

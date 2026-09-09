@@ -26,7 +26,7 @@ export function AccountMenu() {
       aria-label={walletAddress ? `Account menu, ${walletAddress}` : "Account menu"}
     >
       <span className={styles.avatar} aria-hidden="true">
-        <DitherAvatar name={user?.id ?? "Automator"} hue={192} size={24} animate={false} />
+        <DitherAvatar name={user?.id ?? "Automator"} hue={192} size={20} animate={false} />
       </span>
       <span className={styles.details} aria-hidden="true">
         <span className={styles.identity}>
@@ -39,7 +39,7 @@ export function AccountMenu() {
                 : "Loading account…"}
           </span>
         </span>
-        <RiExpandUpDownLine size={18} />
+        <RiExpandUpDownLine size={14} />
       </span>
     </MenuTrigger>
   );

@@ -3,13 +3,18 @@ import { Button } from "@automator/ui/button";
 import { Logo, LogoMark } from "@automator/ui/logo";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@automator/ui/tooltip";
 import {
-  RiFlowChart,
-  RiPlayCircleLine,
+  RiAppsLine,
   RiCompass3Line,
+  RiFlowChart,
+  RiHome5Line,
+  RiPlayCircleLine,
+  RiPlugLine,
+  RiSettings3Line,
   RiSideBarLine,
   RiTableLine,
   RiWallet3Line,
 } from "@remixicon/react";
+import type { RemixiconComponentType } from "@remixicon/react";
 import { motion, MotionConfig, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -17,13 +22,44 @@ import { useRef, type ReactNode } from "react";
 import { SidebarProvider, useSidebar, type SidebarState } from "./sidebar-context";
 import styles from "./workspace-shell.module.css";
 import { AccountMenu } from "./account-menu";
-const pages = [
-  { href: "/flows", label: "Flows", icon: RiFlowChart },
-  { href: "/runs", label: "Runs", icon: RiPlayCircleLine },
-  { href: "/data", label: "Data", icon: RiTableLine },
-  { href: "/marketplace", label: "Marketplace", icon: RiCompass3Line },
-  { href: "/wallet", label: "Wallet", icon: RiWallet3Line },
+
+/**
+ * Open and collapsed widths. Every mark, icon and avatar is centred on 26px — the
+ * centre of the collapsed rail — so collapsing takes width away from labels without
+ * moving anything else.
+ */
+const openWidth = 240;
+const railWidth = 52;
+
+type NavItem = { href: string; label: string; icon: RemixiconComponentType };
+type NavBand = { label: string; items: NavItem[] };
+
+const bands: NavBand[] = [
+  {
+    label: "Workspace",
+    items: [
+      { href: "/", label: "Home", icon: RiHome5Line },
+      { href: "/flows", label: "Flows", icon: RiFlowChart },
+      { href: "/runs", label: "Runs", icon: RiPlayCircleLine },
+    ],
+  },
+  {
+    label: "Resources",
+    items: [
+      { href: "/data", label: "Data", icon: RiTableLine },
+      { href: "/connections", label: "Connections", icon: RiPlugLine },
+      { href: "/wallet", label: "Wallet", icon: RiWallet3Line },
+    ],
+  },
+  {
+    label: "Share",
+    items: [
+      { href: "/mini-apps", label: "Mini-apps", icon: RiAppsLine },
+      { href: "/marketplace", label: "Marketplace", icon: RiCompass3Line },
+    ],
+  },
 ];
+
 function SidebarHeader() {
   const { state, setState } = useSidebar();
   const isOpen = state === "open";
@@ -37,11 +73,11 @@ function SidebarHeader() {
   }
   return (
     <header className={styles.header}>
-      {}
-      <Link href="/flows" className={styles.brand} aria-label="Automator flows" inert={!isOpen}>
+      <Link href="/" className={styles.brand} aria-label="Automator home" inert={!isOpen}>
         <span className={styles.markSlot}>
-          <LogoMark markColor="var(--primary)" aria-hidden="true" />
+          <LogoMark className={styles.mark} markColor="var(--brand)" aria-hidden="true" />
         </span>
+        {/* The wordmark is the whole logo pulled left past its own mark, so nothing is drawn twice. */}
         <span className={styles.label}>
           <Logo markColor="transparent" aria-hidden="true" />
         </span>
@@ -50,23 +86,19 @@ function SidebarHeader() {
         <Button
           ref={expandRef}
           variant="ghost"
-          size="icon-xl"
-          className={`size-10 sm:size-10 ${styles.expandButton}`}
+          size="icon-sm"
+          className={styles.expandButton}
           aria-label="Expand sidebar"
           aria-expanded={false}
           aria-controls="workspace-sidebar"
           onClick={toggle}
         >
           <span className={styles.iconStack}>
-            <span className={styles.mark}>
-              <LogoMark
-                className="size-7 opacity-100"
-                markColor="var(--primary)"
-                aria-hidden="true"
-              />
+            <span className={styles.markIcon}>
+              <LogoMark className={styles.mark} markColor="var(--brand)" aria-hidden="true" />
             </span>
             <span className={styles.openIcon}>
-              <RiSideBarLine className="size-6 opacity-100" aria-hidden="true" />
+              <RiSideBarLine className={styles.toggleIcon} aria-hidden="true" />
             </span>
           </span>
         </Button>
@@ -74,8 +106,8 @@ function SidebarHeader() {
       <Button
         ref={collapseRef}
         variant="ghost"
-        size="icon-xl"
-        className={`size-10 sm:size-10 ${styles.collapseButton}`}
+        size="icon-sm"
+        className={styles.collapseButton}
         aria-label="Collapse sidebar"
         aria-expanded={isOpen}
         aria-controls="workspace-sidebar"
@@ -83,15 +115,25 @@ function SidebarHeader() {
         inert={!isOpen}
         onClick={toggle}
       >
-        <RiSideBarLine className="size-6" aria-hidden="true" />
+        <RiSideBarLine className={styles.toggleIcon} aria-hidden="true" />
       </Button>
     </header>
   );
 }
-function SidebarLink({ href, label, icon: Icon }: (typeof pages)[number]) {
-  const { state } = useSidebar();
+
+function useActive(href: string) {
   const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(`${href}/`);
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function SidebarLink({
+  href,
+  label,
+  icon: Icon,
+  badge,
+}: NavItem & { badge?: { value: string; title: string } }) {
+  const { state } = useSidebar();
+  const active = useActive(href);
   const link = (
     <Link
       href={href}
@@ -103,6 +145,11 @@ function SidebarLink({ href, label, icon: Icon }: (typeof pages)[number]) {
       <span className={styles.navLabel} aria-hidden="true">
         {label}
       </span>
+      {badge && (
+        <span className={styles.navBadge} title={badge.title}>
+          {badge.value}
+        </span>
+      )}
     </Link>
   );
   if (state === "open") return link;
@@ -110,12 +157,19 @@ function SidebarLink({ href, label, icon: Icon }: (typeof pages)[number]) {
     <Tooltip>
       <TooltipTrigger render={link} />
       <TooltipPopup side="right" sideOffset={8}>
-        {label}
+        {badge ? `${label} — ${badge.title}` : label}
       </TooltipPopup>
     </Tooltip>
   );
 }
-function WorkspaceFrame({ children }: { children: ReactNode }) {
+
+function WorkspaceFrame({
+  children,
+  failedRunsToday,
+}: {
+  children: ReactNode;
+  failedRunsToday?: number;
+}) {
   const { state } = useSidebar();
   const isOpen = state === "open";
   const reducedMotion = useReducedMotion();
@@ -133,22 +187,40 @@ function WorkspaceFrame({ children }: { children: ReactNode }) {
             id="workspace-sidebar"
             aria-label="Sidebar"
             initial={false}
-            animate={{ width: isOpen ? 260 : 64 }}
+            animate={{ width: isOpen ? openWidth : railWidth }}
             className={styles.sidebar}
           >
             <div className={styles.sidebarTop}>
               <SidebarHeader />
-              <nav aria-label="Main navigation" className={styles.navigation}>
-                {pages.map((page) => (
-                  <SidebarLink key={page.href} {...page} />
-                ))}
-              </nav>
             </div>
+            <nav aria-label="Main navigation" className={styles.navigation}>
+              {bands.map((band) => (
+                <div key={band.label} className={styles.band}>
+                  <p className={styles.bandLabel} aria-hidden="true">
+                    {band.label}
+                  </p>
+                  {band.items.map((item) => (
+                    <SidebarLink
+                      key={item.href}
+                      {...item}
+                      badge={
+                        item.href === "/runs" && failedRunsToday
+                          ? {
+                              value: failedRunsToday > 99 ? "99+" : String(failedRunsToday),
+                              title: `${failedRunsToday} failed today`,
+                            }
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              ))}
+            </nav>
             <div className={styles.footer}>
+              <SidebarLink href="/settings" label="Settings" icon={RiSettings3Line} />
               <AccountMenu />
             </div>
           </motion.aside>
-          {}
           <div className={styles.contentArea}>
             <main id="workspace-content" tabIndex={-1} className={styles.content}>
               {children}
@@ -159,16 +231,19 @@ function WorkspaceFrame({ children }: { children: ReactNode }) {
     </MotionConfig>
   );
 }
+
 export function WorkspaceShell({
   children,
   defaultState = "open",
+  failedRunsToday,
 }: {
   children: ReactNode;
   defaultState?: SidebarState;
+  failedRunsToday?: number;
 }) {
   return (
     <SidebarProvider defaultState={defaultState}>
-      <WorkspaceFrame>{children}</WorkspaceFrame>
+      <WorkspaceFrame failedRunsToday={failedRunsToday}>{children}</WorkspaceFrame>
     </SidebarProvider>
   );
 }

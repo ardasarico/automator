@@ -3,21 +3,21 @@
 }
 
 :root {
-  --neutral-50: oklch(0.991 0.001 220);
-  --neutral-100: oklch(0.985 0.002 220);
-  --neutral-200: oklch(0.965 0.003 220);
-  --neutral-300: oklch(0.933 0.004 220);
-  --neutral-400: oklch(0.875 0.005 220);
-  --neutral-500: oklch(0.596 0.008 220);
-  --neutral-600: oklch(0.44 0.008 220);
-  --neutral-700: oklch(0.239 0.006 220);
-  --neutral-800: oklch(0.218 0.006 220);
-  --neutral-900: oklch(0.067 0.002 220);
-  --blue-100: oklch(0.92 0.035 223.092);
-  --blue-200: oklch(0.83 0.093 223.092);
-  --blue-300: oklch(0.79 0.147 223.092);
-  --blue-400: oklch(0.49 0.085 223.092);
-  --blue-500: oklch(0.29 0.052 223.092);
+  --neutral-50: oklch(0.991 0.0005 220);
+  --neutral-100: oklch(0.985 0.0009 220);
+  --neutral-200: oklch(0.965 0.0014 220);
+  --neutral-300: oklch(0.933 0.0018 220);
+  --neutral-400: oklch(0.875 0.0023 220);
+  --neutral-500: oklch(0.596 0.0036 220);
+  --neutral-600: oklch(0.44 0.0036 220);
+  --neutral-700: oklch(0.239 0.0027 220);
+  --neutral-800: oklch(0.218 0.0027 220);
+  --neutral-900: oklch(0.067 0.0009 220);
+  --blue-100: oklch(0.92 0.021 223.092);
+  --blue-200: oklch(0.83 0.0558 223.092);
+  --blue-300: oklch(0.79 0.0882 223.092);
+  --blue-400: oklch(0.49 0.051 223.092);
+  --blue-500: oklch(0.29 0.0312 223.092);
   --green-100: oklch(0.92 0.035 150);
   --green-200: oklch(0.83 0.093 150);
   --green-300: oklch(0.79 0.195 150);
@@ -39,8 +39,8 @@
   --card-foreground: var(--neutral-800);
   --popover: var(--neutral-200);
   --popover-foreground: var(--neutral-800);
-  --primary: var(--blue-300);
-  --primary-foreground: var(--blue-500);
+  --primary: var(--neutral-800);
+  --primary-foreground: var(--neutral-50);
   --secondary: color-mix(in srgb, var(--neutral-900) 4%, transparent);
   --secondary-foreground: var(--neutral-800);
   --muted: var(--neutral-200);
@@ -52,11 +52,13 @@
   --input: color-mix(in srgb, var(--neutral-900) 10%, transparent);
   --ring: var(--blue-400);
   --link: var(--blue-400);
+  /* The logo mark. Separate from --primary, which is monochrome. */
+  --brand: var(--blue-400);
   --sidebar: var(--neutral-100);
   --sidebar-foreground: var(--neutral-800);
-  --sidebar-primary: var(--blue-300);
-  --sidebar-primary-foreground: var(--blue-500);
-  --sidebar-accent: var(--neutral-200);
+  --sidebar-primary: var(--neutral-800);
+  --sidebar-primary-foreground: var(--neutral-50);
+  --sidebar-accent: var(--neutral-300);
   --sidebar-accent-foreground: var(--neutral-800);
   --sidebar-border: color-mix(in srgb, var(--neutral-900) 8%, transparent);
   --sidebar-ring: var(--blue-400);
@@ -94,21 +96,22 @@
 }
 
 .dark {
-  --neutral-50: oklch(0.16 0.006 220);
-  --neutral-100: oklch(0.18 0.006 220);
-  --neutral-200: oklch(0.215 0.007 220);
-  --neutral-300: oklch(0.24 0.008 220);
-  --neutral-400: oklch(0.435 0.01 220);
-  --neutral-500: oklch(0.7 0.008 220);
-  --neutral-600: oklch(0.79 0.006 220);
-  --neutral-700: oklch(0.865 0.005 220);
-  --neutral-800: oklch(0.925 0.004 220);
-  --neutral-900: oklch(0.955 0.003 220);
+  --neutral-50: oklch(0.16 0.0027 220);
+  --neutral-100: oklch(0.18 0.0027 220);
+  --neutral-200: oklch(0.215 0.0032 220);
+  --neutral-300: oklch(0.24 0.0036 220);
+  --neutral-400: oklch(0.435 0.0045 220);
+  --neutral-500: oklch(0.7 0.0036 220);
+  --neutral-600: oklch(0.79 0.0027 220);
+  --neutral-700: oklch(0.865 0.0023 220);
+  --neutral-800: oklch(0.925 0.0018 220);
+  --neutral-900: oklch(0.955 0.0014 220);
   --secondary: color-mix(in srgb, var(--neutral-900) 8%, transparent);
   --border: color-mix(in srgb, var(--neutral-900) 6%, transparent);
   --input: color-mix(in srgb, var(--neutral-900) 8%, transparent);
   --ring: var(--blue-300);
   --sidebar-ring: var(--blue-300);
+  --brand: var(--blue-300);
   --link: var(--blue-300);
   --info-foreground: var(--blue-200);
   --success-foreground: var(--green-200);
@@ -118,7 +121,7 @@
   --warning-surface: var(--amber-500);
   --destructive-surface: var(--red-500);
   /* Between neutral-300 and neutral-400 to retain popup separation and 4.5:1 text contrast. */
-  --accent: oklch(0.37 0.009 220);
+  --accent: oklch(0.37 0.004 220);
   /* No red palette step meets both 3:1 against the canvas and 4.5:1 for its foreground. */
   --destructive: oklch(0.55 0.2 25);
   --destructive-foreground: var(--neutral-900);
@@ -182,6 +185,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-link: var(--link);
+  --color-brand: var(--brand);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
