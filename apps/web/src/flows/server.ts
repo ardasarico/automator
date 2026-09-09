@@ -9,6 +9,7 @@ import {
   type FlowDocumentInput,
   type FlowRecord,
   type FlowRunRecord,
+  type FlowRunStatus,
   type FlowSummary,
   type RunList,
 } from "@automator/contracts";
@@ -68,13 +69,19 @@ export async function createFlow(input: FlowDocumentInput): Promise<FlowRecord> 
 }
 
 export async function listRuns(
-  options: { flowId?: string; cursor?: string; limit?: number } = {},
+  options: {
+    flowId?: string;
+    status?: FlowRunStatus;
+    cursor?: string;
+    limit?: number;
+  } = {},
 ): Promise<RunList> {
   const token = await sessionToken();
   const result = await request(process.env.API_URL, listAllRunsContract, {
     token,
     query: {
       flowId: options.flowId,
+      status: options.status,
       cursor: options.cursor,
       limit: options.limit === undefined ? undefined : String(options.limit),
     },

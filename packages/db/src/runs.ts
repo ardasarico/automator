@@ -5,6 +5,7 @@ import {
   type FlowRun,
   type FlowRunRecord,
   type FlowRunSource,
+  type FlowRunStatus,
   type FlowRunSummary,
   type RunList,
 } from "@automator/contracts";
@@ -102,16 +103,25 @@ export function createRunStore(sql: SQL | undefined) {
     },
     async list(
       ownerId: string,
-      options: { flowId?: string; limit?: number; cursor?: string } = {},
+      options: {
+        flowId?: string;
+        status?: FlowRunStatus;
+        limit?: number;
+        cursor?: string;
+      } = {},
     ): Promise<RunList> {
       const db = connection();
       const limit = Math.min(Math.max(options.limit ?? runListDefaultLimit, 1), runListMaxLimit);
       const after = options.cursor === undefined ? null : decodeRunCursor(options.cursor);
-      const rows = await db<(FlowRunSummary & { startedAt: Date; finishedAt: Date })[]>`
+      const rows = await db<
+        (FlowRunSummary & { startedAt: Date; finishedAt: Date; error: string | null })[]
+      >`
         SELECT r.id, r.flow_id AS "flowId", f.name AS "flowName", r.status, r.source,
-          r.started_at AS "startedAt", r.finished_at AS "finishedAt"
+          r.started_at AS "startedAt", r.finished_at AS "finishedAt",
+          r.result->>'error' AS "error"
         FROM automator_runs r JOIN automator_flows f ON f.id = r.flow_id
         WHERE r.owner_id = ${ownerId} ${options.flowId ? db`AND r.flow_id = ${options.flowId}` : db``}
+          ${options.status ? db`AND r.status = ${options.status}` : db``}
           ${
             after
               ? db`AND (r.started_at < ${after.startedAt}::timestamptz
@@ -120,10 +130,11 @@ export function createRunStore(sql: SQL | undefined) {
           }
         ORDER BY r.started_at DESC, r.id LIMIT ${limit + 1}`;
       const page = rows.slice(0, limit);
-      const runs = page.map((row) => ({
+      const runs = page.map(({ error, ...row }) => ({
         ...row,
         startedAt: row.startedAt.toISOString(),
         finishedAt: row.finishedAt.toISOString(),
+        ...(error ? { error } : {}),
       }));
       const last = runs.at(-1);
       return rows.length > limit && last

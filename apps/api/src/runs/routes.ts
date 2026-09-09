@@ -93,7 +93,12 @@ export function createRunRoutes({
     const limit = parseRunListLimit(query.limit);
     if (limit === null) return null;
     try {
-      return await stores.runs.list(ownerId, { flowId: query.flowId, cursor: query.cursor, limit });
+      return await stores.runs.list(ownerId, {
+        flowId: query.flowId,
+        status: query.status,
+        cursor: query.cursor,
+        limit,
+      });
     } catch (error) {
       if (error instanceof RunCursorError) return null;
       throw error;

@@ -27,7 +27,7 @@ import {
 } from "../../../../builder/run-selectors";
 import { WorkspaceBreadcrumbs } from "../../../../components/workspace-breadcrumbs";
 import { LocalTime } from "../local-time";
-import { formatDuration, nodeStatusLabels, runSourceLabels, runStatusLabels } from "../run-labels";
+import { nodeStatusLabels, runDuration, runSourceLabels, runStatusLabels } from "../run-labels";
 import styles from "./run-detail.module.css";
 
 type NodeFacts = { label: string; type?: string; icon?: CatalogIcon };
@@ -153,6 +153,7 @@ function Step({
 export function RunDetail({ record }: { record: FlowRunRecord }) {
   const { run, document, flowName, source } = record;
   const status = runStatusLabels[run.status];
+  const duration = runDuration(run.status, run.startedAt, run.finishedAt);
   const chainId = flowChainId(document);
   const trigger = run.trigger.nodeId ? nodeFacts(document, run.trigger.nodeId) : null;
   const variables = Object.entries(run.variables);
@@ -167,7 +168,7 @@ export function RunDetail({ record }: { record: FlowRunRecord }) {
           <span>
             Started <LocalTime value={run.startedAt} />
           </span>
-          <span>{formatDuration(run.startedAt, run.finishedAt)}</span>
+          {duration && <span>{duration}</span>}
         </p>
         <Button variant="outline" render={<Link href={canvasHref} />}>
           <RiFlowChart aria-hidden="true" />

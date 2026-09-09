@@ -20,12 +20,17 @@ export const flowRunNodeResultSchema = Type.Object({
 });
 export type FlowRunNodeResult = Static<typeof flowRunNodeResultSchema>;
 
-export const flowRunStatusSchema = Type.Union([
-  Type.Literal("succeeded"),
-  Type.Literal("failed"),
-  Type.Literal("waiting"),
-]);
-export type FlowRunStatus = Static<typeof flowRunStatusSchema>;
+export const flowRunStatuses = ["succeeded", "failed", "waiting"] as const;
+export type FlowRunStatus = (typeof flowRunStatuses)[number];
+/* Unsafe preserves the literal union that mapping to Type.Union would widen. */
+export const flowRunStatusSchema = Type.Unsafe<FlowRunStatus>(
+  Type.Union(flowRunStatuses.map((status) => Type.Literal(status))),
+);
+
+/** Narrows a status read from a query string, which arrives as an arbitrary string. */
+export function isFlowRunStatus(value: string): value is FlowRunStatus {
+  return (flowRunStatuses as readonly string[]).includes(value);
+}
 
 export const flowRunTriggerSchema = Type.Object({
   nodeId: Type.Union([Type.String(), Type.Null()]),
@@ -84,6 +89,8 @@ export const flowRunSummarySchema = Type.Object({
   source: flowRunSourceSchema,
   startedAt: Type.String(),
   finishedAt: Type.String(),
+  /* Why a failed run failed, so a list of runs can say it without opening each one. */
+  error: Type.Optional(Type.String()),
 });
 export type FlowRunSummary = Static<typeof flowRunSummarySchema>;
 
@@ -131,6 +138,7 @@ export function parseRunListLimit(value: string | undefined): number | undefined
 }
 export const runListQuerySchema = Type.Object({
   flowId: Type.Optional(Type.String({ minLength: 1 })),
+  status: Type.Optional(flowRunStatusSchema),
   ...runListPagingSchema,
 });
 export type RunListQuery = Static<typeof runListQuerySchema>;
