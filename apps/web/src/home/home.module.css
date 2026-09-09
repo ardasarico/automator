@@ -1,0 +1,337 @@
+/*
+ * Home is the one workspace page without a title bar: the prompt owns the first screen, and the
+ * activity tape starts below it. The hero takes its height from the scrolling content region,
+ * which has a definite height, so scrolling past it is a deliberate act.
+ */
+.hero {
+  position: relative;
+  display: flex;
+  min-height: 86%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px 40px;
+  isolation: isolate;
+}
+
+/* The travelling backdrop sits behind everything in the hero and reaches nothing else. */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* The animation reads its ink from here, so it follows the theme without knowing about it. */
+  color: var(--foreground);
+  opacity: 0.9;
+}
+/*
+ * Two jobs: hold the middle calm enough to read the prompt against, and let the field die out
+ * before the activity tape starts, so the two halves of the page do not argue.
+ */
+.scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      50% 34% at 50% 46%,
+      color-mix(in srgb, var(--background) 72%, transparent) 0%,
+      color-mix(in srgb, var(--background) 38%, transparent) 58%,
+      transparent 100%
+    ),
+    linear-gradient(to bottom, transparent 46%, var(--muted) 96%);
+}
+.title {
+  margin: 0;
+  font-size: var(--text-page);
+  line-height: var(--text-page--line-height);
+  font-weight: var(--text-page--font-weight);
+  letter-spacing: var(--text-page--letter-spacing);
+  text-align: center;
+}
+.subtitle {
+  margin: 8px 0 0;
+  max-width: 46ch;
+  color: var(--muted-foreground);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  text-align: center;
+}
+
+/* The sentence owns the width; the key that sends it sits underneath. */
+.box {
+  display: flex;
+  flex-direction: column;
+  margin-top: 24px;
+  width: 100%;
+  max-width: 720px;
+  padding: 6px 6px 6px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+  backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--foreground) 10%, transparent);
+  transition: border-color 150ms ease;
+}
+.box:focus-within {
+  border-color: var(--ring);
+}
+.input {
+  display: block;
+  width: 100%;
+  resize: none;
+  border: 0;
+  background: transparent;
+  padding: 12px 12px 4px;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  field-sizing: content;
+  min-height: 3lh;
+  max-height: 11lh;
+}
+.input:focus {
+  outline: none;
+}
+.input::placeholder {
+  color: var(--muted-foreground);
+}
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 4px 6px 6px;
+}
+.send {
+  flex: none;
+}
+
+/* The second way in, in the same column as the prompt above it. */
+.examplesSection {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 1168px;
+  padding: 8px 24px 40px;
+}
+.exampleGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (width < 900px) {
+  .exampleGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.exampleCard {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  padding: 14px;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+.exampleCard:hover {
+  border-color: var(--input);
+}
+.exampleCard:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.exampleCard[aria-busy="true"] {
+  opacity: 0.64;
+}
+.exampleCardIcons {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  color: var(--muted-foreground);
+}
+.exampleCardIcons svg {
+  width: 17px;
+  height: 17px;
+}
+.exampleCardName {
+  color: var(--foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  font-weight: 500;
+}
+.exampleCardText {
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.exampleCardStart {
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+.exampleCard:hover .exampleCardStart {
+  color: var(--foreground);
+}
+
+/*
+ * The tape: one card under the hero, in the hero's own column, split into a labelled block per
+ * day. Time, a dot, a sentence, and what started it — nothing else competes for the eye.
+ */
+.activity {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 1168px;
+  padding: 0 24px 80px;
+}
+.activityHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+.activityHead h2 {
+  margin: 0;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+.all {
+  margin-inline-start: auto;
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+}
+.all:hover {
+  color: var(--foreground);
+}
+
+.board {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  overflow: hidden;
+}
+.block {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.block:last-child {
+  border-bottom: 0;
+}
+.blockLabel {
+  margin: 0;
+  padding: 4px 8px 6px;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) auto;
+  gap: 0 12px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  line-height: 1.55;
+}
+.row:hover {
+  background: var(--muted);
+}
+.row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+}
+.time {
+  text-align: end;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sentence {
+  min-width: 0;
+}
+.flow {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.reason {
+  display: block;
+  color: var(--destructive-text);
+}
+.tag {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+.dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-inline-end: 9px;
+  border-radius: 999px;
+  background: var(--muted-foreground);
+  vertical-align: middle;
+}
+.dot[data-state="succeeded"] {
+  background: var(--success);
+}
+.dot[data-state="failed"] {
+  background: var(--destructive);
+}
+.dot[data-state="waiting"] {
+  background: var(--warning);
+}
+.dot[data-state="upcoming"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--muted-foreground);
+}
+
+/* The skeleton borrows the row's own grid, so nothing shifts when the rows arrive. */
+.pulse {
+  height: 0.8lh;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.pulse[data-width="0"] {
+  max-width: 62%;
+}
+.pulse[data-width="1"] {
+  max-width: 44%;
+}
+.tag.pulse {
+  width: 52px;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}
+
+.empty {
+  margin: 0;
+  padding: 14px 8px 18px;
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+}
+.emptyLink {
+  color: var(--link);
+}

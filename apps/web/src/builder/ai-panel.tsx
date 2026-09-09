@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 import { describeAiFailure, generateFlowRequest } from "./ai-client";
 import { historyOf, type AiProposal, type AiTurn } from "./ai-store";
 import { useAiStore } from "./ai-store-provider";
+import { takePendingPrompt } from "../home/pending-prompt";
 import styles from "./ai-panel.module.css";
 import { serializeFlow } from "./document";
 import { useBuilderStore } from "./store-provider";
@@ -221,11 +222,29 @@ export function AiPanel() {
     if (focusRequests > 0) promptField.current?.focus();
   }, [focusRequests]);
 
-  async function send() {
-    const text = prompt.trim();
+  /*
+   * Home creates the flow and hands the prompt over, so the first answer is drawn here rather
+   * than behind a spinner on Home. Only a canvas opened for the AI collects it, and the prompt
+   * is read once: reloading this page does not ask again.
+   */
+  const handedOver = useRef(false);
+  const latestSend = useRef<(text: string) => Promise<void>>(async () => {});
+  /* Declared first, so the handover below always calls the current render's send. */
+  useEffect(() => {
+    latestSend.current = send;
+  });
+  useEffect(() => {
+    if (handedOver.current || focusRequests === 0) return;
+    handedOver.current = true;
+    const text = takePendingPrompt();
+    if (text !== null) void latestSend.current(text);
+  }, [focusRequests]);
+
+  async function send(handed?: string) {
+    const text = (handed ?? prompt).trim();
     if (!text || pending) return;
     const askId = ask(text);
-    setPrompt("");
+    if (handed === undefined) setPrompt("");
     const { id: _id, ...document } = serializeFlow(meta, nodes, edges);
     try {
       const result = await generateFlowRequest(await getAccessToken(), {
