@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FlowActionButton } from "../../../flows/action-button";
 import { createFlowAction } from "../../../flows/actions";
 import { flowExamples } from "../marketplace/examples";
-import { FlowNodeMarks } from "../marketplace/flow-node-marks";
+import { FlowNodeMarks } from "./flow-node-marks";
 import styles from "./flows.module.css";
 
 export function FlowExamples() {

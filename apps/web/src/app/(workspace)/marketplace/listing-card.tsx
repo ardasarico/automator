@@ -1,41 +1,49 @@
 import { RiGitForkLine } from "@remixicon/react";
 import Link from "next/link";
-import { authorLabel, type MarketplaceItem } from "../../../marketplace/listing";
 import { FlowActionButton } from "../../../flows/action-button";
 import { createFlowAction, forkFlowAction } from "../../../flows/actions";
-import { ListingMarks } from "../../../marketplace/listing-marks";
+import { FlowMiniature } from "../../../flows/flow-miniature";
+import { tileView } from "../../../flows/miniature-geometry";
+import type { MarketplaceItem } from "../../../marketplace/listing";
+import { ListingAuthorLine } from "../../../marketplace/listing-author";
+import { ListingSignal } from "../../../marketplace/listing-signal";
 import styles from "./marketplace.module.css";
 
-const forkCountFormat = new Intl.NumberFormat("en");
-
+/**
+ * One listing, as a row: the flow's own shape on the left, then what it is called, what it does,
+ * and who made it. The shape is drawn from the stored node positions, so a branching flow and a
+ * straight one are told apart before the name is read.
+ *
+ * Fork stays hidden until the card is hovered or focused — opening the listing is the ordinary
+ * act, forking is the deliberate one. It is hidden with opacity rather than `display`, so it
+ * keeps its place in the tab order and appears when tabbed to.
+ */
 export function ListingCard({ listing }: { listing: MarketplaceItem }) {
   const titleId = `listing-${listing.author.kind}-${listing.slug}-title`;
-  const forks = listing.author.kind === "user" ? listing.forkCount : null;
   return (
     <article className={styles.card} aria-labelledby={titleId}>
-      <div className={styles.cardTop}>
-        <ListingMarks nodeTypes={listing.nodeTypes} />
-        {forks !== null && (
-          <p className={styles.cardMeta}>
-            <RiGitForkLine aria-hidden="true" />
-            <span>
-              {forkCountFormat.format(forks)} {forks === 1 ? "fork" : "forks"}
-            </span>
-          </p>
+      <div className={styles.cardTile}>
+        {listing.outline.nodes.length > 0 && (
+          <FlowMiniature outline={listing.outline} view={tileView} />
         )}
       </div>
-      <h3 id={titleId} className={`${styles.cardTitle} text-label`}>
-        <Link href={`/marketplace/${encodeURIComponent(listing.slug)}`} className={styles.cardLink}>
-          {listing.name}
-        </Link>
-      </h3>
-      <p className={styles.cardDescription}>{listing.description}</p>
-      <div className={styles.cardFooter}>
-        <p className={styles.cardMeta}>
-          <span>{authorLabel(listing.author)}</span>
-        </p>
+      <div className={styles.cardBody}>
+        <h3 id={titleId} className={`${styles.cardTitle} text-label`}>
+          <Link
+            href={`/marketplace/${encodeURIComponent(listing.slug)}`}
+            className={styles.cardLink}
+          >
+            {listing.name}
+          </Link>
+        </h3>
+        <p className={styles.cardDescription}>{listing.description}</p>
+        <div className={styles.cardFoot}>
+          <ListingAuthorLine author={listing.author} size={18} />
+          <ListingSignal listing={listing} />
+        </div>
+      </div>
+      <div className={styles.cardFork}>
         <FlowActionButton
-          className="relative z-10"
           variant="outline"
           size="sm"
           action={
@@ -46,7 +54,7 @@ export function ListingCard({ listing }: { listing: MarketplaceItem }) {
           aria-label={`Fork flow: ${listing.name}`}
         >
           <RiGitForkLine aria-hidden="true" />
-          Fork flow
+          Fork
         </FlowActionButton>
       </div>
     </article>

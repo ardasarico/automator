@@ -23,6 +23,7 @@ const listing: MarketplaceListing = {
   description: "The public description.",
   author: { name: "Arda", username: "arda" },
   nodeTypes: ["logic.wait"],
+  outline: { nodes: [], edges: [] },
   forkCount: 2,
   publishedAt: "2026-09-07T10:00:00.000Z",
   updatedAt: "2026-09-07T10:00:00.000Z",

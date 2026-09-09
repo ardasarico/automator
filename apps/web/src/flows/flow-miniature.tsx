@@ -1,7 +1,7 @@
 import type { FlowNodeType, FlowOutline } from "@automator/contracts";
 import { getCatalogEntry, type FlowNodeCategory } from "../builder/catalog";
 import styles from "./flow-miniature.module.css";
-import { miniatureGeometry, miniatureView } from "./miniature-geometry";
+import { miniatureGeometry, miniatureView, type MiniatureView } from "./miniature-geometry";
 
 /* The canvas colours node icons by category; the miniature repeats that mapping, so a card
  * and the flow it opens say the same thing. */
@@ -24,11 +24,20 @@ function chartColor(type: FlowNodeType) {
  * A flow's real shape, drawn from its stored node positions, so every card in the list is
  * distinguishable instead of repeating one generic glyph.
  */
-export function FlowMiniature({ outline, label }: { outline: FlowOutline; label?: string }) {
-  const { boxes, wires } = miniatureGeometry(outline);
+export function FlowMiniature({
+  outline,
+  label,
+  view = miniatureView,
+}: {
+  outline: FlowOutline;
+  label?: string;
+  /** The drawing surface, so a marketplace tile can ask for tighter units than a card. */
+  view?: MiniatureView;
+}) {
+  const { boxes, wires } = miniatureGeometry(outline, view);
   return (
     <svg
-      viewBox={`0 0 ${miniatureView.width} ${miniatureView.height}`}
+      viewBox={`0 0 ${view.width} ${view.height}`}
       preserveAspectRatio="xMidYMid meet"
       /* Without a label it is decoration beside text that already names the flow. */
       {...(label === undefined ? { "aria-hidden": true } : { role: "img", "aria-label": label })}

@@ -1,0 +1,32 @@
+.author {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.mark {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--foreground);
+}
+.avatar {
+  flex: none;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+}
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The person carries the ink; the handle stays quiet beside it. */
+.person {
+  color: var(--foreground);
+}

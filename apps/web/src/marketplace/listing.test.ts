@@ -2,8 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   authorLabel,
   browseListings,
+  featuredListing,
   isOwnListing,
   listingCategories,
+  listingSections,
   type MarketplaceItem,
 } from "./listing";
 
@@ -13,6 +15,7 @@ const curated: MarketplaceItem = {
   description: "Verify a visitor, collect payment and issue a ticket.",
   author: { kind: "automator" },
   nodeTypes: ["world.id-verify", "privy.wallet"],
+  outline: { nodes: [{ id: "a", type: "world.id-verify", x: 0, y: 0 }], edges: [] },
   steps: [],
   forkCount: 12,
 };
@@ -22,6 +25,7 @@ const mine: MarketplaceItem = {
   description: "Only verified humans can claim.",
   author: { kind: "user", name: "Arda", username: "arda" },
   nodeTypes: ["world.id-verify", "usdc.payout"],
+  outline: { nodes: [{ id: "a", type: "usdc.payout", x: 0, y: 0 }], edges: [] },
   steps: [],
   forkCount: 3,
   publishedAt: "2026-09-01T10:00:00.000Z",
@@ -32,6 +36,7 @@ const theirs: MarketplaceItem = {
   description: "Approve testers and email them a code.",
   author: { kind: "user", name: "Nova", username: "nova" },
   nodeTypes: ["logic.condition", "notify.email"],
+  outline: { nodes: [{ id: "a", type: "notify.email", x: 0, y: 0 }], edges: [] },
   steps: [],
   forkCount: 40,
   publishedAt: "2026-09-05T10:00:00.000Z",
@@ -115,4 +120,51 @@ test("listingCategories reads categories off node types and the browser filters 
       username: null,
     }).map((item) => item.slug),
   ).toEqual(["nova/beta-invites"]);
+});
+
+describe("featuredListing", () => {
+  test("takes the first slug that is actually published", () => {
+    expect(featuredListing(all, ["missing", "nova/beta-invites"])?.slug).toBe("nova/beta-invites");
+  });
+
+  test("falls back to a curated listing when no featured slug is published", () => {
+    expect(featuredListing(all, ["missing", "also-missing"])?.slug).toBe("ticket-checkout");
+  });
+
+  test("hands back nothing when there is nothing at all", () => {
+    expect(featuredListing([], ["ticket-checkout"])).toBeUndefined();
+  });
+});
+
+describe("listingSections", () => {
+  test("leads with the community and keeps Yours out of it", () => {
+    const sections = listingSections(all, { username: "arda" });
+    expect(sections.map((section) => section.id)).toEqual(["mine", "community", "automator"]);
+    expect(sections[0]?.listings.map((item) => item.slug)).toEqual(["arda/airdrop-gate"]);
+    expect(sections[1]?.listings.map((item) => item.slug)).toEqual(["nova/beta-invites"]);
+    expect(sections[2]?.listings.map((item) => item.slug)).toEqual(["ticket-checkout"]);
+  });
+
+  test("omits Yours entirely when the viewer has published nothing", () => {
+    const sections = listingSections(all, { username: "nobody" });
+    expect(sections.map((section) => section.id)).toEqual(["community", "automator"]);
+    expect(sections[0]?.listings.map((item) => item.slug)).toEqual([
+      "nova/beta-invites",
+      "arda/airdrop-gate",
+    ]);
+  });
+
+  test("the featured listing is not repeated in its section", () => {
+    const sections = listingSections(all, {
+      username: null,
+      featuredSlug: "nova/beta-invites",
+    });
+    const slugs = sections.flatMap((section) => section.listings.map((item) => item.slug));
+    expect(slugs).not.toContain("nova/beta-invites");
+  });
+
+  test("a signed-out visitor still gets a community section", () => {
+    const sections = listingSections(all, { username: null });
+    expect(sections.map((section) => section.id)).toEqual(["community", "automator"]);
+  });
 });

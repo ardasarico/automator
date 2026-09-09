@@ -49,7 +49,8 @@ test("create a flow, simulate it, publish it, and fork the listing", async ({ pa
   expect(listingHref).toMatch(/^\/marketplace\//);
 
   await page.goto("/marketplace");
-  await page.getByRole("button", { name: "Yours" }).click();
+  /* Publishing gives the viewer a "Yours" section; the marketplace leads with it. */
+  await expect(page.getByRole("heading", { name: "Yours" })).toBeVisible();
   await expect(page.getByRole("heading", { name })).toBeVisible();
   await page.goto(listingHref!);
   await expect(page.getByRole("img", { name: `Graph of ${name}` })).toBeVisible();

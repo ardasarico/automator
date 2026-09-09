@@ -1,23 +1,57 @@
-/* The grid answers to the content column, not the viewport, so the side panel and the
- * collapsing sidebar change the card count without a media query. */
-.listings {
+/*
+ * Marketplace is the second workspace page without a title bar: like Home, it names itself in the
+ * middle of its own column. Everything below the head answers to that column, not the viewport,
+ * so the collapsing sidebar changes the card count without a media query.
+ */
+.page {
   container: marketplace / inline-size;
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+  padding-block-end: 48px;
 }
-.intro {
-  max-width: 60ch;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
+
+/* The one action that is not part of what the column says, so it keeps the corner. */
+.corner {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 48px;
+  align-items: center;
+  padding-inline: 24px;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-block: 8px 32px;
+  text-align: center;
+}
+.title {
+  margin: 0;
+  font-size: var(--text-page);
+  line-height: var(--text-page--line-height);
+  font-weight: var(--text-page--font-weight);
+  letter-spacing: var(--text-page--letter-spacing);
+}
+.subtitle {
+  margin: 8px 0 0;
+  max-width: 46ch;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
   color: var(--muted-foreground);
   text-wrap: pretty;
 }
-/* The same field the title bar carries on Flows and Data. */
+
+/* The field the page lands on, rather than a box crammed in beside a heading. */
 .search {
   display: flex;
-  height: 30px;
-  width: min(100%, 240px);
+  height: 40px;
+  width: min(100%, 520px);
   align-items: center;
-  gap: 8px;
-  padding-inline: 10px;
+  gap: 10px;
+  margin-top: 24px;
+  padding-inline: 14px;
   border: 1px solid var(--input);
   border-radius: var(--radius-lg);
   background: var(--background);
@@ -36,37 +70,98 @@
   color: var(--muted-foreground);
   pointer-events: none;
 }
-.grid {
+
+/* The catalog's shape, out of a dropdown and onto the page. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+}
+.chipCount {
+  color: color-mix(in srgb, currentcolor 70%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.sectionCount {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.sectionMore {
+  margin-inline-start: auto;
+}
+.section + .section {
+  margin-top: 32px;
+}
+.sections {
+  margin-top: 32px;
+}
+
+.list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.grid > li {
+.list > li {
   min-width: 0;
 }
+
+/* ------------------------------------ the row card ------------------------------------ */
+
 .card {
   position: relative;
   display: flex;
-  flex-direction: column;
   height: 100%;
   min-width: 0;
-  padding: 20px;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   background: var(--card);
   transition: border-color 150ms;
 }
-.cardTop {
+.card:has(.cardLink:hover) {
+  border-color: color-mix(in oklab, var(--border), var(--foreground) 25%);
+}
+/* The flow at tile size: a silhouette, enough to tell a branch from a chain. */
+.cardTile {
   display: flex;
+  width: 80px;
+  height: 56px;
+  flex: none;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.cardBody {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
 }
 .cardTitle {
-  margin-top: 16px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Room kept for the hover Fork button, so a long name never runs underneath it. */
+  padding-inline-end: 64px;
 }
 .cardLink::after {
   content: "";
@@ -81,45 +176,112 @@
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
-
-.card:has(.cardLink:hover) {
-  border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
-}
 .cardDescription {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.cardFoot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-top: 8px;
-  margin-bottom: 24px;
+}
+.cardFoot > :last-child {
+  margin-inline-start: auto;
+}
+/*
+ * Hidden with opacity, never `display`: the button keeps its place in the tab order, and focus
+ * brings it back into view for anyone who never hovers.
+ */
+.cardFork {
+  position: absolute;
+  inset-inline-end: 12px;
+  top: 12px;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.card:hover .cardFork,
+.card:focus-within .cardFork {
+  opacity: 1;
+}
+@media (hover: none) {
+  .cardFork {
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------- the featured ------------------------------------- */
+
+.featured {
+  display: flex;
+  overflow: hidden;
+  min-height: 218px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+.featuredBody {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+}
+.featuredKicker {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.featuredTitle {
+  margin: 0;
+}
+.featuredDescription {
+  max-width: 46ch;
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   color: var(--muted-foreground);
   text-wrap: pretty;
 }
-.cardFooter {
+.featuredActions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: auto;
+  gap: 8px;
+  margin-top: 4px;
 }
-.cardMeta {
+.featuredShape {
+  width: 45%;
+  flex: none;
+  border-inline-start: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* -------------------------------- catalog and empties -------------------------------- */
+
+.catalogBar {
   display: flex;
   align-items: center;
-  flex: 1 1 auto;
-  gap: 6px;
-  min-width: 0;
+  gap: 12px;
+  margin-top: 8px;
+  margin-bottom: 16px;
+}
+.catalogCount {
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
-.cardMeta > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cardMeta > svg {
-  width: 14px;
-  height: 14px;
-  flex: none;
+.catalogSort {
+  margin-inline-start: auto;
 }
 .empty {
   display: flex;
@@ -128,26 +290,41 @@
   text-align: center;
   padding-block: 52px 60px;
 }
-@container marketplace (max-width: 1040px) {
-  .grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+/* A section expected to fill is an invitation, not an empty state. */
+.invite {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-xl);
 }
-@container marketplace (max-width: 760px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.inviteText {
+  max-width: 52ch;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+@container marketplace (max-width: 720px) {
+  .list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .featuredShape {
+    display: none;
   }
 }
 @container marketplace (max-width: 440px) {
-  .grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .empty {
     padding-block: 40px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .card {
+  .card,
+  .cardFork,
+  .search {
     transition: none;
   }
 }

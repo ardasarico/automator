@@ -1,0 +1,16 @@
+.signal {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.signal > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}

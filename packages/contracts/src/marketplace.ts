@@ -6,6 +6,7 @@ import { flowNodeConfigSchemas } from "./flow-node-configs";
 import {
   flowDocumentSchema,
   flowNodeTypeSchema,
+  flowOutlineSchema,
   flowRecordSchema,
   type FlowDocument,
   type FlowNodeType,
@@ -31,6 +32,8 @@ export const marketplaceListingSchema = Type.Object({
   description: Type.String(),
   author: listingAuthorSchema,
   nodeTypes: Type.Array(flowNodeTypeSchema),
+  /* The flow's shape, so a list can draw it without asking for the whole document. */
+  outline: flowOutlineSchema,
   forkCount: Type.Integer({ minimum: 0 }),
   publishedAt: Type.String(),
   updatedAt: Type.String(),

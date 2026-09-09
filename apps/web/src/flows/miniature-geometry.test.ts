@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { FlowOutline } from "@automator/contracts";
-import { miniatureGeometry, miniatureView } from "./miniature-geometry";
+import { miniatureGeometry, miniatureView, tileView } from "./miniature-geometry";
 
 function outline(nodes: [number, number][], edges: [number, number][] = []): FlowOutline {
   return {
@@ -85,5 +85,34 @@ describe("miniatureGeometry", () => {
       edges: [{ source: "n0", target: "missing" }],
     };
     expect(miniatureGeometry(broken).wires).toEqual([]);
+  });
+});
+
+describe("tileView", () => {
+  test("fits a wide flow inside the tile, where the card view's cap could not", () => {
+    const wide = outline([
+      [0, 0],
+      [300, 0],
+      [600, 0],
+      [900, 0],
+      [1200, 0],
+      [1500, 0],
+    ]);
+    const { boxes } = miniatureGeometry(wide, tileView);
+    expect(boxes).toHaveLength(6);
+    for (const box of boxes) {
+      expect(box.x).toBeGreaterThanOrEqual(-0.001);
+      expect(box.y).toBeGreaterThanOrEqual(-0.001);
+      expect(box.x + box.width).toBeLessThanOrEqual(tileView.width + 0.001);
+      expect(box.y + box.height).toBeLessThanOrEqual(tileView.height + 0.001);
+    }
+  });
+
+  test("the default view is unchanged, so Flows keeps the geometry it had", () => {
+    const shape = outline([
+      [0, 0],
+      [300, 0],
+    ]);
+    expect(miniatureGeometry(shape)).toEqual(miniatureGeometry(shape, miniatureView));
   });
 });

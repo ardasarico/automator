@@ -1,5 +1,6 @@
 import {
   clearDataTableReferences,
+  documentOutline,
   listingNodeTypes,
   reservedListingSlugs,
   slugifyListingName,
@@ -12,6 +13,8 @@ import {
 import type { SQL } from "bun";
 import { recordFlowVersion } from "./flow-versions";
 
+type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
+/* The document travels with every row: a list sends only the outline drawn from it. */
 type ListingRow = {
   id: string;
   slug: string;
@@ -20,12 +23,12 @@ type ListingRow = {
   authorName: string | null;
   authorUsername: string;
   nodeTypes: FlowNodeType[];
+  document: Snapshot;
   forkCount: number;
   publishedAt: Date;
   updatedAt: Date;
 };
-type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
-type ListingDetailRow = ListingRow & { document: Snapshot };
+type ListingDetailRow = ListingRow;
 type FlowRow = {
   id: string;
   name: string;
@@ -44,6 +47,7 @@ function toListing(row: ListingRow): MarketplaceListing {
     description: row.description,
     author: { name: row.authorName ?? row.authorUsername, username: row.authorUsername },
     nodeTypes: row.nodeTypes,
+    outline: documentOutline(row.document),
     forkCount: row.forkCount,
     publishedAt: row.publishedAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -87,7 +91,7 @@ export function createListingStore(sql: SQL | undefined) {
       const rows = await db<ListingRow[]>`
         SELECT l.id, l.slug, l.name, l.description, l.node_types AS "nodeTypes",
           l.fork_count AS "forkCount", l.published_at AS "publishedAt", l.updated_at AS "updatedAt",
-          u.name AS "authorName", u.username AS "authorUsername"
+          u.name AS "authorName", u.username AS "authorUsername", l.document
         FROM automator_listings l JOIN automator_users u ON u.id = l.owner_id
         ORDER BY l.published_at DESC, l.slug`;
       return rows.map(toListing);
@@ -107,7 +111,7 @@ export function createListingStore(sql: SQL | undefined) {
       const rows = await db<ListingRow[]>`
         SELECT l.id, l.slug, l.name, l.description, l.node_types AS "nodeTypes",
           l.fork_count AS "forkCount", l.published_at AS "publishedAt", l.updated_at AS "updatedAt",
-          u.name AS "authorName", u.username AS "authorUsername"
+          u.name AS "authorName", u.username AS "authorUsername", l.document
         FROM automator_listings l JOIN automator_users u ON u.id = l.owner_id
         WHERE l.owner_id = ${ownerId} AND l.flow_id = ${flowId}`;
       return rows[0] ? toListing(rows[0]) : null;
@@ -134,7 +138,7 @@ export function createListingStore(sql: SQL | undefined) {
         )
         SELECT l.id, l.slug, l.name, l.description, l.node_types AS "nodeTypes",
           l.fork_count AS "forkCount", l.published_at AS "publishedAt", l.updated_at AS "updatedAt",
-          u.name AS "authorName", u.username AS "authorUsername"
+          u.name AS "authorName", u.username AS "authorUsername", l.document
         FROM saved l JOIN automator_users u ON u.id = l.owner_id`;
       if (updated[0]) return toListing(updated[0]);
 
@@ -157,7 +161,8 @@ export function createListingStore(sql: SQL | undefined) {
             )
             SELECT l.id, l.slug, l.name, l.description, l.node_types AS "nodeTypes",
               l.fork_count AS "forkCount", l.published_at AS "publishedAt",
-              l.updated_at AS "updatedAt", u.name AS "authorName", u.username AS "authorUsername"
+              l.updated_at AS "updatedAt", u.name AS "authorName",
+              u.username AS "authorUsername", l.document
             FROM saved l JOIN automator_users u ON u.id = l.owner_id`;
           if (!rows[0]) throw new Error("Listing creation failed");
           return toListing(rows[0]);

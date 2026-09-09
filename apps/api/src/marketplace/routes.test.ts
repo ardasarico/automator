@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  documentOutline,
   forkListingContract,
   getFlowListingContract,
   getListingContract,
@@ -98,6 +99,7 @@ function fixture(listingOverrides: Partial<ListingStore> = {}) {
         description: body.description,
         author,
         nodeTypes: ["world.id-verify" as const],
+        outline: documentOutline(flow),
         forkCount: existing?.forkCount ?? 0,
         publishedAt: existing?.publishedAt ?? stamp(),
         updatedAt: stamp(),
@@ -320,6 +322,7 @@ describe("marketplace routes", () => {
       description: "",
       author: { name: "Alice", username: "alice" },
       nodeTypes: [],
+      outline: { nodes: [], edges: [] },
       forkCount: 0,
       publishedAt: "2026-09-07T10:00:00.000Z",
       updatedAt: "2026-09-07T10:00:00.000Z",

@@ -7,6 +7,7 @@ import { createFlowAction, forkFlowAction } from "../../../../flows/actions";
 import { CopyLinkButton } from "../../../../marketplace/copy-link-button";
 import { FlowPreview } from "../../../../marketplace/flow-preview";
 import type { MarketplaceItem } from "../../../../marketplace/listing";
+import { ListingAuthorLine } from "../../../../marketplace/listing-author";
 import { ListingMarks } from "../../../../marketplace/listing-marks";
 import { findMarketplaceItem } from "../../../../marketplace/server";
 
@@ -34,28 +35,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+/* The same person the marketplace card shows, so the two pages agree about who made this. */
 function ListingByline({ listing }: { listing: MarketplaceItem }) {
-  if (listing.author.kind === "automator")
-    return <p className="mb-2 text-caption text-muted-foreground">By Automator</p>;
-  const { name, username } = listing.author;
   return (
-    <p className="mb-2 flex flex-wrap items-center gap-x-2 text-caption text-muted-foreground tabular-nums">
-      <span>
-        By {name} <span className="text-muted-foreground/80">@{username}</span>
-      </span>
-      {listing.publishedAt && (
+    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground tabular-nums">
+      <ListingAuthorLine author={listing.author} size={22} />
+      {listing.author.kind === "user" && (
         <>
+          {listing.publishedAt && (
+            <>
+              <span aria-hidden="true">·</span>
+              <time dateTime={listing.publishedAt}>
+                {dateFormat.format(new Date(listing.publishedAt))}
+              </time>
+            </>
+          )}
           <span aria-hidden="true">·</span>
-          <time dateTime={listing.publishedAt}>
-            {dateFormat.format(new Date(listing.publishedAt))}
-          </time>
+          <span>
+            {forkCountFormat.format(listing.forkCount)} {listing.forkCount === 1 ? "fork" : "forks"}
+          </span>
         </>
       )}
-      <span aria-hidden="true">·</span>
-      <span>
-        {forkCountFormat.format(listing.forkCount)} {listing.forkCount === 1 ? "fork" : "forks"}
-      </span>
-    </p>
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 import { Value } from "@sinclair/typebox/value";
 import { describe, expect, test } from "bun:test";
 import { buildPath, parseResponse } from "./contract";
-import type { FlowDocument } from "./flows";
+import { documentOutline, type FlowDocument } from "./flows";
 import {
   forkListingContract,
   getListingContract,
@@ -40,6 +40,7 @@ const listing: MarketplaceListing = {
   description: "Only verified humans can claim.",
   author: { name: "Arda", username: "arda" },
   nodeTypes: ["world.id-verify", "usdc.payout"],
+  outline: documentOutline(document),
   forkCount: 3,
   publishedAt: "2026-09-01T10:00:00.000Z",
   updatedAt: "2026-09-02T10:00:00.000Z",

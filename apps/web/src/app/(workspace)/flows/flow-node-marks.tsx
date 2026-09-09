@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { flowExamples } from "./examples";
+import type { flowExamples } from "../marketplace/examples";
 
 export function FlowNodeMarks({ nodes }: { nodes: (typeof flowExamples)[number]["nodes"] }) {
   return (
