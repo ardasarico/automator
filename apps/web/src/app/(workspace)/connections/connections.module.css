@@ -1,0 +1,126 @@
+/*
+ * Two sections on one page. Neither is a table, so both keep a reading width rather than
+ * stretching a three-word row across the whole frame.
+ */
+.section {
+  max-width: 880px;
+}
+.section + .section {
+  margin-top: 40px;
+}
+.sectionHead {
+  max-width: 68ch;
+  margin-bottom: 16px;
+}
+.sectionTitle {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+.sectionText {
+  margin-top: 4px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+.card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+}
+/* The form is one row while there is room for one: name, value, and the key that saves them. */
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  padding: 16px;
+}
+.field {
+  flex: 1 1 220px;
+  min-width: 0;
+  gap: 6px;
+}
+.formError {
+  flex-basis: 100%;
+}
+/* A secret is a row of its own template, what it was last written, and the way to remove it. */
+.list {
+  display: flex;
+  flex-direction: column;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+.row > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+.name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.when {
+  flex: none;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.empty {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+/* One app per row: what it is, how it is reached, and whether it is reachable. */
+.app {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 16px;
+}
+.app + .app {
+  border-top: 1px solid var(--border);
+}
+.appText {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+.appName {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+.appHint {
+  margin-top: 2px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+.unavailable {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}

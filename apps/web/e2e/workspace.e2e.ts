@@ -157,14 +157,19 @@ test("account settings load every section and the test identity has a clear wall
   await page.getByRole("button", { name: /^Account menu/ }).click();
   await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
-  for (const section of ["Preferences", "Connected apps", "Usage", "Account"]) {
+  for (const section of ["Preferences", "Usage", "Account"]) {
     await dialog.getByRole("tab", { name: section, exact: true }).click();
     await expect(dialog.getByRole("heading", { name: section, exact: true })).toBeVisible();
     if (section === "Usage")
       await expect(dialog.getByText("Runs in the last 30 days", { exact: true })).toBeVisible();
     await expect(dialog.getByRole("alert")).toHaveCount(0);
   }
-  await page.keyboard.press("Escape");
+  // Secrets and the apps they reach are a page now; the dialog only points at it.
+  await dialog.getByRole("tab", { name: "Preferences", exact: true }).click();
+  await dialog.getByRole("link", { name: "Open connections", exact: true }).click();
+  await expect(page).toHaveURL(/\/connections$/);
+  await expect(page.getByRole("heading", { name: "Secrets", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Connected apps", exact: true })).toBeVisible();
   await page.goto("/wallet");
   await expect(page.getByRole("heading", { name: "Embedded wallet", exact: true })).toBeVisible();
   await expect(

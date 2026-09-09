@@ -1,33 +1,27 @@
 "use client";
 
 import { totalRuns, type AccountUsage } from "@automator/contracts";
-import { Badge } from "@automator/ui/badge";
 import { Button } from "@automator/ui/button";
 import { Dialog, DialogDescription, DialogPopup, DialogTitle } from "@automator/ui/dialog";
 import { ScrollArea } from "@automator/ui/scroll-area";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@automator/ui/tabs";
 import { ThemeSelect } from "@automator/ui/theme-select";
 import {
-  RiApps2Line,
   RiBarChartBoxLine,
   RiCheckLine,
   RiEqualizerLine,
   RiFileCopyLine,
+  RiPlugLine,
   RiUser3Line,
-  RiWallet3Line,
 } from "@remixicon/react";
 import Link from "next/link";
 import { type ReactNode, type RefObject, useEffect, useState, useSyncExternalStore } from "react";
 import { AccountRequestError, getAccountUsageRequest } from "../account/client";
 import { useAccessToken } from "../auth/access-token";
 import { useAuthSession } from "../auth/provider";
-import { EnableSigningButton } from "../builder/enable-signing-button";
-import { useSecrets } from "../builder/secrets-store";
-import { detectChannels } from "./connected-apps";
 
 const sections = [
   { value: "preferences", label: "Preferences", icon: RiEqualizerLine },
-  { value: "apps", label: "Connected apps", icon: RiApps2Line },
   { value: "usage", label: "Usage", icon: RiBarChartBoxLine },
   { value: "account", label: "Account", icon: RiUser3Line },
 ];
@@ -68,115 +62,6 @@ function DetailRow({
         )}
       </div>
       {children}
-    </div>
-  );
-}
-
-function shortAddress(address: string) {
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
-
-const connectedAppsUnavailable = "Connected apps are unavailable right now. Try again shortly.";
-
-function ConnectedApps({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
-  const { user } = useAuthSession();
-  const getAccessToken = useAccessToken();
-  const status = useSecrets((state) => state.status);
-  const error = useSecrets((state) => state.error);
-  const load = useSecrets((state) => state.load);
-  const channels = useSecrets((state) => state.secrets);
-  const [tokenError, setTokenError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-
-  async function retryChannels() {
-    setPending(true);
-    setTokenError(null);
-    try {
-      await load(await getAccessToken());
-    } catch {
-      setTokenError(connectedAppsUnavailable);
-    } finally {
-      setPending(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!open || status !== "idle") return;
-    let cancelled = false;
-    void getAccessToken()
-      .then((token) => {
-        if (!cancelled) return load(token);
-      })
-      .catch(() => {
-        if (!cancelled) setTokenError(connectedAppsUnavailable);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, status, getAccessToken, load]);
-
-  const detected = detectChannels(channels.map((secret) => secret.name));
-  const loadError =
-    tokenError ??
-    (status === "failed" ? (error ?? "Connected apps are unavailable right now.") : null);
-
-  return (
-    <div className="pt-2">
-      <DetailRow
-        label="Embedded wallet"
-        description="Created by Privy when you signed in. Server signing lets flows send transactions while you are away; the wallet page shows balances and what runs sent."
-      >
-        <div className="flex min-w-0 flex-col items-end gap-2">
-          {user?.walletAddress ? (
-            <code dir="ltr" className="text-code" title={user.walletAddress}>
-              {shortAddress(user.walletAddress)}
-            </code>
-          ) : (
-            <span className="text-caption text-muted-foreground">No wallet yet</span>
-          )}
-          <EnableSigningButton />
-          <Button
-            variant="ghost"
-            size="sm"
-            render={<Link href="/wallet" onClick={onNavigate} />}
-            aria-label="Open the wallet page for balances and transactions"
-          >
-            <RiWallet3Line aria-hidden="true" />
-            Balances and transactions
-          </Button>
-        </div>
-      </DetailRow>
-      {detected.map((channel) => (
-        <DetailRow
-          key={channel.id}
-          label={channel.label}
-          description={
-            channel.connected
-              ? `Used through ${channel.secretNames.map((name) => `{{secrets.${name}}}`).join(", ")}.`
-              : `${channel.hint} Secrets live in a flow's Variables panel.`
-          }
-        >
-          {loadError && !pending ? (
-            <span className="text-caption text-muted-foreground">Status unavailable</span>
-          ) : channel.connected ? (
-            <Badge variant="success">Connected</Badge>
-          ) : pending || status === "loading" || status === "idle" ? (
-            <span className="text-caption text-muted-foreground">Checking…</span>
-          ) : (
-            <Badge variant="outline">Not connected</Badge>
-          )}
-        </DetailRow>
-      ))}
-      {loadError && !pending && (
-        <div className="flex flex-wrap items-center gap-3 pt-4">
-          <p role="alert" className="text-caption text-destructive-text">
-            {loadError}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => void retryChannels()}>
-            Retry
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
@@ -344,7 +229,7 @@ export function SettingsDialog({
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
-          Manage your preferences, connected apps, usage, and account.
+          Manage your preferences, usage, and account.
         </DialogDescription>
         <Tabs
           defaultValue="preferences"
@@ -380,13 +265,19 @@ export function SettingsDialog({
                 </div>
                 <ThemeSelect />
               </div>
-            </TabsPanel>
-            <TabsPanel value="apps" className="p-7 max-sm:px-5 max-sm:py-6">
-              <PanelHeader
-                title="Connected apps"
-                description="The wallet and channels your flows can use."
-              />
-              <ConnectedApps open={open} onNavigate={() => onOpenChange(false)} />
+              <DetailRow
+                label="Connections"
+                description="Secrets and the apps they reach have their own page, where they can be added and removed."
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  render={<Link href="/connections" onClick={() => onOpenChange(false)} />}
+                >
+                  <RiPlugLine aria-hidden="true" />
+                  Open connections
+                </Button>
+              </DetailRow>
             </TabsPanel>
             <TabsPanel value="usage" className="p-7 max-sm:px-5 max-sm:py-6">
               <PanelHeader title="Usage" description="What you have built and run." />
