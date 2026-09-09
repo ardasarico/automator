@@ -18,7 +18,8 @@
         "packages/miniapp/**/*.{ts,tsx}",
         "packages/flow-engine/**/*.{ts,tsx}",
         "packages/api-client/**/*.{ts,tsx}",
-        "apps/ui-lab/**/*.{ts,tsx}"
+        "apps/ui-lab/**/*.{ts,tsx}",
+        "apps/landing/**/*.{ts,tsx}"
       ],
       "rules": {
         "no-restricted-imports": [
@@ -64,7 +65,8 @@
         "packages/flow-engine/**/*.{ts,tsx}",
         "packages/api-client/**/*.{ts,tsx}",
         "packages/contracts/**/*.{ts,tsx}",
-        "apps/ui-lab/**/*.{ts,tsx}"
+        "apps/ui-lab/**/*.{ts,tsx}",
+        "apps/landing/**/*.{ts,tsx}"
       ],
       "rules": {
         "no-restricted-properties": [
