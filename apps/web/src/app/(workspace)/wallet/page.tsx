@@ -8,6 +8,7 @@ import { requireUser } from "../../../auth/server";
 import { hasNoFunds, noFundsMessage } from "../../../builder/wallet-funds-check";
 import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
 import { WorkspacePage } from "../../../components/workspace-page";
+import { exactAmount, formatAmount } from "../../../wallet/amounts";
 import { getWallet, listWalletTransactions, type WalletLookup } from "../../../wallet/server";
 import flowStyles from "../flows/flows.module.css";
 import { CopyAddressButton } from "./copy-address-button";
@@ -89,6 +90,17 @@ function AddressCard({ address, signing }: { address: string; signing: boolean |
   );
 }
 
+/** A balance rounded for reading, with the exact chain value on hover when digits were dropped. */
+function Amount({ value, symbol }: { value: string; symbol: string }) {
+  const shown = formatAmount(value);
+  const exact = exactAmount(value, shown);
+  return (
+    <li className="text-body tabular-nums" title={exact ? `${exact} ${symbol}` : undefined}>
+      {shown} {symbol}
+    </li>
+  );
+}
+
 function Balances({ lookups }: { lookups: readonly WalletLookup[] }) {
   return (
     <section aria-labelledby="wallet-balances-title" className={flowStyles.collection}>
@@ -104,11 +116,12 @@ function Balances({ lookups }: { lookups: readonly WalletLookup[] }) {
               {lookup?.status === "ok" ? (
                 <>
                   <ul className={styles.amounts} aria-label={`Balances on ${chain.name}`}>
-                    <li className="text-body">
-                      {lookup.wallet.nativeBalance} {lookup.wallet.nativeSymbol}
-                    </li>
+                    <Amount
+                      value={lookup.wallet.nativeBalance}
+                      symbol={lookup.wallet.nativeSymbol}
+                    />
                     {lookup.wallet.usdcBalance !== undefined && (
-                      <li className="text-body">{lookup.wallet.usdcBalance} USDC</li>
+                      <Amount value={lookup.wallet.usdcBalance} symbol="USDC" />
                     )}
                   </ul>
                   {hasNoFunds(lookup.wallet) && (

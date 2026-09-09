@@ -175,6 +175,19 @@ function ProposalCard({
   );
 }
 
+/* Openers that show the range of what the agent handles, so the panel is not a blank column. */
+const startSuggestions = [
+  "Every hour, check my USDC balance and post it to Discord",
+  "A mini-app that collects an email and saves it to a table",
+  "When a webhook arrives, classify it with AI and route each kind",
+];
+
+const editSuggestions = [
+  "Add a condition before the last step",
+  "Send a Discord message when this fails",
+  "What does this flow do?",
+];
+
 export function AiPanel() {
   const getAccessToken = useAccessToken();
   const { fitView } = useReactFlow();
@@ -243,6 +256,23 @@ export function AiPanel() {
                 ? "Ask for a change to this flow, or a question about it. Nothing lands on the canvas until you apply it."
                 : "Describe what the flow should do. The canvas is empty, so the first answer becomes a new flow."}
             </p>
+            {/* The panel is a blank column until someone knows what to type into it. */}
+            <ul className={styles.suggestions}>
+              {(hasNodes ? editSuggestions : startSuggestions).map((suggestion) => (
+                <li key={suggestion}>
+                  <button
+                    type="button"
+                    className={styles.suggestion}
+                    onClick={() => {
+                      setPrompt(suggestion);
+                      promptField.current?.focus();
+                    }}
+                  >
+                    {suggestion}
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         {turns.map((turn) =>

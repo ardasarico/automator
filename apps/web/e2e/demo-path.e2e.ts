@@ -30,12 +30,12 @@ test("create a flow, simulate it, publish it, and fork the listing", async ({ pa
   await page.getByRole("button", { name: "Add a mini-app trigger" }).click();
   await expect(page.getByText("Mini-app opened", { exact: true }).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Simulate" }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   const runPanel = page.getByRole("region", { name: "Last run" });
   await expect(runPanel).toContainText("Succeeded");
   await expect(runPanel).toContainText("Mini-app opened");
 
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved")).toBeVisible();
   await page.getByRole("button", { name: "Share" }).click();
   await page.getByRole("menuitem", { name: "Publish to the marketplace" }).click();

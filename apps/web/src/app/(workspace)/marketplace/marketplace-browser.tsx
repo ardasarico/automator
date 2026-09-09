@@ -9,10 +9,13 @@ import {
   segmentedControlRootClassName,
 } from "@automator/ui/segmented-control";
 import { RiArrowDownSLine, RiCompass3Line, RiSearchLine } from "@remixicon/react";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs";
 import {
   browseListings,
+  isListingCategory,
+  isListingFilter,
+  isListingSort,
   listingCategoryLabels,
   listingFilterLabels,
   listingSortLabels,
@@ -27,6 +30,8 @@ import styles from "./marketplace.module.css";
 const filters = Object.keys(listingFilterLabels) as ListingFilter[];
 const categories = Object.keys(listingCategoryLabels) as ListingCategory[];
 const sorts = Object.keys(listingSortLabels) as ListingSort[];
+
+const allCategories = "all";
 
 const emptyCopy: Record<ListingFilter, { title: string; description: string }> = {
   all: {
@@ -54,10 +59,32 @@ export function MarketplaceBrowser({
   listings: readonly MarketplaceItem[];
   username: string | null;
 }) {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<ListingFilter>("all");
-  const [sort, setSort] = useState<ListingSort>("newest");
-  const [category, setCategory] = useState<ListingCategory | null>(null);
+  /*
+   * Every browse control reads from the URL, so a filtered view can be linked, bookmarked and
+   * navigated back to. The writes go through the history API, which Next syncs with
+   * `useSearchParams` without re-running the server component that loaded the listings.
+   */
+  const params = useSearchParams();
+  const query = params.get("q") ?? "";
+  const rawFilter = params.get("show") ?? "";
+  const filter: ListingFilter = isListingFilter(rawFilter) ? rawFilter : "all";
+  const rawSort = params.get("sort") ?? "";
+  const sort: ListingSort = isListingSort(rawSort) ? rawSort : "newest";
+  const rawCategory = params.get("category") ?? "";
+  const category: ListingCategory | null = isListingCategory(rawCategory) ? rawCategory : null;
+
+  function apply(changes: Record<string, string | null>, replace = false) {
+    const next = new URLSearchParams(params.toString());
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null || value === "") next.delete(key);
+      else next.set(key, value);
+    }
+    const url = next.size > 0 ? `?${next.toString()}` : location.pathname;
+    // Typing must not fill the history stack; picking a filter is a step worth going back from.
+    if (replace) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
+  }
+
   const visible = browseListings(listings, { filter, sort, query, username, category });
   const searching = query.trim().length > 0 || category !== null;
 
@@ -81,7 +108,7 @@ export function MarketplaceBrowser({
               aria-label="Search the marketplace"
               placeholder="Search flows…"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => apply({ q: event.target.value }, true)}
               className="min-w-0 flex-1 [&_input]:px-0"
             />
           </div>
@@ -94,12 +121,35 @@ export function MarketplaceBrowser({
                   className={segmentedControlItemVariants({ state: "pressed" })}
                   data-pressed={filter === value ? "" : undefined}
                   aria-pressed={filter === value}
-                  onClick={() => setFilter(value)}
+                  onClick={() => apply({ show: value === "all" ? null : value })}
                 >
                   {listingFilterLabels[value]}
                 </Button>
               ))}
             </div>
+            {/* A menu rather than a chip row: the same shape as Sort, so the toolbar reads as one. */}
+            <Menu>
+              <MenuTrigger render={<Button variant="outline" />}>
+                {category ? listingCategoryLabels[category] : "All categories"}
+                <RiArrowDownSLine aria-hidden="true" />
+              </MenuTrigger>
+              <MenuPopup align="end">
+                <MenuRadioGroup
+                  value={category ?? allCategories}
+                  onValueChange={(next) =>
+                    apply({ category: next === allCategories ? null : String(next) })
+                  }
+                  aria-label="Filter by category"
+                >
+                  <MenuRadioItem value={allCategories}>All categories</MenuRadioItem>
+                  {categories.map((value) => (
+                    <MenuRadioItem key={value} value={value}>
+                      {listingCategoryLabels[value]}
+                    </MenuRadioItem>
+                  ))}
+                </MenuRadioGroup>
+              </MenuPopup>
+            </Menu>
             <Menu>
               <MenuTrigger render={<Button variant="outline" />}>
                 {listingSortLabels[sort]}
@@ -108,7 +158,7 @@ export function MarketplaceBrowser({
               <MenuPopup align="end">
                 <MenuRadioGroup
                   value={sort}
-                  onValueChange={(next) => setSort(next as ListingSort)}
+                  onValueChange={(next) => apply({ sort: next === "newest" ? null : String(next) })}
                   aria-label="Sort flows"
                 >
                   {sorts.map((value) => (
@@ -120,27 +170,6 @@ export function MarketplaceBrowser({
               </MenuPopup>
             </Menu>
           </div>
-        </div>
-        <div className={styles.categories} role="group" aria-label="Category">
-          <Button
-            variant={category === null ? "secondary" : "ghost"}
-            size="xs"
-            aria-pressed={category === null}
-            onClick={() => setCategory(null)}
-          >
-            All categories
-          </Button>
-          {categories.map((value) => (
-            <Button
-              key={value}
-              variant={category === value ? "secondary" : "ghost"}
-              size="xs"
-              aria-pressed={category === value}
-              onClick={() => setCategory((current) => (current === value ? null : value))}
-            >
-              {listingCategoryLabels[value]}
-            </Button>
-          ))}
         </div>
         <p className="sr-only" role="status">
           {visible.length === 1 ? "1 flow found" : `${visible.length} flows found`}
@@ -156,10 +185,7 @@ export function MarketplaceBrowser({
               <Button
                 variant="outline"
                 className="mt-6"
-                onClick={() => {
-                  setQuery("");
-                  setCategory(null);
-                }}
+                onClick={() => apply({ q: null, category: null })}
               >
                 Clear search
               </Button>

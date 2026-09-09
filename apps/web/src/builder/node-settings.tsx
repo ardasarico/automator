@@ -11,6 +11,7 @@ import {
 import { Button } from "@automator/ui/button";
 import { Field, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiArrowLeftLine, RiBookmarkLine } from "@remixicon/react";
 import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -77,19 +78,32 @@ export function NodeSettings({ node, onBack }: { node: BuilderNode; onBack(): vo
   return (
     <div className={styles.nodeSettings}>
       <div className={styles.nodeSettingsHeader}>
-        <Button variant="ghost" size="sm" onClick={onBack}>
+        <Button variant="ghost" size="icon-sm" aria-label="Back to nodes" onClick={onBack}>
           <RiArrowLeftLine aria-hidden="true" />
-          Nodes
         </Button>
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-caption text-muted-foreground">
-            {categoryLabels[entry.category]} · {entry.label}
-          </span>
-          <Button variant="ghost" size="sm" onClick={() => setSaving(true)}>
+        {/* The type this node is, in full: the 260 px panel used to cut it to an unreadable stub. */}
+        <p className={styles.nodeSettingsType}>
+          <span className={styles.nodeSettingsCategory}>{categoryLabels[entry.category]}</span>
+          <span className="truncate">{entry.label}</span>
+        </p>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Save as a reusable node"
+                onClick={() => setSaving(true)}
+              />
+            }
+          >
             <RiBookmarkLine aria-hidden="true" />
-            Save node
-          </Button>
-        </div>
+          </TooltipTrigger>
+          {/* Named apart from the header Save, which is what stores the flow itself. */}
+          <TooltipPopup side="bottom">
+            Save as a reusable node, with these settings, for other flows
+          </TooltipPopup>
+        </Tooltip>
       </div>
       {saving && <SavePresetDialog node={node} onClose={() => setSaving(false)} />}
       <form className={styles.nodeSettingsForm} onSubmit={(event) => event.preventDefault()}>

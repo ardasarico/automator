@@ -132,67 +132,85 @@
   color: var(--muted-foreground);
   pointer-events: none;
 }
+/*
+ * A card carries what there is to know about a flow: whether it is live, what it does, what
+ * starts it and how big it is. It used to spend two thirds of its height on one placeholder
+ * glyph that was identical on every card, so the glyph is gone and the facts took its place.
+ */
 .flowGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px 16px;
+  gap: 16px;
 }
 .flowGrid > li {
   min-width: 0;
 }
 .flowCard {
-  display: block;
+  position: relative;
+  display: flex;
   height: 100%;
-  overflow: hidden;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--card);
   transition: border-color 150ms;
 }
-.flowPreview {
-  position: relative;
+.cardTop {
   display: flex;
+  min-height: 28px;
   align-items: center;
-  justify-content: center;
-  aspect-ratio: 16 / 10;
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
-  background-color: var(--background);
-  background-image: radial-gradient(var(--border) 1px, transparent 1px);
-  background-size: 16px 16px;
+  justify-content: space-between;
+  gap: 8px;
 }
-.previewCanvas {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  width: 100%;
+/* Stretched over the whole card so the title is the hit target, under the menu's own layer. */
+.cardLink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
 }
-.thumbnail {
-  flex: none;
-  width: 96px;
-  height: 60px;
-  padding: 0;
+.cardLink:focus-visible {
+  outline: none;
+}
+.cardLink:focus-visible::after {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.cardDescription {
+  display: -webkit-box;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background-size: 6px 6px;
-  font-weight: 400;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
 }
-.flowDetails {
-  padding: 14px 16px;
+.cardFooter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
 }
 
 .cardActions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  position: relative;
   z-index: 1;
   opacity: 0;
   transition: opacity 150ms;
 }
 .cardActions:focus-within,
-li:hover > .cardActions {
+.flowCard:hover .cardActions,
+.flowCard:focus-within .cardActions {
   opacity: 1;
 }
 @media (hover: none) {
@@ -255,14 +273,19 @@ li:hover > .cardActions {
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-.flowCard:focus-visible,
 .tableFlow:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
+  border-radius: var(--radius-sm);
 }
 @media (hover: hover) {
   .flowCard:hover {
     border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
+  }
+}
+@container flows (min-width: 1180px) {
+  .flowGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 @container flows (max-width: 812px) {

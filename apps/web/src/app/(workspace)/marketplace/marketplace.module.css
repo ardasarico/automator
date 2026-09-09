@@ -59,13 +59,6 @@
   color: var(--muted-foreground);
   pointer-events: none;
 }
-.categories {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: -12px 0 16px;
-}
 .grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

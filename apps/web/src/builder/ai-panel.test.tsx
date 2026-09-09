@@ -121,10 +121,14 @@ function type(textarea: HTMLTextAreaElement, text: string) {
   props.onChange({ target: textarea, currentTarget: textarea });
 }
 
-const buttonNamed = (text: string) =>
-  Array.from(container.querySelectorAll("button")).find((button) =>
-    button.textContent?.includes(text),
+/* Exact first: the empty state offers suggestion buttons whose text contains these words. */
+const buttonNamed = (text: string) => {
+  const buttons = Array.from(container.querySelectorAll("button"));
+  return (
+    buttons.find((button) => button.textContent?.trim() === text) ??
+    buttons.find((button) => button.textContent?.includes(text))
   );
+};
 
 describe("AiPanel", () => {
   test("edits go to the model with secrets blanked and come back with the canvas's on Apply", async () => {

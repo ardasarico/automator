@@ -8,7 +8,6 @@ import { DataTablesProvider } from "../data/tables-context";
 import { AiStoreProvider } from "./ai-store-provider";
 import { BuilderDialogsProvider } from "./builder-dialogs";
 import { CanvasHeader } from "./canvas-header";
-import { CommandMenu } from "./command-menu";
 import { FlowActivationProvider } from "./flow-activation";
 import { FlowCanvas } from "./flow-canvas";
 import { LeaveGuardProvider } from "./leave-guard";
@@ -65,7 +64,6 @@ export function FlowBuilder({
                             </div>
                             <RightPanels />
                           </div>
-                          <CommandMenu />
                         </BuilderDialogsProvider>
                       </NodePresetsProvider>
                     </DataTablesProvider>

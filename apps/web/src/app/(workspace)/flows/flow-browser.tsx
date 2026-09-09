@@ -4,7 +4,17 @@ import type { FlowSummary } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { Input } from "@automator/ui/input";
-import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@automator/ui/menu";
+import { Badge } from "@automator/ui/badge";
+import {
+  Menu,
+  MenuItem,
+  MenuLinkItem,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuSeparator,
+  MenuTrigger,
+} from "@automator/ui/menu";
 import {
   segmentedControlItemVariants,
   segmentedControlRootClassName,
@@ -16,6 +26,7 @@ import {
   RiFlowChart,
   RiLayoutGridLine,
   RiListCheck,
+  RiMoreLine,
   RiSearchLine,
 } from "@remixicon/react";
 import Link from "next/link";
@@ -26,7 +37,7 @@ import { WorkspaceBreadcrumbs } from "../../../components/workspace-breadcrumbs"
 import { FlowActionButton } from "../../../flows/action-button";
 import { createFlowAction } from "../../../flows/actions";
 import { FLOWS_VIEW_COOKIE, setPreferenceCookie } from "../../../lib/preferences";
-import { DeleteFlowButton } from "./delete-flow-button";
+import { DeleteFlowDialog } from "./delete-flow-dialog";
 import { FlowStartOptions } from "./flow-start-options";
 import styles from "./flows.module.css";
 
@@ -62,13 +73,43 @@ function FlowFacts({ flow }: { flow: FlowSummary }) {
   );
 }
 
-function FlowPreview({ compact = false }: { compact?: boolean }) {
+/**
+ * Whether the saved flow may start runs on its own. It is the first thing to know about a flow
+ * and the list never said it, so it leads the card.
+ */
+function FlowState({ enabled }: { enabled: boolean }) {
   return (
-    <div className={`${styles.flowPreview} ${compact ? styles.thumbnail : ""}`} aria-hidden="true">
-      <div className={styles.previewCanvas}>
-        <RiFlowChart className={`${compact ? "size-5" : "size-7"} text-muted-foreground`} />
-      </div>
-    </div>
+    <Badge variant={enabled ? "success" : "secondary"} size="sm">
+      {enabled ? "Active" : "Inactive"}
+    </Badge>
+  );
+}
+
+/** Everything reachable for one flow, so hover offers more than the destructive action. */
+function FlowMenu({ flow }: { flow: FlowSummary }) {
+  const [deleting, setDeleting] = useState(false);
+  return (
+    <>
+      <Menu>
+        <MenuTrigger
+          render={<Button variant="ghost" size="icon-sm" aria-label={`Actions for ${flow.name}`} />}
+        >
+          <RiMoreLine aria-hidden="true" />
+        </MenuTrigger>
+        <MenuPopup align="end">
+          <MenuLinkItem render={<Link href={`/flows/${flow.id}`} />}>Open on canvas</MenuLinkItem>
+          <MenuLinkItem render={<Link href={`/runs?flow=${encodeURIComponent(flow.id)}`} />}>
+            View runs
+          </MenuLinkItem>
+          <MenuSeparator />
+          <MenuItem variant="destructive" onClick={() => setDeleting(true)}>
+            Delete flow
+          </MenuItem>
+        </MenuPopup>
+      </Menu>
+      {/* Outside the popup: the menu closes on that click and would unmount the dialog with it. */}
+      <DeleteFlowDialog id={flow.id} name={flow.name} open={deleting} onOpenChange={setDeleting} />
+    </>
   );
 }
 
@@ -233,26 +274,26 @@ export function FlowBrowser({
           ) : view === "grid" ? (
             <ul className={styles.flowGrid}>
               {visibleFlows.map((flow) => (
-                <li key={flow.id} className="relative">
-                  <div className={styles.cardActions}>
-                    <DeleteFlowButton id={flow.id} name={flow.name} />
-                  </div>
-                  <Link href={`/flows/${flow.id}`} className={styles.flowCard}>
-                    <FlowPreview />
-                    <div className={styles.flowDetails}>
-                      <div className="min-w-0">
-                        <h2 className="line-clamp-2 text-label wrap-anywhere">{flow.name}</h2>
-                        <div className={styles.flowMeta}>
-                          <FlowFacts flow={flow} />
-                        </div>
-                        <div className={styles.flowMeta}>
-                          <time dateTime={flow.updatedAt}>
-                            {dateFormat.format(new Date(flow.updatedAt))}
-                          </time>
-                        </div>
-                      </div>
+                <li key={flow.id} className={styles.flowCard}>
+                  <div className={styles.cardTop}>
+                    <FlowState enabled={flow.enabled} />
+                    <div className={styles.cardActions}>
+                      <FlowMenu flow={flow} />
                     </div>
-                  </Link>
+                  </div>
+                  {/* The link covers the card through ::after, so the menu above stays clickable. */}
+                  <h2 className="text-label">
+                    <Link href={`/flows/${flow.id}`} className={styles.cardLink}>
+                      {flow.name}
+                    </Link>
+                  </h2>
+                  {flow.description && <p className={styles.cardDescription}>{flow.description}</p>}
+                  <div className={styles.cardFooter}>
+                    <FlowFacts flow={flow} />
+                    <time dateTime={flow.updatedAt}>
+                      {dateFormat.format(new Date(flow.updatedAt))}
+                    </time>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -263,6 +304,7 @@ export function FlowBrowser({
                 <thead>
                   <tr>
                     <th scope="col">Name</th>
+                    <th scope="col">State</th>
                     <th scope="col">Last edited</th>
                     <th scope="col">
                       <span className="sr-only">Actions</span>
@@ -272,27 +314,29 @@ export function FlowBrowser({
                 <tbody>
                   {visibleFlows.map((flow) => (
                     <tr key={flow.id}>
-                      <th scope="row">
-                        <Link href={`/flows/${flow.id}`} className={styles.tableFlow}>
-                          <FlowPreview compact />
-                          <div className="min-w-0">
+                      <th scope="row" aria-label={flow.name}>
+                        <div className="min-w-0">
+                          <Link href={`/flows/${flow.id}`} className={styles.tableFlow}>
                             <span className={styles.flowName}>{flow.name}</span>
-                            <p className="mt-1 line-clamp-2 text-caption font-normal text-muted-foreground">
-                              {flow.description}
-                            </p>
-                            <p className="mt-1 text-caption font-normal text-muted-foreground">
-                              <FlowFacts flow={flow} />
-                            </p>
-                          </div>
-                        </Link>
+                          </Link>
+                          <p className="mt-1 line-clamp-2 text-caption font-normal text-muted-foreground">
+                            {flow.description}
+                          </p>
+                          <p className="mt-1 text-caption font-normal text-muted-foreground">
+                            <FlowFacts flow={flow} />
+                          </p>
+                        </div>
                       </th>
+                      <td className="w-px">
+                        <FlowState enabled={flow.enabled} />
+                      </td>
                       <td>
                         <time dateTime={flow.updatedAt}>
                           {dateFormat.format(new Date(flow.updatedAt))}
                         </time>
                       </td>
                       <td className="w-px">
-                        <DeleteFlowButton id={flow.id} name={flow.name} />
+                        <FlowMenu flow={flow} />
                       </td>
                     </tr>
                   ))}

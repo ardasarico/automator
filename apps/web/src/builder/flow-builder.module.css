@@ -246,6 +246,42 @@
   border-bottom: 1px solid var(--border);
   background: var(--card);
 }
+.headerEnd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: auto;
+}
+.headerDivider {
+  width: 1px;
+  height: 20px;
+  flex: none;
+  margin-inline: 4px;
+  background: var(--border);
+}
+/* The key that runs a control, shown beside its name in a tooltip. */
+.shortcutHint {
+  margin-inline-start: 6px;
+  opacity: 0.64;
+  font-variant-numeric: tabular-nums;
+}
+.problemsTrigger[data-tone="error"] {
+  color: var(--destructive-text);
+}
+.problemsTrigger[data-tone="warning"] {
+  color: var(--warning-foreground);
+}
+.problemItem {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  text-wrap: pretty;
+  white-space: normal;
+}
+.problemNode {
+  font-weight: 500;
+}
 
 .sidePanel {
   display: flex;
@@ -460,13 +496,16 @@
   line-height: 18px;
 }
 
+/* One line never fits these strings in a 260 px panel, so they wrap to two and clamp there. */
 .paletteItemDescription {
+  display: -webkit-box;
   overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--muted-foreground);
   font-size: 12px;
   line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-wrap: pretty;
 }
 
 .paletteGrid {
@@ -566,6 +605,23 @@
   border-bottom: 1px solid var(--border);
 }
 
+.nodeSettingsType {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.nodeSettingsCategory {
+  flex: none;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
 .nodeSettingsForm {
   display: flex;
   flex-direction: column;
@@ -599,6 +655,8 @@
 
 .nodeProblem {
   margin-left: auto;
+  border: 0;
+  cursor: help;
   display: inline-flex;
   width: 16px;
   height: 16px;
@@ -613,6 +671,16 @@
 .node[data-problem="error"] .nodeProblem {
   background: var(--destructive-surface);
   color: var(--destructive-text);
+}
+.nodeProblem:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.nodeProblemList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-wrap: pretty;
 }
 .node[data-problem="warning"] .nodeProblem {
   background: var(--warning-surface);

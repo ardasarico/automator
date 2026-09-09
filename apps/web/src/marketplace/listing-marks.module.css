@@ -1,0 +1,35 @@
+.marks {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mark,
+.more {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding-inline: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+.markLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mark img,
+.mark svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}

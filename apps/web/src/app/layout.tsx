@@ -1,5 +1,5 @@
 import { ThemeProvider } from "@automator/ui/theme-provider";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { AgentationToolbar } from "../components/agentation-toolbar";
 import { AuthProvider } from "../auth/provider";
@@ -20,6 +20,16 @@ export const metadata: Metadata = {
       type: "image/png",
     },
   },
+};
+
+/* Matches `--background` (neutral-50) in each scheme so the browser chrome does not band
+ * against the page. The theme class can override the scheme, but a media query is all a
+ * `theme-color` meta tag can read. */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbfcfc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0e0f" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

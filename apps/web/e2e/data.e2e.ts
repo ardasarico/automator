@@ -260,7 +260,7 @@ test("a create-record flow writes nothing in simulate and one record live", asyn
 
   await page.goto(`/flows/${flow.id}`);
   const runPanel = page.getByRole("region", { name: "Last run" });
-  await page.getByRole("button", { name: "Simulate", exact: true }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(runPanel).toContainText("Succeeded");
   expect(await readRecords(table.id)).toHaveLength(0);
 
@@ -271,6 +271,10 @@ test("a create-record flow writes nothing in simulate and one record live", asyn
   await expect(settings).not.toBeVisible();
 
   await page.getByRole("button", { name: "Run live", exact: true }).click();
+  // The first live run of a session is confirmed before anything is signed or written.
+  const confirmLive = page.getByRole("alertdialog", { name: "Run this flow for real?" });
+  await confirmLive.getByRole("button", { name: "Run live", exact: true }).click();
+  await expect(confirmLive).not.toBeVisible();
   await expect(runPanel).toContainText("Succeeded");
   const written = await readRecords(table.id);
   expect(written).toHaveLength(1);

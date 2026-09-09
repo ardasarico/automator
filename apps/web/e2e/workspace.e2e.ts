@@ -69,10 +69,14 @@ test("flow browser searches, preserves its table preference, and confirms deleti
     "true",
   );
   await page.getByRole("searchbox", { name: "Search flows" }).fill(name);
-  await page.getByRole("button", { name: `Delete flow: ${name}`, exact: true }).click();
+  const openActions = async () => {
+    await page.getByRole("button", { name: `Actions for ${name}`, exact: true }).click();
+    await page.getByRole("menuitem", { name: "Delete flow", exact: true }).click();
+  };
+  await openActions();
   await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.locator(`a[href="/flows/${flow.id}"]`)).toBeVisible();
-  await page.getByRole("button", { name: `Delete flow: ${name}`, exact: true }).click();
+  await openActions();
   await page.getByRole("dialog").getByRole("button", { name: "Delete flow", exact: true }).click();
   await expect(page.locator(`a[href="/flows/${flow.id}"]`)).toHaveCount(0);
 });
@@ -134,7 +138,7 @@ test("a local simulation is inspectable in run history and on its canvas", async
     },
   ]);
   await page.goto(`/flows/${flow.id}`);
-  await page.getByRole("button", { name: "Simulate", exact: true }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByRole("region", { name: "Last run" })).toContainText("Succeeded");
   await page.goto(`/runs?flow=${flow.id}`);
   await page.getByRole("link", { name: `${name} run`, exact: true }).click();

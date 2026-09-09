@@ -81,6 +81,19 @@ export const listingSortLabels: Record<ListingSort, string> = {
   name: "Name A–Z",
 };
 
+/* The browse controls live in the URL, so these narrow what a query string hands back. */
+export function isListingFilter(value: string): value is ListingFilter {
+  return value in listingFilterLabels;
+}
+
+export function isListingSort(value: string): value is ListingSort {
+  return value in listingSortLabels;
+}
+
+export function isListingCategory(value: string): value is ListingCategory {
+  return value in listingCategoryLabels;
+}
+
 export function authorLabel(author: ListingAuthor): string {
   return author.kind === "automator" ? "Automator" : `@${author.username}`;
 }

@@ -82,7 +82,7 @@ for (const width of [1280, 390]) {
       await expect(settings.getByLabel("Name", { exact: true })).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(settings).toBeHidden();
-      await page.getByRole("button", { name: "Simulate", exact: true }).click();
+      await page.getByRole("button", { name: "Run", exact: true }).click();
       const run = page.getByRole("region", { name: "Last run" });
       await expect(run).toContainText("Succeeded");
       await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();

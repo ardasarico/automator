@@ -1,5 +1,6 @@
 "use client";
 
+import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { Handle, Position, type NodeProps, type NodeTypes } from "@xyflow/react";
 import { memo } from "react";
 import { categoryLabels, getCatalogEntry, type CatalogPort } from "./catalog";
@@ -59,14 +60,27 @@ function FlowNodeComponent({ id, data, selected }: NodeProps<BuilderNode>) {
             {elapsed !== undefined ? ` · ${formatElapsed(elapsed)}` : ""}
           </span>
         ) : worst ? (
-          <span
-            className={styles.nodeProblem}
-            role="img"
-            aria-label={worst === "error" ? "Has a problem" : "Has a warning"}
-            title={problems.map((problem) => problem.message).join("\n")}
-          >
-            !
-          </span>
+          /* A native title would say this too late, only on hover, and never on a keyboard. */
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  className={styles.nodeProblem}
+                  aria-label={`${problems.length === 1 ? "1 problem" : `${problems.length} problems`} on this node`}
+                />
+              }
+            >
+              !
+            </TooltipTrigger>
+            <TooltipPopup side="top" className="max-w-72">
+              <span className={styles.nodeProblemList}>
+                {problems.map((problem) => (
+                  <span key={problem.message}>{problem.message}</span>
+                ))}
+              </span>
+            </TooltipPopup>
+          </Tooltip>
         ) : null}
       </div>
       <div className={styles.nodePorts}>

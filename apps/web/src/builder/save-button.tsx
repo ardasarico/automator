@@ -81,7 +81,7 @@ export function useSaveFlowController(): SaveFlowController {
 export function SaveButton({ controller }: { controller: SaveFlowController }) {
   const { save, state, message, canSave, dirty } = controller;
   return (
-    <div className="ml-auto flex items-center gap-2">
+    <div className="flex items-center gap-2">
       {message && (
         <p role="alert" className="text-caption text-destructive-text">
           {message}

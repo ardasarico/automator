@@ -35,9 +35,9 @@ function matches(text: string, needle: string): boolean {
  * account's saved nodes, filtered together by what the reader types.
  */
 export function CommandMenu() {
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const dialogs = useBuilderDialogs();
+  const open = dialogs.current === "commands";
   const { fitView } = useReactFlow();
   const { run } = useFlowRun();
   const { save } = useSaveFlowController();
@@ -53,7 +53,7 @@ export function CommandMenu() {
     (event) => {
       event.preventDefault();
       setQuery("");
-      setOpen((current) => !current);
+      dialogs.open("commands");
     },
     { scope: "canvas", allowInEditable: true },
   );
@@ -62,13 +62,13 @@ export function CommandMenu() {
 
   const sections = useMemo<Section[]>(() => {
     const close = (action: () => void) => () => {
-      setOpen(false);
+      dialogs.close();
       action();
     };
     const flowCommands: Command[] = [
       {
         id: "run",
-        label: liveMode ? "Run live" : "Simulate",
+        label: liveMode ? "Run live" : "Run flow",
         hint: "⌘⏎",
         run: close(() => void run()),
       },
@@ -146,7 +146,7 @@ export function CommandMenu() {
   if (!open) return null;
 
   return (
-    <Dialog open onOpenChange={(next) => !next && setOpen(false)}>
+    <Dialog open onOpenChange={(next) => !next && dialogs.close()}>
       <DialogPopup className="max-w-lg" aria-label="Commands">
         <DialogHeader className="sr-only">
           <DialogTitle>Commands</DialogTitle>
