@@ -97,7 +97,10 @@ export function HomePrompt() {
     }
     storePendingPrompt(prompt);
     storeAiAnswer(answer);
-    await createFlowAction({ ai: true });
+    /* Creating redirects, so anything it answers with is a failure worth showing: the draft is
+     * already in hand and the sentence is still in the box to send again. */
+    const created = await createFlowAction({ ai: true });
+    if (created?.error) setError(created.error);
   }
 
   return (

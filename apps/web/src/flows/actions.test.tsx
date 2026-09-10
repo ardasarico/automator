@@ -1,7 +1,7 @@
 import type { FlowRecord } from "@automator/contracts";
 import { afterEach, expect, mock, spyOn, test } from "bun:test";
 import { renderToString } from "react-dom/server";
-import { navigationModule } from "../auth/test-navigation";
+import { navigationModule, redirectError } from "../auth/test-navigation";
 
 mock.module("server-only", () => ({}));
 mock.module("next/navigation", () => navigationModule);
@@ -12,6 +12,8 @@ const marketplace = await import("../marketplace/server");
 const { createEmptyFlow } = await import("../builder/document");
 const { curatedListings } = await import("../marketplace/curated");
 const { createFlowAction, forkFlowAction } = await import("./actions");
+const { actionUnavailable } = await import("./action-state");
+const { FlowApiError } = await import("./server");
 const { default: CreatePage } = await import("../app/(workspace)/create/page");
 const { default: ForkPage } = await import("../app/(workspace)/marketplace/[slug]/fork/page");
 const { default: ListingPage } = await import("../app/(workspace)/marketplace/[slug]/page");
@@ -73,13 +75,29 @@ test("a submitted published fork keeps the decoded slug and creates exactly once
 });
 
 test("rejected authentication prevents both create and fork mutations", async () => {
-  spyOn(auth, "requireUser").mockRejectedValue(new Error("redirect:/login"));
+  spyOn(auth, "requireUser").mockRejectedValue(redirectError("/login"));
   const create = spyOn(flows, "createFlow");
   const fork = spyOn(marketplace, "forkListing");
   await expect(createFlowAction()).rejects.toThrow("redirect:/login");
   await expect(forkFlowAction("example")).rejects.toThrow("redirect:/login");
   expect(create).not.toHaveBeenCalled();
   expect(fork).not.toHaveBeenCalled();
+});
+
+/* An unreachable API is what our own deploys look like from here, and a thrown server action
+ * reaches the browser as nothing a form can render — so it has to come back as an answer. */
+test("an unreachable API comes back as a message instead of throwing", async () => {
+  spyOn(auth, "requireUser").mockResolvedValue(user);
+  spyOn(flows, "createFlow").mockRejectedValue(new FlowApiError(503));
+  spyOn(marketplace, "forkListing").mockRejectedValue(new FlowApiError(503));
+  expect(await createFlowAction()).toEqual({ error: actionUnavailable });
+  expect(await forkFlowAction("arda/example")).toEqual({ error: actionUnavailable });
+});
+
+test("a redirect still leaves the action, so a created flow opens", async () => {
+  spyOn(auth, "requireUser").mockResolvedValue(user);
+  spyOn(flows, "createFlow").mockResolvedValue(record);
+  await expect(createFlowAction()).rejects.toThrow("redirect:/flows/created-flow");
 });
 
 test("listing rendering preserves decoded params and exposes a submit fork, with no mutation", async () => {
