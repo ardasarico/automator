@@ -35,6 +35,7 @@ describe.skipIf(!url)("ai messages store", () => {
       await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
       await users.sync("did:privy:test-a", null);
       const flow = await flows.create("did:privy:test-a", input);
+      expect(await messages.clear(flow.flow.id)).toBe(false);
 
       const user = await messages.append(flow.flow.id, {
         id: "m1",
@@ -43,6 +44,9 @@ describe.skipIf(!url)("ai messages store", () => {
         context: { selection: ["n1"] },
       });
       expect(user.createdAt).toMatch(/^\d{4}-/);
+
+      const untouched = await messages.setProposalState(flow.flow.id, "m1", "applied");
+      expect(untouched?.parts).toEqual([{ type: "text", text: "Make a flow" }]);
       await messages.append(flow.flow.id, {
         id: "m2",
         role: "assistant",

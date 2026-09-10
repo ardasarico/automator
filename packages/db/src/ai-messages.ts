@@ -1,4 +1,4 @@
-import type { AiMessage, AiPart, AiProposalState } from "@automator/contracts";
+import type { AiMessage, AiPart } from "@automator/contracts";
 import type { SQL } from "bun";
 
 export interface AiMessageStore {
@@ -34,14 +34,6 @@ function toMessage(row: Row): AiMessage {
   };
 }
 
-function withProposalState(parts: AiPart[], state: AiProposalState, only?: "pending"): AiPart[] {
-  return parts.map((part) =>
-    part.type === "proposal" && (only === undefined || part.state === only)
-      ? { ...part, state }
-      : part,
-  );
-}
-
 export function createAiMessageStore(sql: SQL | undefined): AiMessageStore {
   const connection = () => {
     if (!sql) throw new Error("Database is not configured");
@@ -70,31 +62,36 @@ export function createAiMessageStore(sql: SQL | undefined): AiMessageStore {
         RETURNING ${db.unsafe(columns)}`;
       return toMessage(rows[0]!);
     },
+    // Both updates below rewrite `parts` in a single correlated-subquery UPDATE, so the read of
+    // the current parts and the write happen atomically under the row lock the UPDATE itself
+    // takes. A SELECT-then-mutate-in-JS-then-UPDATE would lose a write under concurrent calls.
     async setProposalState(flowId, messageId, state) {
       const db = connection();
       const rows = await db<Row[]>`
-        SELECT ${db.unsafe(columns)} FROM automator_flow_ai_messages
-        WHERE flow_id = ${flowId} AND id = ${messageId}`;
-      const row = rows[0];
-      if (!row) return null;
-      const parts = withProposalState(row.parts, state);
-      const updated = await db<Row[]>`
-        UPDATE automator_flow_ai_messages SET parts = ${parts}::jsonb
+        UPDATE automator_flow_ai_messages SET parts = (
+          SELECT COALESCE(jsonb_agg(
+            CASE WHEN p->>'type' = 'proposal'
+              THEN p || jsonb_build_object('state', ${state}::text)
+              ELSE p END
+            ORDER BY ord), '[]'::jsonb)
+          FROM jsonb_array_elements(parts) WITH ORDINALITY AS t(p, ord)
+        )
         WHERE flow_id = ${flowId} AND id = ${messageId}
         RETURNING ${db.unsafe(columns)}`;
-      return toMessage(updated[0]!);
+      return rows[0] ? toMessage(rows[0]) : null;
     },
     async markPendingStale(flowId) {
       const db = connection();
-      const rows = await db<Row[]>`
-        SELECT ${db.unsafe(columns)} FROM automator_flow_ai_messages
+      await db`
+        UPDATE automator_flow_ai_messages SET parts = (
+          SELECT COALESCE(jsonb_agg(
+            CASE WHEN p->>'type' = 'proposal' AND p->>'state' = 'pending'
+              THEN p || jsonb_build_object('state', 'stale')
+              ELSE p END
+            ORDER BY ord), '[]'::jsonb)
+          FROM jsonb_array_elements(parts) WITH ORDINALITY AS t(p, ord)
+        )
         WHERE flow_id = ${flowId} AND parts @> '[{"type":"proposal","state":"pending"}]'::jsonb`;
-      for (const row of rows) {
-        const parts = withProposalState(row.parts, "stale", "pending");
-        await db`
-          UPDATE automator_flow_ai_messages SET parts = ${parts}::jsonb
-          WHERE id = ${row.id}`;
-      }
     },
     async clear(flowId) {
       const db = connection();
