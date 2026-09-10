@@ -3,6 +3,7 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { privyModule } from "../auth/test-privy";
 
 if (process.env.AUTOMATOR_WALLET_TEST_CHILD !== import.meta.path) {
   test("wallet signing state regressions", async () => {
@@ -38,36 +39,38 @@ if (process.env.AUTOMATOR_WALLET_TEST_CHILD !== import.meta.path) {
     }),
   }));
   const requests: Array<{ address: string; resolve(): void; reject(error: Error): void }> = [];
-  mock.module("@privy-io/react-auth", () => ({
-    usePrivy: () => ({
-      getAccessToken,
-      user: {
-        id: identity.id,
-        linkedAccounts: [
-          {
-            type: "wallet",
-            chainType: "ethereum",
-            walletClientType: "privy",
-            address: identity.address,
-            delegated: identity.delegated,
-          },
-        ],
-      },
-    }),
-    useSigners: () => ({
-      addSigners: ({ address }: { address: string }) =>
-        new Promise<void>((resolve, reject) =>
-          requests.push({
-            address,
-            resolve: () => {
-              grantedAddress = address;
-              resolve();
+  mock.module("@privy-io/react-auth", () =>
+    privyModule({
+      usePrivy: () => ({
+        getAccessToken,
+        user: {
+          id: identity.id,
+          linkedAccounts: [
+            {
+              type: "wallet",
+              chainType: "ethereum",
+              walletClientType: "privy",
+              address: identity.address,
+              delegated: identity.delegated,
             },
-            reject,
-          }),
-        ),
+          ],
+        },
+      }),
+      useSigners: () => ({
+        addSigners: ({ address }: { address: string }) =>
+          new Promise<void>((resolve, reject) =>
+            requests.push({
+              address,
+              resolve: () => {
+                grantedAddress = address;
+                resolve();
+              },
+              reject,
+            }),
+          ),
+      }),
     }),
-  }));
+  );
 
   const { EnableSigningButton } = await import("./enable-signing-button");
   let root: Root;

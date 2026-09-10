@@ -4,6 +4,7 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { privyModule } from "../auth/test-privy";
 
 if (process.env.AUTOMATOR_WALLET_TEST_CHILD !== import.meta.path) {
   test("wallet balance state regressions", async () => {
@@ -30,21 +31,23 @@ if (process.env.AUTOMATOR_WALLET_TEST_CHILD !== import.meta.path) {
   let identity = { id: "user-a", address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" };
   let tokenProvider = async (): Promise<string | null> => "token";
   const getAccessToken = () => tokenProvider();
-  mock.module("@privy-io/react-auth", () => ({
-    usePrivy: () => ({
-      user: {
-        id: identity.id,
-        linkedAccounts: [
-          {
-            type: "wallet",
-            chainType: "ethereum",
-            walletClientType: "privy",
-            address: identity.address,
-          },
-        ],
-      },
+  mock.module("@privy-io/react-auth", () =>
+    privyModule({
+      usePrivy: () => ({
+        user: {
+          id: identity.id,
+          linkedAccounts: [
+            {
+              type: "wallet",
+              chainType: "ethereum",
+              walletClientType: "privy",
+              address: identity.address,
+            },
+          ],
+        },
+      }),
     }),
-  }));
+  );
   mock.module("../auth/access-token", () => ({ useAccessToken: () => getAccessToken }));
 
   const requests: Array<{
