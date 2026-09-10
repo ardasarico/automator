@@ -79,3 +79,49 @@ test("the Use as API snippets are readable inside the dialog", async ({ page }) 
   expect(command).toContain("claude mcp add --transport http \\");
   expect(command).not.toContain("add--transport");
 });
+
+/*
+ * MiniMap draws its svg at the size it reads from `style`, so sizing it in CSS alone left the
+ * svg at React Flow's default and the smaller frame clipped it — the rightmost node cut off by
+ * the border and the flow pressed against the bottom edge.
+ */
+test("the minimap frames the whole flow inside its own box", async ({ page }) => {
+  const flow = await seedFlow(`E2E map ${Date.now()}`, [
+    { id: "a", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Start", config: {} },
+    { id: "b", type: "logic.condition", position: { x: 360, y: 0 }, label: "Check", config: {} },
+    { id: "c", type: "notify.discord", position: { x: 720, y: 0 }, label: "Tell", config: {} },
+  ]);
+  await page.goto(`/flows/${flow.id}`);
+  await page.waitForSelector(".react-flow__node");
+  await page.getByRole("button", { name: "Fit view", exact: true }).click();
+
+  const map = await page.evaluate(() => {
+    const el = document.querySelector(".react-flow__minimap") as HTMLElement | null;
+    const svg = el?.querySelector("svg");
+    const [vx, vy, vw, vh] = (svg?.getAttribute("viewBox") ?? "0 0 0 0").split(" ").map(Number);
+    const nodes = [...(el?.querySelectorAll(".react-flow__minimap-node") ?? [])].map((n) => ({
+      x: Number(n.getAttribute("x")),
+      y: Number(n.getAttribute("y")),
+      w: Number(n.getAttribute("width")),
+      h: Number(n.getAttribute("height")),
+    }));
+    return {
+      box: { w: el?.clientWidth ?? 0, h: el?.clientHeight ?? 0 },
+      svg: { w: Number(svg?.getAttribute("width")), h: Number(svg?.getAttribute("height")) },
+      view: { x: vx ?? 0, y: vy ?? 0, w: vw ?? 0, h: vh ?? 0 },
+      nodes,
+    };
+  });
+
+  // The drawing is the size of the frame, so none of it is cut off by the border.
+  expect(Math.abs(map.svg.w - map.box.w)).toBeLessThanOrEqual(4);
+  expect(Math.abs(map.svg.h - map.box.h)).toBeLessThanOrEqual(4);
+  // And every node it draws is inside what the svg shows.
+  expect(map.nodes.length).toBe(3);
+  for (const node of map.nodes) {
+    expect(node.x).toBeGreaterThanOrEqual(map.view.x);
+    expect(node.y).toBeGreaterThanOrEqual(map.view.y);
+    expect(node.x + node.w).toBeLessThanOrEqual(map.view.x + map.view.w);
+    expect(node.y + node.h).toBeLessThanOrEqual(map.view.y + map.view.h);
+  }
+});

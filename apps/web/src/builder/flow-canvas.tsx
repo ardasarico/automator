@@ -249,6 +249,9 @@ function EmptyCanvas() {
   );
 }
 
+/** One source of truth for the minimap's box: the svg React Flow draws and the frame around it. */
+const miniMapSize = { width: 160, height: 100 };
+
 export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolean }) {
   const nodes = useBuilderStore((state) => state.nodes);
   const edges = useBuilderStore((state) => state.edges);
@@ -352,10 +355,17 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
             <ZoomPanel />
             {gettingStarted && <GettingStartedPanel />}
             {nodes.length > 0 && (
+              /* The size goes in `style`, which is where MiniMap reads it from
+               * (`elementWidth = style?.width ?? defaultWidth`) to draw the svg and compute its
+               * viewBox. Sized in CSS alone it drew at its own default 200x100 and the smaller
+               * frame clipped the result: the rightmost node lost to the border, the flow
+               * pushed against the bottom edge, and the viewport rectangle disagreeing with
+               * what the canvas showed. */
               <MiniMap
                 position="bottom-right"
                 pannable
                 zoomable
+                style={miniMapSize}
                 ariaLabel="Flow overview"
                 className={styles.miniMap}
               />

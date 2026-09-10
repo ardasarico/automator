@@ -984,9 +984,8 @@ button.outlineProblem:focus-visible {
   --xy-minimap-node-background-color-default: var(--edge);
   --xy-minimap-node-stroke-color-default: transparent;
 }
+/* Sized by React Flow from `miniMapSize`, so the svg and this frame cannot disagree. */
 .miniMap {
-  width: 160px;
-  height: 100px;
   margin: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
