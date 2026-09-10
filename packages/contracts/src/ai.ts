@@ -1,31 +1,16 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { apiErrorCodeSchema } from "./contract";
+import { flowProblemSchema } from "./flow-problems";
 import { flowRunNodeResultSchema, flowRunStatusSchema, flowRunTriggerSchema } from "./flow-runs";
 import { flowDocumentInputSchema } from "./flows";
 
-/** Two model attempts, provider fallback and bounded local checks share this client budget. */
+/** One agent turn: model hops, tool calls, checks and one repair share this client budget. */
 export const aiRequestTimeoutMs = 300_000;
 
-export const aiHistoryLimit = 40;
+export const aiMessageTextMaxLength = 4000;
 
-export const aiHistoryTurnSchema = Type.Object({
-  role: Type.Union([Type.Literal("user"), Type.Literal("assistant")]),
-  text: Type.String({ maxLength: 4000 }),
-});
-export type AiHistoryTurn = Static<typeof aiHistoryTurnSchema>;
+/* ---- Verification (unchanged shapes) ---- */
 
-export const generateFlowRequestSchema = Type.Object({
-  prompt: Type.String({ minLength: 1, maxLength: 4000 }),
-  document: Type.Optional(flowDocumentInputSchema),
-  history: Type.Optional(Type.Array(aiHistoryTurnSchema, { maxItems: aiHistoryLimit })),
-});
-export type GenerateFlowRequest = Static<typeof generateFlowRequestSchema>;
-
-/**
- * One assertion about a run. `nodeId` alone asserts the node was reached; naming an `output`
- * (with an optional `path` into it) asserts a value was produced there, and a comparison
- * narrows that to a concrete claim. Several comparisons on one expectation all have to hold.
- */
 export const aiFlowExpectationSchema = Type.Object({
   nodeId: Type.String(),
   output: Type.Optional(Type.String()),
@@ -59,8 +44,6 @@ export const aiVerificationSchema = Type.Object({
   checks: Type.Array(
     Type.Object({
       name: Type.String(),
-      /* passed: asserted and true. failed: asserted and false — a real problem in the flow.
-         skipped: not exercised, which asserts nothing either way. */
       status: Type.Union([Type.Literal("passed"), Type.Literal("failed"), Type.Literal("skipped")]),
       detail: Type.String(),
     }),
@@ -70,29 +53,8 @@ export const aiVerificationSchema = Type.Object({
 });
 export type AiVerification = Static<typeof aiVerificationSchema>;
 
-export const aiFlowAnswerSchema = Type.Object({
-  kind: Type.Literal("flow"),
-  document: flowDocumentInputSchema,
-  summary: Type.String(),
-  verification: Type.Optional(aiVerificationSchema),
-});
-export type AiFlowAnswer = Static<typeof aiFlowAnswerSchema>;
+/* ---- Errors ---- */
 
-export const aiMessageAnswerSchema = Type.Object({
-  kind: Type.Literal("message"),
-  text: Type.String(),
-});
-export type AiMessageAnswer = Static<typeof aiMessageAnswerSchema>;
-
-export const generateFlowResponseSchema = Type.Union([aiFlowAnswerSchema, aiMessageAnswerSchema]);
-export type GenerateFlowResponse = Static<typeof generateFlowResponseSchema>;
-
-/**
- * AI failures keep the stable `error` code for programmatic handling and add a short,
- * human-readable `detail` so the panel can say what actually went wrong instead of
- * "the model could not produce a valid flow". Build it with `aiErrorDetail`, never from a
- * raw upstream payload.
- */
 export const aiErrorDetailMaxLength = 300;
 
 export const aiErrorSchema = Type.Object({
@@ -113,33 +75,191 @@ const aiErrorResponses = {
   503: aiErrorSchema,
 } as const;
 
-export const generateFlowContract = {
-  method: "POST",
-  path: "/ai/flows",
-  body: generateFlowRequestSchema,
-  response: { 200: generateFlowResponseSchema, ...aiErrorResponses },
-} as const;
+/* ---- Context the panel sends with a message ---- */
 
-export const explainRunRequestSchema = Type.Object({
-  document: flowDocumentInputSchema,
-  run: Type.Object({
-    status: flowRunStatusSchema,
-    trigger: flowRunTriggerSchema,
-    nodes: Type.Array(flowRunNodeResultSchema),
-    error: Type.Optional(Type.String()),
-  }),
+export const aiRunContextSchema = Type.Object({
+  status: flowRunStatusSchema,
+  trigger: flowRunTriggerSchema,
+  nodes: Type.Array(flowRunNodeResultSchema),
+  error: Type.Optional(Type.String()),
+  /** The node to explain; else the first failed node, else the run-wide error. */
   nodeId: Type.Optional(Type.String({ minLength: 1 })),
 });
-export type ExplainRunRequest = Static<typeof explainRunRequestSchema>;
+export type AiRunContext = Static<typeof aiRunContextSchema>;
 
-export const explainRunResponseSchema = generateFlowResponseSchema;
-export type ExplainRunResponse = Static<typeof explainRunResponseSchema>;
+export const aiContextSchema = Type.Object({
+  selection: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 50 })),
+  problems: Type.Optional(Type.Array(flowProblemSchema, { maxItems: 50 })),
+  run: Type.Optional(aiRunContextSchema),
+});
+export type AiContext = Static<typeof aiContextSchema>;
 
-export const explainRunContract = {
+/* ---- Messages and their parts ---- */
+
+export const aiProposalStateSchema = Type.Union([
+  Type.Literal("pending"),
+  Type.Literal("applied"),
+  Type.Literal("discarded"),
+  Type.Literal("stale"),
+]);
+export type AiProposalState = Static<typeof aiProposalStateSchema>;
+
+export const aiStatusPhaseSchema = Type.Union([
+  Type.Literal("thinking"),
+  Type.Literal("checking"),
+  Type.Literal("repairing"),
+]);
+export type AiStatusPhase = Static<typeof aiStatusPhaseSchema>;
+
+const textPart = Type.Object({ type: Type.Literal("text"), text: Type.String() });
+const toolPart = Type.Object({
+  type: Type.Literal("tool"),
+  id: Type.String(),
+  name: Type.String(),
+  args: Type.Record(Type.String(), Type.Unknown()),
+  /* Absent while the call is still running. */
+  ok: Type.Optional(Type.Boolean()),
+  detail: Type.Optional(Type.String()),
+});
+const questionPart = Type.Object({
+  type: Type.Literal("question"),
+  text: Type.String(),
+  options: Type.Array(Type.String(), { maxItems: 4 }),
+});
+const proposalPart = Type.Object({
+  type: Type.Literal("proposal"),
+  document: flowDocumentInputSchema,
+  verification: aiVerificationSchema,
+  /* A new flow replaces the canvas; an edit keeps the canvas's secrets for nodes it kept. */
+  replaces: Type.Boolean(),
+  state: aiProposalStateSchema,
+});
+const suggestionsPart = Type.Object({
+  type: Type.Literal("suggestions"),
+  items: Type.Array(Type.String(), { maxItems: 3 }),
+});
+const errorPart = Type.Object({
+  type: Type.Literal("error"),
+  error: apiErrorCodeSchema,
+  detail: Type.Optional(Type.String({ maxLength: aiErrorDetailMaxLength })),
+});
+
+export const aiPartSchema = Type.Union([
+  textPart,
+  toolPart,
+  questionPart,
+  proposalPart,
+  suggestionsPart,
+  errorPart,
+]);
+export type AiPart = Static<typeof aiPartSchema>;
+export type AiProposalPart = Static<typeof proposalPart>;
+export type AiToolPart = Static<typeof toolPart>;
+
+export const aiMessageSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  role: Type.Union([Type.Literal("user"), Type.Literal("assistant")]),
+  parts: Type.Array(aiPartSchema),
+  context: Type.Optional(aiContextSchema),
+  createdAt: Type.String(),
+});
+export type AiMessage = Static<typeof aiMessageSchema>;
+
+/* ---- Stream events ---- */
+
+export const aiStreamEventSchema = Type.Union([
+  Type.Object({ type: Type.Literal("message"), id: Type.String({ minLength: 1 }) }),
+  Type.Object({ type: Type.Literal("text.delta"), delta: Type.String() }),
+  Type.Object({
+    type: Type.Literal("tool.call"),
+    id: Type.String(),
+    name: Type.String(),
+    args: Type.Record(Type.String(), Type.Unknown()),
+  }),
+  Type.Object({
+    type: Type.Literal("tool.result"),
+    id: Type.String(),
+    ok: Type.Boolean(),
+    detail: Type.String(),
+    /* The working copy after a successful mutation, laid out, for the canvas preview. */
+    document: Type.Optional(flowDocumentInputSchema),
+  }),
+  Type.Object({
+    type: Type.Literal("status"),
+    phase: aiStatusPhaseSchema,
+    detail: Type.Optional(Type.String()),
+  }),
+  Type.Object({
+    type: Type.Literal("question"),
+    text: Type.String(),
+    options: Type.Array(Type.String(), { maxItems: 4 }),
+  }),
+  Type.Object({
+    type: Type.Literal("proposal"),
+    document: flowDocumentInputSchema,
+    verification: aiVerificationSchema,
+    replaces: Type.Boolean(),
+  }),
+  Type.Object({
+    type: Type.Literal("suggestions"),
+    items: Type.Array(Type.String(), { maxItems: 3 }),
+  }),
+  Type.Object({
+    type: Type.Literal("error"),
+    error: apiErrorCodeSchema,
+    detail: Type.Optional(Type.String({ maxLength: aiErrorDetailMaxLength })),
+  }),
+  Type.Object({ type: Type.Literal("done") }),
+]);
+export type AiStreamEvent = Static<typeof aiStreamEventSchema>;
+
+/* ---- Routes ---- */
+
+const flowParams = Type.Object({ id: Type.String({ minLength: 1 }) });
+const messageParams = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  messageId: Type.String({ minLength: 1 }),
+});
+
+export const listAiMessagesContract = {
+  method: "GET",
+  path: "/flows/:id/ai/messages",
+  params: flowParams,
+  response: { 200: Type.Object({ messages: Type.Array(aiMessageSchema) }), ...aiErrorResponses },
+} as const;
+
+export const sendAiMessageRequestSchema = Type.Object({
+  text: Type.String({ minLength: 1, maxLength: aiMessageTextMaxLength }),
+  /* The canvas when it has unsaved changes; absent, the API reads the saved flow. */
+  document: Type.Optional(flowDocumentInputSchema),
+  context: Type.Optional(aiContextSchema),
+});
+export type SendAiMessageRequest = Static<typeof sendAiMessageRequestSchema>;
+
+/** Answers `text/event-stream` of `aiStreamEventSchema`; the 200 body is not JSON. */
+export const sendAiMessageContract = {
   method: "POST",
-  path: "/ai/runs/explain",
-  body: explainRunRequestSchema,
-  response: { 200: explainRunResponseSchema, ...aiErrorResponses },
+  path: "/flows/:id/ai/messages",
+  params: flowParams,
+  body: sendAiMessageRequestSchema,
+  response: { 200: Type.Unknown(), ...aiErrorResponses },
+} as const;
+
+export const setAiProposalStateContract = {
+  method: "PATCH",
+  path: "/flows/:id/ai/messages/:messageId",
+  params: messageParams,
+  body: Type.Object({
+    state: Type.Union([Type.Literal("applied"), Type.Literal("discarded")]),
+  }),
+  response: { 200: Type.Object({ message: aiMessageSchema }), ...aiErrorResponses },
+} as const;
+
+export const clearAiMessagesContract = {
+  method: "DELETE",
+  path: "/flows/:id/ai/messages",
+  params: flowParams,
+  response: { 200: Type.Object({ cleared: Type.Boolean() }), ...aiErrorResponses },
 } as const;
 
 export const redactedValue = "[redacted]";
@@ -185,7 +305,9 @@ export function redactSensitiveValue(value: unknown): unknown {
   return value;
 }
 
-export function redactRunOutputs<T extends ExplainRunRequest["run"]>(run: T): T {
+export function redactRunOutputs<T extends Pick<AiRunContext, "trigger" | "error" | "nodes">>(
+  run: T,
+): T {
   return {
     ...run,
     trigger: {
@@ -214,6 +336,6 @@ export function aiErrorDetail(message: string): string | undefined {
   const text = redactSensitiveText(message).replace(/\s+/g, " ").trim();
   if (text === "") return undefined;
   return text.length > aiErrorDetailMaxLength
-    ? `${text.slice(0, aiErrorDetailMaxLength - 1).trimEnd()}\u2026`
+    ? `${text.slice(0, aiErrorDetailMaxLength - 1).trimEnd()}…`
     : text;
 }

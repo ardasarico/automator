@@ -4,74 +4,102 @@ import {
   aiErrorDetail,
   aiErrorDetailMaxLength,
   aiFlowTestSchema,
-  explainRunContract,
-  generateFlowContract,
-  generateFlowResponseSchema,
+  aiMessageSchema,
+  aiStreamEventSchema,
   redactRunOutputs,
   redactSensitiveText,
   redactSensitiveValue,
   redactedValue,
+  sendAiMessageRequestSchema,
+  setAiProposalStateContract,
 } from "./ai";
 
-const document = {
-  version: 1,
-  name: "Ping",
-  description: "",
-  nodes: [{ id: "n1", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Run", config: {} }],
-  edges: [],
-};
+describe("ai message contracts", () => {
+  const document = {
+    version: 1 as const,
+    name: "Ping",
+    description: "",
+    nodes: [
+      { id: "n1", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Run", config: {} },
+    ],
+    edges: [],
+  };
 
-describe("AI contracts", () => {
-  test("a generate request may carry a capped history of user and assistant turns", () => {
-    expect(Value.Check(generateFlowContract.body, { prompt: "x" })).toBe(true);
+  test("a message is a role, ordered parts and a timestamp", () => {
     expect(
-      Value.Check(generateFlowContract.body, {
-        prompt: "also notify Discord",
-        document,
-        history: [
-          { role: "user", text: "make a webhook flow" },
-          { role: "assistant", text: "A webhook posts to Discord." },
+      Value.Check(aiMessageSchema, {
+        id: "m1",
+        role: "assistant",
+        createdAt: "2026-09-11T00:00:00.000Z",
+        parts: [
+          { type: "text", text: "Added a trigger." },
+          {
+            type: "tool",
+            id: "c1",
+            name: "add_node",
+            args: { id: "n1" },
+            ok: true,
+            detail: "Added n1",
+          },
+          {
+            type: "question",
+            text: "Which chain?",
+            options: ["Base Sepolia", "World Chain Sepolia"],
+          },
+          {
+            type: "proposal",
+            document,
+            verification: { checks: [], warnings: [] },
+            replaces: true,
+            state: "pending",
+          },
+          { type: "suggestions", items: ["Add a Discord message"] },
+          { type: "error", error: "unavailable" },
         ],
       }),
     ).toBe(true);
     expect(
-      Value.Check(generateFlowContract.body, {
-        prompt: "x",
-        history: [{ role: "system", text: "" }],
-      }),
-    ).toBe(false);
-    expect(
-      Value.Check(generateFlowContract.body, {
-        prompt: "x",
-        history: Array.from({ length: 41 }, () => ({ role: "user", text: "hi" })),
-      }),
+      Value.Check(aiMessageSchema, { id: "m1", role: "system", parts: [], createdAt: "x" }),
     ).toBe(false);
   });
 
-  test("the answer is a flow with a summary or a message", () => {
+  test("stream events are discriminated by type", () => {
+    for (const event of [
+      { type: "message", id: "m2" },
+      { type: "text.delta", delta: "Add" },
+      { type: "tool.call", id: "c1", name: "add_node", args: {} },
+      { type: "tool.result", id: "c1", ok: false, detail: 'Unknown node type "x"' },
+      { type: "tool.result", id: "c1", ok: true, detail: "Added n1", document },
+      { type: "status", phase: "checking" },
+      { type: "question", text: "Which chain?", options: ["Base Sepolia"] },
+      { type: "proposal", document, verification: { checks: [], warnings: [] }, replaces: false },
+      { type: "suggestions", items: ["Add a test"] },
+      { type: "error", error: "invalid_flow", detail: "No trigger" },
+      { type: "done" },
+    ])
+      expect(Value.Check(aiStreamEventSchema, event), JSON.stringify(event)).toBe(true);
+    expect(Value.Check(aiStreamEventSchema, { type: "tool.call", id: "c1" })).toBe(false);
+  });
+
+  test("a send request needs text and bounds its context", () => {
+    expect(Value.Check(sendAiMessageRequestSchema, { text: "hi" })).toBe(true);
     expect(
-      Value.Check(generateFlowResponseSchema, { kind: "flow", document, summary: "Done." }),
+      Value.Check(sendAiMessageRequestSchema, {
+        text: "fix these",
+        document,
+        context: {
+          selection: ["n1"],
+          problems: [{ severity: "error", message: "No trigger" }],
+        },
+      }),
     ).toBe(true);
-    expect(Value.Check(generateFlowResponseSchema, { kind: "message", text: "Which chain?" })).toBe(
-      true,
-    );
-    expect(Value.Check(generateFlowResponseSchema, { document, summary: "Done." })).toBe(false);
-    expect(Value.Check(generateFlowResponseSchema, { kind: "message" })).toBe(false);
+    expect(Value.Check(sendAiMessageRequestSchema, { text: "" })).toBe(false);
+    expect(Value.Check(sendAiMessageRequestSchema, { text: "x".repeat(4001) })).toBe(false);
   });
 
-  test("an explain request carries the document, the run's node results and the failed node", () => {
-    const body = {
-      document,
-      run: {
-        status: "failed",
-        trigger: { nodeId: "n1", payload: {} },
-        nodes: [{ nodeId: "n1", status: "failed", error: "boom" }],
-      },
-      nodeId: "n1",
-    };
-    expect(Value.Check(explainRunContract.body, body)).toBe(true);
-    expect(Value.Check(explainRunContract.body, { document })).toBe(false);
-    expect(explainRunContract.path).toBe("/ai/runs/explain");
+  test("the proposal state route takes only applied or discarded", () => {
+    expect(Value.Check(setAiProposalStateContract.body, { state: "applied" })).toBe(true);
+    expect(Value.Check(setAiProposalStateContract.body, { state: "stale" })).toBe(false);
   });
 });
 
@@ -138,7 +166,7 @@ describe("redaction", () => {
     expect(aiErrorDetail("   ")).toBeUndefined();
     const long = aiErrorDetail("x".repeat(1000))!;
     expect(long.length).toBe(aiErrorDetailMaxLength);
-    expect(long.endsWith("\u2026")).toBe(true);
+    expect(long.endsWith("…")).toBe(true);
   });
 
   test("an expectation may compare with equals, greaterThan, lessThan or contains", () => {
