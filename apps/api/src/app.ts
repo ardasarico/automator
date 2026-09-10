@@ -8,6 +8,7 @@ import {
 } from "@automator/contracts";
 import type {
   AccountStore,
+  ApiKeyStore,
   createDatabase,
   DataRecordStore,
   DataTableStore,
@@ -25,6 +26,9 @@ import { Elysia } from "elysia";
 import type { IdentityProvider } from "./auth/privy";
 import type { ChainFactory } from "./chain/provider";
 import { createAccountRoutes } from "./account/routes";
+import { createApiKeyRoutes } from "./api-publishing/key-routes";
+import { createMachineRoutes } from "./api-publishing/routes";
+import { createApiKeyVerifier } from "./api-publishing/verify";
 import { createAiRoutes } from "./ai/routes";
 import { createAuthRoutes } from "./auth/routes";
 import type { DataFactory } from "./data/provider";
@@ -59,6 +63,7 @@ export interface AppDependencies {
   secretsCrypto?: SecretsCrypto;
   sessions?: SessionStore;
   account?: AccountStore;
+  apiKeys?: ApiKeyStore;
   identity?: IdentityProvider;
   model?: LanguageModel;
   /** The Graph gateway key for subgraph queries; without it those nodes fail as unconfigured. */
@@ -110,6 +115,7 @@ export function createApp({
   secretsCrypto,
   sessions,
   account,
+  apiKeys,
   identity,
   log = false,
   model,
@@ -268,6 +274,24 @@ export function createApp({
     )
     .use(createAiRoutes({ identity, model, dataTables, log, callsPerMinute: limits.ai }))
     .use(account ? createAccountRoutes({ account, identity }) : new Elysia())
+    .use(
+      apiKeys
+        ? createApiKeyRoutes({ identity, keys: apiKeys, callsPerMinute: limits.secrets })
+        : new Elysia(),
+    )
+    .use(
+      apiKeys && flows && runs
+        ? createMachineRoutes({
+            verifier: createApiKeyVerifier(apiKeys),
+            flows,
+            runs,
+            engine: engineFor,
+            chainFactory,
+            dataFactory,
+            callsPerMinute: limits.api,
+          })
+        : new Elysia(),
+    )
     .use(createWalletRoutes({ identity, chainFactory, runs }))
     .use(createPaymentPolicyRoutes({ identity, paymentPolicies }))
     .use(

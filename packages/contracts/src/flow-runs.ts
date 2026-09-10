@@ -58,6 +58,9 @@ export const flowRunSchema = Type.Object({
   trigger: flowRunTriggerSchema,
   nodes: Type.Array(flowRunNodeResultSchema),
   variables: Type.Record(Type.String(), Type.Unknown()),
+  /* What the run answered with, from the first Return node it reached. Absent when it reached
+   * none, which is every flow that is not published as an API. */
+  output: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   error: Type.Optional(Type.String()),
 });
 export type FlowRun = Static<typeof flowRunSchema>;
@@ -89,6 +92,7 @@ export const flowRunSourceSchema = Type.Union([
   Type.Literal("miniapp"),
   Type.Literal("event"),
   Type.Literal("watch"),
+  Type.Literal("api"),
 ]);
 export type FlowRunSource = Static<typeof flowRunSourceSchema>;
 

@@ -16,6 +16,8 @@ export const apiErrorCodeSchema = Type.Union([
   Type.Literal("unavailable"),
   Type.Literal("username_reserved"),
   Type.Literal("username_taken"),
+  /* An API invocation stopped on a screen, which a machine caller cannot answer. */
+  Type.Literal("waiting_on_screen"),
 ]);
 export type ApiErrorCode = Static<typeof apiErrorCodeSchema>;
 

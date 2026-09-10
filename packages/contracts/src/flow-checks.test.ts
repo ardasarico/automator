@@ -156,3 +156,77 @@ describe("the patch contract carries a refusal", () => {
     expect(refusedActivationProblems(result.data)).toEqual(body.problems);
   });
 });
+
+describe("API flows", () => {
+  const trigger = node("call", "trigger.api", {
+    inputs: [{ name: "amount", type: "number", description: "", required: true }],
+  });
+
+  test("warns that a screen cannot be answered by a machine caller", () => {
+    const problems = findFlowProblems({
+      nodes: [trigger, node("ask", "screen.form", { fields: [{ id: "why" }] })],
+      edges: [{ id: "e", source: "call", target: "ask" }],
+    });
+    expect(problems).toContainEqual({
+      severity: "warning",
+      nodeId: "ask",
+      message: "“ask” is a screen, and an API call cannot answer one, so the run stops there.",
+    });
+  });
+
+  test("leaves screens alone in a flow with no API trigger", () => {
+    const problems = findFlowProblems({
+      nodes: [
+        node("start", "trigger.manual"),
+        node("ask", "screen.form", { fields: [{ id: "a" }] }),
+      ],
+      edges: [{ id: "e", source: "start", target: "ask" }],
+    });
+    expect(problems).toEqual([]);
+  });
+
+  test("reports an input row left unnamed", () => {
+    const problems = findFlowProblems({
+      nodes: [node("call", "trigger.api", { inputs: [{ name: "" }] })],
+      edges: [],
+    });
+    expect(problems).toContainEqual({
+      severity: "error",
+      nodeId: "call",
+      message: "“call” has an input row 1 with no name.",
+    });
+  });
+
+  test("warns when an API flow answers nothing", () => {
+    const problems = findFlowProblems({ nodes: [trigger], edges: [] });
+    expect(problems).toContainEqual({
+      severity: "warning",
+      nodeId: "call",
+      message: "“call” has no Return node after it, so callers get an empty answer.",
+    });
+  });
+
+  test("warns about a Return node with no outputs", () => {
+    const problems = findFlowProblems({
+      nodes: [trigger, node("out", "logic.return", { outputs: [] })],
+      edges: [{ id: "e", source: "call", target: "out" }],
+    });
+    expect(problems).toContainEqual({
+      severity: "warning",
+      nodeId: "out",
+      message: "“out” has no outputs yet.",
+    });
+  });
+
+  test("reports a Return row left unnamed", () => {
+    const problems = findFlowProblems({
+      nodes: [trigger, node("out", "logic.return", { outputs: [{ name: "", value: "1" }] })],
+      edges: [{ id: "e", source: "call", target: "out" }],
+    });
+    expect(problems).toContainEqual({
+      severity: "error",
+      nodeId: "out",
+      message: "“out” has an output row 1 with no name.",
+    });
+  });
+});

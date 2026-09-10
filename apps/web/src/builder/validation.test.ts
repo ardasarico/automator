@@ -206,6 +206,10 @@ const blankedConfigs: Record<FlowNode["type"], [Record<string, unknown>, string[
     ["error: “n” needs a watched address.", "error: “n” needs a balance threshold."],
   ],
   "trigger.webhook": [{}, []],
+  "trigger.api": [
+    { description: "", inputs: [] },
+    ["warning: “n” has no Return node after it, so callers get an empty answer."],
+  ],
   "trigger.miniapp-open": [{}, []],
   "trigger.manual": [{}, []],
   "logic.condition": [{ left: "", right: "" }, []],
@@ -216,6 +220,7 @@ const blankedConfigs: Record<FlowNode["type"], [Record<string, unknown>, string[
   "logic.filter": [{ items: "", field: "", value: "" }, ["error: “n” needs a list of items."]],
   "logic.set-variable": [{ name: "", value: "" }, ["error: “n” needs a variable name."]],
   "logic.run-code": [{ code: "" }, ["error: “n” needs a snippet of code to run."]],
+  "logic.return": [{ outputs: [] }, ["warning: “n” has no outputs yet."]],
   "onchain.read-contract": [
     { address: "", abi: "", functionName: "", args: "" },
     [

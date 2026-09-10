@@ -52,6 +52,10 @@ function fixture(
   };
   const strip = ({ ownerId: _owner, ...record }: FlowRecord & { ownerId: string }) => record;
   const flows: FlowStore = {
+    listEnabledForOwner: async (ownerId) =>
+      [...records.values()]
+        .filter((record) => record.ownerId === ownerId && record.enabled)
+        .map(strip),
     list: async (ownerId) =>
       [...records.values()]
         .filter((record) => record.ownerId === ownerId)
