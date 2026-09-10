@@ -86,6 +86,7 @@ test("copies a snippet to the clipboard", async () => {
   await act(async () => button.click());
   /* The clipboard takes the command as shown, continuations and all, which still pastes as one
    * command; what matters here is that Copy hands over exactly what the block displays. */
-  expect(written).toEqual([snippet("claude-code")]);
+  expect(written).toHaveLength(1);
+  expect(written[0]).toBe(snippet("claude-code") ?? "");
   expect(button.getAttribute("aria-label")).toBe("Command copied");
 });
