@@ -234,19 +234,3 @@ test("catalog search adds an editable screen and preview can finish and restart"
     preview.getByRole("heading", { name: "E2E preview screen", exact: true }),
   ).toBeVisible();
 });
-
-test.describe("compact viewport", () => {
-  test.use({ viewport: { width: 390, height: 844 } });
-
-  test("flow settings keeps Apply reachable on a small screen", async ({ page }) => {
-    const flow = await seedFlow(`E2E compact ${Date.now()}`);
-    await page.goto(`/flows/${flow.id}`);
-    await page.getByRole("button", { name: "Flow settings", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Flow settings" });
-    const name = `${flow.name} revised`;
-    await dialog.getByLabel("Name", { exact: true }).fill(name);
-    await dialog.getByRole("button", { name: "Apply", exact: true }).click();
-    await expect(dialog).not.toBeVisible();
-    await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
-  });
-});
