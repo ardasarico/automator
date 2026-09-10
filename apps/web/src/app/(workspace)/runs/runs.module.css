@@ -107,7 +107,9 @@
   font-weight: 400;
 }
 .table tbody tr:hover td,
-.table tbody tr:hover th {
+.table tbody tr:hover th,
+.table tbody tr:focus-within td,
+.table tbody tr:focus-within th {
   background: color-mix(in srgb, var(--foreground) 3%, transparent);
 }
 .table tbody tr[aria-current] td,
@@ -126,6 +128,18 @@
 .duration {
   text-align: end;
   font-variant-numeric: tabular-nums;
+}
+
+/* The row carries the hover highlight, so the whole row has to open the run. One link still
+ * does it: its overlay covers the row from here, which keeps the tab order and what a screen
+ * reader announces to exactly the one link the row had. */
+.row {
+  position: relative;
+}
+.runLink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
 }
 
 .runLink {

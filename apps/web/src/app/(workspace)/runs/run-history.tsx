@@ -274,7 +274,11 @@ export function RunHistory({
               const badge = runStatusLabels[run.status];
               const duration = runDuration(run.status, run.startedAt, run.finishedAt);
               return (
-                <tr key={run.id} aria-current={run.id === selectedId ? "true" : undefined}>
+                <tr
+                  key={run.id}
+                  className={styles.row}
+                  aria-current={run.id === selectedId ? "true" : undefined}
+                >
                   <th scope="row">
                     <Link
                       href={runHref(run.id, state, cursor)}

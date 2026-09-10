@@ -150,6 +150,41 @@ test("a local simulation is inspectable in run history and on its canvas", async
   await expect(page.getByRole("region", { name: "Last run" })).toContainText("Succeeded");
 });
 
+/* Seeds its run over the API rather than from the canvas, so what it proves is about the list:
+ * the row carries the hover highlight, so every cell in it has to open the run, not only the
+ * flow name. Keyboard reach stays the one link the row already had. */
+test("every cell of a run row opens the run, not only the flow name", async ({ page }) => {
+  const name = `E2E row ${Date.now()}`;
+  const flow = await seedFlow(name, [
+    {
+      id: "trigger",
+      type: "trigger.manual",
+      position: { x: 0, y: 0 },
+      label: "Manual",
+      config: {},
+    },
+  ]);
+  const run = await fetch(`${apiUrl}/flows/${flow.id}/runs`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ trigger: { nodeId: "trigger" } }),
+  });
+  expect(run.status).toBe(201);
+
+  await page.goto(`/runs?flow=${flow.id}`);
+  const row = page.getByRole("row").filter({ hasText: name });
+  await expect(row.getByRole("link", { name: `${name} run`, exact: true })).toBeVisible();
+  // One link per row: the row is reachable by keyboard without repeating itself for a reader.
+  await expect(row.getByRole("link")).toHaveCount(1);
+
+  // A click where the reader sees the duration, as far from the flow name as the row goes.
+  // Real page coordinates, so what answers it is whatever the browser hit-tests there.
+  const duration = await row.getByRole("cell").last().boundingBox();
+  if (!duration) throw new Error("The duration cell was not laid out.");
+  await page.mouse.click(duration.x + duration.width / 2, duration.y + duration.height / 2);
+  await expect(page).toHaveURL(new RegExp(`/runs/[^/?]+\\?flow=${flow.id}$`));
+});
+
 test("account settings load every section and the test identity has a clear wallet state", async ({
   page,
 }) => {
