@@ -14,7 +14,8 @@ Connect logic, AI agents, user interfaces, and onchain actions in a single flow,
 
 - **Onchain automations** — Send an alert when a token crosses a price threshold, respond to a contract event, or trigger a payout when your conditions are met.
 - **AI workflows** — Route support requests by topic, turn free-form submissions into structured records, or let an agent query a subgraph before producing a response.
-- **Interactive mini-apps** — Build an application form, a verified claim flow, or a wallet-connected signup experience. Share it through a link.
+- **Interactive mini-apps** — Build an application form, a verified claim flow, or a wallet-connected signup experience. Take a USDC payment from the visitor's own wallet, and share it through a link.
+- **Endpoints and agent tools** — Declare what a flow takes and answer with a Return node to publish it as an HTTP endpoint and as an MCP tool. One API key, one endpoint and one MCP server per workspace.
 
 <br>
 
