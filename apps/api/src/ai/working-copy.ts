@@ -127,10 +127,15 @@ export class WorkingCopy {
   updateNode(raw: unknown): string {
     const args = record(raw);
     const node = this.node(text(args, "id")!);
+    // Validate everything before assigning anything: a rejected call must leave the node
+    // untouched, so the label and the cleaned config are both computed before either is written.
     const label = text(args, "label", false);
-    if (label !== undefined) node.label = label;
-    if (args.config !== undefined)
-      node.config = this.clean(node.type, { ...node.config, ...record(args.config) });
+    const config =
+      args.config === undefined
+        ? undefined
+        : this.clean(node.type, { ...node.config, ...record(args.config) });
+    if (label !== undefined) node.label = label || node.type;
+    if (config !== undefined) node.config = config;
     this.mutations += 1;
     return `Updated "${node.label}"`;
   }
@@ -204,27 +209,34 @@ export class WorkingCopy {
 
   setFlow(raw: unknown): string {
     const args = record(raw);
-    const changes: string[] = [];
+    // Validate every field before assigning any of them, so a rejected call (an invalid
+    // chainId, say) never leaves a partial rename or description behind.
     const name = text(args, "name", false);
-    if (name !== undefined) {
-      this.name = name.slice(0, 120);
-      changes.push(`Renamed the flow to "${this.name}"`);
-    }
+    if (name === "") throw new ToolCallError(`"name" must be a non-empty string`);
     const description = text(args, "description", false);
-    if (description !== undefined) {
-      this.description = description.slice(0, 1000);
-      changes.push("Set the description");
-    }
+    let chainId: FlowDocumentInput["chainId"];
     if (args.chainId !== undefined) {
       if (!Value.Check(chainIdSchema, args.chainId))
         throw new ToolCallError(
           `chainId ${String(args.chainId)} is not a supported chain; use one of ${chainIds.join(", ")}`,
         );
-      this.chainId = args.chainId;
-      changes.push(`Set the chain to ${args.chainId}`);
+      chainId = args.chainId;
     }
-    if (changes.length === 0)
+    if (name === undefined && description === undefined && chainId === undefined)
       throw new ToolCallError("set_flow needs name, description or chainId");
+    const changes: string[] = [];
+    if (name !== undefined) {
+      this.name = name.slice(0, 120);
+      changes.push(`Renamed the flow to "${this.name}"`);
+    }
+    if (description !== undefined) {
+      this.description = description.slice(0, 1000);
+      changes.push("Set the description");
+    }
+    if (chainId !== undefined) {
+      this.chainId = chainId;
+      changes.push(`Set the chain to ${chainId}`);
+    }
     this.mutations += 1;
     return changes.join("; ");
   }

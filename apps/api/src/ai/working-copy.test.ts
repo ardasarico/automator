@@ -61,6 +61,18 @@ describe("working copy", () => {
     ).toThrow(/cycle|has no input/);
   });
 
+  test("rejects a cycle formed entirely of non-trigger nodes", () => {
+    const copy = new WorkingCopy();
+    copy.addNode({ id: "a", type: "logic.set-variable", label: "A", config: {} });
+    copy.addNode({ id: "b", type: "logic.set-variable", label: "B", config: {} });
+    copy.addNode({ id: "c", type: "logic.set-variable", label: "C", config: {} });
+    copy.connect({ source: "a", sourceHandle: "value", target: "b", targetHandle: "value" });
+    copy.connect({ source: "b", sourceHandle: "value", target: "c", targetHandle: "value" });
+    expect(() =>
+      copy.connect({ source: "c", sourceHandle: "value", target: "a", targetHandle: "value" }),
+    ).toThrow(/cycle/);
+  });
+
   test("cleans config through the node schema and reports unknown fields", () => {
     const copy = new WorkingCopy();
     copy.addNode({
@@ -73,6 +85,10 @@ describe("working copy", () => {
     expect(copy.updateNode({ id: "d", config: { content: "hello" } })).toBe('Updated "Post"');
     expect(copy.toDraft().nodes[0]!.config).toMatchObject({ content: "hello" });
     expect(() => copy.updateNode({ id: "zz" })).toThrow(/No node "zz"/);
+    expect(() => copy.updateNode({ id: "d", label: "Changed", config: { content: 123 } })).toThrow(
+      ToolCallError,
+    );
+    expect(copy.toDraft().nodes[0]!.label).toBe("Post");
   });
 
   test("starts from the current document and tracks change", () => {
@@ -89,6 +105,9 @@ describe("working copy", () => {
     expect(copy.setFlow({ name: "Pong" })).toBe('Renamed the flow to "Pong"');
     expect(copy.changed).toBe(true);
     expect(() => copy.setFlow({ chainId: 1 })).toThrow(/chainId/);
+    expect(() => copy.setFlow({ name: "Should not stick", chainId: 999 })).toThrow(/chainId/);
+    expect(copy.toDraft().name).toBe("Pong");
+    expect(() => copy.setFlow({ name: "" })).toThrow(/"name" must be a non-empty string/);
     expect(copy.removeNode({ id: "t" })).toBe('Removed "Run" and 0 edges');
     expect(copy.toDraft().nodes).toEqual([]);
   });
