@@ -64,6 +64,25 @@ describe("upcoming rows", () => {
     expect(upcoming).toEqual([]);
   });
 
+  /* An active API flow waits on a caller exactly as a webhook flow does, so it is armed. */
+  test("an active API flow is coming up like a webhook flow", () => {
+    const { upcoming } = buildActivity({
+      flows: [
+        flow({
+          triggers: [
+            {
+              nodeId: "n1",
+              type: "trigger.api",
+              summary: "when something calls its endpoint",
+            },
+          ],
+        }),
+      ],
+      runs: [],
+    });
+    expect(upcoming.map((row) => row.sentence)).toEqual(["runs when something calls its endpoint"]);
+  });
+
   test("a flow armed twice contributes both triggers", () => {
     const { upcoming } = buildActivity({
       flows: [

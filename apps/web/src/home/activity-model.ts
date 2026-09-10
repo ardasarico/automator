@@ -36,6 +36,8 @@ const armedTriggers: readonly FlowNodeType[] = [
   "trigger.balance",
   "trigger.onchain-event",
   "trigger.webhook",
+  /* A caller reaches it without anyone opening the app, the same as a webhook. */
+  "trigger.api",
 ];
 
 const verbs: Record<FlowRunStatus, string> = {

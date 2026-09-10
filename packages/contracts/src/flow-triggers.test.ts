@@ -1,12 +1,30 @@
 import { describe, expect, test } from "bun:test";
+import { flowNodeCategory } from "./flow-categories";
 import { describeTrigger, documentTriggers } from "./flow-triggers";
-import type { FlowNodeType } from "./flows";
+import { flowNodeTypes, type FlowNodeType } from "./flows";
 
 function node(type: FlowNodeType, config: Record<string, unknown> = {}, id = "n1") {
   return { id, type, config };
 }
 
 describe("describeTrigger", () => {
+  /* A type that falls through to `default: null` is dropped by `documentTriggers`, so the flow
+   * reads "No trigger" on its card and vanishes from Home's armed list — silently, because
+   * nothing else notices. Every trigger the catalog offers has to say what starts the flow. */
+  test("every trigger-category node type describes itself", () => {
+    const triggers = flowNodeTypes.filter((type) => flowNodeCategory[type] === "trigger");
+    const undescribed = triggers.filter((type) => describeTrigger(node(type)) === null);
+    expect(undescribed).toEqual([]);
+  });
+
+  test("an API trigger reads as a call to its endpoint", () => {
+    expect(describeTrigger(node("trigger.api"))).toEqual({
+      nodeId: "n1",
+      type: "trigger.api",
+      summary: "when something calls its endpoint",
+    });
+  });
+
   test("a schedule reads as its interval", () => {
     expect(describeTrigger(node("trigger.schedule", { every: "15m" }))).toEqual({
       nodeId: "n1",

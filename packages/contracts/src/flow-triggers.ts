@@ -58,6 +58,8 @@ export function describeTrigger(node: TriggerNode): FlowTriggerSummary | null {
       }
       case "trigger.webhook":
         return "when its webhook is called";
+      case "trigger.api":
+        return "when something calls its endpoint";
       case "trigger.manual":
         return "when you run it";
       case "trigger.miniapp-open":
