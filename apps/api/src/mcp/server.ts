@@ -1,7 +1,9 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
+  ErrorCode,
   ListToolsRequestSchema,
+  McpError,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { FlowApiInputProblem } from "@automator/contracts";
@@ -42,6 +44,20 @@ function structuredOutput(output: unknown): Record<string, unknown> | undefined 
   return typeof output === "object" && output !== null && !Array.isArray(output)
     ? (output as Record<string, unknown>)
     : undefined;
+}
+
+/*
+ * The SDK copies a thrown error's message into the JSON-RPC error it sends back, and ours name
+ * hosts, ports and database users. A caller holding an API key is outside the account, so it
+ * learns that the request failed and nothing else; the real error stays in the API's own log.
+ */
+async function guarded<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (error instanceof McpError) throw error;
+    throw new McpError(ErrorCode.InternalError, "The Automator API could not answer this request.");
+  }
 }
 
 function toolError(message: string): CallToolResult {
@@ -101,34 +117,38 @@ export function createFlowMcpServer({
     { capabilities: { tools: {} } },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    const flows = await source.list(ownerId);
-    return { tools: [listFlowsTool, ...flows.map(mcpToolDefinition)] };
-  });
+  server.setRequestHandler(ListToolsRequestSchema, () =>
+    guarded(async () => {
+      const flows = await source.list(ownerId);
+      return { tools: [listFlowsTool, ...flows.map(mcpToolDefinition)] };
+    }),
+  );
 
-  server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
-    const { name, arguments: args } = request.params;
-    const flows = await source.list(ownerId);
-    if (name === listFlowsTool.name) {
-      const described = { flows: flows.map(describeFlow) };
-      return {
-        content: [{ type: "text", text: JSON.stringify(described) }],
-        structuredContent: described,
-      };
-    }
-    const flow = flows.find((candidate) => mcpToolName(candidate) === name);
-    if (!flow) return toolError(`No flow of yours is published as the tool "${name}".`);
+  server.setRequestHandler(CallToolRequestSchema, (request): Promise<CallToolResult> =>
+    guarded(async () => {
+      const { name, arguments: args } = request.params;
+      const flows = await source.list(ownerId);
+      if (name === listFlowsTool.name) {
+        const described = { flows: flows.map(describeFlow) };
+        return {
+          content: [{ type: "text", text: JSON.stringify(described) }],
+          structuredContent: described,
+        };
+      }
+      const flow = flows.find((candidate) => mcpToolName(candidate) === name);
+      if (!flow) return toolError(`No flow of yours is published as the tool "${name}".`);
 
-    /* A thrown error carries hostnames, ports and query text. The caller is outside the account,
-     * so it hears that the run failed and nothing about where. */
-    let outcome: InvokeOutcome;
-    try {
-      outcome = await source.invoke(ownerId, flow.id, args ?? {});
-    } catch {
-      return toolError(`Running "${flow.name}" failed. Check the run in Automator for details.`);
-    }
-    return describeOutcome(flow, outcome);
-  });
+      /* A thrown error carries hostnames, ports and query text. The caller is outside the account,
+       * so it hears that the run failed and nothing about where. */
+      let outcome: InvokeOutcome;
+      try {
+        outcome = await source.invoke(ownerId, flow.id, args ?? {});
+      } catch {
+        return toolError(`Running "${flow.name}" failed. Check the run in Automator for details.`);
+      }
+      return describeOutcome(flow, outcome);
+    }),
+  );
 
   return server;
 }

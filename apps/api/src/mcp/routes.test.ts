@@ -263,6 +263,29 @@ describe("MCP authentication", () => {
   });
 });
 
+describe("MCP server failures", () => {
+  const failing = {
+    list: async (): Promise<never> => {
+      throw new Error("connect ECONNREFUSED 10.0.0.1:5432 as automator_admin");
+    },
+    invoke: async (): Promise<never> => {
+      throw new Error("unreachable");
+    },
+  };
+
+  test("never puts a thrown message in the JSON-RPC error a client reads", async () => {
+    const client = await connect(serve(failing));
+    const failure = await client.listTools().then(
+      () => null,
+      (error: unknown) => String(error),
+    );
+    expect(failure).not.toBeNull();
+    expect(failure).not.toContain("ECONNREFUSED");
+    expect(failure).not.toContain("10.0.0.1");
+    expect(failure).not.toContain("automator_admin");
+  });
+});
+
 describe("MCP request bodies", () => {
   test("answers a malformed body with a JSON-RPC parse error, not a server failure", async () => {
     const response = await fetch(serve(stubSource([swap])), {
