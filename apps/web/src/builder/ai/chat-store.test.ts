@@ -34,6 +34,17 @@ describe("chat store", () => {
     });
   });
 
+  test("a repeated message event with the same id does not duplicate the message", () => {
+    const store = createChatStore();
+    store.getState().begin(userMessage("u1", "hi"));
+    store.getState().receive({ type: "message", id: "a1" });
+    store.getState().receive({ type: "text.delta", delta: "Hello" });
+    store.getState().receive({ type: "message", id: "a1" });
+    expect(store.getState().streamingId).toBe("a1");
+    expect(store.getState().messages).toHaveLength(2);
+    expect(store.getState().messages.at(-1)?.parts).toEqual([{ type: "text", text: "Hello" }]);
+  });
+
   test("receive routes other events through applyEvent onto the streaming message", () => {
     const store = createChatStore();
     store.getState().begin(userMessage("u1", "hi"));
@@ -134,6 +145,14 @@ describe("chat store", () => {
       .load([{ id: "a1", role: "assistant", parts: [pendingProposal()], createdAt }, other]);
     store.getState().setProposalState("a1", "discarded");
     expect(store.getState().messages[1]).toBe(other);
+  });
+
+  test("setProposalState on an unknown id leaves the messages array unchanged", () => {
+    const store = createChatStore();
+    store.getState().load([{ id: "a1", role: "assistant", parts: [pendingProposal()], createdAt }]);
+    const before = store.getState().messages;
+    store.getState().setProposalState("does-not-exist", "applied");
+    expect(store.getState().messages).toBe(before);
   });
 
   test("selectPendingProposal returns only the last message's pending proposal", () => {

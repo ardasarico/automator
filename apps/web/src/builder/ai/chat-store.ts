@@ -76,13 +76,18 @@ export function createChatStore({
     },
     receive(event) {
       if (event.type === "message") {
-        set((state) => ({
-          streamingId: event.id,
-          messages: [
-            ...state.messages,
-            { id: event.id, role: "assistant", parts: [], createdAt: new Date().toISOString() },
-          ],
-        }));
+        set((state) => {
+          if (state.messages.some((message) => message.id === event.id)) {
+            return { streamingId: event.id };
+          }
+          return {
+            streamingId: event.id,
+            messages: [
+              ...state.messages,
+              { id: event.id, role: "assistant", parts: [], createdAt: new Date().toISOString() },
+            ],
+          };
+        });
         return;
       }
       if (event.type === "status") {
@@ -133,19 +138,22 @@ export function createChatStore({
       });
     },
     setProposalState(messageId, proposalState) {
-      set((state) => ({
-        messages: state.messages.map((message) => {
-          if (message.id !== messageId) return message;
-          const proposal = proposalOf(message);
-          if (!proposal) return message;
-          return {
-            ...message,
-            parts: message.parts.map((part) =>
-              part === proposal ? { ...proposal, state: proposalState } : part,
-            ),
-          };
-        }),
-      }));
+      set((state) => {
+        if (!state.messages.some((message) => message.id === messageId)) return state;
+        return {
+          messages: state.messages.map((message) => {
+            if (message.id !== messageId) return message;
+            const proposal = proposalOf(message);
+            if (!proposal) return message;
+            return {
+              ...message,
+              parts: message.parts.map((part) =>
+                part === proposal ? { ...proposal, state: proposalState } : part,
+              ),
+            };
+          }),
+        };
+      });
     },
     setContext(patch) {
       set((state) => ({ context: { ...state.context, ...patch } }));
