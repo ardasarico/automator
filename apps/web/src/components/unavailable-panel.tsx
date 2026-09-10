@@ -1,7 +1,7 @@
 import { Button } from "@automator/ui/button";
-import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { EmptyState } from "./empty-state";
 
 export function UnavailablePanel({
   icon,
@@ -15,17 +15,18 @@ export function UnavailablePanel({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
-      <EmptyStateIllustration icon={icon} />
-      <h2 className="mt-6 text-panel text-balance">{title}</h2>
-      <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">{description}</p>
-      <div className="mt-6 flex flex-wrap justify-center gap-3">
-        {action ?? (
+    <EmptyState
+      variant="fill"
+      icon={icon}
+      title={title}
+      text={description}
+      action={
+        action ?? (
           <Button variant="outline" render={<Link href="/flows" />}>
             Back to flows
           </Button>
-        )}
-      </div>
-    </div>
+        )
+      }
+    />
   );
 }

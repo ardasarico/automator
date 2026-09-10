@@ -1,0 +1,76 @@
+/*
+ * One shape for every empty, filtered-out and unavailable state on a workspace page: the
+ * illustration, a heading, one sentence, one action. The hero variant is the first-run state
+ * of a section, with the canvas's line grid fading out behind it.
+ */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-block: 52px 60px;
+  text-align: center;
+}
+.hero {
+  position: relative;
+  isolation: isolate;
+  justify-content: center;
+  min-height: 420px;
+  margin-block: 4px 48px;
+  padding-block: 64px;
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: center;
+  mask-image: radial-gradient(ellipse at center, #000 12%, transparent 72%);
+  opacity: 0.8;
+}
+/* A panel that owns its region (an error boundary, a not-found page) fills it and centres. */
+.fill {
+  flex: 1;
+  justify-content: center;
+  padding: 64px 16px;
+}
+.title {
+  margin-top: 24px;
+  font-size: var(--text-panel);
+  line-height: var(--text-panel--line-height);
+  font-weight: var(--text-panel--font-weight);
+  letter-spacing: var(--text-panel--letter-spacing);
+  text-wrap: balance;
+}
+.text {
+  max-width: 24rem;
+  margin-top: 12px;
+  color: var(--muted-foreground);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  text-wrap: pretty;
+}
+.action {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+.action:empty {
+  display: none;
+}
+@media (max-width: 680px) {
+  .empty {
+    padding-block: 40px;
+  }
+  .hero {
+    min-height: 360px;
+    margin-block: 0 32px;
+    padding-block: 48px;
+  }
+}

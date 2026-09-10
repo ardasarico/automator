@@ -2,7 +2,6 @@
 
 import type { FlowSummary } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
-import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { Input } from "@automator/ui/input";
 import {
   Menu,
@@ -40,6 +39,7 @@ import {
 import { FeaturedListing } from "./featured-listing";
 import { ListingCard } from "./listing-card";
 import styles from "./marketplace.module.css";
+import { EmptyState } from "../../../components/empty-state";
 
 const categories = Object.keys(listingCategoryLabels) as ListingCategory[];
 const sorts = Object.keys(listingSortLabels) as ListingSort[];
@@ -213,22 +213,19 @@ export function MarketplaceBrowser({
               </div>
             </div>
             {visible.length === 0 ? (
-              <div className={styles.empty}>
-                <EmptyStateIllustration icon={empty ? <RiCompass3Line /> : <RiSearchLine />} />
-                <h2 className="mt-6 text-panel text-balance">
-                  {empty ? empty.title : "No matching flows"}
-                </h2>
-                <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
-                  {empty ? empty.description : "Try another name, or clear your search."}
-                </p>
-                <Button
-                  variant="outline"
-                  className="mt-6"
-                  onClick={() => apply({ q: null, category: null, show: null })}
-                >
-                  Back to the marketplace
-                </Button>
-              </div>
+              <EmptyState
+                icon={empty ? <RiCompass3Line /> : <RiSearchLine />}
+                title={empty ? empty.title : "No matching flows"}
+                text={empty ? empty.description : "Try another name, or clear your search."}
+                action={
+                  <Button
+                    variant="outline"
+                    onClick={() => apply({ q: null, category: null, show: null })}
+                  >
+                    Back to the marketplace
+                  </Button>
+                }
+              />
             ) : (
               <ul className={styles.list}>
                 {visible.map((listing) => (

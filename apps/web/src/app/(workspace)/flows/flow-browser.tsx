@@ -3,7 +3,6 @@
 import type { FlowSummary } from "@automator/contracts";
 import { Badge } from "@automator/ui/badge";
 import { Button } from "@automator/ui/button";
-import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { Input } from "@automator/ui/input";
 import {
   Menu,
@@ -31,6 +30,7 @@ import {
 } from "@remixicon/react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { EmptyState } from "../../../components/empty-state";
 import { PageFrame } from "../../../components/page-frame";
 import { FlowActionButton } from "../../../flows/action-button";
 import { createFlowAction } from "../../../flows/actions";
@@ -206,18 +206,13 @@ export function FlowBrowser({
   if (flows.length === 0) {
     return (
       <PageFrame title="Flows" actions={newFlow}>
-        <section
-          className={`${styles.empty} ${styles.emptyHero}`}
-          aria-labelledby="flows-empty-title"
+        <EmptyState
+          variant="hero"
+          icon={<RiFlowChart />}
+          titleId="flows-empty-title"
+          title="Create your first flow"
+          text="A flow starts with a trigger, runs through logic, AI and onchain steps, and can ship as a mini-app. Pick how you want to begin."
         >
-          <EmptyStateIllustration icon={<RiFlowChart />} />
-          <h2 id="flows-empty-title" className="mt-6 text-panel text-balance">
-            Create your first flow
-          </h2>
-          <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
-            A flow starts with a trigger, runs through logic, AI and onchain steps, and can ship as
-            a mini-app. Pick how you want to begin.
-          </p>
           <FlowStartOptions />
           <p className="mt-6 text-caption text-muted-foreground">
             Or{" "}
@@ -229,7 +224,7 @@ export function FlowBrowser({
             </Link>{" "}
             for flows other builders published.
           </p>
-        </section>
+        </EmptyState>
         {examples}
       </PageFrame>
     );
@@ -298,16 +293,16 @@ export function FlowBrowser({
       }
     >
       {visibleFlows.length === 0 ? (
-        <div className={styles.empty}>
-          <EmptyStateIllustration icon={<RiSearchLine />} />
-          <h2 className="mt-6 text-panel">No matching flows</h2>
-          <p className="mt-3 text-body text-muted-foreground">
-            Try another name, or clear your search.
-          </p>
-          <Button variant="outline" className="mt-6" onClick={() => setQuery("")}>
-            Clear search
-          </Button>
-        </div>
+        <EmptyState
+          icon={<RiSearchLine />}
+          title="No matching flows"
+          text="Try another name, or clear your search."
+          action={
+            <Button variant="outline" onClick={() => setQuery("")}>
+              Clear search
+            </Button>
+          }
+        />
       ) : view === "grid" ? (
         <ul className={styles.flowGrid} aria-label="Your flows">
           {visibleFlows.map((flow) => (

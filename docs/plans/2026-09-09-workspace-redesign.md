@@ -205,9 +205,10 @@ or settings, not pages.
 
 ## Still to design
 
-Contracts, Connections, Wallet, empty states, onboarding and
-login, the settings dialog, and narrow-viewport behaviour — which
-`docs/web-ui.md` still records as out of scope.
+Contracts (its own plan; needs a table and API) and narrow-viewport behaviour,
+which `docs/web-ui.md` still records as out of scope. Connections landed with
+the implementation plan; Wallet, login and onboarding, the settings dialog and
+the shared empty state landed on 2026-09-10 (see `docs/web-ui.md`).
 
 ## Working notes
 

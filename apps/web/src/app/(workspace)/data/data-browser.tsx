@@ -2,13 +2,13 @@
 
 import type { DataTable } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
-import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { Input } from "@automator/ui/input";
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "@automator/ui/menu";
 import { RiAddLine, RiArrowDownSLine, RiSearchLine, RiTableLine } from "@remixicon/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { EmptyState } from "../../../components/empty-state";
 import { PageFrame } from "../../../components/page-frame";
 import flowStyles from "../flows/flows.module.css";
 import { ColumnTypeIcon, columnTypeLabel } from "./column-types";
@@ -103,20 +103,18 @@ export function DataBrowser({ tables }: { tables: readonly DataTable[] }) {
   if (tables.length === 0)
     return (
       <PageFrame title="Data">
-        <section className={flowStyles.empty} aria-labelledby="data-empty-title">
-          <EmptyStateIllustration icon={<RiTableLine />} />
-          <h2 id="data-empty-title" className="mt-6 text-panel text-balance">
-            Create your first table
-          </h2>
-          <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
-            A table holds records with typed columns. Your flows can look them up, add to them and
-            change them while they run.
-          </p>
-          <Button className="mt-6" onClick={() => setCreating(true)}>
-            <RiAddLine aria-hidden="true" />
-            Create a table
-          </Button>
-        </section>
+        <EmptyState
+          icon={<RiTableLine />}
+          titleId="data-empty-title"
+          title="Create your first table"
+          text="A table holds records with typed columns. Your flows can look them up, add to them and change them while they run."
+          action={
+            <Button onClick={() => setCreating(true)}>
+              <RiAddLine aria-hidden="true" />
+              Create a table
+            </Button>
+          }
+        />
         {dialog}
       </PageFrame>
     );
@@ -168,16 +166,16 @@ export function DataBrowser({ tables }: { tables: readonly DataTable[] }) {
           {visible.length === 1 ? "1 table found" : `${visible.length} tables found`}
         </p>
         {visible.length === 0 ? (
-          <div className={flowStyles.empty}>
-            <EmptyStateIllustration icon={<RiSearchLine />} />
-            <h2 className="mt-6 text-panel">No matching tables</h2>
-            <p className="mt-3 text-body text-muted-foreground">
-              Try another name, or clear your search.
-            </p>
-            <Button variant="outline" className="mt-6" onClick={() => setQuery("")}>
-              Clear search
-            </Button>
-          </div>
+          <EmptyState
+            icon={<RiSearchLine />}
+            title="No matching tables"
+            text="Try another name, or clear your search."
+            action={
+              <Button variant="outline" onClick={() => setQuery("")}>
+                Clear search
+              </Button>
+            }
+          />
         ) : (
           <div className={styles.tableGrid}>
             {visible.map((table) => (

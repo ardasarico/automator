@@ -1,15 +1,14 @@
 import { chains, explorerAddressUrl } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
-import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { RiExternalLinkLine, RiWallet3Line } from "@remixicon/react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "../../../auth/server";
 import { hasNoFunds, noFundsMessage } from "../../../builder/wallet-funds-check";
+import { EmptyState } from "../../../components/empty-state";
 import { PageFrame } from "../../../components/page-frame";
 import { exactAmount, formatAmount } from "../../../wallet/amounts";
 import { getWallet, listWalletTransactions, type WalletLookup } from "../../../wallet/server";
-import flowStyles from "../flows/flows.module.css";
 import { CopyAddressButton } from "./copy-address-button";
 import { PaymentLimits } from "./payment-limits";
 import { SigningAction, SigningLine, WalletSigningProvider } from "./wallet-signing";
@@ -138,19 +137,17 @@ function Balances({ lookups }: { lookups: readonly WalletLookup[] }) {
 function NoWallet() {
   return (
     <PageFrame title="Wallet">
-      <section className={flowStyles.empty} aria-labelledby="wallet-empty-title">
-        <EmptyStateIllustration icon={<RiWallet3Line />} />
-        <h2 id="wallet-empty-title" className="mt-6 text-panel text-balance">
-          No wallet yet
-        </h2>
-        <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
-          Privy creates your embedded wallet on first sign-in. Sign out and back in if it has not
-          appeared, then come back to fund it and watch what your flows send.
-        </p>
-        <Button variant="outline" className="mt-6" render={<Link href="/flows" />}>
-          Go to flows
-        </Button>
-      </section>
+      <EmptyState
+        icon={<RiWallet3Line />}
+        titleId="wallet-empty-title"
+        title="No wallet yet"
+        text="Privy creates your embedded wallet on first sign-in. Sign out and back in if it has not appeared, then come back to fund it and watch what your flows send."
+        action={
+          <Button variant="outline" render={<Link href="/flows" />}>
+            Go to flows
+          </Button>
+        }
+      />
       <PaymentLimits />
     </PageFrame>
   );
