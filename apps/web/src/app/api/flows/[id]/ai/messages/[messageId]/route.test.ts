@@ -1,26 +1,18 @@
 /// <reference types="bun" />
 import { afterAll, beforeAll, beforeEach, expect, mock, test } from "bun:test";
-import type { GenerateFlowResponse } from "@automator/contracts";
 
 mock.module("server-only", () => ({}));
 
-const generated: GenerateFlowResponse & { kind: "flow" } = {
-  kind: "flow",
-  summary: "A manual run posts to Discord.",
-  document: {
-    version: 1,
-    name: "Ping",
-    description: "",
-    nodes: [
-      { id: "n1", type: "trigger.manual", position: { x: 80, y: 120 }, label: "Run", config: {} },
-    ],
-    edges: [],
-  },
+const message = {
+  id: "m1",
+  role: "assistant" as const,
+  parts: [{ type: "text" as const, text: "hi" }],
+  createdAt: "2026-01-01T00:00:00.000Z",
 };
-let answer: () => Promise<Response> = async () => Response.json(generated, { status: 200 });
+let answer: () => Promise<Response> = async () => Response.json({ message });
 const calls: Array<{ url: string; authorization: string | null; body: unknown }> = [];
 
-const { POST } = await import("./route");
+const { PATCH } = await import("./route");
 
 const originalFetch = globalThis.fetch;
 const originalApiUrl = process.env.API_URL;
@@ -46,7 +38,7 @@ afterAll(() => {
 });
 beforeEach(() => {
   calls.length = 0;
-  answer = async () => Response.json(generated, { status: 200 });
+  answer = async () => Response.json({ message });
 });
 
 const signedIn = {
@@ -54,27 +46,38 @@ const signedIn = {
   authorization: "Bearer privy-token",
   "content-type": "application/json",
 };
-function post(body: string, headers: Record<string, string> = signedIn) {
-  return POST(
-    new Request("https://app.automator.dev/api/ai/flows", { method: "POST", headers, body }),
+const patch = (body: string, headers: Record<string, string> = signedIn) =>
+  PATCH(
+    new Request("https://app.automator.dev/api/flows/flow-1/ai/messages/m1", {
+      method: "PATCH",
+      headers,
+      body,
+    }),
+    { params: Promise.resolve({ id: "flow-1", messageId: "m1" }) },
   );
-}
 
-test("a prompt is forwarded with the bearer token and the answer relayed", async () => {
-  const response = await post(JSON.stringify({ prompt: "post to discord" }));
+test("applies a proposal state with the bearer token forwarded", async () => {
+  const response = await patch(JSON.stringify({ state: "applied" }));
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual(generated);
+  expect(await response.json()).toEqual({ message });
   expect(calls).toEqual([
     {
-      url: "http://api.internal:3001/ai/flows",
+      url: "http://api.internal:3001/flows/flow-1/ai/messages/m1",
       authorization: "Bearer privy-token",
-      body: { prompt: "post to discord" },
+      body: { state: "applied" },
     },
   ]);
 });
 
-test("a body without a prompt never reaches the API", async () => {
-  expect((await post(JSON.stringify({ document: generated.document }))).status).toBe(400);
+test("a body outside the two known states never reaches the API", async () => {
+  const response = await patch(JSON.stringify({ state: "pending" }));
+  expect(response.status).toBe(400);
+  expect(calls).toHaveLength(0);
+});
+
+test("a body that is not JSON never reaches the API", async () => {
+  const response = await patch("not json");
+  expect(response.status).toBe(400);
   expect(calls).toHaveLength(0);
 });
 
@@ -82,13 +85,14 @@ test.each([
   ["a foreign origin", { ...signedIn, origin: "https://evil.example" }, 403],
   ["no token", { origin: signedIn.origin, "content-type": "application/json" }, 401],
 ])("%s is refused before the API is called", async (_name, headers, status) => {
-  expect((await post(JSON.stringify({ prompt: "x" }), headers)).status).toBe(status);
+  const response = await patch(JSON.stringify({ state: "applied" }), headers);
+  expect(response.status).toBe(status);
   expect(calls).toHaveLength(0);
 });
 
 test("API errors are relayed by code", async () => {
-  answer = async () => Response.json({ error: "unavailable" }, { status: 503 });
-  const response = await post(JSON.stringify({ prompt: "x" }));
-  expect(response.status).toBe(503);
-  expect(await response.json()).toEqual({ error: "unavailable" });
+  answer = async () => Response.json({ error: "not_found" }, { status: 404 });
+  const response = await patch(JSON.stringify({ state: "applied" }));
+  expect(response.status).toBe(404);
+  expect(await response.json()).toEqual({ error: "not_found" });
 });

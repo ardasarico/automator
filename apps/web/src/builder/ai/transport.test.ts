@@ -54,7 +54,7 @@ describe("sendAiMessage", () => {
       { type: "text.delta", delta: "Hello" },
       { type: "done" },
     ]);
-    expect(calledUrl).toContain("/flows/flow-1/ai/messages");
+    expect(calledUrl).toBe("/api/flows/flow-1/ai/messages");
     expect((calledInit?.headers as Record<string, string>).Authorization).toBe("Bearer token-1");
   });
 

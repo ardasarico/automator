@@ -14,7 +14,6 @@ import {
   type EndpointContract,
   type SendAiMessageRequest,
 } from "@automator/contracts";
-import { publicApiUrl } from "../../lib/api-url";
 import { parseSseFrames } from "./sse";
 
 export class AiRequestError extends Error {
@@ -70,7 +69,7 @@ async function request<C extends EndpointContract>(
 ): Promise<unknown> {
   const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  const response = await fetch(`${publicApiUrl}${buildPath(contract, params)}`, {
+  const response = await fetch(`/api${buildPath(contract, params)}`, {
     method: contract.method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -115,18 +114,15 @@ export async function sendAiMessage(
   signal?: AbortSignal,
 ): Promise<void> {
   const timeout = AbortSignal.timeout(aiRequestTimeoutMs + 5_000);
-  const response = await fetch(
-    `${publicApiUrl}${buildPath(sendAiMessageContract, { id: flowId })}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  const response = await fetch(`/api${buildPath(sendAiMessageContract, { id: flowId })}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-  );
+    body: JSON.stringify(body),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  });
   if (!response.ok) {
     const data: unknown = await response.json().catch(() => ({}));
     throw new AiRequestError(parseAuthError(data).error, failureDetail(data));
