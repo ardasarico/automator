@@ -9,7 +9,6 @@ import {
   withFallbackModel,
   withRequestDeadline,
 } from "./client";
-import { askForFlow, modelAttempts } from "./generate-flow";
 import { scenarioTimeoutMs, verificationBudgetMs } from "./verify-flow";
 
 type Call = { url: string; headers: Headers; body: Record<string, unknown> };
@@ -296,7 +295,6 @@ describe("OpenRouter client", () => {
     expect(modelTimeoutMs).toBeLessThan(requestBudgetMs);
     expect(verificationBudgetMs).toBeLessThan(requestBudgetMs);
     expect(scenarioTimeoutMs).toBeLessThan(verificationBudgetMs);
-    expect(modelAttempts).toBeGreaterThanOrEqual(1);
   });
 
   test("a deadline already spent stops the request instead of starting another call", async () => {
@@ -323,25 +321,6 @@ describe("OpenRouter client", () => {
     )({ messages: [] }).catch((error: unknown) => error);
     expect((failure as LanguageModelError).kind).toBe("timeout");
     expect(Date.now() - started).toBeLessThan(2_000);
-  });
-
-  test("running out of time is a timeout, never a repair attempt or an invalid flow", async () => {
-    let calls = 0;
-    const slow: LanguageModel = async () => {
-      calls += 1;
-      return new Promise(() => {});
-    };
-    const failure = await askForFlow(
-      slow,
-      [{ role: "user", content: "hi" }],
-      [],
-      0,
-      Date.now() + 30,
-    ).catch((error: unknown) => error);
-    expect(failure).toBeInstanceOf(LanguageModelError);
-    expect((failure as LanguageModelError).kind).toBe("timeout");
-    /* One hop attempted, not `modelAttempts` of them: a clock cannot be repaired. */
-    expect(calls).toBe(1);
   });
 
   test.each([

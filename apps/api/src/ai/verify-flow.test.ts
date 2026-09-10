@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { AiFlowTest, FlowDocumentInput, FlowNode } from "@automator/contracts";
-import { scriptedModel } from "@automator/flow-engine";
-import { generateFlow, materialize, systemPrompt, withoutPositions } from "./generate-flow";
+import { materialize, withoutPositions } from "./draft";
 import { FlowTestError, VerificationTimeoutError, verifyFlow } from "./verify-flow";
 
 const node = (id: string, type: FlowNode["type"], config = {}): FlowNode => ({
@@ -61,42 +60,12 @@ const draft = (doc: FlowDocumentInput, tests = [costTest]) => ({
   summary: "Built tickets",
   tests,
 });
-const response = (content: unknown) => ({ content: JSON.stringify(content), toolCalls: [] });
 
 describe("automatic flow verification", () => {
   test("checks real sandbox math and the resolved result screen", async () => {
     const report = await verifyFlow(calculator, [costTest]);
     expect(report.checks[0]?.status).toBe("passed");
     expect(report.warnings.join(" ")).toContain("browser preview");
-  });
-
-  test("repairs behavior, keeping the original expectations even if the model weakens them", async () => {
-    const broken = structuredClone(calculator);
-    broken.nodes[2]!.config.code = "return {total: 49};";
-    const { model, requests } = scriptedModel([
-      response(draft(broken)),
-      response(draft(calculator)),
-    ]);
-    const answer = await generateFlow(model, "Two tickets cost 50");
-    expect(answer.kind).toBe("flow");
-    expect(requests).toHaveLength(2);
-    expect(requests[1]!.messages.at(-1)?.content).toContain("expected 50, got 49");
-    const weakened = [
-      {
-        ...costTest,
-        expect: [{ nodeId: "calculate", output: "output", path: "total", equals: 49 }],
-      },
-    ];
-    const retry = scriptedModel([response(draft(broken)), response(draft(broken, weakened))]);
-    /*
-     * The weakened expectation is still measured against the original, so the repair fails. The
-     * flow is handed over anyway, with the failure named — never as a pass.
-     */
-    const retried = await generateFlow(retry.model, "Two tickets cost 50");
-    expect(retried.kind).toBe("flow");
-    if (retried.kind !== "flow") throw new Error("expected a flow");
-    expect(retried.verification?.checks[0]?.status).toBe("failed");
-    expect(retried.verification?.checks[0]?.detail).toContain("expected 50, got 49");
   });
 
   test("rejects null output against a numeric expectation, missing data and non-finite math", async () => {
@@ -345,39 +314,26 @@ describe("automatic flow verification", () => {
     await expect(verifyFlow(broken, [costTest])).rejects.not.toBeInstanceOf(FlowTestError);
   });
 
-  test("an unusable scenario keeps the flow and downgrades the checks to a warning", async () => {
+  test("an unusable scenario is reported as a test problem", async () => {
     const tests = [
       { ...costTest, expect: [{ nodeId: "calculate", output: "result", equals: 50 }] },
     ];
-    const { model, requests } = scriptedModel([response(draft(calculator, tests))]);
-    const answer = await generateFlow(model, "Two tickets cost 50");
-    expect(answer.kind).toBe("flow");
-    // One call: the good flow was delivered instead of spent on a repair round-trip.
-    expect(requests).toHaveLength(1);
-    const warnings = answer.kind === "flow" ? (answer.verification?.warnings ?? []) : [];
-    expect(warnings.join(" ")).toContain("test scenarios could not be used");
-    expect(warnings.join(" ")).toContain("unknown output result");
+    const unusable = verifyFlow(calculator, tests);
+    await expect(unusable).rejects.toBeInstanceOf(FlowTestError);
+    await expect(unusable).rejects.toThrow("unknown output result");
   });
 
-  test("checks that run out of their budget still deliver the flow, with a warning", async () => {
+  test("checks that run out of their budget report a timeout, by inheritance as a test problem too", async () => {
     /*
      * The whole point of the split: a draft is never discarded over a problem in its checks
-     * rather than in itself — slow checks included, not just malformed ones.
+     * rather than in itself — slow checks included, not just malformed ones. The caller that
+     * turns this into a delivered-with-a-warning draft is the canvas agent, tested there.
      */
     const spent = Date.now() - 1;
     await expect(verifyFlow(calculator, [costTest], spent)).rejects.toBeInstanceOf(
       VerificationTimeoutError,
     );
-    /* By inheritance, so the degrade path cannot be reached for one and missed for the other. */
     await expect(verifyFlow(calculator, [costTest], spent)).rejects.toBeInstanceOf(FlowTestError);
-
-    const { model } = scriptedModel([response(draft(calculator))]);
-    const answer = await generateFlow(model, "Two tickets cost 50", undefined, undefined, [], 0);
-    expect(answer.kind).toBe("flow");
-    if (answer.kind !== "flow") throw new Error("expected a flow");
-    expect(answer.document.nodes).toHaveLength(4);
-    expect(answer.verification?.warnings.join(" ")).toContain("did not finish in time");
-    expect(answer.verification?.checks).toEqual([]);
   });
 
   test("rejects unknown, unused or vacuous test expectations", async () => {
@@ -400,14 +356,7 @@ describe("automatic flow verification", () => {
   });
 });
 
-describe("generation contracts", () => {
-  test("describes nested form ids, samples and receiving-port examples", () => {
-    const prompt = systemPrompt();
-    expect(prompt).toContain('"items":{"type":"object"');
-    expect(prompt).toContain('"sample"');
-    expect(prompt).toContain("{{input.data.ticketCount}}");
-    expect(prompt).toContain("server sandbox");
-  });
+describe("draft validation", () => {
   test("rejects incomplete forms and invalid bindings before running", () => {
     const invalid = structuredClone(calculator);
     invalid.nodes[1]!.config.fields = [{ name: "ticketCount", type: "number" }];
