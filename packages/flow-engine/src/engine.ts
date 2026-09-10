@@ -93,6 +93,8 @@ const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(r
 
 const defaultInputHandle = "input";
 
+const returnType = "logic.return";
+
 function describeError(error: unknown): string {
   if (isAbort(error)) return cancelledMessage;
   if (error instanceof NodeExecutionError || error instanceof NodeConfigError) return error.message;
@@ -132,8 +134,18 @@ async function execute(
   const startedAt = now();
   const variables: Record<string, unknown> = { ...options.resume?.variables, ...pass?.variables };
   const results = new Map<string, FlowRunNodeResult>();
+  /* The first Return the run reaches answers for it; later ones run but do not overwrite it. */
+  let output: Record<string, unknown> | undefined;
+  const keepAnswer = (result: FlowRunNodeResult) => {
+    if (output !== undefined || result.status !== "succeeded") return;
+    if (nodes.get(result.nodeId)?.type !== returnType) return;
+    const answer = result.outputs?.output;
+    if (answer !== null && typeof answer === "object" && !Array.isArray(answer))
+      output = answer as Record<string, unknown>;
+  };
   const record = (result: FlowRunNodeResult) => {
     results.set(result.nodeId, result);
+    keepAnswer(result);
     options.onNodeResult?.(result);
   };
 
@@ -152,6 +164,7 @@ async function execute(
       (node) => results.get(node.id) ?? { nodeId: node.id, status: "skipped" },
     ),
     variables,
+    ...(output === undefined ? {} : { output }),
     ...(error === undefined ? {} : { error }),
   });
 
@@ -344,6 +357,7 @@ async function execute(
         { nodeId: node.id, item, variables },
       );
       Object.assign(variables, subRun.variables);
+      if (output === undefined && subRun.output !== undefined) output = subRun.output;
       for (const result of subRun.nodes) {
         if (body.has(result.nodeId)) {
           loopHandled.add(result.nodeId);
@@ -412,6 +426,7 @@ async function execute(
     if (previous) {
       // Retain history across multiple pauses, but do not emit a new execution event.
       results.set(node.id, previous);
+      keepAnswer(previous);
       propagate(node, previous.outputs ?? {});
       continue;
     }

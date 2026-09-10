@@ -125,6 +125,7 @@ export function readConfig(env: Record<string, string | undefined> = process.env
       secrets: perMinute(env.RATE_LIMIT_SECRETS, defaultRateLimits.secrets),
       sessions: perMinute(env.RATE_LIMIT_SESSIONS, defaultRateLimits.sessions),
       webhooks: perMinute(env.RATE_LIMIT_WEBHOOKS, defaultRateLimits.webhooks),
+      api: perMinute(env.RATE_LIMIT_API, defaultRateLimits.api),
     },
   };
 }

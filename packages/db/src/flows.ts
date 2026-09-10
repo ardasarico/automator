@@ -256,6 +256,14 @@ export function createFlowStore(sql: SQL | undefined) {
           }
         : null;
     },
+    /** An owner's active flows, in full, so a caller can read what each one declares. */
+    async listEnabledForOwner(ownerId: string): Promise<FlowRecord[]> {
+      const db = connection();
+      const rows = await db<FlowRow[]>`
+        SELECT ${db.unsafe(ownerColumns)} FROM automator_flows
+        WHERE owner_id = ${ownerId} AND enabled ORDER BY updated_at DESC, id`;
+      return rows.map(toRecord);
+    },
     async listEnabled(): Promise<OwnedFlow[]> {
       const db = connection();
       const rows = await db<(FlowRow & { ownerId: string })[]>`

@@ -36,7 +36,7 @@ test("run and node statuses share their words and badge variants", () => {
 
 test("every run source has a label", () => {
   expect(Object.keys(runSourceLabels).sort()).toEqual(
-    ["event", "manual", "miniapp", "schedule", "watch", "webhook"].sort(),
+    ["api", "event", "manual", "miniapp", "schedule", "watch", "webhook"].sort(),
   );
   expect(runSourceLabels.manual).toBe("Simulate");
 });

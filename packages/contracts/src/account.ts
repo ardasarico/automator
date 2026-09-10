@@ -13,6 +13,7 @@ export const accountUsageSchema = Type.Object({
     miniapp: count,
     event: count,
     watch: count,
+    api: count,
   }),
   secrets: count,
   listings: count,
@@ -28,5 +29,7 @@ export const accountUsageContract = {
 
 export function totalRuns(usage: Pick<AccountUsage, "runsLast30Days">): number {
   const runs = usage.runsLast30Days;
-  return runs.manual + runs.webhook + runs.schedule + runs.miniapp + runs.event + runs.watch;
+  return (
+    runs.manual + runs.webhook + runs.schedule + runs.miniapp + runs.event + runs.watch + runs.api
+  );
 }

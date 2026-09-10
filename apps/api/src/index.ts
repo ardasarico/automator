@@ -78,6 +78,7 @@ const app = createApp({
   secretsCrypto,
   sessions: database.sessions,
   account: database.account,
+  apiKeys: database.apiKeys,
   identity,
   model,
   graph,

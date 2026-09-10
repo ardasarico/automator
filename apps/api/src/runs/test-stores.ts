@@ -85,6 +85,10 @@ export function memoryStores(
           }
         : null;
     },
+    listEnabledForOwner: async (ownerId: string) =>
+      [...flowRecords.values()]
+        .filter((record) => record.enabled && record.ownerId === ownerId)
+        .map(strip),
     listEnabled: async () =>
       [...flowRecords.values()]
         .filter((record) => record.enabled)

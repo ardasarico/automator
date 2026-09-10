@@ -1,5 +1,6 @@
 import {
   conditionConfigSchema,
+  returnConfigSchema,
   discordMessageConfigSchema,
   setVariableConfigSchema,
   waitConfigSchema,
@@ -27,6 +28,7 @@ export const defaultExecutors: ExecutorRegistry = {
   "trigger.price": trigger("price"),
   "trigger.balance": trigger("balance"),
   "trigger.webhook": trigger("request"),
+  "trigger.api": trigger("input"),
   "trigger.miniapp-open": trigger("visitor"),
   "trigger.manual": trigger("run"),
   "world.verification-completed": trigger("proof"),
@@ -57,6 +59,21 @@ export const defaultExecutors: ExecutorRegistry = {
       if (!name) throw new NodeExecutionError("Set variable needs a variable name");
       context.variables[name] = value;
       return { value };
+    },
+  },
+
+  /* The engine records the resolved values as the run's own output; the same object travels on
+   * to whatever follows, so a Return in the middle of a flow does not end it. */
+  "logic.return": {
+    kind: "step",
+    async run(context) {
+      const { outputs } = context.config(returnConfigSchema);
+      const answer: Record<string, unknown> = {};
+      for (const entry of outputs) {
+        const name = entry.name.trim();
+        if (name !== "") answer[name] = entry.value;
+      }
+      return { output: answer };
     },
   },
 
