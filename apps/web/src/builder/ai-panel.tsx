@@ -7,8 +7,6 @@ import {
   restoreFlowSecrets,
   type AiVerification,
   type FlowDocument,
-  type FlowEdge,
-  type FlowNode,
 } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import { Checkbox } from "@automator/ui/checkbox";
@@ -17,6 +15,7 @@ import { Textarea } from "@automator/ui/textarea";
 import { RiCloseLine, RiRestartLine, RiSendPlaneLine } from "@remixicon/react";
 import { useReactFlow } from "@xyflow/react";
 import { useEffect, useRef, useState } from "react";
+import { diffConnections, diffNodes, type DraftKind } from "./ai/diff";
 import { describeAiFailure, formatElapsed, generateFlowRequest, takeAiAnswer } from "./ai-client";
 import { historyOf, type AiProposal, type AiTurn } from "./ai-store";
 import { useAiStore } from "./ai-store-provider";
@@ -26,48 +25,12 @@ import { serializeFlow } from "./document";
 import { useBuilderStore } from "./store-provider";
 import { useAccessToken } from "../auth/access-token";
 
-type ChangeKind = "added" | "removed" | "changed" | "kept";
-type Change = { kind: ChangeKind; id: string; label: string; type: string };
-
-export function diffNodes(current: readonly FlowNode[], next: readonly FlowNode[]): Change[] {
-  const before = new Map(current.map((node) => [node.id, node]));
-  const changes: Change[] = next.map((node) => {
-    const previous = before.get(node.id);
-    if (!previous) return { kind: "added", id: node.id, label: node.label, type: node.type };
-    const same =
-      previous.type === node.type &&
-      previous.label === node.label &&
-      JSON.stringify(previous.config) === JSON.stringify(node.config);
-    return { kind: same ? "kept" : "changed", id: node.id, label: node.label, type: node.type };
-  });
-  const after = new Set(next.map((node) => node.id));
-  for (const node of current) {
-    if (!after.has(node.id))
-      changes.push({ kind: "removed", id: node.id, label: node.label, type: node.type });
-  }
-  return changes;
-}
-
-/** Edge ids are bookkeeping; a connection changes when an endpoint or handle changes. */
-export function diffConnections(current: readonly FlowEdge[], next: readonly FlowEdge[]) {
-  const key = (edge: FlowEdge) =>
-    JSON.stringify([edge.source, edge.sourceHandle, edge.target, edge.targetHandle]);
-  const remaining = [...current];
-  const changes: { kind: "added" | "removed"; edge: FlowEdge }[] = [];
-  for (const edge of next) {
-    const index = remaining.findIndex((previous) => key(previous) === key(edge));
-    if (index === -1) changes.push({ kind: "added", edge });
-    else remaining.splice(index, 1);
-  }
-  return [...changes, ...remaining.map((edge) => ({ kind: "removed" as const, edge }))];
-}
-
 function proposalDocument(proposal: AiProposal, current: FlowDocument) {
   // Only edits refer to the canvas's nodes. A new flow can reuse their ids by coincidence.
   return proposal.replaces ? proposal.document : restoreFlowSecrets(proposal.document, current);
 }
 
-const changeLabels: Record<ChangeKind, string> = {
+const changeLabels: Record<DraftKind, string> = {
   added: "Add",
   removed: "Remove",
   changed: "Change",

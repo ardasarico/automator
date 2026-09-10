@@ -1,4 +1,4 @@
-import { flowDocumentSchema, Value } from "@automator/contracts";
+import { flowDocumentSchema, Value, type FlowDocument } from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
 import { createEmptyFlow, isFlowNode, serializeFlow, type BuilderNode } from "./document";
 
@@ -7,7 +7,7 @@ function dataOf(node: BuilderNode | undefined) {
   if (!node || !isFlowNode(node)) throw new Error("expected a flow node");
   return node.data;
 }
-import { createBuilderStore, historyLimit } from "./store";
+import { createBuilderStore, historyLimit, selectSelectedNodes } from "./store";
 
 function setup() {
   return createBuilderStore(createEmptyFlow("flow-1"));
@@ -964,5 +964,118 @@ describe("groups", () => {
     const id = store.getState().groupNodes([a])!;
     store.getState().renameNode(id, "Checkout");
     expect(frameOf(store, id).data.label).toBe("Checkout");
+  });
+});
+
+describe("preview", () => {
+  const ping: FlowDocument = {
+    version: 1,
+    id: "flow-1",
+    name: "Ping",
+    description: "",
+    nodes: [
+      {
+        id: "t",
+        type: "trigger.manual",
+        label: "Run",
+        config: {},
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: "d",
+        type: "notify.discord",
+        label: "Post",
+        config: {},
+        position: { x: 300, y: 0 },
+      },
+    ],
+    edges: [{ id: "e", source: "t", target: "d" }],
+  };
+  const draft = (nodes: FlowDocument["nodes"], edges: FlowDocument["edges"] = []) => {
+    const { id: _id, ...input } = ping;
+    return { ...input, nodes, edges };
+  };
+
+  test("hydrates the draft, marks kinds, and keeps the real document", () => {
+    const store = createBuilderStore(ping);
+    store.getState().setPreview(draft([ping.nodes[0]!]));
+    const preview = store.getState().preview!;
+    expect(preview.nodes.map((node) => node.id)).toEqual(["t", "d"]);
+    expect(preview.kinds.get("t")).toBe("kept");
+    expect(preview.kinds.get("d")).toBe("removed");
+    expect(preview.edges.map((edge) => edge.id)).toEqual(["e"]);
+    expect(preview.kinds.get("e")).toBe("removed");
+    expect(store.getState().nodes).toHaveLength(2);
+    store.getState().onPreviewNodesChange([{ type: "select", id: "t", selected: true }]);
+    expect(selectSelectedNodes(store.getState()).map((node) => node.id)).toEqual(["t"]);
+    store.getState().setPreview(null);
+    expect(store.getState().preview).toBeNull();
+  });
+
+  test("clearing the preview leaves the real nodes and edges untouched", () => {
+    const store = createBuilderStore(ping);
+    const before = store.getState();
+    store
+      .getState()
+      .setPreview(
+        draft([
+          ...ping.nodes,
+          { id: "w", type: "logic.wait", label: "Wait", config: {}, position: { x: 600, y: 0 } },
+        ]),
+      );
+    store.getState().onPreviewNodesChange([{ type: "select", id: "w", selected: true }]);
+    store.getState().setPreview(null);
+    expect(store.getState().nodes).toBe(before.nodes);
+    expect(store.getState().edges).toBe(before.edges);
+    expect(store.getState().dirty).toBe(false);
+    expect(store.getState().past).toEqual([]);
+  });
+
+  test("only selection and measurement reach the preview", () => {
+    const store = createBuilderStore(ping);
+    store.getState().setPreview(draft(ping.nodes));
+    const before = store.getState().preview!.nodes;
+    store.getState().onPreviewNodesChange([{ type: "remove", id: "d" }]);
+    expect(store.getState().preview!.nodes).toBe(before);
+    store
+      .getState()
+      .onPreviewNodesChange([
+        { type: "dimensions", id: "t", dimensions: { width: 200, height: 80 } },
+      ]);
+    expect(store.getState().preview!.nodes.map((node) => node.id)).toEqual(["t", "d"]);
+  });
+
+  test("editing the canvas leaves the preview alone", () => {
+    const store = createBuilderStore(ping);
+    store.getState().setPreview(draft([ping.nodes[0]!]));
+    const preview = store.getState().preview;
+    store.getState().addNode("logic.wait", { x: 0, y: 200 });
+    store.getState().removeNode("d");
+    store.getState().setMeta({ name: "Pong" });
+    expect(store.getState().preview).toBe(preview);
+  });
+
+  test("a draft's labels cannot be edited on the card", () => {
+    const store = createBuilderStore(ping);
+    store.getState().setPreview(draft(ping.nodes));
+    store.getState().setRenaming("t");
+    expect(store.getState().renaming).toBeNull();
+    store.getState().setPreview(null);
+    store.getState().setRenaming("t");
+    expect(store.getState().renaming).toBe("t");
+  });
+
+  test("a removed node in a frame is drawn where it sits on the canvas", () => {
+    const store = createBuilderStore(ping);
+    const group = store.getState().groupNodes(["t", "d"])!;
+    const inside = store.getState().nodes.find((node) => node.id === "d")!;
+    const frame = store.getState().nodes.find((node) => node.id === group)!;
+    store.getState().setPreview(draft([ping.nodes[0]!]));
+    const removed = store.getState().preview!.nodes.find((node) => node.id === "d")!;
+    expect(removed.parentId).toBeUndefined();
+    expect(removed.position).toEqual({
+      x: inside.position.x + frame.position.x,
+      y: inside.position.y + frame.position.y,
+    });
   });
 });

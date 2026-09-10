@@ -11,6 +11,7 @@ import {
   type XYPosition,
 } from "@xyflow/react";
 import { createStore, type StoreApi } from "zustand";
+import { previewKinds, type DraftKind } from "./ai/diff";
 import { getCatalogEntry } from "./catalog";
 import {
   hydrateFlow,
@@ -39,6 +40,17 @@ export type NodeTemplate = {
   config: Record<string, unknown>;
 };
 
+/**
+ * An AI draft drawn over the canvas: its own nodes and edges, plus what each of them does to
+ * the flow. The document itself is untouched until the draft is applied.
+ */
+export type FlowPreview = {
+  document: FlowDocumentInput;
+  nodes: BuilderNode[];
+  edges: BuilderEdge[];
+  kinds: ReadonlyMap<string, DraftKind>;
+};
+
 export type AlignEdge = "left" | "top" | "centerX" | "centerY";
 
 /** A node's size before React Flow has measured it, so alignment never divides by nothing. */
@@ -55,6 +67,8 @@ export type BuilderState = {
   dragging: boolean;
   /** The node whose label is being edited on its card; transient, never in history. */
   renaming: string | null;
+  /** The draft on show, or null when the canvas is the document; never in history. */
+  preview: FlowPreview | null;
   lastEdit: EditKey;
   lastEditAt: number;
   undo(): void;
@@ -85,6 +99,10 @@ export type BuilderState = {
   removeNode(id: string): void;
   clearSelection(): void;
   setMeta(patch: Partial<Omit<FlowMeta, "id">>): void;
+  /** Draws a draft over the canvas, or clears it with `null`; the document stays as it is. */
+  setPreview(document: FlowDocumentInput | null): void;
+  /** Selection and measurement on the drawn draft; nothing else may touch it. */
+  onPreviewNodesChange(changes: NodeChange<BuilderNode>[]): void;
   hydrate(document: FlowDocument): void;
   applyDocument(input: FlowDocumentInput): void;
   markSaved(document?: FlowDocument): boolean;
@@ -314,6 +332,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     future: [],
     dragging: false,
     renaming: null,
+    preview: null,
     lastEdit: null,
     lastEditAt: 0,
 
@@ -688,6 +707,9 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     setRenaming(id) {
+      // A draft is read-only: the label field is the one card control that would edit the
+      // document behind it, and both a node's label and a frame's open it through here.
+      if (id !== null && get().preview) return;
       if (get().renaming !== id) set({ renaming: id });
     },
 
@@ -727,6 +749,52 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
       }));
     },
 
+    setPreview(document) {
+      if (!document) {
+        if (get().preview) set({ preview: null });
+        return;
+      }
+      set((state) => {
+        const current = serializeFlow(state.meta, state.nodes, state.edges);
+        const kinds = previewKinds(current, document);
+        // The draft keeps the flow's id so nothing downstream sees a different flow.
+        const draft = hydrateFlow({ ...document, id: state.meta.id });
+        const byId = new Map(state.nodes.map((node) => [node.id, node]));
+        const drawn = new Set(draft.nodes.map((node) => node.id));
+        // What the draft drops is drawn too, faded, so a proposal's deletions are visible. A
+        // removed node is freed from its frame first: the frame may be gone from the draft.
+        const removedNodes = state.nodes.flatMap((node) =>
+          isFlowNode(node) && !drawn.has(node.id) && kinds.get(node.id) === "removed"
+            ? [{ ...release(node, byId), selected: false }]
+            : [],
+        );
+        const drawnEdges = new Set(draft.edges.map((edge) => edge.id));
+        const removedEdges = state.edges.flatMap((edge) =>
+          !drawnEdges.has(edge.id) && kinds.get(edge.id) === "removed"
+            ? [{ ...edge, selected: false }]
+            : [],
+        );
+        return {
+          preview: {
+            document,
+            nodes: [...draft.nodes, ...removedNodes],
+            edges: [...draft.edges, ...removedEdges],
+            kinds,
+          },
+        };
+      });
+    },
+
+    onPreviewNodesChange(changes) {
+      const allowed = changes.filter((change) => cosmeticNodeChanges.has(change.type));
+      if (allowed.length === 0) return;
+      set((state) =>
+        state.preview
+          ? { preview: { ...state.preview, nodes: applyNodeChanges(allowed, state.preview.nodes) } }
+          : {},
+      );
+    },
+
     hydrate(document) {
       set({
         ...hydrateFlow(document),
@@ -760,8 +828,9 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
   }));
 }
 
+/** What the user has picked on the canvas, which is the draft's nodes while one is on show. */
 export function selectSelectedNodes(state: BuilderState): BuilderNode[] {
-  return state.nodes.filter((node) => node.selected);
+  return (state.preview?.nodes ?? state.nodes).filter((node) => node.selected);
 }
 
 /* Cached on the nodes array, so a selector can hand the same list back until the graph changes. */
