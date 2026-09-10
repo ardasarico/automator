@@ -2,7 +2,7 @@ import { runCodeConfigSchema } from "@automator/contracts";
 import { NodeExecutionError, type ExecutionContext, type ExecutorRegistry } from "./executor";
 import { defaultSandboxLimits, type Sandbox } from "./sandbox";
 
-export function sandboxOf(context: ExecutionContext): Sandbox | undefined {
+function sandboxOf(context: ExecutionContext): Sandbox | undefined {
   return (context as ExecutionContext & { sandbox?: Sandbox }).sandbox;
 }
 

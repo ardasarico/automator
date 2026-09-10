@@ -30,6 +30,7 @@ import {
 import { useRunStore } from "./run-store-provider";
 import { useExplainRun } from "./use-explain-run";
 import { useSelectNode } from "./use-select-node";
+import { selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
 import { noFundsMessage } from "./wallet-funds-check";
 
@@ -82,7 +83,10 @@ function skippedMessage(result: FlowRunNodeResult): string {
     case "no-input":
       return "No incoming edge fired, so this node did not run.";
     case "run-stopped":
-      return "The run stopped at an earlier node, so this one did not run.";
+      return (
+        "The run stopped at an earlier node, so this one did not run. A failure stops the " +
+        "whole run, including branches that do not pass through the node that failed."
+      );
     default:
       return "This node did not run.";
   }
@@ -140,7 +144,7 @@ export function RunPanel() {
   const run = useRunStore((state) => state.run);
   const runDocument = useRunStore((state) => state.document);
   const reset = useRunStore((state) => state.reset);
-  const nodes = useBuilderStore((state) => state.nodes);
+  const nodes = useBuilderStore(selectFlowNodes);
   const canvasChainId = useBuilderStore((state) => state.meta.chainId ?? defaultChainId);
   const chainId = runDocument ? (runDocument.chainId ?? defaultChainId) : canvasChainId;
   const selectedId = useBuilderStore((state) => {

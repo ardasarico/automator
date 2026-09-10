@@ -111,6 +111,27 @@ describe("node catalog", () => {
     expect(sections[0]!.entries.every((entry) => entry.category === "logic")).toBe(true);
   });
 
+  /*
+   * "Run code" is described as transforming data, so a search for "form" matched it; because
+   * Logic is listed before Screens, it was the first result and Enter added it instead of the
+   * Form screen. What the name matches has to outrank what a sentence happens to contain.
+   */
+  test("searchCatalog puts a matching label ahead of a description that merely contains it", () => {
+    const found = searchCatalog("form")
+      .flatMap((section) => section.entries)
+      .map((entry) => entry.type);
+    expect(found[0]).toBe("screen.form");
+    expect(found).toContain("logic.run-code");
+  });
+
+  test("searchCatalog ranks an exact label first, then a prefix, then the rest", () => {
+    const ranked = searchCatalog("run")
+      .flatMap((section) => section.entries)
+      .map((entry) => entry.label);
+    /* "Run code" begins with it; anything else only mentions it. */
+    expect(ranked[0]).toBe("Run code");
+  });
+
   test("searchCatalog matches labels and descriptions across groups, ignoring case and space", () => {
     expect(
       searchCatalog("  WEBHOOK ")

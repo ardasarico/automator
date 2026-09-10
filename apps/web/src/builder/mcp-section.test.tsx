@@ -49,9 +49,10 @@ test("shows the MCP endpoint on the API's public origin", async () => {
 
 test("shows the Claude Code command with the server URL in it", async () => {
   await render();
-  expect(snippet("claude-code")).toBe(
-    'claude mcp add --transport http automator https://api.automator.app/mcp --header "Authorization: Bearer YOUR_API_KEY"',
-  );
+  /* Continued over lines so it reads as the command it is; `mcp-snippets.test.ts` is where the
+   * arguments themselves are pinned, by joining the continuations back into one line. */
+  expect(snippet("claude-code")).toContain("https://api.automator.app/mcp");
+  expect(snippet("claude-code")).toContain("claude mcp add --transport http \\");
 });
 
 test("shows a config block for clients that keep one in a file", async () => {
@@ -83,8 +84,9 @@ test("copies a snippet to the clipboard", async () => {
   await render();
   const button = container.querySelector<HTMLButtonElement>('[data-snippet="claude-code"] button')!;
   await act(async () => button.click());
-  expect(written).toEqual([
-    'claude mcp add --transport http automator https://api.automator.app/mcp --header "Authorization: Bearer YOUR_API_KEY"',
-  ]);
+  /* The clipboard takes the command as shown, continuations and all, which still pastes as one
+   * command; what matters here is that Copy hands over exactly what the block displays. */
+  expect(written).toHaveLength(1);
+  expect(written[0]).toBe(snippet("claude-code") ?? "");
   expect(button.getAttribute("aria-label")).toBe("Command copied");
 });

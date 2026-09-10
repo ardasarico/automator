@@ -29,6 +29,7 @@ const preamble = `
     countErrors: (list) => list.filter((problem) => problem.severity === "error").length,
   }));
   mock.module("./use-select-node", () => ({ useSelectNode: () => () => {} }));
+  mock.module("./store", () => ({ selectFlowNodes: (state) => state.nodes }));
   mock.module("@xyflow/react", () => ({ useReactFlow: () => ({ fitView() {} }) }));
   mock.module("./store-provider", () => ({
     useBuilderStore: (select) =>

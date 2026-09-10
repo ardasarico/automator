@@ -13,7 +13,7 @@ import { curatedListings } from "./curated";
 import { fromListing, type MarketplaceItem } from "./listing";
 import { stepsFromDocument } from "./steps";
 
-export class MarketplaceApiError extends Error {
+class MarketplaceApiError extends Error {
   constructor(public readonly status: number) {
     super(`Marketplace request failed with ${status}`);
     this.name = "MarketplaceApiError";

@@ -7,15 +7,15 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiExternalLinkLine, RiRestartLine } from "@remixicon/react";
 import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { serializeFlow } from "./document";
+import { serializeFlow, isFlowNode } from "./document";
 import { useOpenPreview } from "./preview-handoff-provider";
 import styles from "./screen-preview.module.css";
-import { selectSelectedNodes, type BuilderState } from "./store";
+import { selectSelectedNodes, type BuilderState, selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
 
 const selectDocumentParts = (state: BuilderState) => ({
   meta: state.meta,
-  nodes: state.nodes,
+  nodes: selectFlowNodes(state),
   edges: state.edges,
 });
 
@@ -36,8 +36,9 @@ export function ScreenPreview() {
       ].join("|"),
     [nodes, edges],
   );
+  const first = selected.length === 1 ? selected[0] : undefined;
   const startAt =
-    selected.length === 1 && isScreenNodeType(selected[0]!.data.type) ? selected[0]!.id : undefined;
+    first && isFlowNode(first) && isScreenNodeType(first.data.type) ? first.id : undefined;
   const openPreview = useOpenPreview();
   const [previewError, setPreviewError] = useState<string | null>(null);
   const open = () => {

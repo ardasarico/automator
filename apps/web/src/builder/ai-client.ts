@@ -14,7 +14,7 @@ import {
   type GenerateFlowResponse,
 } from "@automator/contracts";
 
-export class AiRequestError extends Error {
+class AiRequestError extends Error {
   constructor(
     public readonly code: string,
     /** The API's own account of what went wrong, already redacted and bounded. */

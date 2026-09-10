@@ -9,7 +9,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const { createRoot } = await import("react-dom/client");
 const { NodeHeader } = await import("./node-header");
-const { hydrateFlow } = await import("./document");
+const { hydrateFlow, isFlowNode } = await import("./document");
 
 const node = hydrateFlow({
   version: 1,
@@ -18,7 +18,7 @@ const node = hydrateFlow({
   description: "",
   nodes: [{ id: "a", type: "ai.agent", position: { x: 0, y: 0 }, label: "Helper", config: {} }],
   edges: [],
-}).nodes[0]!;
+}).nodes.filter(isFlowNode)[0]!;
 
 let container: HTMLDivElement;
 let root: Root;

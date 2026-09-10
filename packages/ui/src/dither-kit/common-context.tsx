@@ -5,7 +5,7 @@ import { createContext, use } from "react";
 import type { Seed } from "./palette";
 
 /** A single tooltip row — one series (cartesian/radar) or one slice (pie). */
-export type TooltipItem = {
+type TooltipItem = {
   name: string;
   label: string;
   value: number;

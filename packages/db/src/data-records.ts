@@ -17,11 +17,11 @@ export class DataRecordCursorError extends Error {
 
 export type DataRecordCursor = { createdAt: string; id: string };
 
-export function encodeDataRecordCursor(cursor: DataRecordCursor): string {
+function encodeDataRecordCursor(cursor: DataRecordCursor): string {
   return Buffer.from(JSON.stringify([cursor.createdAt, cursor.id])).toString("base64url");
 }
 
-export function decodeDataRecordCursor(value: string): DataRecordCursor {
+function decodeDataRecordCursor(value: string): DataRecordCursor {
   let parsed: unknown;
   try {
     parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));

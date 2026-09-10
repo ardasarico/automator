@@ -31,7 +31,6 @@ import {
   RiNotification3Line,
   RiPenNibLine,
   RiPlayLine,
-  RiPlugLine,
   RiPriceTag3Line,
   RiQrCodeLine,
   RiQuillPenLine,
@@ -109,17 +108,6 @@ export const categoryLabels: Record<FlowNodeCategory, string> = {
   screen: "Screen",
   notify: "Notification",
   integration: "Integration",
-};
-
-export const categoryIcons: Record<FlowNodeCategory, RemixiconComponentType> = {
-  trigger: RiFlashlightLine,
-  logic: RiGitBranchLine,
-  data: RiDatabase2Line,
-  onchain: RiCoinLine,
-  ai: RiRobot2Line,
-  screen: RiLayoutLine,
-  notify: RiNotification3Line,
-  integration: RiPlugLine,
 };
 
 export type CatalogGroupDefinition = {
@@ -729,13 +717,43 @@ export function getCatalogGroupSections(group: CatalogGroupId): CatalogSection[]
   return sections.length === 1 ? [{ key: "all", label: "", entries }] : sections;
 }
 
+/*
+ * How well an entry answers the search, lowest first. What the node is called outranks what its
+ * description happens to contain: "Run code" is described as transforming data, so a search for
+ * "form" used to reach it before the Form screen — and since the first result is what Enter adds
+ * in the command menu and the connect-drop picker, typing a node's own name added another node.
+ */
+const noMatch = Number.POSITIVE_INFINITY;
+
+function matchRank(entry: CatalogEntry, needle: string): number {
+  const label = entry.label.toLowerCase();
+  if (label === needle) return 0;
+  if (label.startsWith(needle)) return 1;
+  if (label.includes(needle)) return 2;
+  return entry.description.toLowerCase().includes(needle) ? 3 : noMatch;
+}
+
 export function searchCatalog(query: string): CatalogSection[] {
   const needle = query.trim().toLowerCase();
   if (needle === "") return [];
-  const matches = (entry: CatalogEntry) =>
-    entry.label.toLowerCase().includes(needle) || entry.description.toLowerCase().includes(needle);
-  return catalogGroups.flatMap((group) => {
-    const entries = catalog.filter((entry) => entry.group === group.id && matches(entry));
-    return entries.length === 0 ? [] : [{ key: group.id, label: group.label, entries }];
-  });
+  const sections: { section: CatalogSection; rank: number }[] = [];
+  for (const group of catalogGroups) {
+    const ranked = catalog
+      .filter((entry) => entry.group === group.id)
+      .map((entry) => ({ entry, rank: matchRank(entry, needle) }))
+      .filter((scored) => scored.rank !== noMatch)
+      /* Stable, so entries of equal rank keep the catalog's own order. */
+      .sort((a, b) => a.rank - b.rank);
+    if (ranked.length === 0) continue;
+    sections.push({
+      rank: ranked[0]!.rank,
+      section: {
+        key: group.id,
+        label: group.label,
+        entries: ranked.map((scored) => scored.entry),
+      },
+    });
+  }
+  /* Also stable, so groups whose best match is equally good stay in catalog order. */
+  return sections.sort((a, b) => a.rank - b.rank).map((scored) => scored.section);
 }

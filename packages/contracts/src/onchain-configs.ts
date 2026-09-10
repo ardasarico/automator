@@ -23,11 +23,13 @@ const amount = (description: string, fallback = "0", hints: Record<string, unkno
 
 export const contractCallConfigSchema = Type.Object({
   address: contractAddress("The contract to call, as a 0x address."),
-  abi: json(
-    "",
-    "ABI",
-    "The contract ABI as a JSON array. Only the function you call has to be in it.",
-  ),
+  /* Not `json()`: the engine's `parseAbiText` takes either form, so asking the builder for a
+   * checked JSON editor here reported a valid signature list as invalid. */
+  abi: text("", {
+    title: "ABI",
+    description:
+      "The contract ABI, as a JSON array or one human-readable signature per line, such as function decimals() view returns (uint8). Only the function you call has to be in it.",
+  }),
   functionName: text("", {
     title: "Function",
     description: "The function to call, spelled exactly as the ABI declares it.",

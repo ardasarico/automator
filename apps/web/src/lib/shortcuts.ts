@@ -38,7 +38,7 @@ const subscribe = () => () => {};
 const serverSnapshot = () => true;
 const clientSnapshot = () => /mac|iphone|ipad/i.test(navigator.userAgent);
 
-export function useApplePlatform(): boolean {
+function useApplePlatform(): boolean {
   return useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
 }
 

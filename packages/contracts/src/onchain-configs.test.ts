@@ -1,9 +1,29 @@
 import { describe, expect, test } from "bun:test";
 import { flowNodeTypes } from "./flows";
 import { parseNodeConfig } from "./node-config";
-import { onchainConfigSchemas, onchainEventTriggerConfigSchema } from "./onchain-configs";
+import {
+  contractCallConfigSchema,
+  onchainConfigSchemas,
+  onchainEventTriggerConfigSchema,
+} from "./onchain-configs";
 
 describe("onchain config schemas", () => {
+  /*
+   * The engine takes either a JSON array or one human-readable signature per line
+   * (`parseAbiText`). Marking the field as JSON asks the builder for a checked JSON editor,
+   * which called a perfectly good signature list invalid while the run succeeded.
+   */
+  test("the ABI field is not marked as JSON, and says both forms are accepted", () => {
+    const abi = contractCallConfigSchema.properties.abi;
+    expect(abi.contentMediaType).toBeUndefined();
+    expect(abi.description).toContain("JSON array");
+    expect(abi.description).toContain("signature");
+  });
+
+  test("the argument list is still JSON, since only an array will do", () => {
+    expect(contractCallConfigSchema.properties.args.contentMediaType).toBe("application/json");
+  });
+
   test("name known node types and accept an empty config", () => {
     for (const [type, schema] of Object.entries(onchainConfigSchemas)) {
       expect(flowNodeTypes as readonly string[]).toContain(type);

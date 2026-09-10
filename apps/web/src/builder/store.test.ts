@@ -1,6 +1,12 @@
 import { flowDocumentSchema, Value } from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
-import { createEmptyFlow, serializeFlow } from "./document";
+import { createEmptyFlow, isFlowNode, serializeFlow, type BuilderNode } from "./document";
+
+/** The data of a flow node; a frame here is a test that went wrong. */
+function dataOf(node: BuilderNode | undefined) {
+  if (!node || !isFlowNode(node)) throw new Error("expected a flow node");
+  return node.data;
+}
 import { createBuilderStore, historyLimit } from "./store";
 
 function setup() {
@@ -353,7 +359,7 @@ describe("node config", () => {
     store.getState().setNodeConfig(id, { content: "hi" });
     store.getState().setNodeConfig(id, { username: "Bot" });
     const node = store.getState().nodes.find((item) => item.id === id);
-    expect(node?.data.config).toEqual({ content: "hi", username: "Bot" });
+    expect(dataOf(node).config).toEqual({ content: "hi", username: "Bot" });
     expect(store.getState().dirty).toBe(true);
   });
 });
@@ -389,7 +395,7 @@ describe("applyDocument", () => {
     });
     const state = store.getState();
     expect(state.meta).toEqual({ id: "flow-1", name: "Generated", description: "From a prompt" });
-    expect(state.nodes.map((node) => [node.id, node.data.type])).toEqual([
+    expect(state.nodes.map((node) => [node.id, dataOf(node).type])).toEqual([
       ["a", "trigger.webhook"],
       ["b", "notify.discord"],
     ]);
@@ -429,7 +435,7 @@ describe("history", () => {
     store.getState().undo();
     store.getState().addNode("screen.page", { x: 0, y: 0 });
     expect(store.getState().future).toEqual([]);
-    expect(store.getState().nodes[0]?.data.type).toBe("screen.page");
+    expect(dataOf(store.getState().nodes[0]).type).toBe("screen.page");
   });
 
   test("typing into one field coalesces into a single undo step", () => {
@@ -443,8 +449,8 @@ describe("history", () => {
     expect(store.getState().past).toHaveLength(3);
 
     store.getState().undo();
-    expect(store.getState().nodes[0]?.data.config).toEqual({});
-    expect(store.getState().nodes[0]?.data.label).toBe("Wel");
+    expect(dataOf(store.getState().nodes[0]).config).toEqual({});
+    expect(dataOf(store.getState().nodes[0]).label).toBe("Wel");
     store.getState().undo();
     expect(store.getState().nodes[0]?.data.label).toBe("Screen");
   });
@@ -604,5 +610,359 @@ describe("setNodePositions", () => {
     expect(store.getState().past).toHaveLength(before + 1);
     store.getState().undo();
     expect(store.getState().nodes[1]?.position).toEqual({ x: 5, y: 5 });
+  });
+});
+
+describe("removeNodes", () => {
+  test("drops every listed node and the edges touching them as one history entry", () => {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    const b = store.getState().addNode("logic.wait", { x: 300, y: 0 });
+    const c = store.getState().addNode("notify.discord", { x: 600, y: 0 });
+    store.getState().onConnect({ source: a, sourceHandle: null, target: b, targetHandle: null });
+    store.getState().onConnect({ source: b, sourceHandle: null, target: c, targetHandle: null });
+    const before = store.getState().past.length;
+    store.getState().removeNodes([a, b]);
+    expect(store.getState().nodes.map((node) => node.id)).toEqual([c]);
+    expect(store.getState().edges).toEqual([]);
+    expect(store.getState().past.length).toBe(before + 1);
+    store.getState().undo();
+    expect(store.getState().nodes.length).toBe(3);
+    expect(store.getState().edges.length).toBe(2);
+  });
+
+  test("ignores ids that are not on the canvas", () => {
+    const store = setup();
+    store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    const before = store.getState().past.length;
+    store.getState().removeNodes(["missing"]);
+    expect(store.getState().nodes.length).toBe(1);
+    expect(store.getState().past.length).toBe(before);
+  });
+});
+
+describe("alignNodes", () => {
+  function three() {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 40, y: 100 });
+    const b = store.getState().addNode("logic.wait", { x: 300, y: 20 });
+    const c = store.getState().addNode("notify.discord", { x: 620, y: 260 });
+    return { store, a, b, c };
+  }
+
+  test("left moves every node to the smallest x", () => {
+    const { store, a, b, c } = three();
+    store.getState().alignNodes([a, b, c], "left");
+    expect(store.getState().nodes.map((node) => node.position.x)).toEqual([40, 40, 40]);
+    expect(store.getState().nodes.map((node) => node.position.y)).toEqual([100, 20, 260]);
+  });
+
+  test("top moves every node to the smallest y", () => {
+    const { store, a, b, c } = three();
+    store.getState().alignNodes([a, b, c], "top");
+    expect(store.getState().nodes.map((node) => node.position.y)).toEqual([20, 20, 20]);
+  });
+
+  test("centerY lines the nodes up on the middle of the selection using measured heights", () => {
+    const { store, a, b, c } = three();
+    store.getState().onNodesChange([
+      { type: "dimensions", id: a, dimensions: { width: 248, height: 40 } },
+      { type: "dimensions", id: b, dimensions: { width: 248, height: 100 } },
+    ]);
+    store.getState().alignNodes([a, b], "centerY");
+    // Centres were 120 and 70, so the shared centre is 95.
+    const byId = new Map(store.getState().nodes.map((node) => [node.id, node.position]));
+    expect(byId.get(a)).toEqual({ x: 40, y: 75 });
+    expect(byId.get(b)).toEqual({ x: 300, y: 45 });
+    expect(byId.get(c)).toEqual({ x: 620, y: 260 });
+  });
+
+  test("a single node is left alone and adds no history", () => {
+    const { store, a } = three();
+    const before = store.getState().past.length;
+    store.getState().alignNodes([a], "left");
+    expect(store.getState().past.length).toBe(before);
+  });
+});
+
+describe("selectAll", () => {
+  test("selects every node and edge without touching history or dirty", () => {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    const b = store.getState().addNode("logic.wait", { x: 300, y: 0 });
+    store.getState().onConnect({ source: a, sourceHandle: null, target: b, targetHandle: null });
+    store.getState().markSaved();
+    const before = store.getState().past.length;
+    store.getState().selectAll();
+    expect(store.getState().nodes.every((node) => node.selected)).toBe(true);
+    expect(store.getState().edges.every((edge) => edge.selected)).toBe(true);
+    expect(store.getState().past.length).toBe(before);
+    expect(store.getState().dirty).toBe(false);
+  });
+});
+
+describe("reconnectEdge", () => {
+  function chain() {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    const b = store.getState().addNode("logic.wait", { x: 300, y: 0 });
+    const c = store.getState().addNode("notify.discord", { x: 600, y: 0 });
+    store.getState().onConnect({ source: a, sourceHandle: "run", target: b, targetHandle: "in" });
+    const edge = store.getState().edges[0]!;
+    return { store, a, b, c, edge };
+  }
+
+  test("moves the edge's target to another port as one history entry", () => {
+    const { store, a, c, edge } = chain();
+    const before = store.getState().past.length;
+    const moved = store
+      .getState()
+      .reconnectEdge(edge, { source: a, sourceHandle: "run", target: c, targetHandle: "message" });
+    expect(moved).toBe(true);
+    expect(store.getState().edges).toEqual([
+      { ...edge, source: a, sourceHandle: "run", target: c, targetHandle: "message" },
+    ]);
+    expect(store.getState().past.length).toBe(before + 1);
+    expect(store.getState().dirty).toBe(true);
+  });
+
+  test("keeps the edge where it was when the new wiring would take a used input", () => {
+    const { store, a, b, c } = chain();
+    store
+      .getState()
+      .onConnect({ source: b, sourceHandle: "done", target: c, targetHandle: "message" });
+    const other = store.getState().edges[1]!;
+    const before = store.getState().past.length;
+    expect(
+      store
+        .getState()
+        .reconnectEdge(other, { source: a, sourceHandle: "run", target: b, targetHandle: "in" }),
+    ).toBe(false);
+    expect(store.getState().edges.map((item) => item.target)).toEqual([b, c]);
+    expect(store.getState().past.length).toBe(before);
+  });
+
+  test("an edge may keep its own target while its source moves", () => {
+    const { store, b, c, edge } = chain();
+    store
+      .getState()
+      .onConnect({ source: b, sourceHandle: "done", target: c, targetHandle: "message" });
+    // Moving the a→b edge to c→b is a cycle (b → c → b), so it is refused…
+    expect(
+      store
+        .getState()
+        .reconnectEdge(edge, { source: c, sourceHandle: "sent", target: b, targetHandle: "in" }),
+    ).toBe(false);
+    // …but re-pointing it at the same target with the same handle is not "a taken input".
+    expect(
+      store.getState().reconnectEdge(edge, {
+        source: edge.source,
+        sourceHandle: "run",
+        target: b,
+        targetHandle: "in",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("removeEdge", () => {
+  test("drops one edge as a history entry and ignores unknown ids", () => {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 0, y: 0 });
+    const b = store.getState().addNode("logic.wait", { x: 300, y: 0 });
+    store.getState().onConnect({ source: a, sourceHandle: null, target: b, targetHandle: null });
+    const before = store.getState().past.length;
+    store.getState().removeEdge("missing");
+    expect(store.getState().past.length).toBe(before);
+    store.getState().removeEdge(store.getState().edges[0]!.id);
+    expect(store.getState().edges).toEqual([]);
+    expect(store.getState().past.length).toBe(before + 1);
+  });
+});
+
+describe("groups", () => {
+  function pair() {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 100, y: 100 });
+    const b = store.getState().addNode("logic.wait", { x: 400, y: 160 });
+    return { store, a, b };
+  }
+  const frameOf = (store: ReturnType<typeof setup>, id: string) => {
+    const node = store.getState().nodes.find((item) => item.id === id);
+    if (!node || node.type !== "group") throw new Error("expected a frame");
+    return node;
+  };
+  const flowOf = (store: ReturnType<typeof setup>, id: string) => {
+    const node = store.getState().nodes.find((item) => item.id === id);
+    if (!node || !isFlowNode(node)) throw new Error("expected a flow node");
+    return node;
+  };
+
+  test("groupNodes draws a frame around the nodes and puts them in it, first in the list", () => {
+    const { store, a, b } = pair();
+    const before = store.getState().past.length;
+    const id = store.getState().groupNodes([a, b])!;
+    expect(id).toEqual(expect.any(String));
+    expect(store.getState().nodes[0]?.id).toBe(id);
+    // Left 100 - 24 = 76 → snapped 80; top 100 - 24 - 32 = 44 → 40. Right edge 400 + 248 + 24
+    // = 672 → width from 80 rounds up to 600; bottom 160 + 72 + 24 = 256 → height 220.
+    expect(frameOf(store, id)).toMatchObject({
+      position: { x: 80, y: 40 },
+      width: 600,
+      height: 220,
+      data: { label: "Group" },
+      selected: true,
+    });
+    expect(flowOf(store, a)).toMatchObject({
+      parentId: id,
+      position: { x: 20, y: 60 },
+      selected: false,
+    });
+    expect(flowOf(store, b)).toMatchObject({ parentId: id, position: { x: 320, y: 120 } });
+    expect(store.getState().past.length).toBe(before + 1);
+    expect(
+      serializeFlow(store.getState().meta, store.getState().nodes, store.getState().edges).nodes,
+    ).toMatchObject([
+      { id: a, position: { x: 100, y: 100 }, parentId: id },
+      { id: b, position: { x: 400, y: 160 }, parentId: id },
+    ]);
+  });
+
+  test("groupNodes with nothing to group does nothing", () => {
+    const { store } = pair();
+    expect(store.getState().groupNodes(["missing"])).toBeNull();
+    expect(store.getState().nodes).toHaveLength(2);
+  });
+
+  test("ungroup removes the frame and leaves the nodes where they were, selected", () => {
+    const { store, a, b } = pair();
+    const id = store.getState().groupNodes([a, b])!;
+    store.getState().ungroup(id);
+    expect(store.getState().nodes.map((node) => node.id)).toEqual([a, b]);
+    expect(flowOf(store, a)).toMatchObject({ position: { x: 100, y: 100 }, selected: true });
+    expect(flowOf(store, a)).not.toHaveProperty("parentId");
+    store.getState().undo();
+    expect(store.getState().nodes[0]?.id).toBe(id);
+  });
+
+  test("removing a frame through React Flow frees the nodes it lists along with it", () => {
+    const { store, a, b } = pair();
+    const id = store.getState().groupNodes([a, b])!;
+    // React Flow removes a parent's children with it; only the frame was selected here.
+    store.getState().onNodesChange([
+      { type: "remove", id },
+      { type: "remove", id: a },
+      { type: "remove", id: b },
+    ]);
+    expect(store.getState().nodes.map((node) => node.id)).toEqual([a, b]);
+    expect(flowOf(store, b)).toMatchObject({ position: { x: 400, y: 160 } });
+  });
+
+  test("a node selected together with its frame is removed with it", () => {
+    const { store, a, b } = pair();
+    const id = store.getState().groupNodes([a, b])!;
+    store.getState().onNodesChange([{ type: "select", id: a, selected: true }]);
+    store.getState().onNodesChange([
+      { type: "remove", id },
+      { type: "remove", id: a },
+      { type: "remove", id: b },
+    ]);
+    expect(store.getState().nodes.map((node) => node.id)).toEqual([b]);
+  });
+
+  test("removeNodes on a frame releases its nodes; on a frame and a node, keeps only the rest", () => {
+    const { store, a, b } = pair();
+    const id = store.getState().groupNodes([a, b])!;
+    store.getState().removeNodes([id, a]);
+    expect(store.getState().nodes.map((node) => node.id)).toEqual([b]);
+    expect(flowOf(store, b)).not.toHaveProperty("parentId");
+  });
+
+  test("a node dragged fully out of its frame leaves it; one dropped inside joins", () => {
+    const { store, a, b } = pair();
+    const id = store.getState().groupNodes([a])!;
+    const frame = frameOf(store, id);
+    const width = frame.width ?? 0;
+    // Drag a far to the right of the frame (relative position past the frame's width).
+    store
+      .getState()
+      .onNodesChange([
+        { type: "position", id: a, position: { x: width + 100, y: 20 }, dragging: true },
+      ]);
+    store.getState().onNodesChange([{ type: "position", id: a, dragging: false }]);
+    expect(flowOf(store, a)).not.toHaveProperty("parentId");
+    expect(flowOf(store, a).position).toEqual({
+      x: frame.position.x + width + 100,
+      y: frame.position.y + 20,
+    });
+    // Drop b inside the frame: its absolute box must sit fully within the frame.
+    store.getState().onNodesChange([
+      {
+        type: "position",
+        id: b,
+        position: { x: frame.position.x + 40, y: frame.position.y + 60 },
+        dragging: true,
+      },
+    ]);
+    store.getState().onNodesChange([{ type: "position", id: b, dragging: false }]);
+    expect(flowOf(store, b)).toMatchObject({ parentId: id, position: { x: 40, y: 60 } });
+  });
+
+  test("tidy up keeps a node in its frame and refits the frame around it", () => {
+    const { store, a, b } = pair();
+    const id = store.getState().groupNodes([a])!;
+    store.getState().setNodePositions(
+      new Map([
+        [a, { x: 800, y: 600 }],
+        [b, { x: 1100, y: 600 }],
+      ]),
+    );
+    const frame = frameOf(store, id);
+    expect(frame.position).toEqual({ x: 780, y: 540 });
+    expect(flowOf(store, a)).toMatchObject({ parentId: id, position: { x: 20, y: 60 } });
+    expect(flowOf(store, b).position).toEqual({ x: 1100, y: 600 });
+  });
+
+  test("duplicating a node in a frame keeps the copy in the frame and skips the frame itself", () => {
+    const { store, a, b } = pair();
+    const id = store.getState().groupNodes([a, b])!;
+    const copies = store.getState().duplicateNodes([id, a]);
+    expect(copies).toHaveLength(1);
+    expect(flowOf(store, copies[0]!)).toMatchObject({ parentId: id, position: { x: 60, y: 100 } });
+  });
+
+  test("resizing a frame is a document change that coalesces into one undo step", () => {
+    const { store, a } = pair();
+    const id = store.getState().groupNodes([a])!;
+    store.getState().markSaved();
+    const before = store.getState().past.length;
+    store.getState().onNodesChange([
+      {
+        type: "dimensions",
+        id,
+        dimensions: { width: 700, height: 300 },
+        setAttributes: true,
+        resizing: true,
+      },
+    ]);
+    store.getState().onNodesChange([
+      {
+        type: "dimensions",
+        id,
+        dimensions: { width: 720, height: 320 },
+        setAttributes: true,
+        resizing: false,
+      },
+    ]);
+    expect(frameOf(store, id)).toMatchObject({ width: 720, height: 320 });
+    expect(store.getState().dirty).toBe(true);
+    expect(store.getState().past.length).toBe(before + 1);
+  });
+
+  test("renameNode renames a frame too", () => {
+    const { store, a } = pair();
+    const id = store.getState().groupNodes([a])!;
+    store.getState().renameNode(id, "Checkout");
+    expect(frameOf(store, id).data.label).toBe("Checkout");
   });
 });

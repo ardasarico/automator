@@ -1,4 +1,4 @@
-![Automator](github-banner.png)
+![Automator](docs/media/github-banner.png)
 
 # Automator
 

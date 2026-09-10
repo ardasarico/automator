@@ -143,7 +143,9 @@ export function FlowHistory() {
                         </Badge>
                       )}
                     </span>
-                    <span className="truncate text-caption text-muted-foreground">
+                    {/* Wraps rather than truncating: a clipped "10 no…" loses the one number
+                     * the line is there for, and the panel has room for a second line. */}
+                    <span className="text-caption text-muted-foreground">
                       <LocalTime value={version.createdAt} zone={false} /> ·{" "}
                       {version.nodeCount === 1 ? "1 node" : `${version.nodeCount} nodes`}
                     </span>

@@ -8,6 +8,7 @@ import {
   flowDocumentSchema,
   flowNodeTypes,
   getFlowContract,
+  isFlowDocument,
   isFlowDocumentInput,
   isFlowPatch,
   listFlowsContract,
@@ -103,6 +104,34 @@ describe("flow document input", () => {
 
   test("findFlowDocumentProblem accepts a consistent graph", () => {
     expect(findFlowDocumentProblem(input)).toBeNull();
+  });
+
+  const group = { id: "g1", label: "Checkout", position: { x: 0, y: 0 }, width: 400, height: 200 };
+
+  test("accepts groups and nodes that sit in them", () => {
+    const grouped = {
+      ...input,
+      groups: [group],
+      nodes: [{ ...input.nodes[0]!, parentId: "g1" }, input.nodes[1]!],
+    };
+    expect(isFlowDocumentInput(grouped)).toBe(true);
+    expect(isFlowDocument({ ...grouped, id: "flow-1" })).toBe(true);
+    expect(findFlowDocumentProblem(grouped)).toBeNull();
+  });
+
+  test.each([
+    ["a duplicate group id", { ...input, groups: [group, group] }],
+    [
+      "a node in a group that does not exist",
+      { ...input, nodes: [{ ...input.nodes[0]!, parentId: "gx" }] },
+    ],
+    ["a node and a group sharing an id", { ...input, groups: [{ ...group, id: "n1" }] }],
+  ])("findFlowDocumentProblem reports %s", (_name, invalid) => {
+    expect(findFlowDocumentProblem(invalid)).toEqual(expect.any(String));
+  });
+
+  test("rejects a group without a size", () => {
+    expect(isFlowDocumentInput({ ...input, groups: [{ ...group, width: 0 }] })).toBe(false);
   });
 
   test.each([

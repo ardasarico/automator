@@ -15,7 +15,7 @@ import {
 } from "@remixicon/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { categoryLabels, getCatalogEntry } from "./catalog";
-import type { BuilderNode } from "./document";
+import type { FlowBuilderNode } from "./document";
 import styles from "./node-settings.module.css";
 
 /** Matches the limit the flow title enforces; a label is a name, not a description. */
@@ -92,7 +92,7 @@ export function NodeHeader({
   onSavePreset,
   onDelete,
 }: {
-  node: BuilderNode;
+  node: FlowBuilderNode;
   /** How many problems block this node from running; hidden at zero. */
   issues: number;
   /** Extra controls between the badge and the menu, such as an "Ask AI" button. */

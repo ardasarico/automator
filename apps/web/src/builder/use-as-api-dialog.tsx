@@ -19,6 +19,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiCurlSnippet, apiInvokeUrl } from "./api-snippets";
 import { McpSection } from "./mcp-section";
+import { selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
 import { useFlowEnabled } from "./use-flow-enabled";
 
@@ -52,11 +53,11 @@ function CopyButton({ text, label }: { text: string; label: string }) {
  * example is built from the trigger's own declaration, so it cannot describe a call the endpoint
  * would refuse.
  */
-export function ApiHttpSection({ unsaved }: { unsaved: boolean }) {
+function ApiHttpSection({ unsaved }: { unsaved: boolean }) {
   const meta = useBuilderStore((state) => state.meta);
   /* Select the stored array itself: mapping inside the selector would build fresh objects on
    * every render, and a shallow compare over those never settles. */
-  const nodes = useBuilderStore((state) => state.nodes);
+  const nodes = useBuilderStore(selectFlowNodes);
   const schema = useMemo(
     () =>
       flowApiSchema({
@@ -102,7 +103,9 @@ export function ApiHttpSection({ unsaved }: { unsaved: boolean }) {
       </Field>
       <Field>
         <FieldLabel>Example call</FieldLabel>
-        <pre className="overflow-x-auto rounded-lg border border-border bg-muted p-3 font-mono text-xs">
+        {/* `w-full min-w-0`, or the pre takes its longest line's width as a flex item and the
+         * overflow never scrolls — the endpoint was clipped mid-URL at the dialog's edge. */}
+        <pre className="w-full min-w-0 overflow-x-auto rounded-lg border border-border bg-muted p-3 font-mono text-xs">
           {apiCurlSnippet(url, schema.inputs)}
         </pre>
         <FieldDescription>

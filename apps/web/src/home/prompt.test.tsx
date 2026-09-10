@@ -56,7 +56,8 @@ beforeAll(() => {
   globalThis.fetch = (async () => Response.json(response, { status })) as unknown as typeof fetch;
 });
 beforeEach(() => {
-  createFlow = spyOn(actions, "createFlowAction").mockResolvedValue(undefined);
+  /* Creating redirects on success, so the action answers with nothing to render. */
+  createFlow = spyOn(actions, "createFlowAction").mockResolvedValue(null);
   response = answer;
   status = 200;
   window.sessionStorage.clear();

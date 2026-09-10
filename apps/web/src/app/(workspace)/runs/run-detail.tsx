@@ -87,7 +87,10 @@ function skippedMessage(result: FlowRunNodeResult): string {
     case "no-input":
       return "No incoming edge fired, so this node did not run.";
     case "run-stopped":
-      return "The run stopped at an earlier node, so this one did not run.";
+      return (
+        "The run stopped at an earlier node, so this one did not run. A failure stops the " +
+        "whole run, including branches that do not pass through the node that failed."
+      );
     default:
       return "This node did not run.";
   }

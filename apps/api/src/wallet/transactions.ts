@@ -1,7 +1,7 @@
 import { flowChainId, type FlowRunRecord, type WalletTransaction } from "@automator/contracts";
 
 export const transactionScanLimit = 200;
-export const transactionListLimit = 20;
+const transactionListLimit = 20;
 
 /* What the owner's own wallet sent. A `usdc.payment` is the visitor's transfer, not theirs. */
 const transactionNodeTypes = new Set([

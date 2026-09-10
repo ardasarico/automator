@@ -119,11 +119,28 @@ export const flowPositionSchema = Type.Object({ x: Type.Number(), y: Type.Number
 export const flowNodeSchema = Type.Object({
   id: Type.String({ minLength: 1 }),
   type: flowNodeTypeSchema,
+  /* Always absolute, whether or not the node sits in a group: nothing but the builder knows groups. */
   position: flowPositionSchema,
   label: Type.String(),
   config: Type.Record(Type.String(), Type.Unknown()),
+  /* The group frame the node sits in, if any. */
+  parentId: Type.Optional(Type.String({ minLength: 1 })),
 });
 export type FlowNode = Static<typeof flowNodeSchema>;
+
+/**
+ * A labelled frame drawn around some nodes on the canvas. Groups are a drawing, not a graph
+ * feature: the engine, validation and the AI never see them, and a document without any is
+ * the same flow it always was.
+ */
+export const flowGroupSchema = Type.Object({
+  id: Type.String({ minLength: 1 }),
+  label: Type.String(),
+  position: flowPositionSchema,
+  width: Type.Number({ minimum: 1 }),
+  height: Type.Number({ minimum: 1 }),
+});
+export type FlowGroup = Static<typeof flowGroupSchema>;
 
 export const flowEdgeSchema = Type.Object({
   id: Type.String({ minLength: 1 }),
@@ -142,6 +159,7 @@ export const flowDocumentSchema = Type.Object({
   chainId: Type.Optional(chainIdSchema),
   nodes: Type.Array(flowNodeSchema),
   edges: Type.Array(flowEdgeSchema),
+  groups: Type.Optional(Type.Array(flowGroupSchema)),
 });
 export type FlowDocument = Static<typeof flowDocumentSchema>;
 
@@ -170,6 +188,7 @@ export const flowDocumentInputSchema = Type.Object(
     chainId: Type.Optional(chainIdSchema),
     nodes: Type.Array(flowNodeSchema),
     edges: Type.Array(flowEdgeSchema),
+    groups: Type.Optional(Type.Array(flowGroupSchema)),
   },
   { additionalProperties: false },
 );
@@ -206,12 +225,20 @@ export function isFlowDocument(value: unknown): value is FlowDocument {
 }
 
 export function findFlowDocumentProblem(
-  document: Pick<FlowDocumentInput, "nodes" | "edges">,
+  document: Pick<FlowDocumentInput, "nodes" | "edges" | "groups">,
 ): string | null {
+  const groupIds = new Set<string>();
+  for (const group of document.groups ?? []) {
+    if (groupIds.has(group.id)) return `Duplicate group id "${group.id}"`;
+    groupIds.add(group.id);
+  }
   const nodeIds = new Set<string>();
   for (const node of document.nodes) {
     if (nodeIds.has(node.id)) return `Duplicate node id "${node.id}"`;
+    if (groupIds.has(node.id)) return `Node "${node.id}" shares its id with a group`;
     nodeIds.add(node.id);
+    if (node.parentId !== undefined && !groupIds.has(node.parentId))
+      return `Node "${node.id}" sits in unknown group "${node.parentId}"`;
   }
   const edgeIds = new Set<string>();
   for (const edge of document.edges) {

@@ -18,7 +18,7 @@ const failureMessages: Record<string, string> = {
   invalid_flow: "The flow could not be saved: fix the highlighted problems and try again.",
 };
 
-export function useSaveFlow() {
+function useSaveFlow() {
   const getAccessToken = useAccessToken();
   const store = useBuilderStoreApi();
   const dirty = useBuilderStore((state) => state.dirty);

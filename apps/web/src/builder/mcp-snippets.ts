@@ -15,8 +15,17 @@ export function mcpServerUrl(apiUrl: string): string {
 }
 
 /** The one-line Claude Code command that registers the server. */
+/*
+ * One command, continued over several lines. As a single line it wrapped at its own spaces in
+ * the dialog, so "add --transport" read as "add--transport" and anyone retyping it got that;
+ * the arguments and their order are exactly what they were, only the line breaks are new.
+ */
 export function claudeCodeCommand(url: string): string {
-  return `claude mcp add --transport http automator ${url} --header "Authorization: Bearer ${apiKeyPlaceholder}"`;
+  return [
+    "claude mcp add --transport http \\",
+    `  automator ${url} \\`,
+    `  --header "Authorization: Bearer ${apiKeyPlaceholder}"`,
+  ].join("\n");
 }
 
 /** The block Cursor and Claude Desktop style clients expect in their MCP config file. */

@@ -13,7 +13,7 @@ export interface HookDependencies extends RunStores {
   now?: () => number;
 }
 
-export function webhookPayload(request: Request, body: unknown): WebhookPayload {
+function webhookPayload(request: Request, body: unknown): WebhookPayload {
   const url = new URL(request.url);
   return {
     method: request.method,

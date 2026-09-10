@@ -12,7 +12,8 @@ const { NodeSettings } = await import("./node-settings");
 const { RunStoreProvider } = await import("./run-store-provider");
 const { BuilderStoreProvider, useBuilderStore } = await import("./store-provider");
 const { createBuilderStore } = await import("./store");
-const { hydrateFlow } = await import("./document");
+const { hydrateFlow, isFlowNode } = await import("./document");
+const flowNodes = (doc: FlowDocument) => hydrateFlow(doc).nodes.filter(isFlowNode);
 
 const document: FlowDocument = {
   version: 1,
@@ -35,6 +36,18 @@ const document: FlowDocument = {
       config: { fields: [{ id: "email", label: "Email", type: "email" }] },
     },
     { id: "d", type: "notify.discord", position: { x: 0, y: 0 }, label: "Announce", config: {} },
+    {
+      id: "read",
+      type: "onchain.read-contract",
+      position: { x: 0, y: 0 },
+      label: "Read decimals",
+      config: {
+        address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        abi: "function decimals() view returns (uint8)",
+        functionName: "decimals",
+        args: "[]",
+      },
+    },
   ],
   edges: [
     { id: "1", source: "t", target: "form", sourceHandle: "visitor", targetHandle: "data" },
@@ -47,7 +60,7 @@ let root: Root;
 
 async function mount(nodeId: string, run: FlowRun | null = null) {
   const store = createBuilderStore(document);
-  const node = hydrateFlow(document).nodes.find((n) => n.id === nodeId)!;
+  const node = flowNodes(document).find((n) => n.id === nodeId)!;
   container = window.document.createElement("div");
   window.document.body.append(container);
   root = createRoot(container);
@@ -121,9 +134,9 @@ describe("NodeSettings", () => {
           <RunStoreProvider initialRun={run} initialDocument={document}>
             <NodeSettings
               node={{
-                ...hydrateFlow(document).nodes.find((n) => n.id === "d")!,
+                ...flowNodes(document).find((n) => n.id === "d")!,
                 data: {
-                  ...hydrateFlow(document).nodes.find((n) => n.id === "d")!.data,
+                  ...flowNodes(document).find((n) => n.id === "d")!.data,
                   config: { content: "Hi {{input.message.email}} and {{vars.absent}}" },
                 },
               }}
@@ -143,7 +156,9 @@ describe("NodeSettings", () => {
   test("edits a trigger's sample payload as JSON with inline feedback", async () => {
     let typed = "";
     function Live() {
-      const node = useBuilderStore((state) => state.nodes.find((n) => n.id === "t")!);
+      const node = useBuilderStore((state) =>
+        state.nodes.filter(isFlowNode).find((n) => n.id === "t")!,
+      );
       const setNodeConfig = useBuilderStore((state) => state.setNodeConfig);
       return (
         <>
@@ -191,6 +206,20 @@ describe("NodeSettings", () => {
     expect(textarea!.getAttribute("aria-invalid")).toBeNull();
   });
 
+  /* The engine takes a JSON array or one signature per line, so the field must not be checked
+   * as JSON: a valid signature list was being marked invalid while the run succeeded. */
+  test("a human-readable ABI is not reported as invalid JSON", async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    await mount("read");
+    const abi = container.querySelector<HTMLTextAreaElement>("textarea#read-abi");
+    expect(abi).not.toBeNull();
+    expect(abi!.value).toBe("function decimals() view returns (uint8)");
+    expect(abi!.getAttribute("aria-invalid")).toBeNull();
+    expect(container.textContent).not.toContain("Invalid JSON");
+    expect(container.textContent).toContain("one human-readable signature per line");
+  });
+
   test("incomplete numeric settings stay editable and string lists follow undo", async () => {
     await act(async () => root.unmount());
     container.remove();
@@ -218,7 +247,9 @@ describe("NodeSettings", () => {
         change = setNodeConfig;
         undo = undoChange;
       });
-      return nodes.map((node) => <NodeSettings key={node.id} node={node} onBack={() => {}} />);
+      return nodes
+        .filter(isFlowNode)
+        .map((node) => <NodeSettings key={node.id} node={node} onBack={() => {}} />);
     }
     container = window.document.createElement("div");
     window.document.body.append(container);
@@ -262,7 +293,7 @@ describe("NodeSettings", () => {
         { nodeId: "form", status: "succeeded", outputs: { submitted: { address: long } } },
       ],
     };
-    const node = hydrateFlow(document).nodes.find((n) => n.id === "d")!;
+    const node = flowNodes(document).find((n) => n.id === "d")!;
     container = window.document.createElement("div");
     window.document.body.append(container);
     root = createRoot(container);

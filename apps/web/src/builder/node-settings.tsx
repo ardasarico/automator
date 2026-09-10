@@ -17,7 +17,7 @@ import {
   type Property,
 } from "../components/schema-form";
 import { useDataTables } from "../data/tables-context";
-import type { BuilderNode } from "./document";
+import { isFlowNode, type FlowBuilderNode } from "./document";
 import { NodeHeader } from "./node-header";
 import { NodeLastRun } from "./node-last-run";
 import styles from "./node-settings.module.css";
@@ -42,7 +42,7 @@ export function NodeSettings({
   actions,
   readOnly = false,
 }: {
-  node: BuilderNode;
+  node: FlowBuilderNode;
   onBack(): void;
   /** Extra header controls, such as the AI panel's "Ask AI about this node". */
   actions?: React.ReactNode;
@@ -60,7 +60,7 @@ export function NodeSettings({
     () =>
       listVariables(
         node.id,
-        nodes.map((item) => ({ id: item.id, ...item.data })),
+        nodes.filter(isFlowNode).map((item) => ({ id: item.id, ...item.data })),
         edges,
         secretNames,
         tables,

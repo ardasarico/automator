@@ -1,14 +1,14 @@
 import { RiAddLine, RiGitForkLine, RiSparklingLine } from "@remixicon/react";
 import type { RemixiconComponentType } from "@remixicon/react";
 import Link from "next/link";
-import { FlowActionCard } from "../../../flows/action-button";
+import { FlowActionCard, type FlowAction } from "../../../flows/action-button";
 import { createFlowAction } from "../../../flows/actions";
 import styles from "./flows.module.css";
 
 const options: readonly {
   id: string;
   href?: string;
-  action?: () => Promise<void>;
+  action?: FlowAction;
   icon: RemixiconComponentType;
   title: string;
   body: string;

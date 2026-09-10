@@ -90,6 +90,9 @@ export type TextFieldShape = "line" | "multiline" | "code";
  * share. Anything absent stays a single line.
  */
 const textFieldShapes = new Map<string, TextFieldShape>([
+  /* Either a JSON array or a list of signatures, so it needs the room and the monospace but
+   * never the JSON check — see the ABI field in `onchain-configs.ts`. */
+  ["abi", "code"],
   ["body", "multiline"],
   ["code", "code"],
   ["content", "multiline"],

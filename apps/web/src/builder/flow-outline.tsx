@@ -6,12 +6,13 @@ import { useId, useState } from "react";
 import { getCatalogEntry } from "./catalog";
 import { CatalogIconMark } from "./catalog-icon";
 import styles from "./flow-builder.module.css";
+import { selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
 import { useFlowProblems } from "./use-flow-problems";
 import { useSelectNode } from "./use-select-node";
 
 export function FlowOutline() {
-  const nodes = useBuilderStore((state) => state.nodes);
+  const nodes = useBuilderStore(selectFlowNodes);
   const problems = useFlowProblems();
   const selectNode = useSelectNode();
   const [query, setQuery] = useState("");

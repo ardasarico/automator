@@ -76,7 +76,7 @@ export function fromListing(
 export type ListingFilter = "all" | "automator" | "community" | "mine";
 export type ListingSort = "newest" | "forks" | "name";
 
-export const listingFilterLabels: Record<ListingFilter, string> = {
+const listingFilterLabels: Record<ListingFilter, string> = {
   all: "All",
   automator: "By Automator",
   community: "Community",

@@ -84,7 +84,7 @@ const proposalStates: Record<Exclude<AiProposal["state"], "pending">, string> = 
  * A report where every scenario was skipped proves nothing, and a flow presented as checked on
  * the strength of it reads as verified when it is not.
  */
-export function verificationHeading(verification: AiVerification): string {
+function verificationHeading(verification: AiVerification): string {
   /* Loudest first: a draft that failed its checks is still on offer, and must not read as one
      that passed them. */
   if (verification.checks.some((check) => check.status === "failed"))

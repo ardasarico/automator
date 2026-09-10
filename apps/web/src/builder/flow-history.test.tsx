@@ -155,6 +155,19 @@ describe("FlowHistory", () => {
     expect(container.querySelectorAll("[data-slot='badge']")).toHaveLength(1);
   });
 
+  /*
+   * The meta line was set to truncate, which clipped the node count mid-word — "10 no…" — in a
+   * 310 px panel. Nothing on it is expendable, so it wraps rather than being cut.
+   */
+  test("the time and node count are not clipped", async () => {
+    await mount();
+    const meta = container.querySelector(
+      'ul[aria-label="Saved versions"] li > div > span:nth-of-type(2)',
+    );
+    expect(meta?.className).not.toContain("truncate");
+    expect(meta?.textContent).toContain("2 nodes");
+  });
+
   test("restore puts the version on the canvas as an unsaved edit and says so", async () => {
     answer = (url) => (url.endsWith("/versions/1") ? Response.json(first) : Response.json(listing));
     await mount();
