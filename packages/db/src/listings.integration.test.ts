@@ -174,6 +174,9 @@ describe.skipIf(!url)("listings store", () => {
         nodes: input.nodes.slice(0, 2),
       });
       expect(forked?.flow.id).not.toBe(flow.flow.id);
+      /* A fork starts unpublished and unactivated, and says so rather than staying silent. */
+      expect(forked?.appPublished).toBe(false);
+      expect(forked?.enabled).toBe(false);
       expect(await flows.find("did:privy:test-b", forked!.flow.id)).toEqual(forked);
       expect((await listings.find("airdrop-gate"))?.forkCount).toBe(1);
       expect(await listings.fork("did:privy:test-b", "nope")).toBeNull();
