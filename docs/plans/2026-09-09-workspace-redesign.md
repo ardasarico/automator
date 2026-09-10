@@ -68,12 +68,12 @@ fills the viewport and lists scroll inside their own region.
 ## Information architecture
 
 Nine destinations: eight in three bands, plus Settings beside the account menu
-at the foot.
+at the foot. (2026-09-10: Mini-apps was dropped from the Share band; see below.)
 
 ```
 WORKSPACE   Home · Flows · Runs
 RESOURCES   Data · Connections · Wallet
-SHARE       Mini-apps · Marketplace
+SHARE       Marketplace
 (foot)      Settings · account
 ```
 
@@ -85,7 +85,8 @@ land:
 - **Connections** — secrets and connected apps, to be moved out of the settings
   dialog. Existing APIs cover it.
 - **Mini-apps** — flows shared as mini-apps, with their links and recent sessions.
-  Needs one read endpoint.
+  Needs one read endpoint. **Dropped on 2026-09-10:** the placeholder page and its
+  sidebar entry were removed; sharing stays in the builder's Share menu.
 - **Settings** — the dialog becomes a page once Connections has taken the secrets
   and connected apps out of it. Until then the dialog stays reachable from the
   account menu, so the two overlap on purpose.

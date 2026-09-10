@@ -3,7 +3,6 @@ import { Button } from "@automator/ui/button";
 import { Logo, LogoMark } from "@automator/ui/logo";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "@automator/ui/tooltip";
 import {
-  RiAppsLine,
   RiCompass3Line,
   RiFlowChart,
   RiHome5Line,
@@ -53,10 +52,7 @@ const bands: NavBand[] = [
   },
   {
     label: "Share",
-    items: [
-      { href: "/mini-apps", label: "Mini-apps", icon: RiAppsLine },
-      { href: "/marketplace", label: "Marketplace", icon: RiCompass3Line },
-    ],
+    items: [{ href: "/marketplace", label: "Marketplace", icon: RiCompass3Line }],
   },
 ];
 
