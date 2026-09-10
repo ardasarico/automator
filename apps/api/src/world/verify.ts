@@ -12,7 +12,7 @@ const verifyEndpoint = "https://developer.world.org/api/v4/verify";
 
 const requestTtlSeconds = 300;
 
-export type WorldVerifyResult =
+type WorldVerifyResult =
   | { ok: true; verification: WorldVerification }
   | { ok: false; rejection: WorldRejection };
 
@@ -51,7 +51,7 @@ export function hashSignal(signal: string): `0x${string}` {
   return `0x${hash.toString(16).padStart(64, "0")}`;
 }
 
-export const worldEnvironments = ["production", "staging", "sandbox"] as const;
+const worldEnvironments = ["production", "staging", "sandbox"] as const;
 
 export function readWorldConfig(env: {
   WORLD_APP_ID?: string;

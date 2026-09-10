@@ -22,7 +22,7 @@ import type { Dimensions } from "./use-chart-dimensions";
 export type ChartType = "area" | "bar" | "line" | "pie" | "radar";
 
 /** No bar grows past this, however few categories there are. */
-export const MAX_BAR_WIDTH = 24;
+const MAX_BAR_WIDTH = 24;
 
 export type ChartConfig = Record<string, { label?: string; color: SeriesColor }>;
 
@@ -41,7 +41,7 @@ export type SeriesKind = "area" | "line" | "bar";
 
 /** What each series part (<Area />, <Line />, <Bar />) registers so the canvas
  * knows which series to paint and how. */
-export type SeriesSpec = {
+type SeriesSpec = {
   dataKey: string;
   kind: SeriesKind;
   variant: AreaVariant;
@@ -159,7 +159,7 @@ export { ChartContext };
  * render pattern (https://react.dev/reference/react/useState) instead of a ref:
  * the revision is derived purely from render inputs, so it stays consistent
  * across the memoized values below rather than lagging a render behind. */
-export function useRevision(data: unknown, token: number) {
+function useRevision(data: unknown, token: number) {
   const [prev, setPrev] = useState({ data, token, revision: 0 });
   if (prev.data !== data || prev.token !== token) {
     const next = { data, token, revision: prev.revision + 1 };

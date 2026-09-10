@@ -27,7 +27,7 @@ function toDraft(column: DataColumn, value: unknown): string {
 }
 
 /** The draft as the API's patch value; `null` clears the column. */
-export function draftToValue(column: DataColumn, draft: string): unknown {
+function draftToValue(column: DataColumn, draft: string): unknown {
   const text = draft.trim();
   if (text === "") return null;
   if (column.type === "number") {

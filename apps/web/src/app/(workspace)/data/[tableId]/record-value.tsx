@@ -2,7 +2,7 @@ import type { DataColumn, DataRecord, DataTable } from "@automator/contracts";
 import type { ReactNode } from "react";
 import { LocalTime } from "../../runs/local-time";
 
-export function shortAddress(address: string): string {
+function shortAddress(address: string): string {
   return address.length > 12 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address;
 }
 

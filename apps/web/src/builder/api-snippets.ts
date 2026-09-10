@@ -8,7 +8,7 @@ import { publicApiUrl } from "../lib/api-url";
  */
 
 /** The environment variable the example reads, rather than a key pasted into a shell history. */
-export const apiKeyPlaceholder = "$AUTOMATOR_API_KEY";
+const apiKeyPlaceholder = "$AUTOMATOR_API_KEY";
 
 export function apiInvokeUrl(flowId: string, apiUrl: string = publicApiUrl): string {
   return `${apiUrl.replace(/\/+$/, "")}/v1/flows/${encodeURIComponent(flowId)}/invoke`;

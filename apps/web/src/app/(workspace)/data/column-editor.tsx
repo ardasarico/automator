@@ -12,7 +12,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@au
 import { RiAddLine, RiArrowDownLine, RiArrowUpLine, RiDeleteBinLine } from "@remixicon/react";
 import { ConfigField, Group, type Property } from "../../../components/schema-form";
 
-export const columnTypeLabels: Record<DataColumnType, string> = {
+const columnTypeLabels: Record<DataColumnType, string> = {
   text: "Text",
   number: "Number",
   checkbox: "Checkbox",

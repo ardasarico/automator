@@ -7,7 +7,7 @@ import {
   type FlowVersionSummary,
 } from "@automator/contracts";
 
-export class VersionRequestError extends Error {
+class VersionRequestError extends Error {
   constructor(public readonly code: string) {
     super(code);
     this.name = "VersionRequestError";

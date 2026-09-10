@@ -1,10 +1,10 @@
 # README integration marks
 
-- The Graph: dark and light logomarks from [The Graph's brand assets](https://thegraph.com/brand/).
-- Chainlink: blue symbol from [Chainlink's brand assets](https://chain.link/brand-assets). The SVG viewport trims surrounding whitespace for inline display.
-- World: the existing [World mark](../../../apps/web/public/integrations/world.svg), with a tighter viewport and a white variant for dark backgrounds.
-- Privy: the README reuses the existing [Privy mark](../../../apps/web/public/integrations/privy.svg).
+32-pixel PNG marks for the README's integrations table, so it renders on GitHub without inline HTML.
 
-The 32-pixel PNG copies support Markdown previews without inline HTML. World and Chainlink use white backgrounds; The Graph uses its brand purple behind the white mark for visibility in both themes.
+- The Graph: white logomark on the brand purple, from [The Graph's brand assets](https://thegraph.com/brand/).
+- Chainlink: blue symbol on white, from [Chainlink's brand assets](https://chain.link/brand-assets).
+- World: the [World mark](../../../apps/web/public/integrations/world.svg) on white.
+- Privy: the [Privy mark](../../../apps/web/public/integrations/privy.svg).
 
 Trademarks belong to their respective owners.

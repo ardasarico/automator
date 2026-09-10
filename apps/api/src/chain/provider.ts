@@ -20,8 +20,6 @@ import { createEventReader, type EventReader } from "./events";
 import { createPaymentPolicySigner } from "./payment-policy";
 import { createPaymentReader, type PaymentReader } from "./visitor-payments";
 
-export { defaultChainId } from "@automator/contracts";
-
 const erc20DecimalsAbi = parseAbi(["function decimals() view returns (uint8)"]);
 
 export interface ChainSettings {
@@ -38,7 +36,7 @@ export interface SigningSettings {
   signerId: string;
 }
 
-export interface ConfiguredChain {
+interface ConfiguredChain {
   chainId: number;
   chainName: string;
   nativeSymbol: string;
@@ -100,7 +98,7 @@ export function resolveChain(chainId: number, rpcUrl: string): Chain {
   });
 }
 
-export function createReader(chain: Chain, transport: Transport): ChainReader {
+function createReader(chain: Chain, transport: Transport): ChainReader {
   const client = createPublicClient({ chain, transport });
   return {
     readContract: (call) => client.readContract(call as never),
@@ -120,7 +118,7 @@ export function createReader(chain: Chain, transport: Transport): ChainReader {
   };
 }
 
-export function createSigner(
+function createSigner(
   chain: Chain,
   transport: Transport,
   signing: SigningSettings,

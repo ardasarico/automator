@@ -52,7 +52,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
  * example is built from the trigger's own declaration, so it cannot describe a call the endpoint
  * would refuse.
  */
-export function ApiHttpSection({ unsaved }: { unsaved: boolean }) {
+function ApiHttpSection({ unsaved }: { unsaved: boolean }) {
   const meta = useBuilderStore((state) => state.meta);
   /* Select the stored array itself: mapping inside the selector would build fresh objects on
    * every render, and a shallow compare over those never settles. */

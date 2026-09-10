@@ -11,7 +11,7 @@ const transferEventAbi = parseAbi([
   "event Transfer(address indexed from, address indexed to, uint256 value)",
 ]);
 
-export interface TokenTransfer {
+interface TokenTransfer {
   token: Address;
   from: Address;
   to: Address;

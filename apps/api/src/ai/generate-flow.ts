@@ -85,7 +85,7 @@ export interface AiDataTable {
 }
 
 /** The table section of the prompt: the only table ids a `data.*` node may carry. */
-export function describeDataTables(tables: readonly AiDataTable[]): string {
+function describeDataTables(tables: readonly AiDataTable[]): string {
   if (tables.length === 0)
     return "This account has no data tables, so you must not use any data.* node.";
   const lines = tables
@@ -121,7 +121,7 @@ export function describeDataTables(tables: readonly AiDataTable[]): string {
  * model reaches past it. Whether merge is discoverable enough — here and on the canvas, for human
  * authors too — is a product question, not a prompt one.
  */
-export function describeNodeTypes(): string {
+function describeNodeTypes(): string {
   return generatableNodeTypes
     .map((type) => {
       const { inputs, outputs } = flowNodePorts[type];

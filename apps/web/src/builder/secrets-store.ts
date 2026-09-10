@@ -10,7 +10,7 @@ import {
 } from "@automator/contracts";
 import { createStore, useStore } from "zustand";
 
-export type SecretsStatus = "idle" | "loading" | "ready" | "failed";
+type SecretsStatus = "idle" | "loading" | "ready" | "failed";
 
 type SecretsState = {
   accountId: string | null;
@@ -23,7 +23,7 @@ type SecretsState = {
   remove(token: string | null, name: string): Promise<void>;
 };
 
-export class SecretRequestError extends Error {
+class SecretRequestError extends Error {
   constructor(public readonly code: string) {
     super(code);
     this.name = "SecretRequestError";
