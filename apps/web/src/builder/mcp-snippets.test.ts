@@ -19,10 +19,23 @@ describe("mcpServerUrl", () => {
 describe("claudeCodeCommand", () => {
   const command = claudeCodeCommand("https://api.automator.app/mcp");
 
+  /*
+   * Broken across lines because a single long command wrapped at its spaces in the dialog, where
+   * "add --transport" read as "add--transport" to anyone retyping it. Joining the continuations
+   * has to give back exactly the command it always was.
+   */
   test("adds the server over HTTP with the key in an Authorization header", () => {
-    expect(command).toBe(
+    expect(command.replace(/ \\\n\s*/g, " ")).toBe(
       'claude mcp add --transport http automator https://api.automator.app/mcp --header "Authorization: Bearer YOUR_API_KEY"',
     );
+  });
+
+  test("continues over several lines so no line has to wrap to be read", () => {
+    const lines = command.split("\n");
+    expect(lines.length).toBeGreaterThan(1);
+    /* Every line but the last ends in a continuation, so the whole thing pastes as one command. */
+    expect(lines.slice(0, -1).every((line) => line.endsWith(" \\"))).toBe(true);
+    expect(lines.every((line) => line.length <= 56)).toBe(true);
   });
 
   test("names the placeholder the section tells the reader to replace", () => {

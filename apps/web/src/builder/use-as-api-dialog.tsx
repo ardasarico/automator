@@ -102,7 +102,9 @@ export function ApiHttpSection({ unsaved }: { unsaved: boolean }) {
       </Field>
       <Field>
         <FieldLabel>Example call</FieldLabel>
-        <pre className="overflow-x-auto rounded-lg border border-border bg-muted p-3 font-mono text-xs">
+        {/* `w-full min-w-0`, or the pre takes its longest line's width as a flex item and the
+         * overflow never scrolls — the endpoint was clipped mid-URL at the dialog's edge. */}
+        <pre className="w-full min-w-0 overflow-x-auto rounded-lg border border-border bg-muted p-3 font-mono text-xs">
           {apiCurlSnippet(url, schema.inputs)}
         </pre>
         <FieldDescription>
