@@ -1,5 +1,7 @@
 # data-tables — plan
 
+> **Status:** implemented in `2a28fdf` (tables, records, the four flow nodes and `/data`). The `/data` screens were then rebuilt as one working surface in `e84d1cd`; `docs/web-ui.md` describes what is on screen now. Do not re-execute this plan.
+
 **Sources:** context.md: `/Users/ardasari/Documents/GitHub/Automator/.prova/tasks/data-tables/context.md` · approved artifact: the `final-summary` decisions document stored under that task.
 
 **Constraints (translated from the user's decisions):**

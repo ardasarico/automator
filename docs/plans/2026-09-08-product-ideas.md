@@ -2,7 +2,7 @@
 
 Discussed on 2026-09-08. The user accepted these directions as ideas and deferred implementation. This note does not set a delivery order, deadline or final technical design.
 
-Status on 2026-09-08: idea 1 shipped (commit `2a28fdf`), and ideas 5 and 6 were built afterwards, the shortlist minus the deprioritized run-output inspector. Ideas 2, 3 and 4 remain open.
+> **Status on 2026-09-10:** idea 1 shipped (`2a28fdf`), ideas 5 and 6 followed (`6bf9935`, the shortlist minus the deprioritized run-output inspector), idea 3 shipped on 2026-09-10 as flows published over HTTP and MCP (merges `d13044b` and `f4885c6`, decision [0013](../decisions/0013-publish-flows-as-an-api-and-as-mcp-tools.md)), and idea 4 shipped the same day as the visitor USDC payment screen (merge `9375e1d`, decision [0014](../decisions/0014-collect-visitor-usdc-payments-as-a-verified-screen.md)). Only idea 2, reusable subflows, remains open.
 
 ## 1. Persistent data and record nodes
 

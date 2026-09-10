@@ -1,5 +1,7 @@
 # readme-redesign — plan
 
+> **Status:** implemented. The README was first rewritten as a showcase in `2c6d73e` and rewritten again against the shipped product in `23e6321`, which is the version in the repository. Do not re-execute this plan.
+
 **Sources:** context.md: `.prova/tasks/readme-redesign/context.md` · approved artifacts: `.prova/tasks/readme-redesign/screens/_general/10-decisions.md`
 **Constraints (translated from the user's decisions):** `readme-route: 4 · Hybrid: showcase + developer guide` · `visual-format: Keep the existing image at the top and only one additional image explaining the system where needed below.` · `system-image: The user will supply a screenshot of an actual flow in the app.` · `demo-links: Live app; Demo video; ETHOnline submission` · `dev-depth: B · Medium` · `final-summary: Do not add a license section; the license already exists in the repository and GitHub displays it. Keep the page short.` · target length ~70 lines · language English · no badges, no Mermaid, no license section
 

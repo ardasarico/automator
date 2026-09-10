@@ -1,5 +1,7 @@
 # Landing page
 
+> **Status:** implemented. `apps/landing` was scaffolded in `adbd7a8`, deployed on its own Railway service in `05f9298`, and pointed at its hosts in `ded029b`. It serves `automator.ardasari.co` on port 3004. Do not re-execute this plan.
+
 A public marketing page for Automator at `automator.ardasari.co`, serving both the ETHOnline
 jury and a developer visitor. Decided 2026-09-10.
 

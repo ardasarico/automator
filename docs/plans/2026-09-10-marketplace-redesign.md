@@ -1,5 +1,7 @@
 # Marketplace Redesign
 
+> **Status:** implemented in `2a57df4`; `docs/web-ui.md` (Marketplace) describes what shipped. Do not re-execute this plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild `/marketplace` as a centred storefront that reads like a community, replacing today's flat grid of interchangeable cards.

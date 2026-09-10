@@ -1,5 +1,7 @@
 # Landing page implementation plan
 
+> **Status:** implemented across `adbd7a8`…`ded029b`. Kept for the reasoning, not as a task list. Do not re-execute this plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship a public landing page for Automator at `automator.ardasari.co`, built as a new static Next app in this monorepo and deployed on Railway.

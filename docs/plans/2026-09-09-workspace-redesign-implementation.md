@@ -1,5 +1,7 @@
 # Workspace Redesign Implementation Plan
 
+> **Status:** implemented across `fa4b909`…`63f920a` and described in `docs/web-ui.md` (commit `10e6e01`). Kept for the reasoning, not as a task list. Do not re-execute this plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild the `apps/web` workspace — shell, page frame, Flows, Runs, Home and Connections — as one application-shell interface, leaving the flow canvas untouched.

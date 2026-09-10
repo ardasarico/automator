@@ -1,5 +1,7 @@
 # Workspace redesign — decisions
 
+> **Status:** implemented. The shell, page frame, Flows, Runs, Home, Data, Connections and Marketplace landed across `fa4b909`…`2a57df4`; the entries left under "Still to design" (Wallet, login and onboarding, settings, the shared empty state) landed on 2026-09-10 in the `feat/workspace-design-rest` merge `b8727b9`, recorded as decision [0015](../decisions/0015-settle-the-workspace-pages-on-one-page-vocabulary.md). Still open: a Contracts section and narrow-viewport behaviour, both still out of scope. Do not re-execute this plan.
+
 2026-09-09. Everything outside the flow canvas is being rebuilt. The canvas and
 the builder layout stay as they are; they are the quality bar the rest has to
 meet. Scope widened on 2026-09-09: nothing is off the table any more, including
