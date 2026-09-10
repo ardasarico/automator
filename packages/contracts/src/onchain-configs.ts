@@ -18,8 +18,8 @@ const recipient = (description: string, fallback = "") =>
   text(fallback, { title: "Recipient address", description });
 
 /* The engine parses amounts as whole tokens, never as the smallest unit. */
-const amount = (description: string, fallback = "0") =>
-  text(fallback, { title: "Amount", description });
+const amount = (description: string, fallback = "0", hints: Record<string, unknown> = {}) =>
+  text(fallback, { title: "Amount", description, ...hints });
 
 export const contractCallConfigSchema = Type.Object({
   address: contractAddress("The contract to call, as a 0x address."),
@@ -47,6 +47,8 @@ export const writeContractConfigSchema = Type.Object({
   ...contractCallConfigSchema.properties,
   value: amount(
     "Native currency to send with the call, in whole units such as 0.01 ETH — not wei. Leave 0 to send none.",
+    "0",
+    { advanced: true },
   ),
 });
 export type WriteContractConfig = Static<typeof writeContractConfigSchema>;
@@ -102,6 +104,7 @@ export const usdcPaymentConfigSchema = Type.Object({
   to: recipient("Who collects the payment. Leave blank to collect into your own wallet."),
   simulate: Type.Union([Type.Literal("paid"), Type.Literal("declined")], {
     default: "paid",
+    advanced: true,
     description: "Which answer Simulate takes.",
   }),
 });

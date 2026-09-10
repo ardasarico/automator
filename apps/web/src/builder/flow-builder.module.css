@@ -218,7 +218,9 @@
 
 .leftPanel {
   display: flex;
-  width: 260px;
+  /* Wide enough for node settings to breathe: at 260 px every label wrapped and each help line
+   * ran to three. The palette shares the panel and gets the room too. */
+  width: 340px;
   flex: none;
   flex-direction: column;
   min-height: 0;
@@ -671,47 +673,6 @@
   font-size: 11px;
   line-height: 14px;
   overflow-wrap: anywhere;
-}
-
-.nodeSettings {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  overflow-y: auto;
-}
-
-.nodeSettingsHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px;
-  border-bottom: 1px solid var(--border);
-}
-
-.nodeSettingsType {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  align-items: baseline;
-  gap: 6px;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-}
-.nodeSettingsCategory {
-  flex: none;
-  color: var(--muted-foreground);
-  text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-}
-
-.nodeSettingsForm {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px;
 }
 
 .headerNote {

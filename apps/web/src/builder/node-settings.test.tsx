@@ -112,7 +112,7 @@ describe("NodeSettings", () => {
     };
     const store = await mount("d", run);
     await act(async () => store.getState().setNodeConfig("d", { content: "" }));
-    expect(container.textContent).toContain("Values below the fields come from the run at");
+    expect(container.textContent).toContain("Last run");
     expect(container.textContent).not.toContain("These settings changed since");
 
     await act(async () =>

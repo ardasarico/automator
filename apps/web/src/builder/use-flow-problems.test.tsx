@@ -54,7 +54,7 @@ test("the canvas problems check data nodes against the account's tables", async 
 
         // A settled list without the table names it, and so does the canvas badge.
         state = { ...state, loading: false };
-        assert.match(problems(), /config.tableId: Table &quot;tbl_customers&quot; is not one of your tables any more/);
+        assert.match(problems(), /Table &quot;tbl_customers&quot; is not one of your tables any more/);
 
         // With the table present, only the unknown column is reported.
         state = {
@@ -63,7 +63,7 @@ test("the canvas problems check data nodes against the account's tables", async 
         };
         const withTable = problems();
         assert.doesNotMatch(withTable, /is not one of your tables/);
-        assert.match(withTable, /config.filters.0.column: &quot;nope&quot; is not a column of &quot;Customers&quot;/);
+        assert.match(withTable, /&quot;nope&quot; is not a column of &quot;Customers&quot;/);
 
         // A failed load must not accuse the flow of pointing at a table that is gone.
         state = { ...state, tables: [], error: "Your tables could not be loaded." };

@@ -21,12 +21,17 @@ export const identityScreenPorts: Record<
   "world.selfie-check": { primary: "verified", secondary: "rejected" },
 };
 
-const text = (fallback = "", description?: string) =>
-  Type.String(
-    description === undefined ? { default: fallback } : { default: fallback, description },
-  );
+const text = (fallback = "", description?: string, hints: Record<string, unknown> = {}) =>
+  Type.String({
+    default: fallback,
+    ...(description === undefined ? {} : { description }),
+    ...hints,
+  });
 
 const titleText = () => text("", "Blank shows the node label.");
+
+/* Signals and Simulate answers are rarely touched, so the editor folds them under Advanced. */
+const advanced = { advanced: true };
 
 export const privyLoginMethods = ["email", "wallet", "google", "passkey"] as const;
 export type PrivyLoginMethod = (typeof privyLoginMethods)[number];
@@ -52,7 +57,11 @@ export const privyLoginConfigSchema = Type.Object({
       wallet: text("0x0000000000000000000000000000000000000001"),
       loginMethod: loginMethodSchema("email"),
     },
-    { default: {}, description: "The visitor Simulate and the preview sign in as." },
+    {
+      default: {},
+      advanced: true,
+      description: "The visitor Simulate and the preview sign in as.",
+    },
   ),
 });
 export type PrivyLoginConfig = Static<typeof privyLoginConfigSchema>;
@@ -96,9 +105,11 @@ export const worldIdVerifyConfigSchema = Type.Object({
   signal: text(
     "",
     "Optional text bound to the proof, such as {{vars.visitor.wallet}}; only vars and trigger resolve here.",
+    advanced,
   ),
   simulate: Type.Union([Type.Literal("verified"), Type.Literal("rejected")], {
     default: "verified",
+    advanced: true,
     description: "Which branch Simulate takes.",
   }),
 });
@@ -175,9 +186,11 @@ export const worldSelfieCheckConfigSchema = Type.Object({
   signal: text(
     "",
     "Optional text bound to the proof, such as {{vars.visitor.wallet}}; only vars and trigger resolve here.",
+    advanced,
   ),
   simulate: Type.Union([Type.Literal("verified"), Type.Literal("rejected")], {
     default: "verified",
+    advanced: true,
     description: "Which branch Simulate takes.",
   }),
 });

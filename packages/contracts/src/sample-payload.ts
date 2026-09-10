@@ -10,6 +10,7 @@ export function samplePayloadField(sample: unknown) {
     default: JSON.stringify(sample, null, 2),
     description: "Payload Simulate hands to this trigger",
     contentMediaType: "application/json",
+    advanced: true,
   });
 }
 

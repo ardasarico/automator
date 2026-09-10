@@ -48,7 +48,7 @@ export function MultiSelectField({
           <span className="text-caption text-muted-foreground">No options available.</span>
         )}
       </div>
-      {description && <FieldDescription>{description}</FieldDescription>}
+      {description && <FieldDescription className="schema-help">{description}</FieldDescription>}
     </Field>
   );
 }
