@@ -45,9 +45,9 @@ export function createAiRoutes({
 }: AiDependencies) {
   const limiter = createRateLimiter(callsPerMinute, now);
   /*
-   * Checked after ownership resolves, in each handler, rather than as a blanket
-   * `onBeforeHandle`: a mistyped or foreign flow id (a 404) must not spend a user's budget, only
-   * a request that actually reaches the store or the model does.
+   * Reads and deletes are never limited; only the route that actually invokes the model spends a
+   * user's budget, and only once ownership resolves — a mistyped or foreign flow id (a 404) must
+   * not cost anything.
    */
   const rateLimited = (
     claims: { id: string },
@@ -61,9 +61,8 @@ export function createAiRoutes({
     .use(createAuthGuard(identity))
     .get(
       listAiMessagesContract.path,
-      async ({ claims, params, status, set }) => {
+      async ({ claims, params, status }) => {
         if (!(await flows.find(claims.id, params.id))) return status(404, { error: "not_found" });
-        if (rateLimited(claims, set)) return status(429, { error: "rate_limited" });
         return { messages: await messages.list(params.id) };
       },
       { params: listAiMessagesContract.params, response: listAiMessagesContract.response },
@@ -95,10 +94,16 @@ export function createAiRoutes({
         });
         const assistantId = newId();
         const encoder = new TextEncoder();
+        // Flipped by `cancel()` when the client disconnects mid-stream: a closed controller
+        // throws on `enqueue`/`close`, and the turn below keeps running (persisting the
+        // assistant message) long after that, so every write has to check first.
+        let closed = false;
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
-            const emit = (event: AiStreamEvent) =>
+            const emit = (event: AiStreamEvent) => {
+              if (closed) return;
               controller.enqueue(encoder.encode(encodeSseEvent(event)));
+            };
             emit({ type: "message", id: assistantId });
             let parts: AiPart[];
             try {
@@ -134,7 +139,10 @@ export function createAiRoutes({
                 );
             }
             emit({ type: "done" });
-            controller.close();
+            if (!closed) controller.close();
+          },
+          cancel() {
+            closed = true;
           },
         });
         return new Response(stream, {
@@ -150,11 +158,10 @@ export function createAiRoutes({
     )
     .patch(
       setAiProposalStateContract.path,
-      async ({ claims, params, body, status, set }) => {
+      async ({ claims, params, body, status }) => {
         if (!Value.Check(setAiProposalStateContract.body, body))
           return status(400, { error: "invalid_request" });
         if (!(await flows.find(claims.id, params.id))) return status(404, { error: "not_found" });
-        if (rateLimited(claims, set)) return status(429, { error: "rate_limited" });
         const message = await messages.setProposalState(params.id, params.messageId, body.state);
         if (!message) return status(404, { error: "not_found" });
         return { message };
@@ -167,9 +174,8 @@ export function createAiRoutes({
     )
     .delete(
       clearAiMessagesContract.path,
-      async ({ claims, params, status, set }) => {
+      async ({ claims, params, status }) => {
         if (!(await flows.find(claims.id, params.id))) return status(404, { error: "not_found" });
-        if (rateLimited(claims, set)) return status(429, { error: "rate_limited" });
         return { cleared: await messages.clear(params.id) };
       },
       { params: clearAiMessagesContract.params, response: clearAiMessagesContract.response },

@@ -173,15 +173,24 @@ describe("ai routes", () => {
     expect(stored[3]!.parts.at(-1)).toMatchObject({ state: "pending" });
   });
 
-  test("enforces ownership, auth, the model and the rate limit", async () => {
+  test("enforces ownership and auth on every route, and the rate limit only on POST", async () => {
     const { model } = scriptedModel([]);
     const { call } = fixture(model, { callsPerMinute: 1 });
     expect((await call("GET", "/flows/f2/ai/messages")).status).toBe(404);
     // An explicit `undefined` here would still hit the fixture's own "alice" default; an empty
     // string is falsy and actually omits the Authorization header, unlike `undefined`.
     expect((await call("GET", "/flows/f1/ai/messages", undefined, "")).status).toBe(401);
+    // Reads are never rate-limited: as many of these as the budget's 1-per-minute POST would
+    // never allow all still answer 200.
     expect((await call("GET", "/flows/f1/ai/messages")).status).toBe(200);
-    expect((await call("GET", "/flows/f1/ai/messages")).status).toBe(429);
+    expect((await call("GET", "/flows/f1/ai/messages")).status).toBe(200);
+    expect((await call("GET", "/flows/f1/ai/messages")).status).toBe(200);
+
+    // POST is the only route the limiter's 1-per-minute budget applies to.
+    const first = await call("POST", "/flows/f1/ai/messages", { text: "hi" });
+    expect(first.status).toBe(200);
+    await readEvents(first);
+    expect((await call("POST", "/flows/f1/ai/messages", { text: "hi again" })).status).toBe(429);
 
     const noModel = fixture(undefined);
     expect((await noModel.call("POST", "/flows/f1/ai/messages", { text: "hi" })).status).toBe(503);
@@ -197,5 +206,40 @@ describe("ai routes", () => {
     expect(events.at(-2)).toEqual({ type: "error", error: "unavailable" });
     expect(events.at(-1)).toEqual({ type: "done" });
     expect(messages.rows.get("f1")![1]!.parts).toEqual([{ type: "error", error: "unavailable" }]);
+  });
+
+  test("a client disconnect mid-stream ends the stream without an unhandled rejection", async () => {
+    // The model call is left pending until the same signal the request carries fires, standing
+    // in for a real client hanging up on an in-flight turn: nothing else in this codebase makes
+    // an in-flight model call itself abort-aware, so the test has to.
+    const controller = new AbortController();
+    const model: LanguageModel = () =>
+      new Promise((_resolve, reject) => {
+        controller.signal.addEventListener("abort", () => reject(new Error("client disconnected")));
+      });
+    const { app, messages } = fixture(model);
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => rejections.push(reason);
+    process.on("unhandledRejection", onRejection);
+    try {
+      const response = await app.handle(
+        new Request("http://localhost/flows/f1/ai/messages", {
+          method: "POST",
+          headers: { Authorization: "Bearer alice", "Content-Type": "application/json" },
+          body: JSON.stringify({ text: "hi" }),
+          signal: controller.signal,
+        }),
+      );
+      expect(response.status).toBe(200);
+      controller.abort();
+      const events = await readEvents(response);
+      expect(events.at(-1)).toEqual({ type: "done" });
+      const stored = messages.rows.get("f1")!;
+      expect(stored).toHaveLength(2);
+      expect(stored[1]!.parts.at(-1)).toMatchObject({ type: "error" });
+    } finally {
+      process.off("unhandledRejection", onRejection);
+    }
+    expect(rejections).toEqual([]);
   });
 });
