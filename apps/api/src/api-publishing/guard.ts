@@ -2,7 +2,7 @@ import { Elysia } from "elysia";
 import { readBearerApiKey } from "./keys";
 import type { ApiKeyVerifier } from "./verify";
 
-export interface Caller {
+interface Caller {
   id: string;
 }
 

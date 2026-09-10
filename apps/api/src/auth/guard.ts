@@ -1,7 +1,7 @@
 import { Elysia } from "elysia";
 import type { IdentityProvider } from "./privy";
 
-export interface Claims {
+interface Claims {
   id: string;
   expiresAt: number;
 }

@@ -17,7 +17,7 @@ mock.module("../auth/access-token", () => ({
 const { createRoot } = await import("react-dom/client");
 const { NodePresetsProvider } = await import("./presets-context");
 const { SavePresetDialog } = await import("./save-preset-dialog");
-const { hydrateFlow } = await import("./document");
+const { hydrateFlow, isFlowNode } = await import("./document");
 
 const node = hydrateFlow({
   version: 1,
@@ -34,7 +34,7 @@ const node = hydrateFlow({
     },
   ],
   edges: [],
-}).nodes[0]!;
+}).nodes.filter(isFlowNode)[0]!;
 
 const originalFetch = globalThis.fetch;
 let calls: Array<{ method: string; body?: unknown }>;

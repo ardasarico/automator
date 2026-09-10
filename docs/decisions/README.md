@@ -25,3 +25,5 @@ Use one numbered Markdown file per decision, such as `0001-use-postgresql.md`. I
 | [0013](0013-publish-flows-as-an-api-and-as-mcp-tools.md) | Publish flows as an HTTP API and as MCP tools | Accepted |
 | [0014](0014-collect-visitor-usdc-payments-as-a-verified-screen.md) | Collect visitor USDC payments as a screen verified server-side | Accepted |
 | [0015](0015-settle-the-workspace-pages-on-one-page-vocabulary.md) | Settle the workspace pages on one page vocabulary | Accepted |
+| [0016](0016-keep-group-frames-a-drawing-the-engine-never-sees.md) | Keep group frames a drawing the engine never sees | Accepted |
+| [0017](0017-shape-node-cards-by-behaviour-and-colour-them-by-category.md) | Shape node cards by behaviour and colour them by category | Accepted |

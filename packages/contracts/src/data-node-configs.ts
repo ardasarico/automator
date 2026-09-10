@@ -13,12 +13,13 @@ const tableIdField = () =>
     description: "The table this node works on.",
   });
 
-const columnField = (description?: string, title = "Column") =>
+const columnField = (description?: string, title = "Column", hints: Record<string, unknown> = {}) =>
   Type.String({
     default: "",
     columnRef: true,
     title,
     ...(description ? { description } : {}),
+    ...hints,
   });
 
 export const dataFilterRowSchema = Type.Object({
@@ -39,8 +40,12 @@ export const dataValueRowSchema = Type.Object({
 });
 export type DataValueRow = Static<typeof dataValueRowSchema>;
 
-const filtersField = (description: string) =>
-  Type.Array(dataFilterRowSchema, { default: [], description });
+const filtersField = (description: string, hints: Record<string, unknown> = {}) =>
+  Type.Array(dataFilterRowSchema, { default: [], description, ...hints });
+
+/* The editor shows the record id or the filters, never both, keyed on `target`. */
+const byRecord = { showWhen: { field: "target", equals: "record" } };
+const byFilter = { showWhen: { field: "target", equals: "filter" } };
 
 const valuesField = () =>
   Type.Array(dataValueRowSchema, { default: [], description: "The columns to write." });
@@ -61,15 +66,17 @@ export type CreateRecordConfig = Static<typeof createRecordConfigSchema>;
 export const findRecordsConfigSchema = Type.Object({
   tableId: tableIdField(),
   filters: filtersField("Every filter has to match for a record to be returned."),
-  sortColumn: columnField("Blank sorts by creation time.", "Sort by"),
+  sortColumn: columnField("Blank sorts by creation time.", "Sort by", { advanced: true }),
   sortDirection: Type.Union([Type.Literal("asc"), Type.Literal("desc")], {
     default: "desc",
+    advanced: true,
     title: "Order",
   }),
   limit: Type.Integer({
     default: 25,
     minimum: 1,
     maximum: 100,
+    advanced: true,
     title: "Most records to return",
   }),
 });
@@ -82,8 +89,9 @@ export const updateRecordConfigSchema = Type.Object({
     default: "{{input.record.id}}",
     title: "Record",
     description: "The id of the record to change, used when the target is a record.",
+    ...byRecord,
   }),
-  filters: filtersField("Used when the target is a filter; the first match is updated."),
+  filters: filtersField("Used when the target is a filter; the first match is updated.", byFilter),
   values: valuesField(),
 });
 export type UpdateRecordConfig = Static<typeof updateRecordConfigSchema>;
@@ -95,8 +103,9 @@ export const deleteRecordConfigSchema = Type.Object({
     default: "{{input.record.id}}",
     title: "Record",
     description: "The id of the record to delete, used when the target is a record.",
+    ...byRecord,
   }),
-  filters: filtersField("Used when the target is a filter; the first match is deleted."),
+  filters: filtersField("Used when the target is a filter; the first match is deleted.", byFilter),
 });
 export type DeleteRecordConfig = Static<typeof deleteRecordConfigSchema>;
 

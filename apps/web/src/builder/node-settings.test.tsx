@@ -12,7 +12,8 @@ const { NodeSettings } = await import("./node-settings");
 const { RunStoreProvider } = await import("./run-store-provider");
 const { BuilderStoreProvider, useBuilderStore } = await import("./store-provider");
 const { createBuilderStore } = await import("./store");
-const { hydrateFlow } = await import("./document");
+const { hydrateFlow, isFlowNode } = await import("./document");
+const flowNodes = (doc: FlowDocument) => hydrateFlow(doc).nodes.filter(isFlowNode);
 
 const document: FlowDocument = {
   version: 1,
@@ -59,7 +60,7 @@ let root: Root;
 
 async function mount(nodeId: string, run: FlowRun | null = null) {
   const store = createBuilderStore(document);
-  const node = hydrateFlow(document).nodes.find((n) => n.id === nodeId)!;
+  const node = flowNodes(document).find((n) => n.id === nodeId)!;
   container = window.document.createElement("div");
   window.document.body.append(container);
   root = createRoot(container);
@@ -124,7 +125,7 @@ describe("NodeSettings", () => {
     };
     const store = await mount("d", run);
     await act(async () => store.getState().setNodeConfig("d", { content: "" }));
-    expect(container.textContent).toContain("Values below the fields come from the run at");
+    expect(container.textContent).toContain("Last run");
     expect(container.textContent).not.toContain("These settings changed since");
 
     await act(async () =>
@@ -133,9 +134,9 @@ describe("NodeSettings", () => {
           <RunStoreProvider initialRun={run} initialDocument={document}>
             <NodeSettings
               node={{
-                ...hydrateFlow(document).nodes.find((n) => n.id === "d")!,
+                ...flowNodes(document).find((n) => n.id === "d")!,
                 data: {
-                  ...hydrateFlow(document).nodes.find((n) => n.id === "d")!.data,
+                  ...flowNodes(document).find((n) => n.id === "d")!.data,
                   config: { content: "Hi {{input.message.email}} and {{vars.absent}}" },
                 },
               }}
@@ -155,7 +156,9 @@ describe("NodeSettings", () => {
   test("edits a trigger's sample payload as JSON with inline feedback", async () => {
     let typed = "";
     function Live() {
-      const node = useBuilderStore((state) => state.nodes.find((n) => n.id === "t")!);
+      const node = useBuilderStore((state) =>
+        state.nodes.filter(isFlowNode).find((n) => n.id === "t")!,
+      );
       const setNodeConfig = useBuilderStore((state) => state.setNodeConfig);
       return (
         <>
@@ -244,7 +247,9 @@ describe("NodeSettings", () => {
         change = setNodeConfig;
         undo = undoChange;
       });
-      return nodes.map((node) => <NodeSettings key={node.id} node={node} onBack={() => {}} />);
+      return nodes
+        .filter(isFlowNode)
+        .map((node) => <NodeSettings key={node.id} node={node} onBack={() => {}} />);
     }
     container = window.document.createElement("div");
     window.document.body.append(container);
@@ -288,7 +293,7 @@ describe("NodeSettings", () => {
         { nodeId: "form", status: "succeeded", outputs: { submitted: { address: long } } },
       ],
     };
-    const node = hydrateFlow(document).nodes.find((n) => n.id === "d")!;
+    const node = flowNodes(document).find((n) => n.id === "d")!;
     container = window.document.createElement("div");
     window.document.body.append(container);
     root = createRoot(container);

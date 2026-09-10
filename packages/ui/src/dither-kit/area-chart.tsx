@@ -18,5 +18,3 @@ export function AreaChart<TData extends Row>(props: CartesianChartProps<TData>) 
 export function LineChart<TData extends Row>(props: CartesianChartProps<TData>) {
   return <CartesianRoot chartType="line" Canvas={CartesianCanvas} {...props} />;
 }
-
-export type AreaChartProps<TData extends Row> = CartesianChartProps<TData>;

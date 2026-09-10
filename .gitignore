@@ -13,6 +13,10 @@ AGENTS.override.md
 CLAUDE.local.md
 .prova/
 
+# Written by `next dev` on every start; the root AGENTS.md is the instruction source.
+apps/*/AGENTS.md
+apps/*/CLAUDE.md
+
 # Downloaded skills stay local; curated Automator skills are project-owned.
 /.agents/skills/*
 !/.agents/skills/automator-ui/

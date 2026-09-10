@@ -17,7 +17,7 @@ export type FlowRow = {
   id: string;
   name: string;
   description: string;
-  document: Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
+  document: Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges" | "groups">;
   createdAt: Date;
   updatedAt: Date;
   enabled?: boolean;
@@ -47,6 +47,7 @@ export function toRecord(row: FlowRow): FlowRecord {
       ...(row.document.chainId === undefined ? {} : { chainId: row.document.chainId }),
       nodes: row.document.nodes,
       edges: row.document.edges,
+      ...(row.document.groups === undefined ? {} : { groups: row.document.groups }),
     },
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -72,6 +73,7 @@ function toDocument(input: FlowDocumentInput): FlowRow["document"] {
     ...(input.chainId === undefined ? {} : { chainId: input.chainId }),
     nodes: input.nodes,
     edges: input.edges,
+    ...(input.groups === undefined ? {} : { groups: input.groups }),
   };
 }
 

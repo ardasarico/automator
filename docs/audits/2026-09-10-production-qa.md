@@ -20,7 +20,7 @@ Not a deploy failure: the served RSC payload contains `["$","main",null,{}]`, an
 `apps/landing/src/app/page.tsx` is `export default function LandingPage() { return <main />; }`.
 Metadata and OG tags are complete and correct, so link previews look healthy while the page is empty,
 which makes it easy to miss. `docs/plans/2026-09-10-landing-page*.md` exist but none of the implementation
-is on main. Known: Arda is building this himself.
+is on main. Known: the landing page is being built separately.
 
 ### MEDIUM
 
@@ -214,11 +214,6 @@ owner's own wallet, within the 0.1 cap. Server signing was never toggled. No flo
 predated this run was renamed, unpublished or deleted. Eight QA flows, one QA table and one API key were
 created and all were removed afterwards; the key was confirmed dead (`GET /v1/flows` → 401) and the
 scratch MCP registration removed.
-
-Screenshots for the defects above are under the session scratchpad at
-`/private/tmp/claude-501/-Users-ardasari-Documents-GitHub-Automator/f69f89cc-1511-4820-8ee8-b2118d6b2386/scratchpad/shots/`: `runs-detail-no-trigger-node-fired.png`, `builder-minimap-clipped.png`,
-`builder-history-node-count-truncated.png`, `data-rail-missing-new-table.jpg`,
-`data-new-table-select-misplaced.jpg`.
 
 ## Incidental: the in-progress landing code does not parse
 

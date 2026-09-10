@@ -8,23 +8,23 @@ import { rgb, type Seed } from "./palette";
 
 // 4×4 ordered (Bayer) matrix, normalized to 0–1 thresholds — the exact matrix
 // the legacy chart dithers with.
-export const BAYER = [
+const BAYER = [
   [0, 8, 2, 10],
   [12, 4, 14, 6],
   [3, 11, 1, 9],
   [15, 7, 13, 5],
 ].map((row) => row.map((v) => (v + 0.5) / 16));
 
-export const CELL = 2; // css px per dither cell — chunky enough to read pixelated
-export const MAX_COLS = 520;
-export const MAX_ROWS = 200;
+const CELL = 2; // css px per dither cell — chunky enough to read pixelated
+const MAX_COLS = 520;
+const MAX_ROWS = 200;
 // Opacity of the top border outline (just under solid, so it reads as a soft
 // edge rather than a hard line). See the note on colour vs opacity below.
-export const BORDER_ALPHA = 0.72;
+const BORDER_ALPHA = 0.72;
 // Opacity of a dither "off" cell relative to an "on" cell. The scatter modulates
 // between these two tiers of the *same* colour instead of leaving holes, so the
 // background never shows through as stark white on a light theme.
-export const OFF_TIER = 0.4;
+const OFF_TIER = 0.4;
 
 export type PaintOpts = {
   variant: AreaVariant;
@@ -124,9 +124,9 @@ export function backingSize(width: number, height: number) {
 // copy of the rendered canvas, composited additively (`plus-lighter`) so each
 // hue blooms in its own colour instead of a grey wash. Lives on a second canvas
 // layered over the crisp one (which stays sharp/pixelated).
-export type BloomLevel = "off" | "low" | "high" | "aura";
-export type BloomBlend = "plus-lighter" | "screen" | "lighten";
-export type BloomConfig = {
+type BloomLevel = "off" | "low" | "high" | "aura";
+type BloomBlend = "plus-lighter" | "screen" | "lighten";
+type BloomConfig = {
   blur: number; // px
   brightness: number; // 1 = none
   opacity: number; // 0–1

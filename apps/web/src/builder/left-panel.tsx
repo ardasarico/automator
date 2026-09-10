@@ -25,6 +25,8 @@ import { FlowHistory } from "./flow-history";
 import { FlowOutline } from "./flow-outline";
 import { useBuilderDialogs } from "./builder-dialogs";
 import { useLeaveGuard } from "./leave-guard";
+import { isFlowNode } from "./document";
+import { GroupSettings } from "./group-settings";
 import { NodeSettings } from "./node-settings";
 import { useBuilderStore, useBuilderStoreApi } from "./store-provider";
 
@@ -251,7 +253,11 @@ export function LeftPanel() {
         </div>
         {section === "nodes" &&
           (selectedNode ? (
-            <NodeSettings key={selectedNode.id} node={selectedNode} onBack={clearSelection} />
+            isFlowNode(selectedNode) ? (
+              <NodeSettings key={selectedNode.id} node={selectedNode} onBack={clearSelection} />
+            ) : (
+              <GroupSettings key={selectedNode.id} node={selectedNode} onBack={clearSelection} />
+            )
           ) : (
             <NodePalette />
           ))}

@@ -39,7 +39,7 @@ function Title({
   );
 }
 
-export function ScreenFrame({
+function ScreenFrame({
   children,
   footer,
 }: {

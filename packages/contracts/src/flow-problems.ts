@@ -11,6 +11,8 @@ import { apiErrorCodeSchema } from "./contract";
 export const flowProblemSchema = Type.Object({
   severity: Type.Union([Type.Literal("error"), Type.Literal("warning")]),
   nodeId: Type.Optional(Type.String()),
+  /** The setting at fault, such as `config.fields.0.id`, when one setting is; the editor shows the problem under it. */
+  path: Type.Optional(Type.String()),
   message: Type.String(),
 });
 export type FlowProblem = Static<typeof flowProblemSchema>;

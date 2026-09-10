@@ -13,7 +13,7 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
 import { useRef, useState, type FormEvent } from "react";
-import type { BuilderNode } from "./document";
+import type { FlowBuilderNode } from "./document";
 import { PresetRequestError } from "./presets-client";
 import { useNodePresets } from "./presets-context";
 
@@ -24,7 +24,13 @@ const failureMessages: Record<string, string> = {
 };
 
 /** Saves one node's settings as a private preset the palette can insert into any flow. */
-export function SavePresetDialog({ node, onClose }: { node: BuilderNode; onClose: () => void }) {
+export function SavePresetDialog({
+  node,
+  onClose,
+}: {
+  node: FlowBuilderNode;
+  onClose: () => void;
+}) {
   const { save } = useNodePresets();
   const [name, setName] = useState(node.data.label);
   const [busy, setBusy] = useState(false);

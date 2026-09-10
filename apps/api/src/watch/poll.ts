@@ -10,8 +10,7 @@ import {
 import { parsePriceConfig, pricePayload, readPrice, resolveFeed } from "./price";
 import { WatchConfigError, formatDecimal, thresholdMet } from "./threshold";
 
-export const watchTriggerTypes = ["trigger.price", "trigger.balance"] as const;
-export type WatchTriggerType = (typeof watchTriggerTypes)[number];
+const watchTriggerTypes = ["trigger.price", "trigger.balance"] as const;
 
 export function isWatchTrigger(node: FlowNode): boolean {
   return (watchTriggerTypes as readonly string[]).includes(node.type);

@@ -31,11 +31,11 @@ export interface ApiConfig {
   rateLimits: RateLimits;
 }
 
-export const defaultChainId = 84532;
-export const defaultRpcUrl = "https://sepolia.base.org";
-export const defaultUsdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+const defaultChainId = 84532;
+const defaultRpcUrl = "https://sepolia.base.org";
+const defaultUsdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
-export const defaultOpenRouterModel = "openai/gpt-oss-120b";
+const defaultOpenRouterModel = "openai/gpt-oss-120b";
 
 /*
  * Chosen 2026-09-10 on partial evidence — say so, because it was a judgement call and not a

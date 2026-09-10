@@ -10,9 +10,9 @@ import React, { useEffect, useRef } from "react";
 import { Renderer, Program, Mesh, Triangle } from "ogl";
 import "./web-threads.css";
 
-export type FanMode = "center" | "left" | "right";
+type FanMode = "center" | "left" | "right";
 
-export interface WebThreadsProps {
+interface WebThreadsProps {
   color1?: string;
   color2?: string;
   color3?: string;

@@ -1,0 +1,143 @@
+/* Sectioned object forms: named groups and the folded Advanced section. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.advanced {
+  border-top: 1px solid var(--border);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0 2px;
+  font-size: var(--text-caption);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  list-style: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 4px 0 4px 5px;
+  border-color: transparent transparent transparent currentColor;
+}
+
+.advanced[open] > .summary::before {
+  transform: rotate(90deg);
+}
+
+.summaryCount {
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+/* Lists of objects: one borderless row per item, its controls revealed on hover or focus. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+/* The item's name on the left, its controls on the right; the fields get the whole width below. */
+.rowHead {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rowTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.02em;
+  color: var(--muted-foreground);
+}
+
+.rowFields {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.rowFields > * {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.rowActions {
+  display: flex;
+  flex: none;
+  gap: 0;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.row:is(:hover, :focus-within) .rowActions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .rowActions {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rowActions {
+    transition: none;
+  }
+}
+
+/* Help text on demand: inside `.quietHelp`, a description shows only while its field is hovered
+ * or focused. It stays in the DOM, so assistive tech still reads it as the field's description. */
+.quietHelp :global(.schema-help) {
+  display: none;
+}
+
+.quietHelp :is(:hover, :focus-within) > :global(.schema-help) {
+  display: block;
+}

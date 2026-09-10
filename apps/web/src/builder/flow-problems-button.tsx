@@ -13,6 +13,7 @@ import { RiAlertLine, RiErrorWarningLine } from "@remixicon/react";
 import { useReactFlow } from "@xyflow/react";
 import { getCatalogEntry } from "./catalog";
 import styles from "./flow-builder.module.css";
+import { selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
 import { useSelectNode } from "./use-select-node";
 import { useFlowProblems } from "./use-flow-problems";
@@ -24,7 +25,7 @@ import { countErrors, type FlowProblem } from "./validation";
  */
 export function FlowProblemsButton() {
   const problems = useFlowProblems();
-  const nodes = useBuilderStore((state) => state.nodes);
+  const nodes = useBuilderStore(selectFlowNodes);
   const selectNode = useSelectNode();
   const { fitView } = useReactFlow();
   if (problems.length === 0) return null;

@@ -58,8 +58,9 @@ function RefSelect({
           ))}
         </SelectPopup>
       </Select>
+      {/* A problem stays in view where a quiet form hides plain help; see `Help` in fields.tsx. */}
       {description && (
-        <FieldDescription className={invalid ? "text-destructive-text" : undefined}>
+        <FieldDescription className={invalid ? "text-destructive-text" : "schema-help"}>
           {description}
         </FieldDescription>
       )}

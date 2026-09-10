@@ -104,5 +104,3 @@ export const defaultExecutors: ExecutorRegistry = {
   ...notifyExecutors,
   ...loopExecutors,
 };
-
-export { compare, ComparisonError, compareForNode } from "./compare";

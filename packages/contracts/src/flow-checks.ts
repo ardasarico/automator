@@ -323,10 +323,11 @@ export function findFlowProblems(
           // A blank secret is expected right after a fork (snapshots blank them), so it is a
           // to-do rather than a broken graph; the node still fails if the run reaches it.
           const needs = `“${label}” needs ${article(name)} ${name}`;
+          const path = `config.${rule.field}`;
           problems.push(
             secrets.has(rule.field)
-              ? { severity: "warning", nodeId: node.id, message: `${needs}: set your own.` }
-              : { severity: "error", nodeId: node.id, message: `${needs}.` },
+              ? { severity: "warning", nodeId: node.id, path, message: `${needs}: set your own.` }
+              : { severity: "error", nodeId: node.id, path, message: `${needs}.` },
           );
           continue;
         }
@@ -336,13 +337,19 @@ export function findFlowProblems(
           problems.push({
             severity: "error",
             nodeId: node.id,
+            path: `config.${rule.field}`,
             message: `“${label}” needs its ${name} to be ${expected}.`,
           });
       }
       if (node.type === "trigger.schedule") {
         const interval = intervalProblem(String(config.every ?? ""));
         if (interval)
-          problems.push({ severity: "error", nodeId: node.id, message: `“${label}” ${interval}` });
+          problems.push({
+            severity: "error",
+            nodeId: node.id,
+            path: "config.every",
+            message: `“${label}” ${interval}`,
+          });
       }
       /* Rows name a column by id; the executor rejects a row that names none. The columns
        * themselves are checked against the table by findFlowConfigProblems. */
@@ -358,6 +365,7 @@ export function findFlowProblems(
             problems.push({
               severity: "error",
               nodeId: node.id,
+              path: `config.${key}.${index}.column`,
               message: `“${label}” has a ${key === "values" ? "value" : "filter"} row ${index + 1} with no column.`,
             });
           }
@@ -367,6 +375,7 @@ export function findFlowProblems(
         problems.push({
           severity: "warning",
           nodeId: node.id,
+          path: "config.samplePayload",
           message: `“${label}” has a sample payload that is not valid JSON, so Simulate sends an empty one.`,
         });
       /* Both editors keep a row while it is being filled in; a saved one that names nothing
@@ -386,6 +395,7 @@ export function findFlowProblems(
           problems.push({
             severity: "error",
             nodeId: node.id,
+            path: `config.${declaration.key}.${index}.name`,
             message: `“${label}” has ${article(declaration.what)} ${declaration.what} row ${index + 1} with no name.`,
           });
         }
@@ -428,11 +438,17 @@ export function findFlowProblems(
       });
     }
   }
+  /* Named by the node like every other problem; the editor puts the message under the setting
+   * `path` names, so the path itself is no longer part of the sentence. */
+  const labels = new Map(
+    document.nodes.map((node) => [node.id, node.label || fallbackLabel?.(node.type) || node.type]),
+  );
   for (const problem of findFlowConfigProblems(document, tables))
     problems.push({
       severity: "error",
       nodeId: problem.nodeId,
-      message: `${problem.path}: ${problem.message}`,
+      path: problem.path,
+      message: `“${labels.get(problem.nodeId) ?? problem.nodeId}”: ${problem.message}`,
     });
   return problems;
 }

@@ -6,9 +6,9 @@ import {
 import { isAddress } from "viem";
 import { WatchConfigError, formatDecimal, validateDecimals, type Reading } from "./threshold";
 
-export const tokenApiUrl = "https://api.pinax.network";
+const tokenApiUrl = "https://api.pinax.network";
 
-export const nativeToken = "native";
+const nativeToken = "native";
 
 export interface BalanceReading extends Reading {
   symbol: string;

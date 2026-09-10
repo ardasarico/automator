@@ -7,9 +7,14 @@ import {
   MiniMap,
   Panel,
   ReactFlow,
+  SelectionMode,
   useReactFlow,
   useStoreApi,
+  useViewport,
+  type Connection,
+  type Edge,
   type FinalConnectionState,
+  type Node,
   type XYPosition,
 } from "@xyflow/react";
 import { Button } from "@automator/ui/button";
@@ -22,26 +27,40 @@ import {
   RiLayoutMasonryLine,
   RiSubtractLine,
 } from "@remixicon/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
+import { CanvasMenu, type CanvasMenuState } from "./canvas-menu";
 import { isFlowNodeType, type CatalogEntry } from "./catalog";
 import { nodeHalfSize, nodeTypes } from "./flow-node";
+import { snapGrid, snapPosition } from "./grid";
 import styles from "./flow-builder.module.css";
 import { GettingStartedPanel } from "./getting-started-panel";
 import { NodePicker } from "./node-picker";
 import { useNodePresets } from "./presets-context";
 import { RunPanel } from "./run-panel";
+import { SelectionToolbar } from "./selection-toolbar";
 import { edgeRunStatus } from "./run-selectors";
 import { useRunStore } from "./run-store-provider";
 import { useBuilderStore } from "./store-provider";
-import type { NodeTemplate, SourcePort } from "./store";
+import { selectFlowNodes, type NodeTemplate, type SourcePort } from "./store";
 import { groupProblemsByNode, NodeProblemsContext, useFlowProblems } from "./use-flow-problems";
 
 export const nodeTypeMime = "application/x-automator-node-type";
 export const nodePresetMime = "application/x-automator-node-preset";
 
-/** A connection dropped on empty canvas, waiting for the node the picker returns. */
-type PendingConnection = {
-  from: SourcePort;
+/**
+ * The node picker, open at a point on the canvas: from a connection dropped on empty canvas
+ * (wired to `from` once picked), a double-click, or the canvas menu.
+ */
+type PendingPick = {
+  from?: SourcePort;
   at: { x: number; y: number };
   flowPosition: XYPosition;
 };
@@ -118,12 +137,12 @@ function useNodePlacement(): (insert: (position: XYPosition) => void) => void {
         y: defaultNodeSize.height + nodeGap.y,
       };
 
-      let position = origin;
+      let position = snapPosition(origin);
       for (let attempt = 0; attempt < searchRows * searchColumns; attempt += 1) {
-        position = {
+        position = snapPosition({
           x: origin.x + Math.floor(attempt / searchRows) * step.x,
           y: origin.y + (attempt % searchRows) * step.y,
-        };
+        });
         if (!taken.some((box) => overlaps({ ...position, ...defaultNodeSize }, box))) break;
       }
 
@@ -172,7 +191,8 @@ export function useInsertNodeAtCenter(): (input: NodeTemplate) => void {
  * commit that carries the new positions, or it frames where the nodes used to be.
  */
 function useTidyUp() {
-  const nodes = useBuilderStore((state) => state.nodes);
+  // Frames are not laid out; they are refitted around their nodes once those have moved.
+  const nodes = useBuilderStore(selectFlowNodes);
   const edges = useBuilderStore((state) => state.edges);
   const setNodePositions = useBuilderStore((state) => state.setNodePositions);
   const { fitView } = useReactFlow();
@@ -186,6 +206,23 @@ function useTidyUp() {
     setNodePositions(layoutFlowPositions(nodes, edges));
     setTidied((count) => count + 1);
   }, [edges, nodes, setNodePositions]);
+}
+
+/** The current zoom, and the way back to 100 %. */
+function ZoomReadout() {
+  const { zoom } = useViewport();
+  const { zoomTo } = useReactFlow();
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={styles.zoomReadout}
+      aria-label="Reset zoom to 100%"
+      onClick={() => void zoomTo(1, { duration: 200 })}
+    >
+      {Math.round(zoom * 100)}%
+    </Button>
+  );
 }
 
 function ZoomPanel() {
@@ -213,11 +250,12 @@ function ZoomPanel() {
           flow in view.
         </TooltipPopup>
       </Tooltip>
-      <Button variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => zoomIn()}>
-        <RiAddLine />
-      </Button>
       <Button variant="ghost" size="icon-sm" aria-label="Zoom out" onClick={() => zoomOut()}>
         <RiSubtractLine />
+      </Button>
+      <ZoomReadout />
+      <Button variant="ghost" size="icon-sm" aria-label="Zoom in" onClick={() => zoomIn()}>
+        <RiAddLine />
       </Button>
       <Button
         variant="ghost"
@@ -266,8 +304,30 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
   const problems = useFlowProblems();
   const problemsByNode = useMemo(() => groupProblemsByNode(problems), [problems]);
   const { screenToFlowPosition } = useReactFlow();
+  const reconnectEdge = useBuilderStore((state) => state.reconnectEdge);
+  const removeEdge = useBuilderStore((state) => state.removeEdge);
+  const tidyUp = useTidyUp();
+  const { fitView } = useReactFlow();
   const viewport = useRef<HTMLDivElement>(null);
-  const [pending, setPending] = useState<PendingConnection | null>(null);
+  const [pending, setPending] = useState<PendingPick | null>(null);
+  const [menu, setMenu] = useState<CanvasMenuState | null>(null);
+
+  /** Opens the picker at a screen point, kept inside the canvas so no row falls off an edge. */
+  const openPicker = useCallback(
+    (point: { clientX: number; clientY: number }, from?: SourcePort) => {
+      const bounds = viewport.current?.getBoundingClientRect();
+      if (!bounds) return;
+      setPending({
+        ...(from ? { from } : {}),
+        at: {
+          x: clamp(point.clientX - bounds.left, bounds.width, pickerSize.width),
+          y: clamp(point.clientY - bounds.top, bounds.height, pickerSize.height),
+        },
+        flowPosition: screenToFlowPosition({ x: point.clientX, y: point.clientY }),
+      });
+    },
+    [screenToFlowPosition],
+  );
 
   const shownEdges = useMemo(
     () =>
@@ -295,7 +355,7 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
       if (!preset && !isFlowNodeType(type)) return;
       event.preventDefault();
       const point = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      const position = { x: point.x - nodeHalfSize.x, y: point.y - nodeHalfSize.y };
+      const position = snapPosition({ x: point.x - nodeHalfSize.x, y: point.y - nodeHalfSize.y });
       if (preset)
         insertNode({ type: preset.type, label: preset.label, config: preset.config }, position);
       else if (isFlowNodeType(type)) addNode(type, position);
@@ -312,25 +372,96 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
       if (!source) return;
       const point = "changedTouches" in event ? event.changedTouches[0] : event;
       if (!point) return;
-      const bounds = viewport.current?.getBoundingClientRect();
-      if (!bounds) return;
-      setPending({
-        from: { source, sourceHandle: connectionState.fromHandle.id },
-        // Anchored at the drop point, then kept inside the canvas so no row falls off an edge.
-        at: {
-          x: clamp(point.clientX - bounds.left, bounds.width, pickerSize.width),
-          y: clamp(point.clientY - bounds.top, bounds.height, pickerSize.height),
-        },
-        flowPosition: screenToFlowPosition({ x: point.clientX, y: point.clientY }),
-      });
+      openPicker(point, { source, sourceHandle: connectionState.fromHandle.id });
     },
-    [screenToFlowPosition],
+    [openPicker],
+  );
+
+  // Double-clicking empty canvas offers a node at that spot. Nodes handle their own double
+  // click (label editing), and React Flow's double-click zoom is off.
+  const onPaneDoubleClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!(event.target instanceof Element)) return;
+      if (!event.target.classList.contains("react-flow__pane")) return;
+      openPicker(event);
+    },
+    [openPicker],
+  );
+
+  // One menu for everything under the pointer. A right-click on a node that is part of the
+  // current selection acts on the whole selection, the way it does in a file manager.
+  const openMenu = useCallback(
+    (
+      event: { clientX: number; clientY: number; preventDefault(): void },
+      target: CanvasMenuState["target"],
+    ) => {
+      event.preventDefault();
+      setMenu({ target, at: { x: event.clientX, y: event.clientY } });
+    },
+    [],
+  );
+  const onNodeContextMenu = useCallback(
+    (event: ReactMouseEvent, node: Node) => {
+      const selected = nodes.filter((item) => item.selected).map((item) => item.id);
+      const target: CanvasMenuState["target"] =
+        node.selected && selected.length > 1
+          ? { kind: "selection", ids: selected }
+          : { kind: "node", id: node.id };
+      openMenu(event, target);
+    },
+    [nodes, openMenu],
+  );
+  const onSelectionContextMenu = useCallback(
+    (event: ReactMouseEvent, selected: Node[]) =>
+      openMenu(event, { kind: "selection", ids: selected.map((node) => node.id) }),
+    [openMenu],
+  );
+  const onEdgeContextMenu = useCallback(
+    (event: ReactMouseEvent, edge: Edge) => openMenu(event, { kind: "edge", id: edge.id }),
+    [openMenu],
+  );
+  // Taken on the wrapper, not through `onPaneContextMenu`: React Flow only forwards a pane
+  // right-click when the event's target is the pane itself, which a real pointer does not
+  // always satisfy. The wrapper sees every right-click that no node, edge or selection took.
+  const onWrapperContextMenu = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented || !(event.target instanceof Element)) return;
+      if (!event.target.closest(".react-flow__pane")) return;
+      if (event.target.closest(".react-flow__node, .react-flow__edge, .react-flow__nodesselection"))
+        return;
+      openMenu(event, { kind: "pane" });
+    },
+    [openMenu],
+  );
+
+  // Dragging an edge end onto another port moves it; letting go on empty canvas removes it.
+  const reconnected = useRef(false);
+  const onReconnectStart = useCallback(() => {
+    reconnected.current = false;
+  }, []);
+  const onReconnect = useCallback(
+    (edge: Edge, connection: Connection) => {
+      reconnected.current = reconnectEdge(edge, connection);
+    },
+    [reconnectEdge],
+  );
+  const onReconnectEnd = useCallback(
+    (_event: MouseEvent | TouchEvent, edge: Edge) => {
+      if (!reconnected.current) removeEdge(edge.id);
+      reconnected.current = false;
+    },
+    [removeEdge],
   );
 
   return (
     <div className={styles.canvas}>
       <NodeProblemsContext.Provider value={problemsByNode}>
-        <div className={styles.canvasViewport} ref={viewport}>
+        <div
+          className={styles.canvasViewport}
+          ref={viewport}
+          onDoubleClick={onPaneDoubleClick}
+          onContextMenu={onWrapperContextMenu}
+        >
           <ReactFlow
             nodes={nodes}
             edges={shownEdges}
@@ -344,14 +475,33 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
             onDragOver={onDragOver}
             onDrop={onDrop}
             onConnectEnd={onConnectEnd}
+            edgesReconnectable
+            onReconnectStart={onReconnectStart}
+            onReconnect={onReconnect}
+            onReconnectEnd={onReconnectEnd}
+            onNodeContextMenu={onNodeContextMenu}
+            onSelectionContextMenu={onSelectionContextMenu}
+            onEdgeContextMenu={onEdgeContextMenu}
             fitView={nodes.length > 0}
             fitViewOptions={{ padding: 0.2 }}
             deleteKeyCode={["Backspace", "Delete"]}
             minZoom={0.25}
-            maxZoom={2}
+            maxZoom={1.25}
+            snapToGrid
+            snapGrid={snapGrid}
+            // Design-tool pointer model: dragging empty canvas selects; Space or the middle
+            // button drags the view and a two-finger scroll pans it; pinch and Cmd+scroll zoom.
+            // The right button is left alone: React Flow swallows the pane's context menu when
+            // it pans, and the menu matters more.
+            selectionOnDrag
+            selectionMode={SelectionMode.Partial}
+            panOnDrag={[1]}
+            panOnScroll
+            zoomOnDoubleClick={false}
             proOptions={{ hideAttribution: true }}
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} />
+            <SelectionToolbar />
             <ZoomPanel />
             {gettingStarted && <GettingStartedPanel />}
             {nodes.length > 0 && (
@@ -372,19 +522,26 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
             )}
             {nodes.length === 0 && <EmptyCanvas />}
           </ReactFlow>
+          <CanvasMenu
+            menu={menu}
+            onClose={() => setMenu(null)}
+            onAddNodeAt={(at) => openPicker({ clientX: at.x, clientY: at.y })}
+            onTidyUp={tidyUp}
+            onFitView={() => void fitView({ padding: 0.2, duration: 200 })}
+          />
           {pending && (
             <NodePicker
-              label="Add a connected node"
+              label={pending.from ? "Add a connected node" : "Add a node"}
               position={pending.at}
-              accepts={acceptsConnection}
+              accepts={pending.from ? acceptsConnection : undefined}
               onClose={() => setPending(null)}
               onPick={(type) => {
                 addNode(
                   type,
-                  {
+                  snapPosition({
                     x: pending.flowPosition.x - nodeHalfSize.x,
                     y: pending.flowPosition.y - nodeHalfSize.y,
-                  },
+                  }),
                   pending.from,
                 );
                 setPending(null);
