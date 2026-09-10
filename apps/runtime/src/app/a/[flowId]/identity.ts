@@ -2,9 +2,11 @@ import {
   Value,
   worldProofSchema,
   type PrivyLoginConfig,
+  type WorldCredential,
   type WorldIdVerifyConfig,
   type WorldProof,
   type WorldRequest,
+  type WorldSelfieCheckConfig,
 } from "@automator/contracts";
 
 export function toWorldProof(result: unknown): WorldProof {
@@ -13,30 +15,51 @@ export function toWorldProof(result: unknown): WorldProof {
   return result;
 }
 
+/** What a World screen asks IDKit for: the credential plus the action and signal it binds to. */
+export type WorldAsk = { action: string; signal: string; credential: WorldCredential };
+
+export function worldAsk(
+  config: Pick<WorldIdVerifyConfig, "action" | "verificationLevel" | "signal">,
+): WorldAsk {
+  return { action: config.action, signal: config.signal, credential: config.verificationLevel };
+}
+
+export function selfieCheckAsk(
+  config: Pick<WorldSelfieCheckConfig, "action" | "signal">,
+): WorldAsk {
+  return { action: config.action, signal: config.signal, credential: "selfie" };
+}
+
+const presetTypes: Record<WorldCredential, "ProofOfHuman" | "DeviceLegacy" | "SelfieCheckLegacy"> =
+  {
+    orb: "ProofOfHuman",
+    device: "DeviceLegacy",
+    // Selfie Check (Beta) is a World ID 3.0 credential; IDKit 4 still requests it through the
+    // same signed rp_context request as long as legacy proofs are allowed.
+    selfie: "SelfieCheckLegacy",
+  };
+
 /* Build presets as data to keep IDKit browser code out of server imports. */
-export function worldPreset(config: Pick<WorldIdVerifyConfig, "verificationLevel" | "signal">): {
-  type: "ProofOfHuman" | "DeviceLegacy";
+export function worldPreset(ask: Pick<WorldAsk, "credential" | "signal">): {
+  type: "ProofOfHuman" | "DeviceLegacy" | "SelfieCheckLegacy";
   signal?: string;
 } {
   return {
-    type: config.verificationLevel === "orb" ? "ProofOfHuman" : "DeviceLegacy",
-    ...(config.signal === "" ? {} : { signal: config.signal }),
+    type: presetTypes[ask.credential],
+    ...(ask.signal === "" ? {} : { signal: ask.signal }),
   };
 }
 
-export function toIdKitRequest(
-  config: Pick<WorldIdVerifyConfig, "action" | "verificationLevel" | "signal">,
-  request: WorldRequest,
-) {
+export function toIdKitRequest(ask: WorldAsk, request: WorldRequest) {
   if (!request.appId.startsWith("app_"))
     throw new Error("World ID is misconfigured for this app: the app id is not an app_ id.");
   return {
     app_id: request.appId as `app_${string}`,
-    action: config.action,
+    action: ask.action,
     rp_context: request.rpContext,
     allow_legacy_proofs: true,
     environment: request.environment,
-    preset: worldPreset(config),
+    preset: worldPreset(ask),
   };
 }
 

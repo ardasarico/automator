@@ -4,6 +4,7 @@ import type { FlowNodeType } from "./flows";
 export const identityScreenTypes = [
   "privy.login",
   "world.id-verify",
+  "world.selfie-check",
 ] as const satisfies readonly FlowNodeType[];
 export type IdentityScreenType = (typeof identityScreenTypes)[number];
 
@@ -17,6 +18,7 @@ export const identityScreenPorts: Record<
 > = {
   "privy.login": { primary: "user" },
   "world.id-verify": { primary: "verified", secondary: "rejected" },
+  "world.selfie-check": { primary: "verified", secondary: "rejected" },
 };
 
 const text = (fallback = "", description?: string) =>
@@ -70,6 +72,13 @@ export function samplePrivyUser(config: PrivyLoginConfig): VisitorUser {
 
 export const worldVerificationLevels = ["device", "orb"] as const;
 export type WorldVerificationLevel = (typeof worldVerificationLevels)[number];
+
+/**
+ * Every World credential a screen can ask for: the two `world.id-verify` levels plus the Selfie
+ * Check (Beta) credential, issuer schema 11, which `world.selfie-check` requests on its own.
+ */
+export const worldCredentials = [...worldVerificationLevels, "selfie"] as const;
+export type WorldCredential = (typeof worldCredentials)[number];
 
 export const worldIdVerifyConfigSchema = Type.Object({
   title: titleText(),
@@ -149,6 +158,60 @@ export function sampleWorldVerification(config: WorldIdVerifyConfig): WorldVerif
 }
 
 export const sampleWorldRejection: WorldRejection = {
+  code: "invalid_proof",
+  detail: "Simulate took the rejected branch.",
+};
+
+/*
+ * Selfie Check is a medium-assurance liveness and face-similarity credential: it says the visitor
+ * is a live person who has not already completed this action, not that they are unique across
+ * apps. The screen is meant as a gate, so both branches carry `verified` for a condition to read.
+ */
+export const worldSelfieCheckConfigSchema = Type.Object({
+  title: titleText(),
+  message: text(""),
+  button: text("Verify with Selfie Check"),
+  action: text("", "The action id from the World Developer Portal (Incognito actions)."),
+  signal: text(
+    "",
+    "Optional text bound to the proof, such as {{vars.visitor.wallet}}; only vars and trigger resolve here.",
+  ),
+  simulate: Type.Union([Type.Literal("verified"), Type.Literal("rejected")], {
+    default: "verified",
+    description: "Which branch Simulate takes.",
+  }),
+});
+export type WorldSelfieCheckConfig = Static<typeof worldSelfieCheckConfigSchema>;
+
+export const worldSelfieCheckSchema = Type.Object({
+  verified: Type.Literal(true),
+  nullifierHash: Type.String(),
+  credential: Type.String(),
+  action: Type.String(),
+});
+export type WorldSelfieCheck = Static<typeof worldSelfieCheckSchema>;
+
+export const worldSelfieRejectionSchema = Type.Object({
+  verified: Type.Literal(false),
+  code: Type.String(),
+  detail: Type.String(),
+});
+export type WorldSelfieRejection = Static<typeof worldSelfieRejectionSchema>;
+
+export const sampleSelfieNullifierHash =
+  "0x0000000000000000000000000000000000000000000000000000000000000002";
+
+export function sampleWorldSelfieCheck(config: WorldSelfieCheckConfig): WorldSelfieCheck {
+  return {
+    verified: true,
+    nullifierHash: sampleSelfieNullifierHash,
+    credential: "selfie",
+    action: config.action,
+  };
+}
+
+export const sampleWorldSelfieRejection: WorldSelfieRejection = {
+  verified: false,
   code: "invalid_proof",
   detail: "Simulate took the rejected branch.",
 };

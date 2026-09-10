@@ -88,7 +88,12 @@ const textFieldShapes = new Map<string, TextFieldShape>([
 
 export function textFieldShape(name: string, property: Pick<Property, "contentMediaType">) {
   const mediaType = property.contentMediaType ?? "";
-  if (mediaType.endsWith("javascript") || mediaType.endsWith("typescript")) return "code";
+  if (
+    mediaType.endsWith("javascript") ||
+    mediaType.endsWith("typescript") ||
+    mediaType.endsWith("graphql")
+  )
+    return "code";
   return textFieldShapes.get(name) ?? "line";
 }
 

@@ -12,6 +12,7 @@ export const miniAppScreenSchema = Type.Object({
     Type.Literal("screen.qr-code"),
     Type.Literal("privy.login"),
     Type.Literal("world.id-verify"),
+    Type.Literal("world.selfie-check"),
   ]),
   label: Type.String(),
   config: Type.Record(Type.String(), Type.Unknown()),

@@ -105,6 +105,21 @@ const outputShapes: Partial<Record<FlowNode["type"], Record<string, OutputField[
       { path: "", label: "Rejection details", kind: "object" },
     ],
   },
+  "world.selfie-check": {
+    verified: [
+      { path: "verified", label: "Verified", kind: "boolean" },
+      { path: "nullifierHash", label: "Nullifier hash", kind: "text" },
+      { path: "credential", label: "Credential", kind: "text" },
+      { path: "action", label: "Action", kind: "text" },
+      { path: "", label: "Check details", kind: "object" },
+    ],
+    rejected: [
+      { path: "verified", label: "Verified", kind: "boolean" },
+      { path: "code", label: "Rejection code", kind: "text" },
+      { path: "detail", label: "Rejection detail", kind: "text" },
+      { path: "", label: "Rejection details", kind: "object" },
+    ],
+  },
   "notify.telegram": {
     sent: [
       { path: "messageId", label: "Message id", kind: "text" },

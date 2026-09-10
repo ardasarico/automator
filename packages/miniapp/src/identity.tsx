@@ -4,15 +4,18 @@ import {
   parseScreenConfig,
   samplePrivyUser,
   sampleWorldRejection,
+  sampleWorldSelfieCheck,
+  sampleWorldSelfieRejection,
   sampleWorldVerification,
   screenPorts,
   type PrivyLoginConfig,
   type WorldIdVerifyConfig,
+  type WorldSelfieCheckConfig,
   type WorldProof,
   type WorldRequest,
 } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
-import { RiShieldCheckLine, RiUserLine } from "@remixicon/react";
+import { RiCameraLensLine, RiShieldCheckLine, RiUserLine } from "@remixicon/react";
 import type React from "react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ScreenNode } from "./engine";
@@ -26,6 +29,10 @@ export interface IdentityActions {
   privyLogin?(config: PrivyLoginConfig): Promise<{ privyToken: string }>;
   worldVerify?(
     config: WorldIdVerifyConfig,
+    request: WorldRequest,
+  ): Promise<{ worldProof: WorldProof }>;
+  worldSelfieCheck?(
+    config: WorldSelfieCheckConfig,
     request: WorldRequest,
   ): Promise<{ worldProof: WorldProof }>;
   inWorldApp?: boolean;
@@ -49,7 +56,7 @@ export function useIdentityActions(): IdentityActions | null {
 
 export type IdentityScreenProps = {
   node: ScreenNode;
-  onContinue(port: string, data?: Record<string, string>, identity?: IdentityAnswer): void;
+  onContinue(port: string, data?: Record<string, unknown>, identity?: IdentityAnswer): void;
   titleRef?: React.Ref<HTMLHeadingElement>;
   frame: React.ComponentType<{ children: React.ReactNode; footer?: React.ReactNode }>;
   title: React.ComponentType<{
@@ -229,6 +236,72 @@ export function WorldIdVerifyScreen({
       </ProviderNote>
       {preview && (
         <p className="text-caption text-muted-foreground" data-preview="world.id-verify">
+          Preview: continues as {config.simulate === "rejected" ? "rejected" : "verified"}.
+        </p>
+      )}
+      {unconfigured && (
+        <p className="text-caption text-destructive-text">
+          {config.action
+            ? "World ID is not set up for this app yet."
+            : "This step has no World action configured yet."}
+        </p>
+      )}
+      <ErrorNote error={error} />
+    </Frame>
+  );
+}
+
+export function WorldSelfieCheckScreen({
+  node,
+  onContinue,
+  titleRef,
+  frame: Frame,
+  title: Title,
+}: IdentityScreenProps) {
+  const config = parseScreenConfig("world.selfie-check", node.config);
+  const ports = screenPorts("world.selfie-check");
+  const actions = useIdentityActions();
+  const check = actions?.worldSelfieCheck;
+  const request = node.world;
+  const { busy, error, start } = useIdentityAction(
+    check && request ? () => check(config, request) : undefined,
+    (answer) => onContinue(ports.primary, undefined, answer),
+    "The selfie check did not complete. Try again.",
+  );
+  const preview = !check;
+  const unconfigured = !preview && !request;
+  const playSample = () => {
+    if (config.simulate === "rejected")
+      onContinue(ports.secondary ?? ports.primary, { ...sampleWorldSelfieRejection });
+    else onContinue(ports.primary, { ...sampleWorldSelfieCheck(config) });
+  };
+  return (
+    <Frame
+      footer={
+        <Button
+          size="xl"
+          loading={busy}
+          loadingText="Checking…"
+          disabled={unconfigured}
+          onClick={preview ? playSample : start}
+        >
+          {config.button}
+        </Button>
+      }
+    >
+      <Title titleRef={titleRef}>{config.title || node.label}</Title>
+      {config.message && (
+        <p className="text-body whitespace-pre-line text-pretty text-muted-foreground">
+          {config.message}
+        </p>
+      )}
+      <ProviderNote icon={<RiCameraLensLine className="size-4" />}>
+        {actions?.inWorldApp
+          ? "World App takes a quick selfie to confirm a live person is here; no Orb needed."
+          : "World App takes a quick selfie to confirm a live person is here; scan the code with World App. No Orb needed."}
+      </ProviderNote>
+      {preview && (
+        <p className="text-caption text-muted-foreground" data-preview="world.selfie-check">
           Preview: continues as {config.simulate === "rejected" ? "rejected" : "verified"}.
         </p>
       )}

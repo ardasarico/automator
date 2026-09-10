@@ -2,6 +2,7 @@ import { agentConfigSchema, type AgentTool } from "@automator/contracts";
 import { chat, requireModel } from "./ai-executors";
 import { postDiscordMessage } from "./discord";
 import { NodeExecutionError, type ExecutionContext, type ExecutionOutputs } from "./executor";
+import { querySubgraph } from "./graph";
 import type { ChatMessage, ToolDefinition } from "./language-model";
 
 export interface AgentStep {
@@ -40,6 +41,23 @@ const toolDefinitions: Record<AgentTool, ToolDefinition> = {
       type: "object",
       properties: { content: { type: "string" } },
       required: ["content"],
+      additionalProperties: false,
+    },
+  },
+  query_subgraph: {
+    name: "query_subgraph",
+    description:
+      "Run a GraphQL query against the configured subgraph on The Graph Network and return its data as JSON.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "A GraphQL query document" },
+        variables: {
+          type: "object",
+          description: "Values for the query's variables, if it declares any",
+        },
+      },
+      required: ["query"],
       additionalProperties: false,
     },
   },
@@ -129,6 +147,22 @@ export async function runAgent(context: ExecutionContext): Promise<ExecutionOutp
           argument(args, "content"),
         );
         return `Posted message ${delivery.messageId ?? ""}`.trim();
+      }
+      case "query_subgraph": {
+        const variables = args.variables;
+        if (variables !== undefined && (typeof variables !== "object" || variables === null))
+          throw new NodeExecutionError('"variables" must be an object');
+        const data = await querySubgraph(
+          context.fetch,
+          context.graph,
+          {
+            subgraph: config.subgraph,
+            query: argument(args, "query"),
+            variables: variables as Record<string, unknown> | undefined,
+          },
+          context.signal,
+        );
+        return JSON.stringify(data).slice(0, maxBodyChars);
       }
     }
   };

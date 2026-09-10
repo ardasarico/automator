@@ -22,6 +22,7 @@ export * from "./flow-layout";
 export * from "./flow-triggers";
 export * from "./onchain-configs";
 export * from "./watch-configs";
+export * from "./graph-configs";
 export * from "./notify-configs";
 export * from "./loop-configs";
 export * from "./account";

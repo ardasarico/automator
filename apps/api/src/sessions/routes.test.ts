@@ -900,3 +900,155 @@ describe("identity screens in sessions", () => {
     });
   });
 });
+
+describe("selfie check screens in sessions", () => {
+  const selfieFlow: FlowDocument = {
+    ...document,
+    id: "flow-1",
+    nodes: [
+      document.nodes[0]!,
+      {
+        id: "selfie",
+        type: "world.selfie-check",
+        position: { x: 0, y: 0 },
+        label: "Selfie Check",
+        config: { action: "claim", signal: "{{trigger.openedAt}}" },
+      },
+      {
+        id: "gate",
+        type: "logic.condition",
+        position: { x: 0, y: 0 },
+        label: "Verified?",
+        config: { left: "{{input.value.verified}}", operator: "equals", right: "true" },
+      },
+      { id: "yes", type: "screen.page", position: { x: 0, y: 0 }, label: "Claimed", config: {} },
+      { id: "no", type: "screen.page", position: { x: 0, y: 0 }, label: "Denied", config: {} },
+    ],
+    edges: [
+      { id: "1", source: "t", target: "selfie", sourceHandle: "visitor", targetHandle: "visitor" },
+      {
+        id: "2",
+        source: "selfie",
+        target: "gate",
+        sourceHandle: "verified",
+        targetHandle: "value",
+      },
+      { id: "3", source: "selfie", target: "no", sourceHandle: "rejected", targetHandle: "data" },
+      { id: "4", source: "gate", target: "yes", sourceHandle: "true", targetHandle: "data" },
+      { id: "5", source: "gate", target: "no", sourceHandle: "false", targetHandle: "data" },
+    ],
+  };
+  const selfieProof: WorldProof = {
+    protocol_version: "3.0",
+    nonce: proof.nonce,
+    action: "claim",
+    responses: [{ identifier: "selfie", nullifier: "0x6", proof: "0x1", merkle_root: "0x2" }],
+  };
+
+  function stubSelfie(verdict: "accept" | "reject") {
+    const base = stubWorld(verdict);
+    const calls: Parameters<WorldVerifier["verify"]>[0][] = [];
+    const world: WorldVerifier = {
+      requestContext: base.world.requestContext,
+      async verify(input) {
+        calls.push(input);
+        if (verdict === "reject")
+          return { ok: false, rejection: { code: "verification_rejected", detail: "Declined." } };
+        return {
+          ok: true,
+          verification: { nullifierHash: "0x6", verificationLevel: "selfie", action: input.action },
+        };
+      },
+    };
+    return { world, calls };
+  }
+
+  async function answerSelfie(
+    post: ReturnType<typeof fixture>["post"],
+    session: MiniAppSession,
+    body: Record<string, unknown>,
+  ) {
+    const response = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
+      token: session.token,
+      nodeId: "selfie",
+      port: "verified",
+      ...body,
+    });
+    return { status: response.status, json: (await response.json()) as MiniAppSession };
+  }
+
+  test("serves the screen with a request signed for its action and binds the answer to it", async () => {
+    const { world, calls } = stubSelfie("accept");
+    const { post, rows, created } = fixture({ flow: selfieFlow, world });
+    const session = await start(post);
+    expect(session.screen).toMatchObject({
+      nodeId: "selfie",
+      type: "world.selfie-check",
+      config: { action: "claim", button: "Verify with Selfie Check" },
+      world: { appId: "app_123", rpContext: { signature: "0xsig-claim" } },
+    });
+    expect(rows.get(session.sessionId)).toMatchObject({
+      worldNonce: session.screen?.world?.rpContext.nonce,
+    });
+    const other = await start(post);
+    expect((await answerSelfie(post, other, { worldProof: selfieProof })).status).toBe(400);
+    expect(calls).toHaveLength(0);
+
+    const done = await answerSelfie(post, session, { worldProof: selfieProof });
+    expect(done.status).toBe(200);
+    expect(calls).toEqual([
+      {
+        action: "claim",
+        signal: expect.any(String),
+        verificationLevel: "selfie",
+        proof: selfieProof,
+      },
+    ]);
+    expect(calls[0]!.signal).not.toBe("");
+    expect(done.json.screen?.nodeId).toBe("yes");
+    const run = created.at(-1)!.run;
+    expect(run.nodes.find((node) => node.nodeId === "selfie")?.outputs).toEqual({
+      verified: { verified: true, nullifierHash: "0x6", credential: "selfie", action: "claim" },
+    });
+    expect(run.nodes.find((node) => node.nodeId === "gate")?.status).toBe("succeeded");
+  });
+
+  test("a declined check takes Rejected with verified false and the portal's reason", async () => {
+    const { world } = stubSelfie("reject");
+    const { post, created } = fixture({ flow: selfieFlow, world });
+    const session = await start(post);
+    const next = await answerSelfie(post, session, { worldProof: selfieProof });
+    expect(next.status).toBe(200);
+    expect(next.json.screen?.nodeId).toBe("no");
+    expect(created.at(-1)!.run.nodes.find((node) => node.nodeId === "selfie")?.outputs).toEqual({
+      rejected: { verified: false, code: "verification_rejected", detail: "Declined." },
+    });
+  });
+
+  test("a missing proof, a missing action and a missing verifier are told apart", async () => {
+    const { world } = stubSelfie("accept");
+    const { post } = fixture({ flow: selfieFlow, world });
+    const session = await start(post);
+    expect((await answerSelfie(post, session, {})).status).toBe(400);
+
+    const noAction = {
+      ...selfieFlow,
+      nodes: selfieFlow.nodes.map((node) =>
+        node.id === "selfie" ? { ...node, config: { signal: "" } } : node,
+      ),
+    };
+    // Without an action no request is issued, so no proof can match the session's binding.
+    const unconfigured = fixture({ flow: noAction, world });
+    const bare = await start(unconfigured.post);
+    expect(bare.screen?.world).toBeUndefined();
+    expect((await answerSelfie(unconfigured.post, bare, { worldProof: selfieProof })).status).toBe(
+      400,
+    );
+
+    const noWorld = fixture({ flow: selfieFlow });
+    const offline = await start(noWorld.post);
+    const down = await answerSelfie(noWorld.post, offline, { worldProof: selfieProof });
+    expect(down.json.status).toBe("failed");
+    expect(down.json.code).toBe("unconfigured");
+  });
+});

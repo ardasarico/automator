@@ -3,6 +3,8 @@ import {
   RiArrowLeftRightLine,
   RiBankCardLine,
   RiBracesLine,
+  RiBubbleChartLine,
+  RiCameraLensLine,
   RiChatQuoteLine,
   RiCheckboxCircleLine,
   RiCodeSSlashLine,
@@ -65,7 +67,8 @@ export type CatalogGroupId =
   | "notify"
   | "world"
   | "privy"
-  | "usdc";
+  | "usdc"
+  | "graph";
 
 export type CatalogIcon =
   | { kind: "remix"; icon: RemixiconComponentType }
@@ -210,6 +213,13 @@ export const catalogGroups: readonly CatalogGroupDefinition[] = [
     label: "USDC",
     description: "Payments, payouts, and balances.",
     icon: remix(RiBankCardLine),
+    kind: "integration",
+  },
+  {
+    id: "graph",
+    label: "The Graph",
+    description: "Indexed chain data from subgraphs.",
+    icon: remix(RiBubbleChartLine),
     kind: "integration",
   },
 ];
@@ -542,6 +552,16 @@ export const catalog: readonly CatalogEntry[] = [
     outputs: [port("verified", "Verified"), port("rejected", "Rejected")],
   },
   {
+    type: "world.selfie-check",
+    category: "integration",
+    group: "world",
+    label: "Selfie Check",
+    description: "Ask the visitor for a World App selfie check to prove a live person is there.",
+    icon: remix(RiCameraLensLine),
+    inputs: [port("visitor", "Visitor")],
+    outputs: [port("verified", "Verified"), port("rejected", "Rejected")],
+  },
+  {
     type: "privy.wallet",
     category: "integration",
     group: "privy",
@@ -640,6 +660,16 @@ export const catalog: readonly CatalogEntry[] = [
     icon: remix(RiWallet3Line),
     inputs: [port("wallet", "Wallet")],
     outputs: [port("balance", "Balance")],
+  },
+  {
+    type: "graph.query-subgraph",
+    category: "integration",
+    group: "graph",
+    label: "Query subgraph",
+    description: "Read indexed chain data from a subgraph on The Graph Network.",
+    icon: remix(RiBubbleChartLine),
+    inputs: [port("params", "Params")],
+    outputs: [port("data", "Data")],
   },
 ];
 

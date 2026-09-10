@@ -37,6 +37,7 @@ export default defineRailway(() => {
       RAILPACK_NODE_VERSION: "22",
       CHAIN_RPC_URL_4801: preserve(),
       CHAIN_RPC_URL_84532: preserve(),
+      GRAPH_API_KEY: preserve(),
       OPENAI_API_KEY: preserve(),
       OPENAI_MODEL: preserve(),
       OPENROUTER_API_KEY: preserve(),

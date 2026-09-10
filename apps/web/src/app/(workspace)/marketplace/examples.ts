@@ -1,4 +1,6 @@
 import {
+  RiBubbleChartLine,
+  RiCameraLensLine,
   RiCheckboxCircleLine,
   RiCoinLine,
   RiDiscordLine,
@@ -187,5 +189,50 @@ export const flowExamples = [
       { name: "Create record", icon: RiFileAddLine },
     ],
     nodeTypes: ["screen.form", "data.find-records", "data.create-record", "screen.page"],
+  },
+  {
+    id: "uniswap-pool-watch",
+    name: "Uniswap pool watch",
+    description:
+      "Read a Uniswap v3 pool from a subgraph every hour and post when ETH crosses a price.",
+    steps: [
+      { name: "Every hour", description: "A schedule trigger starts the flow." },
+      {
+        name: "Read the pool",
+        description: "Query subgraph asks the Uniswap v3 subgraph for the USDC/ETH pool's price.",
+      },
+      {
+        name: "Above $4,000?",
+        description: "A condition posts to Discord only when the pool prices ETH above the line.",
+      },
+    ],
+    nodes: [
+      { name: "Query subgraph", icon: RiBubbleChartLine },
+      { name: "Discord message", icon: RiDiscordLine },
+    ],
+    nodeTypes: ["trigger.schedule", "graph.query-subgraph", "logic.condition", "notify.discord"],
+  },
+  {
+    id: "selfie-gated-claim",
+    name: "Selfie-gated claim",
+    description: "Pay one USDC claim per live person, checked with a World App selfie.",
+    steps: [
+      { name: "Sign in", description: "Privy signs the visitor in and keeps their wallet." },
+      {
+        name: "Selfie Check",
+        description:
+          "World App takes a selfie and proves a live person is claiming, no Orb needed.",
+      },
+      {
+        name: "Verified?",
+        description: "A condition lets only a verified check through to the payout.",
+      },
+      { name: "Send USDC", description: "The payout node pays the visitor's wallet once." },
+    ],
+    nodes: [
+      { name: "Selfie Check", icon: RiCameraLensLine },
+      { name: "USDC payout", icon: RiCoinLine },
+    ],
+    nodeTypes: ["privy.login", "world.selfie-check", "logic.condition", "usdc.payout"],
   },
 ] as const;

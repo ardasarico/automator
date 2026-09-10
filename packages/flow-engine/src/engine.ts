@@ -14,9 +14,25 @@ import { NodeExecutionError, type ExecutionContext, type ExecutorRegistry } from
 import { defaultExecutors } from "./executors";
 import type { ChainProvider } from "./chain";
 import type { DataProvider } from "./data";
+import type { GraphGateway } from "./graph";
 import type { LanguageModel } from "./language-model";
 import type { Sandbox } from "./sandbox";
 import { autoAnswer } from "./screens";
+
+/*
+ * A signed-in visitor stays reachable as `vars.visitor` for every later node, the way the API
+ * keeps it for a real session, so `{{vars.visitor.wallet}}` reads the same in Simulate, in the
+ * in-browser preview and in a published mini-app.
+ */
+function keepVisitor(
+  node: FlowNode,
+  outputs: Record<string, unknown>,
+  variables: Record<string, unknown>,
+): void {
+  if (node.type !== "privy.login") return;
+  const user = outputs.user;
+  if (typeof user === "object" && user !== null && !Array.isArray(user)) variables.visitor = user;
+}
 import { secretsScope, type SecretsResolver } from "./secrets";
 import { resolveTemplates } from "./template";
 
@@ -41,6 +57,7 @@ export interface RunOptions {
   model?: LanguageModel;
   chain?: ChainProvider;
   data?: DataProvider;
+  graph?: GraphGateway;
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;
   runId?: string;
@@ -387,6 +404,7 @@ async function execute(
         finishedAt,
         outputs: resume.outputs,
       });
+      keepVisitor(node, resume.outputs, variables);
       propagate(node, resume.outputs);
       continue;
     }
@@ -472,6 +490,7 @@ async function execute(
         finishedAt: answeredAt,
         outputs: answer,
       });
+      keepVisitor(node, answer, variables);
       propagate(node, answer);
       continue;
     }
@@ -498,6 +517,7 @@ async function execute(
         ...(options.model ? { model: options.model } : {}),
         ...(options.chain ? { chain: options.chain } : {}),
         ...(options.data ? { data: options.data } : {}),
+        ...(options.graph ? { graph: options.graph } : {}),
         ...(options.sandbox ? { sandbox: options.sandbox } : {}),
         now,
         sleep,

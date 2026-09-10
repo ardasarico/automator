@@ -5,19 +5,31 @@ import {
   isIdentityScreenType,
   privyLoginConfigSchema,
   samplePrivyUser,
+  sampleWorldSelfieCheck,
+  sampleWorldSelfieRejection,
   sampleWorldVerification,
   visitorUserSchema,
+  worldCredentials,
   worldIdVerifyConfigSchema,
   worldProofSchema,
   worldRequestSchema,
+  worldSelfieCheckConfigSchema,
+  worldSelfieCheckSchema,
+  worldSelfieRejectionSchema,
 } from "./identity";
 import { parseScreenConfig } from "./screens";
 
 describe("identity screen types", () => {
-  test("are the two visitor pauses that need a provider", () => {
+  test("are the three visitor pauses that need a provider", () => {
     expect(isIdentityScreenType("privy.login")).toBe(true);
     expect(isIdentityScreenType("world.id-verify")).toBe(true);
+    expect(isIdentityScreenType("world.selfie-check")).toBe(true);
     expect(isIdentityScreenType("screen.page")).toBe(false);
+    expect(identityScreenPorts["world.selfie-check"]).toEqual({
+      primary: "verified",
+      secondary: "rejected",
+    });
+    expect(worldCredentials).toEqual(["device", "orb", "selfie"]);
     expect(identityScreenPorts["privy.login"]).toEqual({ primary: "user" });
     expect(identityScreenPorts["world.id-verify"]).toEqual({
       primary: "verified",
@@ -121,10 +133,53 @@ describe("world.id-verify config", () => {
   });
 
   test("the config schemas carry no secret fields", () => {
-    for (const schema of [privyLoginConfigSchema, worldIdVerifyConfigSchema]) {
+    for (const schema of [
+      privyLoginConfigSchema,
+      worldIdVerifyConfigSchema,
+      worldSelfieCheckConfigSchema,
+    ]) {
       for (const property of Object.values(schema.properties)) {
         expect((property as { secret?: boolean }).secret).toBeUndefined();
       }
     }
+  });
+});
+
+describe("world.selfie-check config", () => {
+  test("defaults to a verified check with no action yet and no level to pick", () => {
+    expect(parseScreenConfig("world.selfie-check", {})).toEqual({
+      title: "",
+      message: "",
+      button: "Verify with Selfie Check",
+      action: "",
+      signal: "",
+      simulate: "verified",
+    });
+    expect(
+      parseScreenConfig("world.selfie-check", { simulate: "rejected", verificationLevel: "orb" }),
+    ).toEqual({
+      title: "",
+      message: "",
+      button: "Verify with Selfie Check",
+      action: "",
+      signal: "",
+      simulate: "rejected",
+    });
+  });
+
+  test("samples both branches as gates a condition can read", () => {
+    const check = sampleWorldSelfieCheck(
+      parseScreenConfig("world.selfie-check", { action: "claim" }),
+    );
+    expect(Value.Check(worldSelfieCheckSchema, check)).toBe(true);
+    expect(check).toEqual({
+      verified: true,
+      nullifierHash: "0x0000000000000000000000000000000000000000000000000000000000000002",
+      credential: "selfie",
+      action: "claim",
+    });
+    expect(Value.Check(worldSelfieRejectionSchema, sampleWorldSelfieRejection)).toBe(true);
+    expect(sampleWorldSelfieRejection.verified).toBe(false);
+    expect(Value.Check(worldSelfieCheckSchema, { ...check, verified: false })).toBe(false);
   });
 });

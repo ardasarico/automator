@@ -20,7 +20,7 @@ import type {
   SessionStore,
   UserStore,
 } from "@automator/db";
-import type { LanguageModel } from "@automator/flow-engine";
+import type { GraphGateway, LanguageModel } from "@automator/flow-engine";
 import { Elysia } from "elysia";
 import type { IdentityProvider } from "./auth/privy";
 import type { ChainFactory } from "./chain/provider";
@@ -59,6 +59,8 @@ export interface AppDependencies {
   account?: AccountStore;
   identity?: IdentityProvider;
   model?: LanguageModel;
+  /** The Graph gateway key for subgraph queries; without it those nodes fail as unconfigured. */
+  graph?: GraphGateway;
   chainFactory?: ChainFactory;
   dataTables?: DataTableStore;
   dataRecords?: DataRecordStore;
@@ -106,6 +108,7 @@ export function createApp({
   identity,
   log = false,
   model,
+  graph,
   chainFactory,
   dataTables,
   dataRecords,
@@ -124,7 +127,12 @@ export function createApp({
     ? (ownerId: string) => createSecretsResolver(secretsAccess, ownerId)
     : undefined;
   const sandbox = createQuickJsSandbox();
-  const engineFor = (ownerId: string) => ({ model, sandbox, secrets: secretsFor?.(ownerId) });
+  const engineFor = (ownerId: string) => ({
+    model,
+    graph,
+    sandbox,
+    secrets: secretsFor?.(ownerId),
+  });
 
   return new Elysia()
     .onRequest(({ request, set }) => {
@@ -201,7 +209,7 @@ export function createApp({
         identity,
         flows,
         runs,
-        engine: { model },
+        engine: { model, graph },
         secretsFor,
         chainFactory,
         dataFactory,
@@ -237,7 +245,7 @@ export function createApp({
             flows,
             runs,
             sessions,
-            engine: { model, sandbox },
+            engine: { model, sandbox, graph },
             secretsFor,
             chainFactory,
             dataFactory,

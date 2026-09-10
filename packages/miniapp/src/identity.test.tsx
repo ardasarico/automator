@@ -27,6 +27,12 @@ const document: FlowDocument = {
       button: "Verify",
     }),
     node("rejected", "world.id-verify", "Simulated rejection", { simulate: "rejected" }),
+    node("selfie", "world.selfie-check", "Selfie Check", {
+      action: "claim",
+      message: "One claim per person.",
+      button: "Take the check",
+    }),
+    node("selfie-rejected", "world.selfie-check", "Selfie rejected", { simulate: "rejected" }),
   ],
   edges: [
     { id: "1", source: "t", target: "login", sourceHandle: "visitor" },
@@ -72,6 +78,39 @@ describe("identity screens", () => {
     expect(html).not.toContain("data-preview");
     expect(html).not.toContain("scan the code");
     expect(html).toContain("Proves you are a unique human");
+  });
+
+  test("the selfie check explains itself, previews without a host, and needs the host's action", () => {
+    const html = renderToStaticMarkup(<MiniApp document={document} startAt="selfie" />);
+    expect(html).toContain("Selfie Check");
+    expect(html).toContain("One claim per person.");
+    expect(html).toContain(">Take the check<");
+    expect(html).toContain("scan the code with World App");
+    expect(html).toContain("No Orb needed");
+    expect(html).toContain('data-preview="world.selfie-check"');
+    expect(html).toContain("Preview: continues as verified.");
+    const rejected = renderToStaticMarkup(
+      <MiniApp document={document} startAt="selfie-rejected" />,
+    );
+    expect(rejected).toContain("Preview: continues as rejected.");
+
+    const selfieHost = { ...hostActions, worldSelfieCheck: hostActions.worldVerify };
+    const hosted = renderToStaticMarkup(
+      <IdentityActionsProvider actions={selfieHost}>
+        <MiniApp document={document} startAt="selfie" />
+      </IdentityActionsProvider>,
+    );
+    expect(hosted).not.toContain("data-preview");
+    expect(hosted).not.toContain("scan the code");
+    expect(hosted).toContain("World ID is not set up for this app yet.");
+    const missing = { ...document, nodes: document.nodes.map((n) => ({ ...n, config: {} })) };
+    const noAction = renderToStaticMarkup(
+      <IdentityActionsProvider actions={selfieHost}>
+        <MiniApp document={missing} startAt="selfie" />
+      </IdentityActionsProvider>,
+    );
+    expect(noAction).toContain("no World action configured");
+    expect(noAction).toContain("disabled");
   });
 
   test("a missing action or World setup is called out only when a real verification would run", () => {

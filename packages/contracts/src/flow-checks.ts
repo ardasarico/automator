@@ -97,6 +97,12 @@ const requiredConfig: Partial<Record<FlowNodeType, readonly FieldRule[]>> = {
       field: "discordWebhookUrl",
       when: (config) => agentTools(config).includes("discord_message"),
     },
+    { field: "subgraph", when: (config) => agentTools(config).includes("query_subgraph") },
+  ],
+  "graph.query-subgraph": [
+    { field: "subgraph" },
+    { field: "query" },
+    { field: "variables", optional: true, shape: "json" },
   ],
   "notify.discord": [{ field: "webhookUrl" }, { field: "content" }],
   "notify.telegram": [{ field: "botToken" }, { field: "chatId" }, { field: "text" }],
@@ -108,6 +114,7 @@ const requiredConfig: Partial<Record<FlowNodeType, readonly FieldRule[]>> = {
     { field: "text" },
   ],
   "world.id-verify": [{ field: "action" }],
+  "world.selfie-check": [{ field: "action" }],
   "data.update-record": [{ field: "recordId", when: targetsRecord }],
   "data.delete-record": [{ field: "recordId", when: targetsRecord }],
 };
@@ -142,6 +149,9 @@ const fieldLabels: Record<string, string> = {
   "ai.extract.schema": "result shape",
   "ai.agent.task": "task",
   "ai.agent.allowedHosts": "allowed host for its HTTP tool",
+  "ai.agent.subgraph": "subgraph for its query tool",
+  "graph.query-subgraph.subgraph": "subgraph",
+  "graph.query-subgraph.query": "GraphQL query",
   "notify.telegram.botToken": "Telegram bot token",
   "notify.telegram.chatId": "chat id",
   "notify.telegram.text": "message text",
@@ -330,7 +340,7 @@ export function findFlowProblems(
           });
       }
       if (
-        node.type === "world.id-verify" &&
+        (node.type === "world.id-verify" || node.type === "world.selfie-check") &&
         !document.edges.some((edge) => edge.source === node.id && edge.sourceHandle === "rejected")
       ) {
         // An unwired port ends the flow, so a rejected visitor would see "All done".

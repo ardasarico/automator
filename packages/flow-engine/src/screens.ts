@@ -3,6 +3,8 @@ import {
   parseScreenConfig,
   samplePrivyUser,
   sampleWorldRejection,
+  sampleWorldSelfieCheck,
+  sampleWorldSelfieRejection,
   sampleWorldVerification,
   screenPorts,
   type FlowNode,
@@ -49,6 +51,15 @@ export function autoAnswer(node: FlowNode): ExecutionOutputs | null {
       return { [port]: sampleWorldRejection, simulated: { port } };
     }
     return { [ports.primary]: sampleWorldVerification(config), simulated: { port: ports.primary } };
+  }
+  if (node.type === "world.selfie-check") {
+    const config = parseScreenConfig(node.type, node.config);
+    const ports = screenPorts(node.type);
+    if (config.simulate === "rejected") {
+      const port = ports.secondary ?? ports.primary;
+      return { [port]: sampleWorldSelfieRejection, simulated: { port } };
+    }
+    return { [ports.primary]: sampleWorldSelfieCheck(config), simulated: { port: ports.primary } };
   }
   const port =
     node.type === "screen.confirmation"

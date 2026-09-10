@@ -33,7 +33,7 @@ export interface RunDependencies {
   identity: IdentityProvider | undefined;
   callsPerMinute?: number;
   now?: () => number;
-  engine?: Pick<RunOptions, "fetch" | "sleep" | "executors" | "model">;
+  engine?: Pick<RunOptions, "fetch" | "sleep" | "executors" | "model" | "graph">;
   secretsFor?: (ownerId: string) => SecretsResolver;
   chainFactory?: ChainFactory;
   dataFactory?: DataFactory;

@@ -598,6 +598,23 @@ describe("runFlow resume", () => {
     });
     expect(verified.status).toBe("succeeded");
     expect(calls).toEqual([{ content: "0xabc for ada@example.com" }]);
+
+    // Simulate keeps the sample visitor in vars, as the API does for a real sign-in.
+    const auto = await runFlow(gated, {
+      screens: "auto",
+      trigger: { payload: {} },
+      now: fixedNow,
+      fetch: fakeFetch((_url, init) => {
+        calls.push(JSON.parse(String(init?.body)));
+        return Response.json({ id: "m1", channel_id: "c1" });
+      }),
+    });
+    expect(auto.status).toBe("succeeded");
+    expect(auto.variables.visitor).toMatchObject({ email: "visitor@example.com" });
+    expect(calls.at(-1)).toEqual({
+      content:
+        "0x0000000000000000000000000000000000000000000000000000000000000001 for visitor@example.com",
+    });
     expect(verified.nodes.map((result) => result.status)).toEqual([
       "skipped",
       "skipped",

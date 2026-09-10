@@ -7,6 +7,7 @@ import {
 import { aiExecutors } from "./ai-executors";
 import { compareForNode } from "./compare";
 import { dataExecutors } from "./data-executors";
+import { graphExecutors } from "./graph-executors";
 import { logicExecutors } from "./logic-executors";
 import { loopExecutors } from "./loop-executors";
 import { notifyExecutors } from "./notify-executors";
@@ -36,6 +37,7 @@ export const defaultExecutors: ExecutorRegistry = {
   "screen.qr-code": screen,
   "privy.login": screen,
   "world.id-verify": screen,
+  "world.selfie-check": screen,
 
   "logic.condition": {
     kind: "step",
@@ -77,6 +79,7 @@ export const defaultExecutors: ExecutorRegistry = {
 
   ...aiExecutors,
   ...dataExecutors,
+  ...graphExecutors,
   ...logicExecutors,
   ...onchainExecutors,
   ...notifyExecutors,

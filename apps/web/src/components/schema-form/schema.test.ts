@@ -60,5 +60,6 @@ describe("textFieldShape", () => {
 
   test("follows a schema that names a source media type", () => {
     expect(textFieldShape("expression", { contentMediaType: "text/javascript" })).toBe("code");
+    expect(textFieldShape("query", { contentMediaType: "application/graphql" })).toBe("code");
   });
 });

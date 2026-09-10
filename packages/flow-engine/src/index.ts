@@ -30,6 +30,8 @@ export type {
 export { describeChainError } from "./chain-errors";
 export { erc20Abi, jsonSafe } from "./abi";
 export { dataExecutors } from "./data-executors";
+export { graphExecutors } from "./graph-executors";
+export { graphGatewayUrl, querySubgraph, subgraphUrl, type GraphGateway } from "./graph";
 export { logicExecutors } from "./logic-executors";
 export { postDiscordMessage, type DiscordDelivery } from "./discord";
 export type { AgentStep } from "./agent";

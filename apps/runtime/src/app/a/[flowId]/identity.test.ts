@@ -4,8 +4,10 @@ import {
   describeIdKitError,
   describePrivyError,
   privyLoginMethods,
+  selfieCheckAsk,
   toIdKitRequest,
   toWorldProof,
+  worldAsk,
   worldPreset,
 } from "./identity";
 
@@ -17,19 +19,33 @@ const request = {
 
 describe("worldPreset", () => {
   test("asks for a proof of human at orb level and the legacy device credential otherwise", () => {
-    expect(worldPreset({ verificationLevel: "orb", signal: "" })).toEqual({ type: "ProofOfHuman" });
-    expect(worldPreset({ verificationLevel: "device", signal: "0xAda" })).toEqual({
+    expect(worldPreset({ credential: "orb", signal: "" })).toEqual({ type: "ProofOfHuman" });
+    expect(worldPreset({ credential: "device", signal: "0xAda" })).toEqual({
       type: "DeviceLegacy",
       signal: "0xAda",
+    });
+  });
+
+  test("asks for the legacy Selfie Check preset for a selfie-check screen", () => {
+    expect(worldPreset(selfieCheckAsk({ action: "claim", signal: "" }))).toEqual({
+      type: "SelfieCheckLegacy",
+    });
+    expect(selfieCheckAsk({ action: "claim", signal: "0xAda" })).toEqual({
+      action: "claim",
+      signal: "0xAda",
+      credential: "selfie",
+    });
+    expect(worldAsk({ action: "claim", verificationLevel: "device", signal: "" })).toEqual({
+      action: "claim",
+      signal: "",
+      credential: "device",
     });
   });
 });
 
 describe("toIdKitRequest", () => {
   test("hands IDKit the app, the signed context, the environment and the preset", () => {
-    expect(
-      toIdKitRequest({ action: "claim", verificationLevel: "orb", signal: "" }, request),
-    ).toEqual({
+    expect(toIdKitRequest({ action: "claim", credential: "orb", signal: "" }, request)).toEqual({
       app_id: "app_123",
       action: "claim",
       rp_context: request.rpContext,
@@ -42,7 +58,7 @@ describe("toIdKitRequest", () => {
   test("refuses an app id that is not an app_ id", () => {
     expect(() =>
       toIdKitRequest(
-        { action: "claim", verificationLevel: "orb", signal: "" },
+        { action: "claim", credential: "orb", signal: "" },
         { ...request, appId: "nope" },
       ),
     ).toThrow("not an app_ id");

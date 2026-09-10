@@ -1,9 +1,9 @@
 import type {
+  WorldCredential,
   WorldProof,
   WorldRejection,
   WorldRequest,
   WorldVerification,
-  WorldVerificationLevel,
 } from "@automator/contracts";
 import { signRequest } from "@worldcoin/idkit-server";
 import { hexToBytes, keccak256, stringToBytes, type Hex } from "viem";
@@ -28,7 +28,8 @@ export interface WorldVerifier {
   verify(input: {
     action: string;
     signal: string;
-    verificationLevel: WorldVerificationLevel;
+    /** The credential the screen asked for; only a matching portal result verifies it. */
+    verificationLevel: WorldCredential;
     proof: WorldProof;
   }): Promise<WorldVerifyResult>;
 }
@@ -72,6 +73,26 @@ export function readWorldConfig(env: {
     ? (env.WORLD_ENVIRONMENT as WorldConfig["environment"])
     : "production";
   return { appId, rpId, signingKey, environment };
+}
+
+/*
+ * Which portal result identifiers satisfy a requested credential. Selfie Check (issuer schema 11)
+ * is reported as `selfie`; IDKit maps World App's older `face` name to the same credential.
+ */
+const credentialIdentifiers: Record<WorldCredential, readonly string[]> = {
+  device: ["device"],
+  orb: ["proof_of_human", "orb"],
+  selfie: ["selfie", "face"],
+};
+
+function acceptsCredential(
+  credential: WorldCredential,
+  item: Record<string, unknown> | null,
+): boolean {
+  return (
+    typeof item?.identifier === "string" &&
+    credentialIdentifiers[credential].includes(item.identifier)
+  );
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -157,11 +178,7 @@ export function createWorldVerifier(
           throw new WorldVerifyError("World ID verification returned no verified credential");
         // Overall success means at least one credential verified, not that our requested
         // credential did. Only the portal's successful result may establish the level.
-        const accepted = successful.find((item) =>
-          verificationLevel === "device"
-            ? item?.identifier === "device"
-            : item?.identifier === "proof_of_human" || item?.identifier === "orb",
-        );
+        const accepted = successful.find((item) => acceptsCredential(verificationLevel, item));
         if (!accepted)
           return {
             ok: false,
@@ -173,7 +190,9 @@ export function createWorldVerifier(
         // A different result's top-level nullifier or a client-supplied response must not
         // become the identity of the credential we selected.
         const nullifier = accepted.nullifier;
-        const identifier = accepted.identifier as string;
+        // World App still names Selfie Check `face` in some builds; IDKit reports it as `selfie`.
+        const identifier =
+          accepted.identifier === "face" ? "selfie" : (accepted.identifier as string);
         if (typeof nullifier !== "string" || !/^0x[0-9a-fA-F]{1,64}$/.test(nullifier))
           throw new WorldVerifyError("World ID verification returned no valid nullifier");
         return {

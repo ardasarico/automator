@@ -75,6 +75,14 @@ function toSteps(session: MiniAppSession): WorkingStep[] {
   return session.steps.map((step) => ({ id: step.nodeId, label: step.label, status: step.status }));
 }
 
+function onlyStrings(values: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(values).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
+}
+
 export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
   const [loaded, setLoaded] = useState<{ client: MiniAppClient; state: State }>({
     client,
@@ -144,7 +152,10 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
       titleRef.current?.focus();
   }, [state]);
 
-  const act = (port: string, data?: Record<string, string>, identity?: IdentityAnswer) => {
+  const act = (port: string, answered?: Record<string, unknown>, identity?: IdentityAnswer) => {
+    // Only a form sends data over the wire; identity screens answer with a proof or token, and
+    // their preview values never reach a hosted session.
+    const data = answered ? onlyStrings(answered) : undefined;
     const source = requests.current;
     if (!source || source.client !== client) return;
     if (state.kind !== "session" || !state.session.screen || answerable.current !== state) return;

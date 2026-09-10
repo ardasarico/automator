@@ -61,6 +61,13 @@ const chainFactory = createChainFactory(
   database.paymentPolicies,
 );
 
+const graph = config.graphApiKey
+  ? {
+      apiKey: config.graphApiKey,
+      ...(config.graphGatewayUrl ? { url: config.graphGatewayUrl } : {}),
+    }
+  : undefined;
+
 const app = createApp({
   database,
   users: database.users,
@@ -73,6 +80,7 @@ const app = createApp({
   account: database.account,
   identity,
   model,
+  graph,
   chainFactory,
   dataTables: database.dataTables,
   dataRecords: database.dataRecords,
@@ -94,6 +102,7 @@ const scheduler = createScheduler({
   triggerClaims: database.triggerClaims,
   engine: (ownerId) => ({
     model,
+    graph,
     sandbox: createQuickJsSandbox(),
     secrets: createSecretsResolver({ secrets: database.secrets, crypto: secretsCrypto }, ownerId),
   }),

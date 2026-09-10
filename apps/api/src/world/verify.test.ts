@@ -253,6 +253,52 @@ describe("createWorldVerifier", () => {
     },
   );
 
+  test.each(["selfie", "face"])(
+    "accepts a verified %s result for a Selfie Check request and reports it as selfie",
+    async (identifier) => {
+      const verifier = createWorldVerifier(
+        config,
+        fakeFetch(() =>
+          Response.json({
+            success: true,
+            nullifier: "0x3",
+            results: [
+              { identifier: "proof_of_human", success: true, nullifier: "0x3" },
+              { identifier, success: true, nullifier: "0x6" },
+            ],
+          }),
+        ),
+      )!;
+      expect(await verifier.verify({ ...verifyInput, verificationLevel: "selfie" })).toEqual({
+        ok: true,
+        verification: { nullifierHash: "0x6", verificationLevel: "selfie", action: "claim" },
+      });
+    },
+  );
+
+  test("does not let an Orb or device credential stand in for a Selfie Check", async () => {
+    const verifier = createWorldVerifier(
+      config,
+      fakeFetch(() =>
+        Response.json({
+          success: true,
+          results: [
+            { identifier: "proof_of_human", success: true, nullifier: "0x3" },
+            { identifier: "device", success: true, nullifier: "0x4" },
+            { identifier: "selfie", success: false, nullifier: "0x6" },
+          ],
+        }),
+      ),
+    )!;
+    expect(await verifier.verify({ ...verifyInput, verificationLevel: "selfie" })).toEqual({
+      ok: false,
+      rejection: {
+        code: "verification_level_mismatch",
+        detail: "The proof does not include the required World ID credential.",
+      },
+    });
+  });
+
   test("requires the requested device credential instead of accepting an unrelated verified credential", async () => {
     const verifier = createWorldVerifier(
       config,

@@ -22,6 +22,8 @@ import {
   type MiniAppSession,
   type MiniAppStep,
   type ScreenNodeType,
+  type WorldSelfieCheck,
+  type WorldSelfieRejection,
 } from "@automator/contracts";
 import type { FlowStore, MiniAppSessionRow, RunStore, SessionStore } from "@automator/db";
 import {
@@ -45,7 +47,7 @@ export interface SessionDependencies {
   sessions: SessionStore;
   engine?: Pick<
     RunOptions,
-    "fetch" | "sleep" | "executors" | "model" | "sandbox" | "chain" | "data"
+    "fetch" | "sleep" | "executors" | "model" | "sandbox" | "chain" | "data" | "graph"
   >;
   secretsFor?: (ownerId: string) => SecretsResolver;
   chainFactory?: ChainFactory;
@@ -131,7 +133,10 @@ function toSession(
         { ...node, type },
         { ...scope, input: screenScope(document, run, node.id).input },
       );
-      const action = type === "world.id-verify" ? (config as { action: string }).action : "";
+      const action =
+        type === "world.id-verify" || type === "world.selfie-check"
+          ? (config as { action: string }).action
+          : "";
       const request = world && action !== "" ? world.requestContext(action) : undefined;
       return {
         sessionId,
@@ -216,6 +221,44 @@ async function answerIdentityScreen(
           outputs: result.ok
             ? { [ports.primary]: result.verification }
             : { [ports.secondary ?? ports.primary]: result.rejection },
+          variables: row.variables,
+        },
+      };
+    } catch (error) {
+      if (error instanceof WorldVerifyError) return { status: 503, error: "unavailable" };
+      throw error;
+    }
+  }
+  if (node.type === "world.selfie-check") {
+    if (!body.worldProof) return { status: 400, error: "invalid_request" };
+    if (!deps.world) return failed("World ID is not configured on this server: set WORLD_APP_ID");
+    const config = resolveTemplates(parseScreenConfig(node.type, node.config), {
+      input,
+      vars: row.variables,
+      trigger: row.payload,
+    });
+    if (!config.action) return failed("Selfie Check needs an action id from the Developer Portal");
+    const ports = screenPorts(node.type);
+    try {
+      const result = await deps.world.verify({
+        action: config.action,
+        signal: config.signal,
+        verificationLevel: "selfie",
+        proof: body.worldProof,
+      });
+      // The gate shape: both branches say `verified` so a condition can read it either way.
+      const outputs: WorldSelfieCheck | WorldSelfieRejection = result.ok
+        ? {
+            verified: true,
+            nullifierHash: result.verification.nullifierHash,
+            credential: result.verification.verificationLevel,
+            action: result.verification.action,
+          }
+        : { verified: false, ...result.rejection };
+      return {
+        resume: {
+          nodeId: node.id,
+          outputs: { [result.ok ? ports.primary : (ports.secondary ?? ports.primary)]: outputs },
           variables: row.variables,
         },
       };
@@ -327,7 +370,7 @@ export function createSessionRoutes({
           // issued request bound to this pause; mismatches never reach the World portal.
           if (
             world &&
-            node.type === "world.id-verify" &&
+            (node.type === "world.id-verify" || node.type === "world.selfie-check") &&
             body.worldProof &&
             (row.worldNonce !== body.worldProof.nonce ||
               row.worldExpiresAt === null ||

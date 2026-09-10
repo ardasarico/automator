@@ -45,6 +45,8 @@ describe("API configuration", () => {
       openRouterModel: "openai/gpt-oss-120b",
       tokenApiKey: undefined,
       tokenApiUrl: undefined,
+      graphApiKey: undefined,
+      graphGatewayUrl: undefined,
       openAiApiKey: undefined,
       openAiModel: defaultOpenAiModel,
       secretsKey: Buffer.from(secretsKey, "base64"),
@@ -100,6 +102,16 @@ describe("API configuration", () => {
     expect(() => readConfig({ ...complete, SECRETS_KEY: "short", NODE_ENV: "production" })).toThrow(
       "32 bytes",
     );
+  });
+
+  test("The Graph gateway key is optional and its origin override is read beside it", () => {
+    expect(readConfig({ ...complete, GRAPH_API_KEY: "", GRAPH_GATEWAY_URL: "" })).toMatchObject({
+      graphApiKey: undefined,
+      graphGatewayUrl: undefined,
+    });
+    expect(
+      readConfig({ ...complete, GRAPH_API_KEY: "studio", GRAPH_GATEWAY_URL: "https://gw.test" }),
+    ).toMatchObject({ graphApiKey: "studio", graphGatewayUrl: "https://gw.test" });
   });
 
   test("OpenRouter is optional, with a default model that a blank variable keeps", () => {

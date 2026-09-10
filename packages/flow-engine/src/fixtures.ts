@@ -83,6 +83,9 @@ export const nodeFixtures: Partial<Record<FlowNodeType, Record<string, unknown>>
       action: "verify",
     },
   },
+  "world.selfie-check": {
+    verified: { verified: true, nullifierHash: blockHash, credential: "selfie", action: "verify" },
+  },
   "notify.email": { sent: { id: "fixture-email", to: ["visitor@example.com"] } },
   "notify.discord": { sent: { messageId: "fixture-message", channelId: "fixture-channel" } },
   "notify.telegram": { sent: { messageId: "fixture-message", chatId: "fixture-chat" } },

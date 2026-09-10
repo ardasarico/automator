@@ -6,6 +6,7 @@ import {
   isIdentityScreenType,
   privyLoginConfigSchema,
   worldIdVerifyConfigSchema,
+  worldSelfieCheckConfigSchema,
 } from "./identity";
 
 export const screenNodeTypes = [
@@ -15,6 +16,7 @@ export const screenNodeTypes = [
   "screen.qr-code",
   "privy.login",
   "world.id-verify",
+  "world.selfie-check",
 ] as const satisfies readonly FlowNodeType[];
 export type ScreenNodeType = (typeof screenNodeTypes)[number];
 
@@ -116,6 +118,7 @@ export const screenConfigSchemas = {
   "screen.qr-code": screenQrCodeConfigSchema,
   "privy.login": privyLoginConfigSchema,
   "world.id-verify": worldIdVerifyConfigSchema,
+  "world.selfie-check": worldSelfieCheckConfigSchema,
 } as const satisfies Record<ScreenNodeType, TObject>;
 
 export type ScreenConfig<T extends ScreenNodeType = ScreenNodeType> = Static<
@@ -133,7 +136,7 @@ export function parseScreenConfig<T extends ScreenNodeType>(
   return Value.Cast(schema, cleaned) as ScreenConfig<T>;
 }
 
-export function visitorAnswer(port: string, data?: Record<string, string>): unknown {
+export function visitorAnswer(port: string, data?: Record<string, unknown>): unknown {
   return data ?? { action: port };
 }
 

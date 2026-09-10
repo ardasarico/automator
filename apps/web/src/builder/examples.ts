@@ -411,6 +411,86 @@ const fixtures: Record<FlowExample["id"], () => Fixture> = {
       edge("pay", "receipt", "notify", "message"),
     ],
   }),
+
+  "uniswap-pool-watch": () => ({
+    nodes: [
+      node("tick", "trigger.schedule", 0, 0, "Every hour", { every: "1h" }),
+      node("pool", "graph.query-subgraph", 1, 0, "Read the pool", {
+        // Uniswap v3 on Ethereum mainnet, and its USDC/WETH 0.05% pool.
+        subgraph: "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+        query: [
+          "query Pool($id: ID!) {",
+          "  pool(id: $id) {",
+          "    token0Price",
+          "    totalValueLockedUSD",
+          "  }",
+          "}",
+        ].join("\n"),
+        variables: '{"id": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"}',
+      }),
+      node("check", "logic.condition", 2, 0, "Above $4,000?", {
+        left: "{{input.value.pool.token0Price}}",
+        operator: "greater_than",
+        right: "4000",
+      }),
+      node("notify", "notify.discord", 3, 0, "Post the price", {
+        webhookUrl: "",
+        content:
+          "ETH is at ${{input.message.pool.token0Price}} on Uniswap v3 (pool TVL ${{input.message.pool.totalValueLockedUSD}}).",
+        username: "Automator",
+      }),
+    ],
+    edges: [
+      edge("tick", "tick", "pool", "params"),
+      edge("pool", "data", "check", "value"),
+      edge("check", "true", "notify", "message"),
+    ],
+  }),
+  "selfie-gated-claim": () => ({
+    nodes: [
+      node("open", "trigger.miniapp-open", 0, 0, "Mini-app opened"),
+      node("login", "privy.login", 1, 0, "Sign in", {
+        title: "Claim your USDC",
+        message: "Sign in so we know which wallet to pay.",
+        methods: ["email", "wallet"],
+      }),
+      node("selfie", "world.selfie-check", 2, 0, "Selfie Check", {
+        title: "One claim per person",
+        message: "World App takes a quick selfie to confirm a live person is claiming.",
+        action: "claim",
+        signal: "{{vars.visitor.wallet}}",
+      }),
+      node("gate", "logic.condition", 3, 0, "Verified?", {
+        left: "{{input.value.verified}}",
+        operator: "equals",
+        right: "true",
+      }),
+      node("pay", "usdc.payout", 4, 0, "Send USDC", {
+        to: "{{vars.visitor.wallet}}",
+        amount: "1",
+      }),
+      node("paid", "screen.confirmation", 5, 0, "Claimed", {
+        title: "Claimed",
+        message: "1 USDC is on its way to {{vars.visitor.wallet}}.",
+        confirm: "Done",
+        cancel: "Close",
+      }),
+      node("denied", "screen.page", 4, 1, "Not this time", {
+        title: "Not this time",
+        body: "The selfie check did not go through, so nothing was paid. You can try again.",
+        button: "Back",
+      }),
+    ],
+    edges: [
+      edge("open", "visitor", "login", "visitor"),
+      edge("login", "user", "selfie", "visitor"),
+      edge("selfie", "verified", "gate", "value"),
+      edge("selfie", "rejected", "denied", "data"),
+      edge("gate", "true", "pay", "recipient"),
+      edge("gate", "false", "denied", "data"),
+      edge("pay", "receipt", "paid", "data"),
+    ],
+  }),
 };
 
 export function findFlowExample(slug: string | undefined): FlowExample | undefined {

@@ -29,6 +29,13 @@ const model: LanguageModel = async (request) => ({
 const payloads: Record<string, unknown> = {
   "usdc-payout": { to: "0x2222222222222222222222222222222222222222", amount: "1.5" },
 };
+/** Stands in for The Graph gateway; anything else a fresh fork reaches is a wiring mistake. */
+const poolAnswer = { data: { pool: { token0Price: "4012.5", totalValueLockedUSD: "250000000" } } };
+const graph = { apiKey: "test-key" };
+const fetchStub = (async (input: string | URL | Request) =>
+  String(input).startsWith("https://gateway.thegraph.com/")
+    ? Response.json(poolAnswer)
+    : new Response("not stubbed", { status: 500 })) as typeof fetch;
 
 describe("exampleToFlowDocument", () => {
   test.each(slugs)("%s is a consistent document with fresh ids", (slug) => {
@@ -59,6 +66,8 @@ describe("exampleToFlowDocument", () => {
       sleep: async () => {},
       model,
       chain: createStubChain(),
+      graph,
+      fetch: fetchStub,
     });
     expect(run.error).toBeUndefined();
     const failed = run.nodes.filter((node) => node.status === "failed");
@@ -101,6 +110,61 @@ describe("exampleToFlowDocument", () => {
       "succeeded",
       "failed",
     ]);
+
+    const watch = exampleToFlowDocument(findFlowExample("uniswap-pool-watch")!, "flow");
+    const watchRun = await runFlow(watch, { trigger: { payload: {} }, graph, fetch: fetchStub });
+    expect(watchRun.nodes.map((node) => node.status)).toEqual([
+      "succeeded",
+      "succeeded",
+      "succeeded",
+      "failed",
+    ]);
+    expect(watchRun.nodes[1]!.outputs).toEqual(poolAnswer);
+  });
+
+  test("the selfie-gated claim pays a verified check and only a verified check", async () => {
+    const claim = exampleToFlowDocument(findFlowExample("selfie-gated-claim")!, "flow");
+    const statusOf = (run: FlowRun, label: string) =>
+      run.nodes.find((result) => {
+        const node = claim.nodes.find((item) => item.id === result.nodeId);
+        return node?.label === label;
+      })?.status;
+    const paid = await runFlow(claim, {
+      trigger: { payload: {} },
+      screens: "auto",
+      chain: createStubChain(),
+    });
+    expect(paid.status).toBe("succeeded");
+    expect(statusOf(paid, "Selfie Check")).toBe("succeeded");
+    expect(statusOf(paid, "Send USDC")).toBe("succeeded");
+    expect(statusOf(paid, "Claimed")).toBe("succeeded");
+    expect(statusOf(paid, "Not this time")).toBe("skipped");
+    const payout = paid.nodes.find(
+      (result) => statusOf(paid, "Send USDC") && result.outputs?.receipt,
+    );
+    expect(payout?.outputs?.receipt).toMatchObject({
+      to: "0x0000000000000000000000000000000000000001",
+      amount: "1",
+    });
+
+    const selfie = claim.nodes.find((node) => node.type === "world.selfie-check")!;
+    const rejected = {
+      ...claim,
+      nodes: claim.nodes.map((node) =>
+        node.id === selfie.id
+          ? { ...node, config: { ...node.config, simulate: "rejected" } }
+          : node,
+      ),
+    };
+    const denied = await runFlow(rejected, {
+      trigger: { payload: {} },
+      screens: "auto",
+      chain: createStubChain(),
+    });
+    expect(denied.status).toBe("succeeded");
+    expect(statusOf(denied, "Send USDC")).toBe("skipped");
+    expect(statusOf(denied, "Claimed")).toBe("skipped");
+    expect(statusOf(denied, "Not this time")).toBe("succeeded");
   });
 
   test("the support triage takes the branch the model's label picks", async () => {

@@ -18,8 +18,10 @@ describe("screen node types", () => {
       "screen.qr-code",
       "privy.login",
       "world.id-verify",
+      "world.selfie-check",
     ]);
     expect(isScreenNodeType("screen.form")).toBe(true);
+    expect(isScreenNodeType("world.selfie-check")).toBe(true);
     expect(isScreenNodeType("privy.login")).toBe(true);
     expect(isScreenNodeType("world.id-verify")).toBe(true);
     expect(isScreenNodeType("world.verification-completed")).toBe(false);
@@ -148,5 +150,9 @@ describe("screenPorts", () => {
     expect(screenPorts("screen.qr-code")).toEqual({ primary: "next" });
     expect(screenPorts("privy.login")).toEqual({ primary: "user" });
     expect(screenPorts("world.id-verify")).toEqual({ primary: "verified", secondary: "rejected" });
+    expect(screenPorts("world.selfie-check")).toEqual({
+      primary: "verified",
+      secondary: "rejected",
+    });
   });
 });

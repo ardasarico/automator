@@ -143,6 +143,7 @@ Execution rules and examples:
 - A form wired to a condition's value input is read with {{input.value.ticketCount}}. Conditions forward the original value unchanged on true/false. A page wired to their output displays {{input.data.ticketCount}} in its body.
 - A form wired to a run-code node's input is read inside JavaScript as input.ticketCount (the function receives the value of that single handle, not all handles). Example: return {totalCost: Number(input.ticketCount) * 25};. A page after it displays Total: {{input.data.totalCost}}.
 - run-code requires the server sandbox and cannot run in browser preview. External service, identity and onchain nodes are not exercised by automatic checks. Do not describe those checks as proof of real delivery/payment.
+- graph.query-subgraph sends a GraphQL query to a subgraph on The Graph Network and outputs the response's data object on its data handle, so the next node reads a field as {{input.<its input handle>.<entity>.<field>}}. Put variable values in the variables JSON, not in the query text. ai.agent may be given the query_subgraph tool, which reads only the subgraph named in its config.
 - Prefer native conditions and data nodes when they suffice. Supply representative samplePayload JSON on triggers, using the actual payload shape. Missing field ids, wrong port references and failing behavior tests are rejected.
 
 Node types you may use, with their handles and full config schemas:

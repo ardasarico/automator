@@ -16,6 +16,8 @@ export interface ApiConfig {
   openAiModel: string;
   tokenApiKey: string | undefined;
   tokenApiUrl: string | undefined;
+  graphApiKey: string | undefined;
+  graphGatewayUrl: string | undefined;
   /* 32-byte base64 encryption key. Development generates an ephemeral key when absent. */
   secretsKey: Buffer;
   chainId: number;
@@ -98,6 +100,8 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     openAiApiKey: env.OPENAI_API_KEY || undefined,
     tokenApiKey: env.TOKEN_API_KEY || undefined,
     tokenApiUrl: env.TOKEN_API_URL || undefined,
+    graphApiKey: env.GRAPH_API_KEY || undefined,
+    graphGatewayUrl: env.GRAPH_GATEWAY_URL || undefined,
     openAiModel: env.OPENAI_MODEL || defaultOpenAiModel,
     chainId: Number(env.CHAIN_ID) || defaultChainId,
     chainRpcUrl:

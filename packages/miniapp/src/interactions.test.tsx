@@ -289,7 +289,7 @@ describe("browser preview lifecycle", () => {
 });
 
 test("legacy form field names remain own values instead of disappearing into the object prototype", async () => {
-  let submitted: Record<string, string> | undefined;
+  let submitted: Record<string, unknown> | undefined;
   await mount(
     <ScreenView
       node={{

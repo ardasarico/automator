@@ -58,7 +58,7 @@ export function continueSession(
   step: {
     nodeId: string;
     port: string;
-    data?: Record<string, string>;
+    data?: Record<string, unknown>;
     variables: Record<string, unknown>;
     completed?: readonly FlowRunNodeResult[];
   },

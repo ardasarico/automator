@@ -93,3 +93,25 @@ describe("autoAnswer", () => {
     expect(autoAnswer(node("logic.wait"))).toBeNull();
   });
 });
+
+describe("autoAnswer for a selfie check", () => {
+  test("takes Verified with a sample selfie credential, or Rejected when configured", () => {
+    expect(autoAnswer(node("world.selfie-check", { action: "claim" }))).toEqual({
+      verified: {
+        verified: true,
+        nullifierHash: "0x0000000000000000000000000000000000000000000000000000000000000002",
+        credential: "selfie",
+        action: "claim",
+      },
+      simulated: { port: "verified" },
+    });
+    expect(autoAnswer(node("world.selfie-check", { simulate: "rejected" }))).toEqual({
+      rejected: {
+        verified: false,
+        code: "invalid_proof",
+        detail: "Simulate took the rejected branch.",
+      },
+      simulated: { port: "rejected" },
+    });
+  });
+});

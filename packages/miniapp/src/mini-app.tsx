@@ -136,7 +136,7 @@ export function MiniApp({
     open();
   };
 
-  const act = (node: ScreenNode, port: string, data?: Record<string, string>) => {
+  const act = (node: ScreenNode, port: string, data?: Record<string, unknown>) => {
     if (running.current) return;
     interacted.current = true;
     launch((onNodeResult, signal) =>

@@ -10,12 +10,17 @@ import { RiCheckLine, RiCloseLine, RiQrCodeLine } from "@remixicon/react";
 import type React from "react";
 import { useState } from "react";
 import { screenPorts, type ScreenNode } from "./engine";
-import { PrivyLoginScreen, WorldIdVerifyScreen, type IdentityAnswer } from "./identity";
+import {
+  PrivyLoginScreen,
+  WorldIdVerifyScreen,
+  WorldSelfieCheckScreen,
+  type IdentityAnswer,
+} from "./identity";
 import { QrCode } from "./qr-code";
 
 export type ScreenViewProps = {
   node: ScreenNode;
-  onContinue(port: string, data?: Record<string, string>, identity?: IdentityAnswer): void;
+  onContinue(port: string, data?: Record<string, unknown>, identity?: IdentityAnswer): void;
   titleRef?: React.Ref<HTMLHeadingElement>;
 };
 
@@ -235,6 +240,8 @@ export function ScreenView(props: ScreenViewProps): React.ReactElement {
       return <PrivyLoginScreen {...props} frame={ScreenFrame} title={Title} />;
     case "world.id-verify":
       return <WorldIdVerifyScreen {...props} frame={ScreenFrame} title={Title} />;
+    case "world.selfie-check":
+      return <WorldSelfieCheckScreen {...props} frame={ScreenFrame} title={Title} />;
   }
 }
 

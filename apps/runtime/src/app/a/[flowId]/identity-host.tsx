@@ -5,6 +5,7 @@ import type {
   WorldIdVerifyConfig,
   WorldProof,
   WorldRequest,
+  WorldSelfieCheckConfig,
 } from "@automator/contracts";
 import { IdentityActionsProvider, type IdentityActions } from "@automator/miniapp";
 import { useTheme } from "@automator/ui/theme-provider";
@@ -15,8 +16,11 @@ import {
   describeIdKitError,
   describePrivyError,
   privyLoginMethods,
+  selfieCheckAsk,
   toIdKitRequest,
   toWorldProof,
+  worldAsk,
+  type WorldAsk,
 } from "./identity";
 
 const IDKitRequestWidget = dynamic(
@@ -55,10 +59,10 @@ function IdentityBridge({ privyLogin, children }: { privyLogin: PrivyLogin; chil
     };
   }, []);
 
-  const worldVerify = useCallback((config: WorldIdVerifyConfig, request: WorldRequest) => {
+  const ask = useCallback((what: WorldAsk, request: WorldRequest) => {
     let idKit: ReturnType<typeof toIdKitRequest>;
     try {
-      idKit = toIdKitRequest(config, request);
+      idKit = toIdKitRequest(what, request);
     } catch (error) {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
@@ -67,10 +71,18 @@ function IdentityBridge({ privyLogin, children }: { privyLogin: PrivyLogin; chil
       setPending({ idKit, resolve, reject });
     });
   }, []);
+  const worldVerify = useCallback(
+    (config: WorldIdVerifyConfig, request: WorldRequest) => ask(worldAsk(config), request),
+    [ask],
+  );
+  const worldSelfieCheck = useCallback(
+    (config: WorldSelfieCheckConfig, request: WorldRequest) => ask(selfieCheckAsk(config), request),
+    [ask],
+  );
 
   const actions = useMemo<IdentityActions>(
-    () => ({ privyLogin, worldVerify, inWorldApp }),
-    [privyLogin, worldVerify, inWorldApp],
+    () => ({ privyLogin, worldVerify, worldSelfieCheck, inWorldApp }),
+    [privyLogin, worldVerify, worldSelfieCheck, inWorldApp],
   );
 
   const finish = (outcome: { proof: WorldProof } | { error: Error }) => {

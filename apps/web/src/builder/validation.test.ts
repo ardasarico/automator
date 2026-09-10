@@ -283,6 +283,13 @@ const blankedConfigs: Record<FlowNode["type"], [Record<string, unknown>, string[
       "warning: “n” has nothing on Rejected, so a failed verification ends the flow.",
     ],
   ],
+  "world.selfie-check": [
+    { action: "" },
+    [
+      "error: “n” needs a World action id.",
+      "warning: “n” has nothing on Rejected, so a failed verification ends the flow.",
+    ],
+  ],
   "world.verification-completed": [{}, []],
   "privy.wallet": [{}, []],
   "privy.login": [{ title: "", message: "", button: "" }, []],
@@ -299,6 +306,10 @@ const blankedConfigs: Record<FlowNode["type"], [Record<string, unknown>, string[
     ["error: “n” needs a recipient address.", "error: “n” needs an amount."],
   ],
   "usdc.balance": [{ address: "" }, []],
+  "graph.query-subgraph": [
+    { subgraph: "", query: "", variables: "" },
+    ["error: “n” needs a subgraph.", "error: “n” needs a GraphQL query."],
+  ],
   "data.create-record": [{ tableId: "tbl", values: [] }, []],
   "data.find-records": [{ tableId: "tbl", filters: [], sortColumn: "" }, []],
   "data.update-record": [

@@ -3,6 +3,7 @@ import { conditionOperators } from "./condition-operators";
 import { dataNodeConfigSchemas } from "./data-node-configs";
 import { defaultInterval, intervalFormats } from "./interval";
 import { filterConfigSchema, mergeConfigSchema, switchConfigSchema } from "./logic-configs";
+import { graphConfigSchemas } from "./graph-configs";
 import { forEachConfigSchema, runCodeConfigSchema } from "./loop-configs";
 import { emailConfigSchema, telegramMessageConfigSchema } from "./notify-configs";
 import { onchainConfigSchemas, onchainEventTriggerConfigSchema } from "./onchain-configs";
@@ -161,7 +162,12 @@ export const extractConfigSchema = Type.Object({
 });
 export type ExtractConfig = Static<typeof extractConfigSchema>;
 
-export const agentTools = ["http_get", "set_variable", "discord_message"] as const;
+export const agentTools = [
+  "http_get",
+  "set_variable",
+  "discord_message",
+  "query_subgraph",
+] as const;
 export type AgentTool = (typeof agentTools)[number];
 
 export const agentConfigSchema = Type.Object({
@@ -189,6 +195,12 @@ export const agentConfigSchema = Type.Object({
     secret: true,
     title: "Discord webhook",
     description: "Where the Discord tool posts.",
+  }),
+  subgraph: Type.String({
+    default: "",
+    title: "Subgraph",
+    description:
+      "The only subgraph the query tool may read: a Subgraph ID, a deployment ID or a full query URL.",
   }),
   maxSteps: Type.Number({
     minimum: 1,
@@ -223,5 +235,6 @@ export const flowNodeConfigSchemas = {
   "logic.run-code": runCodeConfigSchema,
   ...onchainConfigSchemas,
   ...watchConfigSchemas,
+  ...graphConfigSchemas,
   ...dataNodeConfigSchemas,
 } as const;
