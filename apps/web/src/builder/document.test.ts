@@ -106,3 +106,52 @@ describe("serializeFlow", () => {
     expect(Value.Check(flowDocumentSchema, serialized)).toBe(true);
   });
 });
+
+describe("groups", () => {
+  const grouped: FlowDocument = {
+    ...document,
+    groups: [{ id: "g1", label: "Checkout", position: { x: 200, y: 20 }, width: 400, height: 200 }],
+    nodes: [document.nodes[0]!, { ...document.nodes[1]!, parentId: "g1" }],
+  };
+
+  test("hydrate puts the frame first and makes its children relative to it", () => {
+    const { nodes } = hydrateFlow(grouped);
+    expect(nodes[0]).toEqual({
+      id: "g1",
+      type: "group",
+      position: { x: 200, y: 20 },
+      width: 400,
+      height: 200,
+      data: { label: "Checkout" },
+    });
+    expect(nodes[2]).toMatchObject({ id: "n2", parentId: "g1", position: { x: 100, y: 20 } });
+    expect(nodes[1]).not.toHaveProperty("parentId");
+  });
+
+  test("serialize restores absolute positions and writes the groups back", () => {
+    const { meta, nodes, edges } = hydrateFlow(grouped);
+    expect(serializeFlow(meta, nodes, edges)).toEqual(grouped);
+  });
+
+  test("a document without groups serialises without a groups key", () => {
+    const { meta, nodes, edges } = hydrateFlow(document);
+    expect(serializeFlow(meta, nodes, edges)).not.toHaveProperty("groups");
+  });
+
+  test("a node whose group is missing keeps its place and loses the parent", () => {
+    const { nodes } = hydrateFlow({ ...grouped, groups: [] });
+    expect(nodes).toHaveLength(2);
+    expect(nodes[1]).toMatchObject({ id: "n2", position: { x: 300, y: 40 } });
+    expect(nodes[1]).not.toHaveProperty("parentId");
+  });
+
+  test("a resized frame serialises its new size", () => {
+    const { meta, nodes, edges } = hydrateFlow(grouped);
+    const resized = nodes.map((node) =>
+      node.id === "g1" ? { ...node, width: 520, height: 300 } : node,
+    );
+    expect(serializeFlow(meta, resized, edges).groups).toEqual([
+      { id: "g1", label: "Checkout", position: { x: 200, y: 20 }, width: 520, height: 300 },
+    ]);
+  });
+});

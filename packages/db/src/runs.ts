@@ -16,7 +16,7 @@ import {
 } from "@automator/contracts";
 import type { SQL } from "bun";
 
-type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
+type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges" | "groups">;
 
 /* The value the page stopped at, in whatever column the list is ordered by, plus the id that
  * breaks ties. Keyset paging, so a run inserted while reading cannot shift a page. */
@@ -71,6 +71,7 @@ function toRecord(row: RunRow): FlowRunRecord {
       ...(row.document.chainId === undefined ? {} : { chainId: row.document.chainId }),
       nodes: row.document.nodes,
       edges: row.document.edges,
+      ...(row.document.groups === undefined ? {} : { groups: row.document.groups }),
     },
   };
 }
@@ -93,6 +94,7 @@ export function createRunStore(sql: SQL | undefined) {
         ...(document.chainId === undefined ? {} : { chainId: document.chainId }),
         nodes: document.nodes,
         edges: document.edges,
+        ...(document.groups === undefined ? {} : { groups: document.groups }),
       };
       const rows = await db<RunRow[]>`
         WITH inserted AS (

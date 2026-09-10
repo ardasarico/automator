@@ -18,7 +18,7 @@ import { useShallow } from "zustand/react/shallow";
 import { ObjectFields, type Property } from "../components/schema-form";
 import { useDataTables } from "../data/tables-context";
 import { categoryLabels, getCatalogEntry } from "./catalog";
-import type { BuilderNode } from "./document";
+import { isFlowNode, type FlowBuilderNode } from "./document";
 import styles from "./flow-builder.module.css";
 import type { BuilderState } from "./store";
 import { useBuilderStore } from "./store-provider";
@@ -41,7 +41,7 @@ function runTime(startedAt: string): string {
     : date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
-export function NodeSettings({ node, onBack }: { node: BuilderNode; onBack(): void }) {
+export function NodeSettings({ node, onBack }: { node: FlowBuilderNode; onBack(): void }) {
   const renameNode = useBuilderStore((state) => state.renameNode);
   const setNodeConfig = useBuilderStore((state) => state.setNodeConfig);
   const { nodes, edges } = useBuilderStore(useShallow(selectGraph));
@@ -51,7 +51,7 @@ export function NodeSettings({ node, onBack }: { node: BuilderNode; onBack(): vo
     () =>
       listVariables(
         node.id,
-        nodes.map((item) => ({ id: item.id, ...item.data })),
+        nodes.filter(isFlowNode).map((item) => ({ id: item.id, ...item.data })),
         edges,
         secretNames,
         tables,

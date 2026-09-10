@@ -30,6 +30,7 @@ import {
 import { useRunStore } from "./run-store-provider";
 import { useExplainRun } from "./use-explain-run";
 import { useSelectNode } from "./use-select-node";
+import { selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
 import { noFundsMessage } from "./wallet-funds-check";
 
@@ -143,7 +144,7 @@ export function RunPanel() {
   const run = useRunStore((state) => state.run);
   const runDocument = useRunStore((state) => state.document);
   const reset = useRunStore((state) => state.reset);
-  const nodes = useBuilderStore((state) => state.nodes);
+  const nodes = useBuilderStore(selectFlowNodes);
   const canvasChainId = useBuilderStore((state) => state.meta.chainId ?? defaultChainId);
   const chainId = runDocument ? (runDocument.chainId ?? defaultChainId) : canvasChainId;
   const selectedId = useBuilderStore((state) => {

@@ -20,6 +20,7 @@ export * from "./flow-ports";
 export * from "./ai";
 export * from "./flow-layout";
 export * from "./flow-triggers";
+export * from "./flow-summaries";
 export * from "./onchain-configs";
 export * from "./watch-configs";
 export * from "./graph-configs";
