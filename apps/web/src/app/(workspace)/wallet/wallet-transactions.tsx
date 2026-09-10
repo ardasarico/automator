@@ -23,9 +23,11 @@ export function WalletTransactions({
 }) {
   return (
     <section aria-labelledby="wallet-transactions-title" className={walletStyles.section}>
-      <h2 id="wallet-transactions-title" className="text-label">
-        Recent transactions
-      </h2>
+      <div className={walletStyles.sectionHead}>
+        <h2 id="wallet-transactions-title" className={walletStyles.sectionTitle}>
+          Recent transactions
+        </h2>
+      </div>
       {transactions === null ? (
         <div className={styles.empty}>
           <EmptyStateIllustration icon={<RiErrorWarningLine />} />
@@ -50,7 +52,7 @@ export function WalletTransactions({
           </p>
         </div>
       ) : (
-        <div className={`${styles.tableWrap} mt-4`}>
+        <div className={styles.tableWrap}>
           <table className={styles.table}>
             <caption className="sr-only">
               Transactions your runs sent from this wallet, newest first

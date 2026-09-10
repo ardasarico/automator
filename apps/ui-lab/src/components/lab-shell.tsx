@@ -17,6 +17,7 @@ const pages = [
   { href: "/tokens", label: "Tokens" },
   { href: "/patterns/sidebar", label: "Sidebar (redesign)" },
   { href: "/patterns/data", label: "Data (redesign)" },
+  { href: "/patterns/auth", label: "Login (redesign)" },
   { href: "/components/button", label: "Button" },
   { href: "/components/input", label: "Input" },
   { href: "/components/textarea", label: "Textarea" },
