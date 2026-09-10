@@ -6,6 +6,9 @@ import { createUserStore } from "./users";
 
 const url = process.env.TEST_DATABASE_URL;
 
+/* Hashes are unique across the whole table, so a re-run must not reuse a literal. */
+const hash = () => `hash-${crypto.randomUUID()}`;
+
 async function owner(sql: SQL): Promise<string> {
   const id = `did:privy:api-keys-${crypto.randomUUID()}`;
   await createUserStore(sql).sync(id, null);
@@ -19,13 +22,14 @@ describe.skipIf(!url)("api key store", () => {
       await migrate(sql);
       const keys = createApiKeyStore(sql);
       const ownerId = await owner(sql);
-      const first = await keys.create(ownerId, "CI", "hash-first", "ak_aaaa");
-      const second = await keys.create(ownerId, "Laptop", "hash-second", "ak_bbbb");
+      const firstHash = hash();
+      const first = await keys.create(ownerId, "CI", firstHash, "ak_aaaa");
+      const second = await keys.create(ownerId, "Laptop", hash(), "ak_bbbb");
 
       expect(first).toMatchObject({ name: "CI", prefix: "ak_aaaa" });
       const listed = await keys.list(ownerId);
       expect(listed.map((key) => key.id)).toEqual([second.id, first.id]);
-      expect(JSON.stringify(listed)).not.toContain("hash-first");
+      expect(JSON.stringify(listed)).not.toContain(firstHash);
     } finally {
       await sql.close({ timeout: 5 });
     }
@@ -37,15 +41,15 @@ describe.skipIf(!url)("api key store", () => {
       await migrate(sql);
       const keys = createApiKeyStore(sql);
       const ownerId = await owner(sql);
-      const key = await keys.create(ownerId, "CI", `hash-${crypto.randomUUID()}`, "ak_cccc");
-      const hash = `hash-live-${crypto.randomUUID()}`;
-      const live = await keys.create(ownerId, "Live", hash, "ak_dddd");
+      const key = await keys.create(ownerId, "CI", hash(), "ak_cccc");
+      const live_hash = hash();
+      const live = await keys.create(ownerId, "Live", live_hash, "ak_dddd");
 
-      expect(await keys.findOwner(hash)).toEqual({ id: live.id, ownerId });
+      expect(await keys.findOwner(live_hash)).toEqual({ id: live.id, ownerId });
       expect(await keys.findOwner("hash-that-was-never-issued")).toBeNull();
 
       expect(await keys.revoke(ownerId, live.id)).toBe(true);
-      expect(await keys.findOwner(hash)).toBeNull();
+      expect(await keys.findOwner(live_hash)).toBeNull();
       expect((await keys.list(ownerId)).map((entry) => entry.id)).toEqual([key.id]);
       expect(await keys.revoke(ownerId, live.id)).toBe(false);
     } finally {
@@ -60,7 +64,7 @@ describe.skipIf(!url)("api key store", () => {
       const keys = createApiKeyStore(sql);
       const mine = await owner(sql);
       const theirs = await owner(sql);
-      const key = await keys.create(mine, "CI", `hash-${crypto.randomUUID()}`, "ak_eeee");
+      const key = await keys.create(mine, "CI", hash(), "ak_eeee");
       expect(await keys.revoke(theirs, key.id)).toBe(false);
       expect((await keys.list(mine)).map((entry) => entry.id)).toEqual([key.id]);
     } finally {
@@ -74,8 +78,7 @@ describe.skipIf(!url)("api key store", () => {
       await migrate(sql);
       const keys = createApiKeyStore(sql);
       const ownerId = await owner(sql);
-      const hash = `hash-${crypto.randomUUID()}`;
-      const key = await keys.create(ownerId, "CI", hash, "ak_ffff");
+      const key = await keys.create(ownerId, "CI", hash(), "ak_ffff");
       expect(key.lastUsedAt).toBeUndefined();
 
       await keys.touch(key.id);
@@ -93,8 +96,8 @@ describe.skipIf(!url)("api key store", () => {
       const keys = createApiKeyStore(sql);
       const ownerId = await owner(sql);
       for (let index = 0; index < apiKeyLimit; index += 1)
-        await keys.create(ownerId, `Key ${index}`, `hash-${crypto.randomUUID()}`, "ak_gggg");
-      expect(keys.create(ownerId, "One too many", "hash-extra", "ak_hhhh")).rejects.toThrow(
+        await keys.create(ownerId, `Key ${index}`, hash(), "ak_gggg");
+      expect(keys.create(ownerId, "One too many", hash(), "ak_hhhh")).rejects.toThrow(
         ApiKeyLimitError,
       );
     } finally {

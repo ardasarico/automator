@@ -201,6 +201,15 @@ function coerce(input: FlowApiInput, value: unknown): { value: unknown } | { mes
   }
 }
 
+/**
+ * The problems as one sentence. A model retrying a tool call, or a terminal printing a failure,
+ * needs a line rather than a list; both read the same wording as the fields in the builder.
+ */
+export function describeFlowApiProblems(problems: readonly FlowApiInputProblem[]): string {
+  if (problems.length === 0) return "The input did not match what this flow declares.";
+  return problems.map((problem) => problem.message).join(" ");
+}
+
 export type FlowApiInputResult =
   | { values: Record<string, unknown> }
   | { problems: FlowApiInputProblem[] };
