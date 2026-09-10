@@ -1,95 +1,177 @@
 import {
-  aiErrorDetail,
-  explainRunContract,
-  generateFlowContract,
+  clearAiMessagesContract,
+  listAiMessagesContract,
   redactFlowSecrets,
+  redactRunOutputs,
+  sendAiMessageContract,
+  setAiProposalStateContract,
   Type,
   Value,
-  type AiError,
-  type ApiErrorCode,
+  type AiContext,
+  type AiPart,
+  type AiStreamEvent,
 } from "@automator/contracts";
-import type { DataTableStore } from "@automator/db";
-import { LanguageModelError, type LanguageModel } from "@automator/flow-engine";
+import type { AiMessageStore, DataTableStore, FlowStore } from "@automator/db";
+import type { LanguageModel } from "@automator/flow-engine";
 import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
 import type { IdentityProvider } from "../auth/privy";
 import { createRateLimiter, defaultRateLimits } from "../rate-limit";
-import { explainRun } from "./explain-run";
-import { FlowGenerationError, generateFlow } from "./generate-flow";
+import { runCanvasAgent } from "./canvas-agent";
+import { encodeSseEvent } from "./sse";
 
 export interface AiDependencies {
   identity: IdentityProvider | undefined;
   model: LanguageModel | undefined;
-  /** Read to tell the model which tables a generated `data.*` node may reference. */
+  flows: Pick<FlowStore, "find">;
+  messages: AiMessageStore;
   dataTables?: Pick<DataTableStore, "list">;
   log?: boolean;
   callsPerMinute?: number;
   now?: () => number;
+  newId?: () => string;
 }
 
 export function createAiRoutes({
   identity,
   model,
+  flows,
+  messages,
   dataTables,
   log = false,
   callsPerMinute = defaultRateLimits.ai,
   now = Date.now,
+  newId = () => crypto.randomUUID(),
 }: AiDependencies) {
   const limiter = createRateLimiter(callsPerMinute, now);
-  const attempt = async <T>(what: string, ask: (model: LanguageModel) => Promise<T>) => {
-    if (!model) return { status: 503 as const, error: "unavailable" as const, detail: undefined };
-    try {
-      return { status: 200 as const, data: await ask(model) };
-    } catch (error) {
-      if (log) console.warn(`${what} failed`, error instanceof Error ? error.message : error);
-      // Our own message says what was wrong with the proposal, so it reaches the user; an
-      // upstream provider failure keeps its payload here and only its code travels.
-      if (error instanceof FlowGenerationError)
-        return {
-          status: 422 as const,
-          error: "invalid_flow" as const,
-          detail: aiErrorDetail(error.message),
-        };
-      if (error instanceof LanguageModelError)
-        return { status: 503 as const, error: "unavailable" as const, detail: undefined };
-      throw error;
-    }
+  /*
+   * Checked after ownership resolves, in each handler, rather than as a blanket
+   * `onBeforeHandle`: a mistyped or foreign flow id (a 404) must not spend a user's budget, only
+   * a request that actually reaches the store or the model does.
+   */
+  const rateLimited = (
+    claims: { id: string },
+    set: { headers: Record<string, string | number> },
+  ) => {
+    if (limiter.allow(claims.id)) return false;
+    set.headers["Retry-After"] = String(limiter.retryAfter(claims.id));
+    return true;
   };
-  /* The code is what the client switches on; the detail rides along only when there is one. */
-  const failure = (result: { error: ApiErrorCode; detail?: string }): AiError =>
-    result.detail === undefined
-      ? { error: result.error }
-      : { error: result.error, detail: result.detail };
   return new Elysia({ name: "ai" })
     .use(createAuthGuard(identity))
-    .onBeforeHandle(({ claims, set, status }) => {
-      if (limiter.allow(claims.id)) return;
-      set.headers["Retry-After"] = String(limiter.retryAfter(claims.id));
-      return status(429, { error: "rate_limited" });
-    })
-    .post(
-      generateFlowContract.path,
-      async ({ claims, body, status }) => {
-        if (!Value.Check(generateFlowContract.body, body))
-          return status(400, { error: "invalid_request" });
-        // The builder already blanks secret fields; doing it here too keeps them off the model.
-        const current = body.document ? redactFlowSecrets(body.document) : undefined;
-        const tables = dataTables ? await dataTables.list(claims.id) : [];
-        const result = await attempt("Flow generation", (model) =>
-          generateFlow(model, body.prompt, current, body.history, tables),
-        );
-        return result.status === 200 ? result.data : status(result.status, failure(result));
+    .get(
+      listAiMessagesContract.path,
+      async ({ claims, params, status, set }) => {
+        if (!(await flows.find(claims.id, params.id))) return status(404, { error: "not_found" });
+        if (rateLimited(claims, set)) return status(429, { error: "rate_limited" });
+        return { messages: await messages.list(params.id) };
       },
-      { body: Type.Unknown(), response: generateFlowContract.response },
+      { params: listAiMessagesContract.params, response: listAiMessagesContract.response },
     )
     .post(
-      explainRunContract.path,
-      async ({ body, status }) => {
-        if (!Value.Check(explainRunContract.body, body))
+      sendAiMessageContract.path,
+      async ({ claims, params, body, status, request, set }) => {
+        if (!Value.Check(sendAiMessageContract.body, body))
           return status(400, { error: "invalid_request" });
-        const result = await attempt("Run explanation", (model) => explainRun(model, body));
-        return result.status === 200 ? result.data : status(result.status, failure(result));
+        if (!model) return status(503, { error: "unavailable" });
+        const record = await flows.find(claims.id, params.id);
+        if (!record) return status(404, { error: "not_found" });
+        if (rateLimited(claims, set)) return status(429, { error: "rate_limited" });
+        const { id: _id, ...saved } = record.flow;
+        // The builder already blanks secret fields; doing it here too keeps them off the model.
+        const current = redactFlowSecrets(body.document ?? saved);
+        const context: AiContext | undefined = body.context && {
+          ...body.context,
+          ...(body.context.run ? { run: redactRunOutputs(body.context.run) } : {}),
+        };
+        const tables = dataTables ? await dataTables.list(claims.id) : [];
+        const history = await messages.list(params.id);
+        await messages.markPendingStale(params.id);
+        await messages.append(params.id, {
+          id: newId(),
+          role: "user",
+          parts: [{ type: "text", text: body.text }],
+          ...(context ? { context } : {}),
+        });
+        const assistantId = newId();
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            const emit = (event: AiStreamEvent) =>
+              controller.enqueue(encoder.encode(encodeSseEvent(event)));
+            emit({ type: "message", id: assistantId });
+            let parts: AiPart[];
+            try {
+              parts = await runCanvasAgent({
+                model,
+                text: body.text,
+                // An empty canvas is a new flow; the model gets no document to edit.
+                current: current.nodes.length === 0 ? undefined : current,
+                context,
+                history,
+                tables,
+                emit,
+                signal: request.signal,
+              });
+            } catch (error) {
+              // `runCanvasAgent` only ever rethrows a `LanguageModelError`, but whatever else
+              // might slip through here (an abort, a genuine bug) gets the same clean ending:
+              // a hung stream, with no `done` and nothing stored, is the worst outcome for the
+              // user, so every path below closes the stream and persists something.
+              if (log)
+                console.warn("AI turn failed", error instanceof Error ? error.message : error);
+              const part: AiPart = { type: "error", error: "unavailable" };
+              emit(part);
+              parts = [part];
+            }
+            try {
+              await messages.append(params.id, { id: assistantId, role: "assistant", parts });
+            } catch (error) {
+              if (log)
+                console.warn(
+                  "AI message not stored",
+                  error instanceof Error ? error.message : error,
+                );
+            }
+            emit({ type: "done" });
+            controller.close();
+          },
+        });
+        return new Response(stream, {
+          headers: {
+            "content-type": "text/event-stream; charset=utf-8",
+            "cache-control": "no-cache, no-transform",
+            "x-accel-buffering": "no",
+          },
+        });
       },
-      { body: Type.Unknown(), response: explainRunContract.response },
+      /* No response schema: the 200 is a stream, and Elysia would try to validate it as JSON. */
+      { params: sendAiMessageContract.params, body: Type.Unknown() },
+    )
+    .patch(
+      setAiProposalStateContract.path,
+      async ({ claims, params, body, status, set }) => {
+        if (!Value.Check(setAiProposalStateContract.body, body))
+          return status(400, { error: "invalid_request" });
+        if (!(await flows.find(claims.id, params.id))) return status(404, { error: "not_found" });
+        if (rateLimited(claims, set)) return status(429, { error: "rate_limited" });
+        const message = await messages.setProposalState(params.id, params.messageId, body.state);
+        if (!message) return status(404, { error: "not_found" });
+        return { message };
+      },
+      {
+        params: setAiProposalStateContract.params,
+        body: Type.Unknown(),
+        response: setAiProposalStateContract.response,
+      },
+    )
+    .delete(
+      clearAiMessagesContract.path,
+      async ({ claims, params, status, set }) => {
+        if (!(await flows.find(claims.id, params.id))) return status(404, { error: "not_found" });
+        if (rateLimited(claims, set)) return status(429, { error: "rate_limited" });
+        return { cleared: await messages.clear(params.id) };
+      },
+      { params: clearAiMessagesContract.params, response: clearAiMessagesContract.response },
     );
 }

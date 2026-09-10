@@ -83,6 +83,7 @@ const app = createApp({
   model,
   graph,
   chainFactory,
+  aiMessages: database.aiMessages,
   dataTables: database.dataTables,
   dataRecords: database.dataRecords,
   nodePresets: database.nodePresets,
