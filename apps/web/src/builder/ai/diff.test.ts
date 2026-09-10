@@ -82,15 +82,28 @@ describe("previewKinds", () => {
       ],
       edges: [wait, { id: "e3", source: "b", target: "d" }],
     });
-    expect([...kinds]).toEqual([
+    expect([...kinds.nodes]).toEqual([
       ["a", "kept"],
       ["b", "changed"],
       ["d", "added"],
       ["c", "removed"],
+    ]);
+    expect([...kinds.edges]).toEqual([
       ["e2", "removed"],
       ["e1", "kept"],
       ["e3", "added"],
     ]);
+  });
+
+  test("a node and an edge that share an id keep their own kinds", () => {
+    const current = document([node("x", "trigger.manual", "Run")], []);
+    const kinds = previewKinds(current, {
+      ...current,
+      nodes: [node("x", "trigger.manual", "Run"), node("y", "notify.discord", "Post")],
+      edges: [{ id: "x", source: "x", target: "y" }],
+    });
+    expect(kinds.nodes.get("x")).toBe("kept");
+    expect(kinds.edges.get("x")).toBe("added");
   });
 
   test("an edge that keeps its id but moves is added, not removed", () => {
@@ -102,6 +115,6 @@ describe("previewKinds", () => {
       ...current,
       edges: [{ id: "e", source: "a", sourceHandle: "false", target: "b" }],
     });
-    expect(kinds.get("e")).toBe("added");
+    expect(kinds.edges.get("e")).toBe("added");
   });
 });

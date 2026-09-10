@@ -351,7 +351,7 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
   const shownEdges = useMemo(() => {
     if (preview)
       return preview.edges.map((edge) => {
-        const kind = preview.kinds.get(edge.id);
+        const kind = preview.kinds.edges.get(edge.id);
         if (kind === "added") return { ...edge, className: styles.edgeDraftAdded };
         if (kind === "removed") return { ...edge, className: styles.edgeDraftRemoved };
         return edge;
@@ -364,9 +364,13 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
   }, [edges, preview, run]);
 
   // The draft arrives node by node, so the fit waits for it to settle rather than chasing it.
+  // Applying or discarding one fits again, or the view would stay framed on a draft that is gone.
   const draftSize = preview?.nodes.length;
+  const drafted = useRef(false);
   useEffect(() => {
-    if (draftSize === undefined) return;
+    const drafting = draftSize !== undefined;
+    if (!drafting && !drafted.current) return;
+    drafted.current = drafting;
     const timer = window.setTimeout(() => {
       const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
       void fitView({ padding: 0.2, duration: reduced ? 0 : 300 });
@@ -492,7 +496,7 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
 
   return (
     <div className={styles.canvas}>
-      <DraftKindsContext.Provider value={preview?.kinds ?? noDraftKinds}>
+      <DraftKindsContext.Provider value={preview?.kinds.nodes ?? noDraftKinds}>
         <NodeProblemsContext.Provider value={problemsByNode}>
           <div
             className={styles.canvasViewport}

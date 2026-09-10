@@ -7,7 +7,13 @@ function dataOf(node: BuilderNode | undefined) {
   if (!node || !isFlowNode(node)) throw new Error("expected a flow node");
   return node.data;
 }
-import { createBuilderStore, historyLimit, selectSelectedNodes } from "./store";
+import {
+  createBuilderStore,
+  historyLimit,
+  selectCanRedo,
+  selectCanUndo,
+  selectSelectedNodes,
+} from "./store";
 
 function setup() {
   return createBuilderStore(createEmptyFlow("flow-1"));
@@ -1001,10 +1007,10 @@ describe("preview", () => {
     store.getState().setPreview(draft([ping.nodes[0]!]));
     const preview = store.getState().preview!;
     expect(preview.nodes.map((node) => node.id)).toEqual(["t", "d"]);
-    expect(preview.kinds.get("t")).toBe("kept");
-    expect(preview.kinds.get("d")).toBe("removed");
+    expect(preview.kinds.nodes.get("t")).toBe("kept");
+    expect(preview.kinds.nodes.get("d")).toBe("removed");
     expect(preview.edges.map((edge) => edge.id)).toEqual(["e"]);
-    expect(preview.kinds.get("e")).toBe("removed");
+    expect(preview.kinds.edges.get("e")).toBe("removed");
     expect(store.getState().nodes).toHaveLength(2);
     store.getState().onPreviewNodesChange([{ type: "select", id: "t", selected: true }]);
     expect(selectSelectedNodes(store.getState()).map((node) => node.id)).toEqual(["t"]);
@@ -1045,14 +1051,75 @@ describe("preview", () => {
     expect(store.getState().preview!.nodes.map((node) => node.id)).toEqual(["t", "d"]);
   });
 
-  test("editing the canvas leaves the preview alone", () => {
+  test("a draft freezes the document: nothing edits it while one is on show", () => {
     const store = createBuilderStore(ping);
+    store.getState().onConnect({
+      source: "d",
+      sourceHandle: null,
+      target: "t",
+      targetHandle: null,
+    });
+    store.getState().renameNode("t", "Start");
+    const before = store.getState();
     store.getState().setPreview(draft([ping.nodes[0]!]));
     const preview = store.getState().preview;
-    store.getState().addNode("logic.wait", { x: 0, y: 200 });
+
+    expect(store.getState().addNode("logic.wait", { x: 0, y: 200 })).toBe("");
+    expect(
+      store
+        .getState()
+        .insertNode({ type: "logic.wait", label: "Wait", config: {} }, { x: 0, y: 0 }),
+    ).toBe("");
+    expect(store.getState().duplicateNodes(["t"])).toEqual([]);
+    expect(store.getState().groupNodes(["t", "d"])).toBeNull();
+    store.getState().ungroup("t");
+    store.getState().selectAll();
+    store.getState().renameNode("t", "Renamed");
+    store.getState().setNodeConfig("d", { message: "hi" });
     store.getState().removeNode("d");
+    store.getState().removeNodes(["d"]);
     store.getState().setMeta({ name: "Pong" });
+    store.getState().setNodePositions(new Map([["t", { x: 999, y: 999 }]]));
+    store.getState().alignNodes(["t", "d"], "left");
+    store.getState().removeEdge("e");
+    store.getState().onNodesChange([{ type: "remove", id: "t" }]);
+    store.getState().onEdgesChange([{ type: "remove", id: "e" }]);
+    store.getState().undo();
+    store.getState().redo();
+
+    expect(store.getState().nodes).toBe(before.nodes);
+    expect(store.getState().edges).toBe(before.edges);
+    expect(store.getState().meta).toBe(before.meta);
+    expect(store.getState().past).toBe(before.past);
+    expect(store.getState().future).toBe(before.future);
     expect(store.getState().preview).toBe(preview);
+    expect(selectCanUndo(store.getState())).toBe(false);
+    expect(selectCanRedo(store.getState())).toBe(false);
+
+    store.getState().setPreview(null);
+    expect(selectCanUndo(store.getState())).toBe(true);
+    store.getState().undo();
+    expect(store.getState().nodes).not.toBe(before.nodes);
+  });
+
+  test("applying a draft still works while it is on show", () => {
+    const store = createBuilderStore(ping);
+    const applied = draft([ping.nodes[0]!]);
+    store.getState().setPreview(applied);
+    store.getState().applyDocument(applied);
+    expect(store.getState().nodes.map((node) => node.id)).toEqual(["t"]);
+    expect(store.getState().dirty).toBe(true);
+  });
+
+  test("a draft takes the selection over from the canvas", () => {
+    const store = createBuilderStore(ping);
+    store.getState().onNodesChange([{ type: "select", id: "d", selected: true }]);
+    expect(selectSelectedNodes(store.getState()).map((node) => node.id)).toEqual(["d"]);
+    store.getState().setPreview(draft(ping.nodes));
+    expect(store.getState().nodes.some((node) => node.selected)).toBe(false);
+    expect(selectSelectedNodes(store.getState())).toEqual([]);
+    store.getState().setPreview(null);
+    expect(selectSelectedNodes(store.getState())).toEqual([]);
   });
 
   test("a draft's labels cannot be edited on the card", () => {

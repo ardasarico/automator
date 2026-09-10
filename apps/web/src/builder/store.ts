@@ -11,7 +11,7 @@ import {
   type XYPosition,
 } from "@xyflow/react";
 import { createStore, type StoreApi } from "zustand";
-import { previewKinds, type DraftKind } from "./ai/diff";
+import { previewKinds, type DraftKinds } from "./ai/diff";
 import { getCatalogEntry } from "./catalog";
 import {
   hydrateFlow,
@@ -48,7 +48,7 @@ export type FlowPreview = {
   document: FlowDocumentInput;
   nodes: BuilderNode[];
   edges: BuilderEdge[];
-  kinds: ReadonlyMap<string, DraftKind>;
+  kinds: DraftKinds;
 };
 
 export type AlignEdge = "left" | "top" | "centerX" | "centerY";
@@ -274,6 +274,23 @@ type HistoryFields = Pick<BuilderState, "past" | "future" | "lastEdit" | "lastEd
  */
 const removalWindowMs = 100;
 
+/**
+ * A draft on the canvas freezes the document: every action that would edit it does nothing until
+ * the draft is applied or discarded. The canvas is not the only way in — the header, the hotkeys,
+ * the palette and the command menu all call the store directly — so the refusal belongs here
+ * rather than at each control. Applying a draft goes through `applyDocument`, which is not frozen.
+ */
+function frozen(get: () => BuilderState): boolean {
+  return get().preview !== null;
+}
+
+/** Drops the selection, keeping the array itself when there was nothing selected. */
+function deselect<T extends { selected?: boolean }>(items: T[]): T[] {
+  return items.some((item) => item.selected)
+    ? items.map((item) => (item.selected ? { ...item, selected: false } : item))
+    : items;
+}
+
 function snapshot(state: BuilderState): HistoryEntry {
   return { meta: state.meta, nodes: state.nodes, edges: state.edges };
 }
@@ -337,6 +354,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     lastEditAt: 0,
 
     onNodesChange(changes) {
+      if (frozen(get)) return;
       // A frame resize arrives as a dimensions change that sets the node's own width and height.
       const resize = changes.flatMap((change) =>
         change.type === "dimensions" && change.setAttributes === true ? [change.id] : [],
@@ -387,6 +405,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     onEdgesChange(changes) {
+      if (frozen(get)) return;
       const documentChanged = changes.some((change) => !cosmeticEdgeChanges.has(change.type));
       const remove = changes.some((change) => change.type === "remove");
       set((state) => ({
@@ -397,6 +416,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     undo() {
+      if (frozen(get)) return;
       set((state) => {
         const previous = state.past.at(-1);
         if (!previous) return {};
@@ -413,6 +433,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     redo() {
+      if (frozen(get)) return;
       set((state) => {
         const next = state.future.at(-1);
         if (!next) return {};
@@ -429,6 +450,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     setNodePositions(positions) {
+      if (frozen(get)) return;
       set((state) => {
         const byId = new Map(state.nodes.map((node) => [node.id, node]));
         // Targets are canvas positions; a node in a frame is stored relative to it.
@@ -454,6 +476,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     duplicateNodes(ids) {
+      if (frozen(get)) return [];
       // Frames are not copied; a copy of a node in a frame stays in that frame.
       const originals = get().nodes.filter(
         (node): node is FlowBuilderNode => isFlowNode(node) && ids.includes(node.id),
@@ -489,6 +512,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     removeNodes(ids) {
+      if (frozen(get)) return;
       const gone = new Set(ids);
       if (!get().nodes.some((node) => gone.has(node.id))) return;
       set((state) => {
@@ -504,6 +528,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     alignNodes(ids, edge) {
+      if (frozen(get)) return;
       const all = get().nodes;
       const byId = new Map(all.map((node) => [node.id, node]));
       const chosen = all.filter((node) => isFlowNode(node) && ids.includes(node.id));
@@ -538,6 +563,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     selectAll() {
+      if (frozen(get)) return;
       set((state) => ({
         nodes: state.nodes.map((node) => (node.selected ? node : { ...node, selected: true })),
         edges: state.edges.map((edge) => (edge.selected ? edge : { ...edge, selected: true })),
@@ -545,6 +571,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     groupNodes(ids) {
+      if (frozen(get)) return null;
       const all = get().nodes;
       const byId = new Map(all.map((node) => [node.id, node]));
       const members = all.filter(
@@ -580,6 +607,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     ungroup(id) {
+      if (frozen(get)) return;
       if (!get().nodes.some((node) => isGroupNode(node) && node.id === id)) return;
       set((state) => {
         const byId = new Map(state.nodes.map((node) => [node.id, node]));
@@ -607,6 +635,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     reconnectEdge(edge, connection) {
+      if (frozen(get)) return false;
       if (!get().edges.some((item) => item.id === edge.id)) return false;
       if (!get().canConnect(connection, edge.id)) return false;
       set((state) => ({
@@ -628,6 +657,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     removeEdge(id) {
+      if (frozen(get)) return;
       if (!get().edges.some((edge) => edge.id === id)) return;
       set((state) => ({
         ...remember(state),
@@ -637,6 +667,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     onConnect(connection) {
+      if (frozen(get)) return;
       if (!get().canConnect(connection)) return;
       set((state) => ({
         ...remember(state),
@@ -646,6 +677,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     addNode(type, position, from) {
+      if (frozen(get)) return "";
       return get().insertNode(
         { type, label: getCatalogEntry(type).label, config: {} },
         position,
@@ -654,6 +686,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     insertNode(input, position, from) {
+      if (frozen(get)) return "";
       const { type } = input;
       const id = crypto.randomUUID();
       const node: BuilderNode = {
@@ -694,6 +727,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     renameNode(id, label) {
+      if (frozen(get)) return;
       set((state) => ({
         ...remember(state, `rename:${id}`),
         nodes: state.nodes.map((node): BuilderNode => {
@@ -707,13 +741,13 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     setRenaming(id) {
-      // A draft is read-only: the label field is the one card control that would edit the
-      // document behind it, and both a node's label and a frame's open it through here.
-      if (id !== null && get().preview) return;
+      // The label field edits the document, so a draft never opens one; clearing still works.
+      if (id !== null && frozen(get)) return;
       if (get().renaming !== id) set({ renaming: id });
     },
 
     setNodeConfig(id, patch) {
+      if (frozen(get)) return;
       set((state) => ({
         ...remember(state, `config:${id}:${Object.keys(patch).sort().join(",")}`),
         nodes: state.nodes.map((node) =>
@@ -726,6 +760,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     removeNode(id) {
+      if (frozen(get)) return;
       set((state) => ({
         ...remember(state),
         nodes: state.nodes.filter((node) => node.id !== id),
@@ -742,6 +777,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     },
 
     setMeta(patch) {
+      if (frozen(get)) return;
       set((state) => ({
         ...remember(state, `meta:${Object.keys(patch).sort().join(",")}`),
         meta: { ...state.meta, ...patch },
@@ -764,17 +800,21 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
         // What the draft drops is drawn too, faded, so a proposal's deletions are visible. A
         // removed node is freed from its frame first: the frame may be gone from the draft.
         const removedNodes = state.nodes.flatMap((node) =>
-          isFlowNode(node) && !drawn.has(node.id) && kinds.get(node.id) === "removed"
+          isFlowNode(node) && !drawn.has(node.id) && kinds.nodes.get(node.id) === "removed"
             ? [{ ...release(node, byId), selected: false }]
             : [],
         );
         const drawnEdges = new Set(draft.edges.map((edge) => edge.id));
         const removedEdges = state.edges.flatMap((edge) =>
-          !drawnEdges.has(edge.id) && kinds.get(edge.id) === "removed"
+          !drawnEdges.has(edge.id) && kinds.edges.get(edge.id) === "removed"
             ? [{ ...edge, selected: false }]
             : [],
         );
         return {
+          // The draft owns the selection while it is on show, so the panels follow it rather
+          // than whatever was picked before. Discarding leaves nothing selected.
+          nodes: deselect(state.nodes),
+          edges: deselect(state.edges),
           preview: {
             document,
             nodes: [...draft.nodes, ...removedNodes],
@@ -846,5 +886,8 @@ export function selectFlowNodes(state: Pick<BuilderState, "nodes">): FlowBuilder
   return flowNodesCache;
 }
 
-export const selectCanUndo = (state: BuilderState): boolean => state.past.length > 0;
-export const selectCanRedo = (state: BuilderState): boolean => state.future.length > 0;
+/* History is frozen along with the document, so the header's buttons go quiet under a draft. */
+export const selectCanUndo = (state: BuilderState): boolean =>
+  state.preview === null && state.past.length > 0;
+export const selectCanRedo = (state: BuilderState): boolean =>
+  state.preview === null && state.future.length > 0;

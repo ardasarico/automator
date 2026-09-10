@@ -37,25 +37,32 @@ export function diffConnections(current: readonly FlowEdge[], next: readonly Flo
   return [...changes, ...remaining.map((edge) => ({ kind: "removed" as const, edge }))];
 }
 
+/** What a draft does to each node and each connection it draws. Ids are only unique per kind. */
+export type DraftKinds = {
+  nodes: ReadonlyMap<string, DraftKind>;
+  edges: ReadonlyMap<string, DraftKind>;
+};
+
 /**
- * What the canvas draws for a draft, by node id and edge id. Removed nodes and edges come from
- * the current document, so a proposal's deletions can be shown alongside what it keeps. An edge
- * that survives with a moved endpoint reads as added, since the connection itself is new.
+ * What the canvas draws for a draft. Removed nodes and edges come from the current document, so a
+ * proposal's deletions can be shown alongside what it keeps. An edge that survives with a moved
+ * endpoint reads as added, since the connection itself is new.
  */
 export function previewKinds(
   current: Pick<FlowDocument, "nodes" | "edges">,
   next: Pick<FlowDocumentInput, "nodes" | "edges">,
-): Map<string, DraftKind> {
-  const kinds = new Map<string, DraftKind>();
-  for (const change of diffNodes(current.nodes, next.nodes)) kinds.set(change.id, change.kind);
+): DraftKinds {
+  const nodes = new Map<string, DraftKind>();
+  for (const change of diffNodes(current.nodes, next.nodes)) nodes.set(change.id, change.kind);
+  const edges = new Map<string, DraftKind>();
   const connections = diffConnections(current.edges, next.edges);
   for (const change of connections) {
-    if (change.kind === "removed") kinds.set(change.edge.id, "removed");
+    if (change.kind === "removed") edges.set(change.edge.id, "removed");
   }
   // The draft's own edges win over a removed one that happens to carry the same id.
   const added = new Set(
     connections.flatMap((change) => (change.kind === "added" ? [change.edge.id] : [])),
   );
-  for (const edge of next.edges) kinds.set(edge.id, added.has(edge.id) ? "added" : "kept");
-  return kinds;
+  for (const edge of next.edges) edges.set(edge.id, added.has(edge.id) ? "added" : "kept");
+  return { nodes, edges };
 }
