@@ -10,7 +10,7 @@
 
 Bun workspaces with Turborepo; run everything from the repository root.
 
-- `bun install`, then `bun run dev` starts web (3000), API (3001), runtime (3002), and UI Lab (3003). Use `--filter=@automator/web` for one app; auth and health need the API running separately. UI Lab needs no env file or backend.
+- `bun install`, then `bun run dev` starts web (3000), API (3001), runtime (3002), UI Lab (3003), and landing (3004). Use `--filter=@automator/web` for one app; auth and health need the API running separately. UI Lab and landing need no env file or backend.
 - Verification: `bun run lint`, `bun run typecheck`, `bun run test`, `bun run build`, `bun run format:check` (`bun run format` fixes).
 - Single test file: `bun test apps/api/src/auth/privy.test.ts` from the root, or `bun test <pattern>` inside the package. Any test file runs from the root, e.g. `bun test apps/web/src/auth/provider.test.tsx`.
 - `packages/db`'s integration tests are the only ones that reach Postgres and skip themselves without a database, so run them before anything that changes the schema: `TEST_DATABASE_URL="postgres://localhost:5432/automator_test" bun test packages/db`.
@@ -24,7 +24,7 @@ Read `docs/architecture.md` for the full picture. The parts that span packages:
 - **Contracts:** `packages/contracts` holds TypeBox schemas, inferred types, and endpoint paths. Elysia validates responses against them; the API client validates incoming JSON against the same schema and status.
 - **Auth:** Privy authenticates in the browser; Next.js route handlers under `apps/web/src/app/api/auth` forward bearer tokens to the API and mirror the session into the `automator-session` cookie. Server code reads the user through `apps/web/src/auth/server.ts`. The cookie is a rendering mirror, not authorization; every private API handler enforces its own.
 - **UI:** `packages/ui` wraps Coss (Base UI) primitives imported via explicit subpaths such as `@automator/ui/button`; tokens and fonts come from `packages/tailwind-config`. `apps/ui-lab` previews them.
-- **Deploy:** Railway autodeploys `web` and `api` from GitHub `main`; `.railway/railway.ts` is the infrastructure definition and changes there need `railway config plan` / `apply`.
+- **Deploy:** Railway autodeploys `web`, `api`, `runtime` and `landing` from GitHub `main`, each on its own `*.automator.ardasari.co` host; `.railway/railway.ts` is the infrastructure definition and changes there need `railway config plan` / `apply`.
 
 ## Docs
 

@@ -20,8 +20,8 @@ Connect logic, AI agents, user interfaces, and onchain actions in a single flow,
 
 ## Node types
 
-- **Triggers** — Start flows manually, on a schedule, from webhooks, or in response to onchain events and price or balance thresholds.
-- **Logic** — Branch, filter, loop, merge paths, set variables, or run JavaScript.
+- **Triggers** — Start flows manually, on a schedule, from webhooks or an HTTP API call, or in response to onchain events and price or balance thresholds.
+- **Logic** — Branch, filter, loop, merge paths, set variables, run JavaScript, or answer the caller.
 - **Data** — Create, find, update, and delete records in your workspace tables.
 - **Onchain** — Read and write contracts, transfer tokens, and sign messages.
 - **AI** — Generate text, classify inputs, extract structured data, or run an agent with selected tools.
