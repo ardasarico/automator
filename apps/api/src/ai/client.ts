@@ -70,9 +70,25 @@ export function withRequestDeadline(model: LanguageModel, deadlineAt: number): L
     const expiry = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => reject(new LanguageModelError("timeout", outOfTime)), left);
     });
+    /*
+     * The losing call keeps streaming to its own timeout, and the turn it was speaking for has
+     * already moved on — a late delta would be pasted into someone else's text. Once the race
+     * is settled, either way, nothing it says is forwarded.
+     */
+    let settled = false;
+    const heard = request.onText;
+    const bounded: ChatRequest = heard
+      ? {
+          ...request,
+          onText: (delta) => {
+            if (!settled) heard(delta);
+          },
+        }
+      : request;
     try {
-      return await Promise.race([model(request), expiry]);
+      return await Promise.race([model(bounded), expiry]);
     } finally {
+      settled = true;
       clearTimeout(timer);
     }
   };
@@ -326,10 +342,32 @@ export function withFallbackModel(
   log?: (line: string) => void,
 ): LanguageModel {
   return async (request) => {
+    /*
+     * Text already delivered cannot be taken back. The fallback answers for a primary that is
+     * down — one that fails before saying a word — but a primary that breaks mid-stream has
+     * already written part of the turn, and a second whole answer would be pasted onto it.
+     */
+    let spoke = false;
+    const heard = request.onText;
+    const watched: ChatRequest = heard
+      ? {
+          ...request,
+          onText: (delta) => {
+            spoke = true;
+            heard(delta);
+          },
+        }
+      : request;
     try {
-      return await primary(request);
+      return await primary(watched);
     } catch (error) {
       if (!(error instanceof LanguageModelError)) throw error;
+      if (spoke) {
+        log?.(
+          `Primary model failed after streaming (${error.kind}: ${error.message}); keeping its text`,
+        );
+        throw error;
+      }
       log?.(`Primary model failed (${error.kind}: ${error.message}); asking the fallback`);
       return fallback(request);
     }

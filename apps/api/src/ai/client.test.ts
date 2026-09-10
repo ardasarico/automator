@@ -323,6 +323,24 @@ describe("OpenRouter client", () => {
     expect(Date.now() - started).toBeLessThan(2_000);
   });
 
+  test("a call that lost the deadline race is not heard from afterwards", async () => {
+    let late: (() => void) | undefined;
+    const slow: LanguageModel = async (request) => {
+      request.onText?.("in time");
+      late = () => request.onText?.("too late");
+      return new Promise(() => {});
+    };
+    const deltas: string[] = [];
+    const bounded = withRequestDeadline(slow, Date.now() + 20);
+    const failure = await bounded({
+      messages: [],
+      onText: (delta) => deltas.push(delta),
+    }).catch((error: unknown) => error);
+    expect((failure as LanguageModelError).kind).toBe("timeout");
+    late!();
+    expect(deltas).toEqual(["in time"]);
+  });
+
   test.each([
     ["null payload", null],
     ["non-array choices", { choices: { 0: { message: { content: "ok" } } } }],
@@ -440,6 +458,33 @@ describe("OpenAI client", () => {
     expect(answer.toolCalls).toEqual([{ id: "c1", name: "add_node", arguments: { id: "t" } }]);
   });
 
+  test("reads two events in one chunk and an event split across two", async () => {
+    const encoder = new TextEncoder();
+    const fetcher = (async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode(
+                'data: {"choices":[{"delta":{"content":"a"}}]}\n\ndata: {"choices":[{"delta":{"content":"b"}}]}\n\ndata: {"choices":[{"delta":{"con',
+              ),
+            );
+            controller.enqueue(encoder.encode('tent":"c"}}]}\n\ndata: [DONE]\n\n'));
+            controller.close();
+          },
+        }),
+        { status: 200 },
+      )) as unknown as typeof fetch;
+    const model = createOpenAiModel({ apiKey: "k", model: "m", fetcher })!;
+    const deltas: string[] = [];
+    const answer = await model({
+      messages: [{ role: "user", content: "hi" }],
+      onText: (delta) => deltas.push(delta),
+    });
+    expect(deltas).toEqual(["a", "b", "c"]);
+    expect(answer.content).toBe("abc");
+  });
+
   test("names OpenAI in upstream failures", async () => {
     const model = createOpenAiModel({
       apiKey: "sk-openai",
@@ -492,6 +537,29 @@ describe("withFallbackModel", () => {
       kind: "timeout",
       message: "fallback broke",
     });
+  });
+
+  test("keeps a primary's streamed text instead of pasting a second answer onto it", async () => {
+    const lines: string[] = [];
+    const deltas: string[] = [];
+    let fallbackCalls = 0;
+    const model = withFallbackModel(
+      async (asked) => {
+        asked.onText?.("Half an ");
+        throw new LanguageModelError("upstream", "connection reset");
+      },
+      async () => {
+        fallbackCalls++;
+        return { content: "a whole answer", toolCalls: [] };
+      },
+      (line) => lines.push(line),
+    );
+    await expect(
+      model({ ...request, onText: (delta) => deltas.push(delta) }),
+    ).rejects.toMatchObject({ kind: "upstream", message: "connection reset" });
+    expect(fallbackCalls).toBe(0);
+    expect(deltas).toEqual(["Half an "]);
+    expect(lines).toEqual([expect.stringContaining("after streaming")]);
   });
 
   test("lets unexpected errors through without asking the fallback", async () => {

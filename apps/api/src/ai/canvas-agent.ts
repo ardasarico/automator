@@ -227,14 +227,17 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
   const loop = async (): Promise<void> => {
     for (;;) {
       input.signal?.throwIfAborted();
-      /* A model that streams has already said everything by the time it answers. */
+      /* A model that streams has already said everything by the time it answers. An abandoned
+       * call can still be streaming into a turn that has moved on, so the hop stops listening
+       * the moment it ends. */
       let streamed = false;
+      let live = true;
       const answer = await ask({
         messages,
         tools: canvasTools,
         temperature: 0.2,
         onText: (delta) => {
-          if (!delta) return;
+          if (!live || !delta) return;
           if (!streamed) {
             streamed = true;
             separate();
@@ -242,6 +245,8 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
           text += delta;
           emit({ type: "text.delta", delta });
         },
+      }).finally(() => {
+        live = false;
       });
       if (!streamed) pushText(answer.content);
       if (answer.toolCalls.length === 0) return;

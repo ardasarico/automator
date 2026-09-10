@@ -139,7 +139,11 @@ export function createAiRoutes({
                 );
             }
             emit({ type: "done" });
-            if (!closed) controller.close();
+            if (closed) return;
+            // Closed first: a stray `emit` from an abandoned model call must find the door shut
+            // rather than enqueue onto a controller that has already closed.
+            closed = true;
+            controller.close();
           },
           cancel() {
             closed = true;

@@ -220,6 +220,21 @@ describe("canvas agent", () => {
     expect(parts).toEqual([{ type: "text", text: "Hello" }]);
   });
 
+  test("a delta that arrives after its hop has ended is ignored", async () => {
+    const { parts, events } = await run([], {
+      text: "What does this flow do?",
+      current: pingFlow,
+      model: async (request) => {
+        request.onText?.("Hello");
+        setTimeout(() => request.onText?.(" again"), 0);
+        return { content: "Hello", toolCalls: [] };
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(events).toEqual([{ type: "text.delta", delta: "Hello" }]);
+    expect(parts).toEqual([{ type: "text", text: "Hello" }]);
+  });
+
   test("document checks that fail get one repair, then the draft is offered with a failed check", async () => {
     const { parts, events, requests } = await run([
       // A node with no trigger: the document check rejects it at the end of the turn.
@@ -242,6 +257,11 @@ describe("canvas agent", () => {
         .map((event) => (event as { phase: string }).phase),
     ).toEqual(["checking", "repairing", "checking"]);
     expect(requests[2]!.messages.at(-1)!.content).toMatch(/not a valid flow/);
+    /* Prose from either side of the repair is one part, and the stream carries the join. */
+    expect(
+      events.filter((event) => event.type === "text.delta").map((event) => event.delta),
+    ).toEqual(["Done.", "\n\n", "I cannot fix that."]);
+    expect(parts[1]).toEqual({ type: "text", text: "Done.\n\nI cannot fix that." });
     const proposal = parts.at(-1);
     expect(proposal).toMatchObject({
       type: "proposal",
