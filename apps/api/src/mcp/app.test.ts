@@ -25,7 +25,15 @@ async function fixture() {
   await apiKeys.create(alice, "laptop", hashApiKey(key), keyDisplayPrefix(key));
   const app: Handler = createApp({ database, apiKeys, flows: stores.flows, runs: stores.runs });
   const bare: Handler = createApp({ database, flows: stores.flows, runs: stores.runs });
-  return { key, app, bare };
+  /* The same app with its access log on, for the tests that read what it printed. */
+  const logged: Handler = createApp({
+    database,
+    apiKeys,
+    flows: stores.flows,
+    runs: stores.runs,
+    log: true,
+  });
+  return { key, app, bare, logged };
 }
 
 const toolsList = (app: Handler, headers: Record<string, string> = {}) =>
@@ -56,6 +64,22 @@ describe("the app's MCP endpoint", () => {
   test("refuses a request with no key", async () => {
     const { app } = await fixture();
     expect((await toolsList(app)).status).toBe(401);
+  });
+
+  test("the access log reports a refusal as the 401 the caller received", async () => {
+    /* Production printed `POST /mcp 200 1ms` for a request the client read as 401: the
+     * transport's own Response never touches `set.status`, which the logger was reading. */
+    const { logged } = await fixture();
+    const lines: string[] = [];
+    const log = console.log;
+    console.log = (...args: unknown[]) => lines.push(String(args[0]));
+    try {
+      expect((await toolsList(logged)).status).toBe(401);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    } finally {
+      console.log = log;
+    }
+    expect(lines[0]).toMatch(/^POST \/mcp 401 \d+ms$/);
   });
 
   test("refuses a key that was never issued", async () => {

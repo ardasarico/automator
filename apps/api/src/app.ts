@@ -159,12 +159,16 @@ export function createApp({
         });
       return status(failure.status, failure.body);
     })
-    .onAfterResponse(({ request, path, set }) => {
+    .onAfterResponse(({ request, path, set, response }) => {
       const start = startedAt.get(request);
       if (start === undefined) return;
       startedAt.delete(request);
+      /* A handler that returns a Web `Response` of its own — the MCP transport, its refusals —
+       * never assigns `set.status`, which then still reads 200. The Response is what the client
+       * received, so it wins; everything else has set its status by now. */
+      const status = response instanceof Response ? response.status : (set.status ?? 200);
       console.log(
-        `${request.method} ${logPath(path)} ${set.status ?? 200} ${Math.round(performance.now() - start)}ms`,
+        `${request.method} ${logPath(path)} ${status} ${Math.round(performance.now() - start)}ms`,
       );
     })
     .get(apiInfoContract.path, (): ApiInfoResponse => ({ name: "Automator API" }), {

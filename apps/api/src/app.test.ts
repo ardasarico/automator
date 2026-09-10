@@ -129,6 +129,17 @@ describe("server-side logging", () => {
     expect(String(lines[0]?.[1])).toMatch(/^GET \/health\/live 200 \d+ms$/);
   });
 
+  test("logs the status a raw Response carried, not the untouched default", async () => {
+    /* The MCP routes answer with a Web Response the transport built, which never passes through
+     * `set.status`; the access log used to read that stale 200 and report every refusal as ok. */
+    const app = createApp({ database: up, log: true }).get(
+      "/raw",
+      () => new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }),
+    );
+    const lines = await capture(() => app.handle(new Request("http://localhost/raw")));
+    expect(String(lines[0]?.[1])).toMatch(/^GET \/raw 401 \d+ms$/);
+  });
+
   test("stays silent without the log option", async () => {
     const app = createApp({ database: up });
     expect(await capture(() => app.handle(new Request("http://localhost/health/live")))).toEqual(
