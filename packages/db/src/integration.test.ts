@@ -5,6 +5,7 @@ import { createFlowStore, FlowOwnerMissingError } from "./flows";
 import { migrate, migrations } from "./migrations";
 import { createRunStore, RunCursorError } from "./runs";
 import { createUserStore, UsernameTakenError } from "./users";
+import { countIntegrationSuites, integrationSkipNotice } from "./integration-notice";
 
 const url = process.env.TEST_DATABASE_URL;
 
@@ -441,6 +442,6 @@ describe.skipIf(!url)("live PostgreSQL chains and event cursors", () => {
 });
 
 test.skipIf(Boolean(url))("live database tests need TEST_DATABASE_URL", () => {
-  console.log("Skipping packages/db integration tests: TEST_DATABASE_URL is not set.");
+  console.log(integrationSkipNotice(countIntegrationSuites(import.meta.dir)));
   expect(url).toBeUndefined();
 });
