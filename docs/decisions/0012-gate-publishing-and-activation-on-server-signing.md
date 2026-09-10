@@ -1,10 +1,10 @@
 # Gate publishing and activation on the owner's server signing
 
-Status: Accepted
+Status: Accepted, narrowed by [0014](0014-collect-visitor-usdc-payments-as-a-verified-screen.md)
 
 ## Context
 
-A flow that moves funds (`usdc.payout`, `usdc.payment`, `onchain.transfer-token`, `onchain.write-contract`, `onchain.sign-message`, `privy.sign-transaction`) signs with the owner's Privy server wallet, which the owner must enable once. Nothing checked this before a flow went live: the first live Selfie Check test verified the visitor and then failed at the payout with an owner-only message, and the visitor learned only that something went wrong.
+A flow that moves the owner's funds (`usdc.payout`, `onchain.transfer-token`, `onchain.write-contract`, `onchain.sign-message`, `privy.sign-transaction`) signs with the owner's Privy server wallet, which the owner must enable once. (`usdc.payment` was in that list when this was written; 0014 turned it into a screen the visitor pays from their own wallet, so it signs nothing for the owner and is no longer a signer node.) Nothing checked this before a flow went live: the first live Selfie Check test verified the visitor and then failed at the payout with an owner-only message, and the visitor learned only that something went wrong.
 
 ## Decision
 
