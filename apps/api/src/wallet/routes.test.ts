@@ -52,6 +52,32 @@ function run(id: string, startedAt: string, nodes: FlowRun["nodes"]): FlowRun {
 }
 
 describe("collectWalletTransactions", () => {
+  test("leaves out a payment the visitor made, because the owner's wallet never sent it", () => {
+    const collecting: FlowDocument = {
+      ...payout,
+      nodes: [
+        payout.nodes[0]!,
+        { id: "take", type: "usdc.payment", position: { x: 1, y: 0 }, label: "Pay", config: {} },
+      ],
+    };
+    const paid = run("r-paid", "2026-09-07T09:00:00.000Z", [
+      { nodeId: "t", status: "succeeded", outputs: { run: {} } },
+      {
+        nodeId: "take",
+        status: "succeeded",
+        outputs: {
+          paid: { paid: true, txHash: hashA },
+          receipt: { simulated: false, hash: hashA },
+        },
+      },
+    ]);
+    expect(
+      collectWalletTransactions([
+        { run: paid, flowName: "Paid", source: "miniapp" as const, document: collecting },
+      ]),
+    ).toEqual([]);
+  });
+
   test("lists live receipt hashes newest first with the document's chain and node time", () => {
     const older = run("r-old", "2026-09-07T09:00:00.000Z", [
       { nodeId: "t", status: "succeeded", outputs: { run: {} } },

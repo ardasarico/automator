@@ -92,7 +92,11 @@ const requiredConfig: Partial<Record<FlowNodeType, readonly FieldRule[]>> = {
     { field: "value", optional: true, shape: "amount" },
     { field: "data", optional: true, shape: "hex" },
   ],
-  "usdc.payment": usdcTransfer,
+  // A blank recipient collects into the owner's own wallet, resolved when the screen is served.
+  "usdc.payment": [
+    { field: "to", optional: true, shape: "address" },
+    { field: "amount", shape: "amount" },
+  ],
   "usdc.payout": usdcTransfer,
   "usdc.balance": [{ field: "address", optional: true, shape: "address" }],
   "ai.generate-text": [{ field: "prompt" }],
@@ -356,6 +360,16 @@ export function findFlowProblems(
           severity: "warning",
           nodeId: node.id,
           message: `“${label}” has nothing on Rejected, so a failed verification ends the flow.`,
+        });
+      }
+      if (
+        node.type === "usdc.payment" &&
+        !document.edges.some((edge) => edge.source === node.id && edge.sourceHandle === "declined")
+      ) {
+        problems.push({
+          severity: "warning",
+          nodeId: node.id,
+          message: `“${label}” has nothing on Declined, so a visitor who does not pay ends the flow.`,
         });
       }
     } catch {

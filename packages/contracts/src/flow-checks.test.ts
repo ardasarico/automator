@@ -41,6 +41,51 @@ describe("findFlowProblems", () => {
   });
 });
 
+describe("the payment screen's recipient", () => {
+  const payment = (config: Record<string, unknown>) => ({
+    nodes: [node("open", "trigger.miniapp-open"), node("pay", "usdc.payment", config)],
+    edges: [{ id: "e", source: "open", target: "pay" }],
+  });
+  /* The same flow with the Declined port wired, so only the config under test is left. */
+  const wired = (config: Record<string, unknown>) => {
+    const base = payment(config);
+    return {
+      nodes: [...base.nodes, node("bye", "screen.page")],
+      edges: [...base.edges, { id: "d", source: "pay", sourceHandle: "declined", target: "bye" }],
+    };
+  };
+
+  test("is fine left blank, because that collects into the owner's own wallet", () => {
+    expect(findFlowProblems(wired({ to: "", amount: "5" }))).toEqual([]);
+  });
+
+  test("still has to be an address once something is typed in it", () => {
+    expect(findFlowProblems(wired({ to: "not-an-address", amount: "5" }))).toEqual([
+      {
+        severity: "error",
+        nodeId: "pay",
+        message: "“pay” needs its recipient address to be a 0x address.",
+      },
+    ]);
+  });
+
+  test("warns when nothing is wired to Declined, because that ends the flow silently", () => {
+    expect(findFlowProblems(payment({ to: "", amount: "5" }))).toEqual([
+      {
+        severity: "warning",
+        nodeId: "pay",
+        message: "“pay” has nothing on Declined, so a visitor who does not pay ends the flow.",
+      },
+    ]);
+  });
+
+  test("needs an amount to collect", () => {
+    expect(findFlowProblems(wired({ to: "", amount: "" }))).toEqual([
+      { severity: "error", nodeId: "pay", message: "“pay” needs an amount." },
+    ]);
+  });
+});
+
 describe("findActivationBlockers", () => {
   test("keeps errors and drops warnings, because a fork blanks every secret", () => {
     const document = {

@@ -38,6 +38,8 @@ export const defaultExecutors: ExecutorRegistry = {
   "privy.login": screen,
   "world.id-verify": screen,
   "world.selfie-check": screen,
+  /* The visitor pays from their own wallet; the API verifies that transfer before the run resumes. */
+  "usdc.payment": screen,
 
   "logic.condition": {
     kind: "step",

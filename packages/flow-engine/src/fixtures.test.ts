@@ -43,7 +43,7 @@ describe("node fixtures", () => {
   });
 
   test("receipts are shaped like a completed write, so a flow reading the hash still checks out", () => {
-    for (const type of ["usdc.payment", "usdc.payout", "onchain.transfer-token"] as const) {
+    for (const type of ["usdc.payout", "onchain.transfer-token"] as const) {
       const receipt = nodeFixture(type)!.receipt as Record<string, unknown>;
       expect(isAddress(String(receipt.to))).toBe(true);
       expect(isAddress(String(receipt.token))).toBe(true);
@@ -51,6 +51,16 @@ describe("node fixtures", () => {
       expect(receipt.simulated).toBe(false);
       expect(Number(receipt.amount)).toBeGreaterThan(0);
     }
+  });
+
+  test("a collected payment names a real transfer between two real addresses", () => {
+    const paid = nodeFixture("usdc.payment")!.paid as Record<string, unknown>;
+    expect(paid.paid).toBe(true);
+    expect(isAddress(String(paid.from))).toBe(true);
+    expect(isAddress(String(paid.to))).toBe(true);
+    expect(paid.from).not.toBe(paid.to);
+    expect(paid.txHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(Number(paid.amount)).toBeGreaterThan(0);
   });
 
   test("addresses and identity values are real-looking, not placeholders", () => {

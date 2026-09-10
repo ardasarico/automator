@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   answerMiniAppSessionContract,
   miniAppFailureMessage,
+  miniAppPaymentFailureMessage,
   parseResponse,
   startMiniAppSessionContract,
   type FlowDocument,
@@ -13,8 +14,17 @@ import {
   type VisitorUser,
   type WorldProof,
 } from "@automator/contracts";
-import type { FlowStore, MiniAppSessionRow, RunStore, SessionStore } from "@automator/db";
+import type {
+  FlowStore,
+  MiniAppSessionRow,
+  RunStore,
+  SessionStore,
+  VisitorPaymentRow,
+} from "@automator/db";
 import { Elysia } from "elysia";
+import type { Address, Hex } from "viem";
+import type { ChainFactory } from "../chain/provider";
+import type { PaymentReceipt } from "../chain/visitor-payments";
 import { WorldVerifyError, type WorldVerifier } from "../world/verify";
 import { createSessionRoutes, failureCode } from "./routes";
 
@@ -104,12 +114,15 @@ function fixture(
     visitorToken?: string;
     world?: WorldVerifier;
     sleep?: (ms: number) => Promise<void>;
+    chainFactory?: ChainFactory;
+    visitor?: VisitorUser;
   } = {},
 ) {
   const timestamp = "2026-09-07T10:00:00.000Z";
   const records = new Map<string, FlowRecord>([
     ["flow-1", { flow: options.flow ?? document, createdAt: timestamp, updatedAt: timestamp }],
     ["flow-2", { flow: gated, createdAt: timestamp, updatedAt: timestamp }],
+    ["flow-3", { flow: paying, createdAt: timestamp, updatedAt: timestamp }],
   ]);
   const flows = {
     findPublishedWithOwner: async (id: string) => {
@@ -137,6 +150,7 @@ function fixture(
     },
   } as unknown as RunStore;
   const rows = new Map<string, MiniAppSessionRow>();
+  const spent = new Map<string, VisitorPaymentRow>();
   const sessions: SessionStore = {
     async create(row) {
       rows.set(row.id, { ...row });
@@ -144,6 +158,13 @@ function fixture(
     async find(flowId, id) {
       const row = rows.get(id);
       return row && row.flowId === flowId ? row : null;
+    },
+    async claimWithPayment(expected, payment) {
+      const key = `${payment.chainId}:${payment.txHash.toLowerCase()}`;
+      if (spent.has(key)) return "spent";
+      if (!(await sessions.claim(expected))) return "lost";
+      spent.set(key, payment);
+      return "claimed";
     },
     async claim(expected) {
       const row = rows.get(expected.id);
@@ -177,10 +198,14 @@ function fixture(
       },
       secretsFor: options.secrets ? () => ({ get: async () => options.secrets! }) : undefined,
       callsPerMinute: options.callsPerMinute,
+      chainFactory: options.chainFactory,
       identity:
         options.visitorToken === undefined
           ? undefined
-          : { visitor: async (token) => (token === options.visitorToken ? ada : null) },
+          : {
+              visitor: async (token) =>
+                token === options.visitorToken ? (options.visitor ?? ada) : null,
+            },
       world: options.world,
     }),
   );
@@ -201,7 +226,7 @@ function fixture(
         body: body === undefined ? undefined : JSON.stringify(body),
       }),
     );
-  return { post, created, rows, posted, snapshots, records, runs };
+  return { post, created, rows, posted, snapshots, records, runs, spent };
 }
 
 async function start(post: ReturnType<typeof fixture>["post"], flowId = "flow-1") {
@@ -1084,5 +1109,306 @@ describe("selfie check screens in sessions", () => {
     const down = await answerSelfie(noWorld.post, offline, { worldProof: selfieProof });
     expect(down.json.status).toBe("failed");
     expect(down.json.code).toBe("unconfigured");
+  });
+});
+
+const usdc = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Address;
+const ownerWallet = "0x9999999999999999999999999999999999999999" as Address;
+const adaWallet = "0xada0000000000000000000000000000000000001" as Address;
+const stranger = "0x3333333333333333333333333333333333333333" as Address;
+const paidHash = `0x${"a".repeat(64)}` as Hex;
+
+const paying: FlowDocument = {
+  version: 1,
+  id: "flow-3",
+  name: "Paid report",
+  description: "",
+  nodes: [
+    { id: "t", type: "trigger.miniapp-open", position: { x: 0, y: 0 }, label: "Open", config: {} },
+    {
+      id: "login",
+      type: "privy.login",
+      position: { x: 0, y: 0 },
+      label: "Sign in",
+      config: { methods: ["email"] },
+    },
+    {
+      id: "pay",
+      type: "usdc.payment",
+      position: { x: 0, y: 0 },
+      label: "Pay for the report",
+      config: { title: "One report", description: "Pay to generate it.", amount: "12.50", to: "" },
+    },
+    { id: "done", type: "screen.page", position: { x: 0, y: 0 }, label: "Report", config: {} },
+    { id: "no", type: "screen.page", position: { x: 0, y: 0 }, label: "No report", config: {} },
+  ],
+  edges: [
+    { id: "1", source: "t", target: "login", sourceHandle: "visitor", targetHandle: "visitor" },
+    { id: "2", source: "login", target: "pay", sourceHandle: "user", targetHandle: "amount" },
+    { id: "3", source: "pay", target: "done", sourceHandle: "paid", targetHandle: "data" },
+    { id: "4", source: "pay", target: "no", sourceHandle: "declined", targetHandle: "data" },
+  ],
+};
+
+function payingChain(
+  receipts: Record<string, PaymentReceipt | null> = {},
+  over: { usdcAddress?: Address; account?: Address } = {},
+): ChainFactory {
+  const usdcAddress = "usdcAddress" in over ? over.usdcAddress : usdc;
+  const chain = {
+    chainId: 84532,
+    chainName: "Base Sepolia",
+    nativeSymbol: "ETH",
+    reader: {} as never,
+    eventReader: {} as never,
+    payments: {
+      waitForReceipt: async (hash: Hex) => receipts[hash.toLowerCase()] ?? null,
+    },
+    usdcDecimals: async () => (usdcAddress ? 6 : null),
+    ...(usdcAddress ? { usdcAddress } : {}),
+  };
+  return {
+    chainIds: [84532],
+    canSign: false,
+    chain: (id: number) => (id === 84532 ? (chain as never) : undefined),
+    wallet: async () => ({ id: "w1", address: ownerWallet, delegated: false }),
+    forUser: async () => ({
+      chainId: 84532,
+      chainName: "Base Sepolia",
+      mode: "live",
+      reader: {} as never,
+      account: "account" in over ? over.account : ownerWallet,
+      ...(usdcAddress ? { usdcAddress } : {}),
+    }),
+  } as unknown as ChainFactory;
+}
+
+const goodReceipt: PaymentReceipt = {
+  status: "success",
+  transfers: [{ token: usdc, from: adaWallet, to: ownerWallet, value: BigInt(12_500_000) }],
+};
+
+function payingFixture(
+  receipts: Record<string, PaymentReceipt | null> = { [paidHash]: goodReceipt },
+  over?: { usdcAddress?: Address; account?: Address },
+) {
+  return fixture({
+    visitorToken: "ada-jwt",
+    visitor: { ...ada, wallet: adaWallet },
+    chainFactory: payingChain(receipts, over),
+  });
+}
+
+async function reachPayment(post: ReturnType<typeof fixture>["post"]) {
+  const opened = await start(post, "flow-3");
+  const answered = await post(`/public/flows/flow-3/sessions/${opened.sessionId}/answer`, {
+    token: opened.token,
+    nodeId: "login",
+    port: "user",
+    privyToken: "ada-jwt",
+  });
+  const session = (await answered.json()) as MiniAppSession;
+  return { session, token: opened.token! };
+}
+
+describe("collecting a USDC payment from the visitor", () => {
+  test("serves the screen with the exact transfer to make, collecting into the owner's wallet", async () => {
+    const { post } = payingFixture();
+    const { session } = await reachPayment(post);
+    expect(session.status).toBe("screen");
+    expect(session.screen?.nodeId).toBe("pay");
+    expect(session.screen?.type).toBe("usdc.payment");
+    expect(session.screen?.payment).toEqual({
+      chainId: 84532,
+      chainName: "Base Sepolia",
+      token: usdc,
+      decimals: 6,
+      to: ownerWallet,
+      amount: "12.50",
+      amountUnits: "12500000",
+    });
+  });
+
+  test("continues on Paid once the visitor's transfer checks out, and records it once", async () => {
+    const { post, spent, rows } = payingFixture();
+    const { session, token } = await reachPayment(post);
+    const path = `/public/flows/flow-3/sessions/${session.sessionId}/answer`;
+    const body = {
+      token,
+      nodeId: "pay",
+      port: "paid",
+      data: { txHash: paidHash },
+      privyToken: "ada-jwt",
+    };
+    const response = await post(path, body);
+    expect(response.status).toBe(200);
+    const next = (await response.json()) as MiniAppSession;
+    expect(next.screen?.nodeId).toBe("done");
+    expect([...spent.values()]).toMatchObject([
+      {
+        chainId: 84532,
+        txHash: paidHash,
+        fromAddress: adaWallet,
+        toAddress: ownerWallet,
+        amountUnits: "12500000",
+      },
+    ]);
+    expect(rows.get(session.sessionId)?.nodeId).toBe("done");
+  });
+
+  test("refuses the same transfer a second time, on this session or another", async () => {
+    const { post, spent } = payingFixture();
+    const { session, token } = await reachPayment(post);
+    const body = {
+      token,
+      nodeId: "pay",
+      port: "paid",
+      data: { txHash: paidHash },
+      privyToken: "ada-jwt",
+    };
+    expect(
+      (await post(`/public/flows/flow-3/sessions/${session.sessionId}/answer`, body)).status,
+    ).toBe(200);
+
+    const second = await reachPayment(post);
+    const replay = await post(`/public/flows/flow-3/sessions/${second.session.sessionId}/answer`, {
+      ...body,
+      token: second.token,
+    });
+    expect(replay.status).toBe(409);
+    expect(await replay.json()).toEqual({ error: "payment_used" });
+    expect(spent.size).toBe(1);
+  });
+
+  test("waits for the receipt and asks the visitor to come back when it has not landed", async () => {
+    const { post, spent } = payingFixture({});
+    const { session, token } = await reachPayment(post);
+    const response = await post(`/public/flows/flow-3/sessions/${session.sessionId}/answer`, {
+      token,
+      nodeId: "pay",
+      port: "paid",
+      data: { txHash: paidHash },
+      privyToken: "ada-jwt",
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "payment_pending" });
+    expect(spent.size).toBe(0);
+  });
+
+  test.each([
+    [
+      "a transfer somebody else made",
+      {
+        status: "success" as const,
+        transfers: [{ token: usdc, from: stranger, to: ownerWallet, value: BigInt(12_500_000) }],
+      },
+    ],
+    [
+      "a transfer to somebody else",
+      {
+        status: "success" as const,
+        transfers: [{ token: usdc, from: adaWallet, to: stranger, value: BigInt(12_500_000) }],
+      },
+    ],
+    [
+      "a transfer for less than the price",
+      {
+        status: "success" as const,
+        transfers: [{ token: usdc, from: adaWallet, to: ownerWallet, value: BigInt(12_499_999) }],
+      },
+    ],
+    ["a reverted transaction", { status: "reverted" as const, transfers: [] }],
+  ])("refuses %s and leaves the screen answerable", async (_name, receipt) => {
+    const { post, spent, rows } = payingFixture({ [paidHash]: receipt });
+    const { session, token } = await reachPayment(post);
+    const response = await post(`/public/flows/flow-3/sessions/${session.sessionId}/answer`, {
+      token,
+      nodeId: "pay",
+      port: "paid",
+      data: { txHash: paidHash },
+      privyToken: "ada-jwt",
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "payment_rejected" });
+    expect(spent.size).toBe(0);
+    expect(rows.get(session.sessionId)?.nodeId).toBe("pay");
+  });
+
+  test("refuses a paid answer with no sign-in or no transaction hash", async () => {
+    const { post } = payingFixture();
+    const { session, token } = await reachPayment(post);
+    const path = `/public/flows/flow-3/sessions/${session.sessionId}/answer`;
+    for (const body of [
+      { token, nodeId: "pay", port: "paid", data: { txHash: paidHash } },
+      { token, nodeId: "pay", port: "paid", privyToken: "ada-jwt" },
+      { token, nodeId: "pay", port: "paid", data: { txHash: "not-a-hash" }, privyToken: "ada-jwt" },
+    ])
+      expect((await post(path, body)).status).toBe(400);
+    expect(
+      (
+        await post(path, {
+          token,
+          nodeId: "pay",
+          port: "paid",
+          data: { txHash: paidHash },
+          privyToken: "wrong",
+        })
+      ).status,
+    ).toBe(401);
+  });
+
+  test("takes Declined without any transfer at all", async () => {
+    const { post, spent } = payingFixture();
+    const { session, token } = await reachPayment(post);
+    const response = await post(`/public/flows/flow-3/sessions/${session.sessionId}/answer`, {
+      token,
+      nodeId: "pay",
+      port: "declined",
+    });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as MiniAppSession).screen?.nodeId).toBe("no");
+    expect(spent.size).toBe(0);
+  });
+
+  /*
+   * The owner demoing their own app: the screen leaves the recipient blank, so it collects into
+   * the owner's wallet, and the owner is the visitor paying. That is a transfer to themselves.
+   */
+  test("takes a payment a visitor made to their own wallet, when they are also the owner", async () => {
+    const { post, spent } = fixture({
+      visitorToken: "ada-jwt",
+      visitor: { ...ada, wallet: adaWallet },
+      chainFactory: payingChain(
+        {
+          [paidHash]: {
+            status: "success",
+            transfers: [{ token: usdc, from: adaWallet, to: adaWallet, value: BigInt(12_500_000) }],
+          },
+        },
+        { account: adaWallet },
+      ),
+    });
+    const { session, token } = await reachPayment(post);
+    expect(session.screen?.payment?.to).toBe(adaWallet);
+    const response = await post(`/public/flows/flow-3/sessions/${session.sessionId}/answer`, {
+      token,
+      nodeId: "pay",
+      port: "paid",
+      data: { txHash: paidHash },
+      privyToken: "ada-jwt",
+    });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as MiniAppSession).screen?.nodeId).toBe("done");
+    expect([...spent.values()]).toMatchObject([
+      { fromAddress: adaWallet, toAddress: adaWallet, amountUnits: "12500000" },
+    ]);
+  });
+
+  test("fails the app, in the visitor's words, when the chain has no payment token", async () => {
+    const { post } = payingFixture({}, { usdcAddress: undefined });
+    const { session } = await reachPayment(post);
+    expect(session.status).toBe("failed");
+    expect(session.error).toBe(miniAppPaymentFailureMessage);
+    expect(session.code).toBe("unconfigured");
   });
 });

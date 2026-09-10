@@ -8,6 +8,7 @@ import {
   worldIdVerifyConfigSchema,
   worldSelfieCheckConfigSchema,
 } from "./identity";
+import { usdcPaymentConfigSchema } from "./onchain-configs";
 
 export const screenNodeTypes = [
   "screen.page",
@@ -17,6 +18,7 @@ export const screenNodeTypes = [
   "privy.login",
   "world.id-verify",
   "world.selfie-check",
+  "usdc.payment",
 ] as const satisfies readonly FlowNodeType[];
 export type ScreenNodeType = (typeof screenNodeTypes)[number];
 
@@ -119,6 +121,7 @@ export const screenConfigSchemas = {
   "privy.login": privyLoginConfigSchema,
   "world.id-verify": worldIdVerifyConfigSchema,
   "world.selfie-check": worldSelfieCheckConfigSchema,
+  "usdc.payment": usdcPaymentConfigSchema,
 } as const satisfies Record<ScreenNodeType, TObject>;
 
 export type ScreenConfig<T extends ScreenNodeType = ScreenNodeType> = Static<
@@ -150,5 +153,7 @@ export function screenPorts(type: ScreenNodeType): { primary: string; secondary?
       return { primary: "submitted" };
     case "screen.confirmation":
       return { primary: "confirmed", secondary: "cancelled" };
+    case "usdc.payment":
+      return { primary: "paid", secondary: "declined" };
   }
 }

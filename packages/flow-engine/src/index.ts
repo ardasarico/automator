@@ -29,6 +29,7 @@ export type {
 } from "./data";
 export { describeChainError } from "./chain-errors";
 export { erc20Abi, jsonSafe } from "./abi";
+export { parseTokenAmount } from "./onchain-executors";
 export { dataExecutors } from "./data-executors";
 export { graphExecutors } from "./graph-executors";
 export { graphGatewayUrl, querySubgraph, subgraphUrl, type GraphGateway } from "./graph";

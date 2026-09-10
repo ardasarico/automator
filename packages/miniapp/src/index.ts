@@ -5,7 +5,10 @@ export {
   useIdentityActions,
   type IdentityActions,
   type IdentityAnswer,
+  type PaymentActions,
+  type PaymentWallet,
 } from "./identity";
+export { shortAddress } from "./payment";
 export {
   findEntry,
   isScreenNode,

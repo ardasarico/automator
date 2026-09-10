@@ -4,6 +4,24 @@ import type { FlowNodeType } from "./flows";
 import { worldProofSchema, worldRequestSchema } from "./identity";
 import { isSignerNodeType } from "./signer-nodes";
 
+/*
+ * The payment a `usdc.payment` screen asks the visitor to make, resolved by the API: the chain's
+ * USDC, the recipient the flow settled on, and the exact base units to transfer. The browser signs
+ * these numbers rather than deriving them, so what the visitor pays is what the API verifies.
+ */
+export const miniAppPaymentSchema = Type.Object({
+  chainId: Type.Number(),
+  chainName: Type.String(),
+  token: Type.String({ minLength: 1 }),
+  decimals: Type.Number(),
+  to: Type.String({ minLength: 1 }),
+  /** The amount in dollars, for display only. */
+  amount: Type.String(),
+  /** The amount in the token's base units, as a decimal string. */
+  amountUnits: Type.String({ minLength: 1 }),
+});
+export type MiniAppPayment = Static<typeof miniAppPaymentSchema>;
+
 export const miniAppScreenSchema = Type.Object({
   nodeId: Type.String({ minLength: 1 }),
   // Spelled out rather than mapped from `screenNodeTypes`, so Elysia infers the literals.
@@ -15,10 +33,12 @@ export const miniAppScreenSchema = Type.Object({
     Type.Literal("privy.login"),
     Type.Literal("world.id-verify"),
     Type.Literal("world.selfie-check"),
+    Type.Literal("usdc.payment"),
   ]),
   label: Type.String(),
   config: Type.Record(Type.String(), Type.Unknown()),
   world: Type.Optional(worldRequestSchema),
+  payment: Type.Optional(miniAppPaymentSchema),
 });
 export type MiniAppScreen = Static<typeof miniAppScreenSchema>;
 
@@ -48,6 +68,9 @@ export const miniAppFailureMessage = "This app hit a problem and could not conti
 /** For a signer node the owner has not set up: the one case a visitor can act on by coming back later. */
 export const miniAppFundsFailureMessage =
   "This app can't send funds right now. Its owner has to finish setting it up first.";
+/** The same, for the screen that collects a payment: the visitor's money never moved. */
+export const miniAppPaymentFailureMessage =
+  "This app can't take payments right now. Its owner has to finish setting it up first.";
 
 /** How a failed run reads to the runtime, classified from the engine's error text. */
 export function failureCode(error: string | undefined): MiniAppFailureCode {
@@ -73,9 +96,9 @@ export function visitorFailureMessage(
   code: MiniAppFailureCode,
   nodeType: FlowNodeType | undefined,
 ): string {
-  return code === "unconfigured" && nodeType !== undefined && isSignerNodeType(nodeType)
-    ? miniAppFundsFailureMessage
-    : miniAppFailureMessage;
+  if (code !== "unconfigured" || nodeType === undefined) return miniAppFailureMessage;
+  if (nodeType === "usdc.payment") return miniAppPaymentFailureMessage;
+  return isSignerNodeType(nodeType) ? miniAppFundsFailureMessage : miniAppFailureMessage;
 }
 
 export const miniAppSessionSchema = Type.Object({

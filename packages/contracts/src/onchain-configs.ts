@@ -90,11 +90,66 @@ export const usdcTransferConfigSchema = Type.Object({
 });
 export type UsdcTransferConfig = Static<typeof usdcTransferConfigSchema>;
 
+/*
+ * Collecting a payment is a visitor screen, not a transfer the owner signs: the mini-app shows the
+ * request, the visitor pays from their own wallet, and the API verifies that exact transfer once
+ * before the flow continues. `usdc.payout` remains the outgoing transfer the owner signs.
+ */
 export const usdcPaymentConfigSchema = Type.Object({
-  ...usdcTransferConfigSchema.properties,
-  to: recipient("Who collects the payment."),
+  title: text("", { description: "Blank shows the node label." }),
+  description: text("", { description: "Shown under the title, above the amount." }),
+  amount: amount("How much USDC to collect, in dollars such as 12.50.", "{{input.amount}}"),
+  to: recipient("Who collects the payment. Leave blank to collect into your own wallet."),
+  simulate: Type.Union([Type.Literal("paid"), Type.Literal("declined")], {
+    default: "paid",
+    description: "Which answer Simulate takes.",
+  }),
 });
 export type UsdcPaymentConfig = Static<typeof usdcPaymentConfigSchema>;
+
+/*
+ * What a collected payment hands on. Both branches carry `paid`, so a following condition can read
+ * `{{input.value.paid}}` whichever way the visitor went, the way the Selfie Check gate does.
+ */
+export interface UsdcPaymentCollected {
+  paid: true;
+  txHash: string;
+  from: string;
+  to: string;
+  /** The amount in dollars, as the visitor was asked for it. */
+  amount: string;
+  chainId: number;
+  /** Present only when Simulate or a dry run answered the screen instead of a visitor. */
+  simulated?: true;
+}
+
+export interface UsdcPaymentDeclined {
+  paid: false;
+}
+
+export const samplePaymentTxHash =
+  "0x7d1af0c9e2b3546a8f0d2c1b4e6a9f3082c5d7e10b4a6389fd2c5b7e0a1934cd";
+/** The wallet Simulate pays from: the sample visitor of `privy.login`. */
+export const samplePayerAddress = "0x0000000000000000000000000000000000000001";
+/** Where Simulate collects to when the screen leaves the recipient blank. */
+export const sampleCollectorAddress = "0x0000000000000000000000000000000000000002";
+
+export const sampleUsdcPaymentDeclined: UsdcPaymentDeclined = { paid: false };
+
+export function sampleUsdcPayment(
+  config: UsdcPaymentConfig,
+  chainId: number,
+): UsdcPaymentCollected {
+  return {
+    paid: true,
+    simulated: true,
+    txHash: samplePaymentTxHash,
+    from: samplePayerAddress,
+    to: config.to.trim() || sampleCollectorAddress,
+    amount: config.amount,
+    chainId,
+  };
+}
 
 export const usdcBalanceConfigSchema = Type.Object({
   address: text("", {

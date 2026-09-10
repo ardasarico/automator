@@ -16,6 +16,7 @@ import {
   WorldSelfieCheckScreen,
   type IdentityAnswer,
 } from "./identity";
+import { UsdcPaymentScreen } from "./payment";
 import { QrCode } from "./qr-code";
 
 export type ScreenViewProps = {
@@ -242,6 +243,8 @@ export function ScreenView(props: ScreenViewProps): React.ReactElement {
       return <WorldIdVerifyScreen {...props} frame={ScreenFrame} title={Title} />;
     case "world.selfie-check":
       return <WorldSelfieCheckScreen {...props} frame={ScreenFrame} title={Title} />;
+    case "usdc.payment":
+      return <UsdcPaymentScreen {...props} frame={ScreenFrame} title={Title} />;
   }
 }
 

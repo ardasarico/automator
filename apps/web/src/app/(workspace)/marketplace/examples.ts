@@ -1,4 +1,5 @@
 import {
+  RiBankCardLine,
   RiBubbleChartLine,
   RiCameraLensLine,
   RiCheckboxCircleLine,
@@ -211,6 +212,30 @@ export const flowExamples = [
       { name: "Discord message", icon: RiDiscordLine },
     ],
     nodeTypes: ["trigger.schedule", "graph.query-subgraph", "logic.condition", "notify.discord"],
+  },
+  {
+    id: "paid-report",
+    name: "Paid report",
+    description: "Take a USDC payment from the visitor, then write the report they paid for.",
+    steps: [
+      {
+        name: "Pay for the report",
+        description: "The visitor pays 1 USDC from their own wallet; the server verifies it once.",
+      },
+      {
+        name: "Write the report",
+        description: "Only a verified payment reaches the model that writes the report.",
+      },
+      {
+        name: "Your report",
+        description: "The report is shown to the visitor; declining ends on its own screen.",
+      },
+    ],
+    nodes: [
+      { name: "Collect USDC payment", icon: RiBankCardLine },
+      { name: "Generate text", icon: RiSparklingLine },
+    ],
+    nodeTypes: ["trigger.miniapp-open", "usdc.payment", "ai.generate-text", "screen.page"],
   },
   {
     id: "selfie-gated-claim",

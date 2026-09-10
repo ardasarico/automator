@@ -281,6 +281,32 @@ export const migrations: Migration[] = [
     CREATE INDEX IF NOT EXISTS automator_node_presets_owner
       ON automator_node_presets (owner_id, created_at DESC, id DESC)`,
   },
+  {
+    /*
+     * One row per USDC transfer a visitor made to answer a `usdc.payment` screen. The row is
+     * written in the same transaction that claims the screen, so a transfer can answer exactly one
+     * screen: (chain_id, tx_hash) is the spend. `run_id` names the run the screen paused in.
+     */
+    name: "0018_payments",
+    sql: `CREATE TABLE IF NOT EXISTS automator_payments (
+      id TEXT PRIMARY KEY,
+      flow_id TEXT NOT NULL REFERENCES automator_flows(id) ON DELETE CASCADE,
+      session_id TEXT NOT NULL,
+      run_id TEXT,
+      chain_id INTEGER NOT NULL,
+      tx_hash TEXT NOT NULL CHECK (tx_hash ~ '^0x[0-9a-f]{64}$'),
+      from_address TEXT NOT NULL,
+      to_address TEXT NOT NULL,
+      amount_units NUMERIC(78, 0) NOT NULL CHECK (amount_units > 0),
+      verified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (chain_id, tx_hash)
+    );
+    CREATE INDEX IF NOT EXISTS automator_payments_session
+      ON automator_payments (session_id);
+    CREATE INDEX IF NOT EXISTS automator_payments_flow
+      ON automator_payments (flow_id, created_at DESC)`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (

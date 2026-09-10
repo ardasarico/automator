@@ -167,6 +167,48 @@ describe("exampleToFlowDocument", () => {
     expect(statusOf(denied, "Not this time")).toBe("succeeded");
   });
 
+  test("the paid report writes only after the visitor pays, and says so when they do not", async () => {
+    const report = exampleToFlowDocument(findFlowExample("paid-report")!, "flow");
+    const statusOf = (run: FlowRun, label: string) =>
+      run.nodes.find((result) => {
+        const node = report.nodes.find((item) => item.id === result.nodeId);
+        return node?.label === label;
+      })?.status;
+
+    const paid = await runFlow(report, {
+      trigger: { payload: {} },
+      screens: "auto",
+      model,
+      chain: createStubChain(),
+    });
+    expect(paid.error).toBeUndefined();
+    expect(paid.status).toBe("succeeded");
+    expect(statusOf(paid, "Write the report")).toBe("succeeded");
+    expect(statusOf(paid, "Your report")).toBe("succeeded");
+    expect(statusOf(paid, "No payment, no report")).toBe("skipped");
+
+    const payNode = report.nodes.find((node) => node.type === "usdc.payment")!;
+    const declining = {
+      ...report,
+      nodes: report.nodes.map((node) =>
+        node.id === payNode.id
+          ? { ...node, config: { ...node.config, simulate: "declined" } }
+          : node,
+      ),
+    };
+    const declined = await runFlow(declining, {
+      trigger: { payload: {} },
+      screens: "auto",
+      model,
+      chain: createStubChain(),
+    });
+    expect(declined.error).toBeUndefined();
+    // Nothing the owner pays for runs on the branch where no money arrived.
+    expect(statusOf(declined, "Write the report")).toBe("skipped");
+    expect(statusOf(declined, "Your report")).toBe("skipped");
+    expect(statusOf(declined, "No payment, no report")).toBe("succeeded");
+  });
+
   test("the support triage takes the branch the model's label picks", async () => {
     const triage = exampleToFlowDocument(findFlowExample("support-triage")!, "flow");
     const run = await runFlow(triage, { trigger: { payload: {} }, screens: "auto", model });

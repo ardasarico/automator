@@ -19,14 +19,42 @@ describe("screen node types", () => {
       "privy.login",
       "world.id-verify",
       "world.selfie-check",
+      "usdc.payment",
     ]);
     expect(isScreenNodeType("screen.form")).toBe(true);
     expect(isScreenNodeType("world.selfie-check")).toBe(true);
     expect(isScreenNodeType("privy.login")).toBe(true);
     expect(isScreenNodeType("world.id-verify")).toBe(true);
+    expect(isScreenNodeType("usdc.payment")).toBe(true);
+    expect(isScreenNodeType("usdc.payout")).toBe(false);
     expect(isScreenNodeType("world.verification-completed")).toBe(false);
     expect(isScreenNodeType("logic.condition")).toBe(false);
     expect(Object.keys(screenConfigSchemas)).toEqual([...screenNodeTypes]);
+  });
+});
+
+describe("collect USDC payment screen", () => {
+  test("pauses on paid and declined, and defaults the recipient to the flow owner", () => {
+    expect(screenPorts("usdc.payment")).toEqual({ primary: "paid", secondary: "declined" });
+    const config = parseScreenConfig("usdc.payment", {});
+    expect(config).toEqual({
+      title: "",
+      description: "",
+      amount: "{{input.amount}}",
+      to: "",
+      simulate: "paid",
+    });
+  });
+
+  test("keeps a templated amount and an explicit recipient", () => {
+    const config = parseScreenConfig("usdc.payment", {
+      amount: "{{vars.price}}",
+      to: "0x1111111111111111111111111111111111111111",
+      simulate: "declined",
+    });
+    expect(config.amount).toBe("{{vars.price}}");
+    expect(config.to).toBe("0x1111111111111111111111111111111111111111");
+    expect(config.simulate).toBe("declined");
   });
 });
 

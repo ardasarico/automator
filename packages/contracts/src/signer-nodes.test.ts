@@ -10,6 +10,7 @@ import {
   failureCode,
   miniAppFailureMessage,
   miniAppFundsFailureMessage,
+  miniAppPaymentFailureMessage,
   visitorFailureMessage,
 } from "./sessions";
 
@@ -25,12 +26,13 @@ describe("signer nodes", () => {
         "onchain.transfer-token",
         "onchain.sign-message",
         "privy.sign-transaction",
-        "usdc.payment",
         "usdc.payout",
       ].sort(),
     );
     for (const type of signerNodeTypes) expect(flowNodeTypes).toContain(type);
     expect(isSignerNodeType("usdc.payout")).toBe(true);
+    // Collecting a payment spends the visitor's wallet, so it needs no signing from the owner.
+    expect(isSignerNodeType("usdc.payment")).toBe(false);
     expect(isSignerNodeType("usdc.balance")).toBe(false);
     expect(isSignerNodeType("onchain.read-contract")).toBe(false);
   });
@@ -102,5 +104,16 @@ describe("visitor failure messages", () => {
     expect(JSON.stringify([miniAppFundsFailureMessage, miniAppFailureMessage])).not.toMatch(
       /signer|Privy|wallet/i,
     );
+  });
+
+  test("a payment screen the owner has not set up says so in its own words", () => {
+    expect(miniAppPaymentFailureMessage).toBe(
+      "This app can't take payments right now. Its owner has to finish setting it up first.",
+    );
+    expect(visitorFailureMessage("unconfigured", "usdc.payment")).toBe(
+      miniAppPaymentFailureMessage,
+    );
+    expect(visitorFailureMessage("node_failed", "usdc.payment")).toBe(miniAppFailureMessage);
+    expect(miniAppPaymentFailureMessage).not.toMatch(/signer|Privy|wallet|USDC/i);
   });
 });

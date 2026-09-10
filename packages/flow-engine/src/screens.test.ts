@@ -1,4 +1,9 @@
-import type { FlowNode } from "@automator/contracts";
+import {
+  samplePayerAddress,
+  samplePaymentTxHash,
+  sampleCollectorAddress,
+  type FlowNode,
+} from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
 import { autoAnswer } from "./screens";
 
@@ -91,6 +96,42 @@ describe("autoAnswer", () => {
 
   test("is null for a node that is not a screen", () => {
     expect(autoAnswer(node("logic.wait"))).toBeNull();
+  });
+});
+
+describe("autoAnswer for a collect-payment screen", () => {
+  test("takes Paid with a simulated transfer, resolving the amount the flow asked for", () => {
+    expect(
+      autoAnswer(node("usdc.payment", { amount: "{{vars.price}}", to: "" }), {
+        scope: { input: {}, vars: { price: "12.50" }, trigger: undefined },
+        chainId: 84532,
+      }),
+    ).toEqual({
+      paid: {
+        paid: true,
+        simulated: true,
+        txHash: samplePaymentTxHash,
+        from: samplePayerAddress,
+        to: sampleCollectorAddress,
+        amount: "12.50",
+        chainId: 84532,
+      },
+      simulated: { port: "paid" },
+    });
+  });
+
+  test("keeps the recipient the flow configured", () => {
+    const answer = autoAnswer(
+      node("usdc.payment", { amount: "1", to: "0x1111111111111111111111111111111111111111" }),
+    );
+    expect((answer!.paid as { to: string }).to).toBe("0x1111111111111111111111111111111111111111");
+  });
+
+  test("takes Declined when asked, and says nothing was paid", () => {
+    expect(autoAnswer(node("usdc.payment", { simulate: "declined", amount: "1" }))).toEqual({
+      declined: { paid: false },
+      simulated: { port: "declined" },
+    });
   });
 });
 

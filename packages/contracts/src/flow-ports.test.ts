@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { flowNodePorts } from "./flow-ports";
 import { flowNodeTypes } from "./flows";
+import { screenNodeTypes, screenPorts } from "./screens";
 
 describe("flow node ports", () => {
   test("cover every node type with unique handle ids", () => {
@@ -16,6 +17,25 @@ describe("flow node ports", () => {
       const isTrigger = type.startsWith("trigger.") || type === "world.verification-completed";
       expect(flowNodePorts[type].inputs.length === 0).toBe(isTrigger);
     }
+  });
+});
+
+describe("screen node ports", () => {
+  test("agree with the ports a session answers on", () => {
+    for (const type of screenNodeTypes) {
+      const ports = screenPorts(type);
+      expect([type, flowNodePorts[type].outputs]).toEqual([
+        type,
+        ports.secondary ? [ports.primary, ports.secondary] : [ports.primary],
+      ]);
+    }
+  });
+
+  test("the payment screen takes an amount and answers paid or declined", () => {
+    expect(flowNodePorts["usdc.payment"]).toEqual({
+      inputs: ["amount"],
+      outputs: ["paid", "declined"],
+    });
   });
 });
 

@@ -1,5 +1,6 @@
 import type { FlowDocument, FlowEdge, FlowNode, FlowNodeType } from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
+import { createStubChain } from "./chain-stub";
 import { runFlow } from "./engine";
 import type { ExecutorRegistry } from "./executor";
 
@@ -777,5 +778,52 @@ describe("runFlow secrets", () => {
       status: "failed",
       error: "Discord message needs a Discord webhook URL",
     });
+  });
+});
+
+describe("the collect-payment screen", () => {
+  const document = flow(
+    [
+      node("open", "trigger.miniapp-open"),
+      node("price", "logic.set-variable", { name: "price", value: "12.50" }),
+      node("pay", "usdc.payment", { amount: "{{vars.price}}", to: "" }),
+      node("thanks", "screen.page", { title: "Thanks" }),
+    ],
+    [
+      edge("open", "visitor", "price", "value"),
+      edge("price", "value", "pay", "amount"),
+      edge("pay", "paid", "thanks", "data"),
+    ],
+  );
+
+  test("pauses the run for the visitor, like every other screen", async () => {
+    const run = await runFlow(document, { now: fixedNow, screens: "wait" });
+    expect(run.status).toBe("waiting");
+    expect(run.nodes.find((result) => result.nodeId === "pay")?.status).toBe("waiting");
+  });
+
+  test("Simulate answers it with a transfer that names the amount the flow asked for", async () => {
+    const run = await runFlow(document, {
+      now: fixedNow,
+      screens: "auto",
+      chain: createStubChain({ chainId: 4801 }),
+    });
+    expect(run.status).toBe("succeeded");
+    const paid = run.nodes.find((result) => result.nodeId === "pay")?.outputs?.paid;
+    expect(paid).toMatchObject({ paid: true, simulated: true, amount: "12.50", chainId: 4801 });
+  });
+
+  test("a declined payment leaves the Paid branch unrun", async () => {
+    const declined = flow(
+      document.nodes.map((n) =>
+        n.id === "pay" ? { ...n, config: { ...n.config, simulate: "declined" } } : n,
+      ),
+      document.edges,
+    );
+    const run = await runFlow(declined, { now: fixedNow, screens: "auto" });
+    expect(run.nodes.find((result) => result.nodeId === "pay")?.outputs?.declined).toEqual({
+      paid: false,
+    });
+    expect(run.nodes.find((result) => result.nodeId === "thanks")?.status).toBe("skipped");
   });
 });

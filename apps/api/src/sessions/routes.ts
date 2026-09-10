@@ -19,24 +19,37 @@ import {
   type FlowNode,
   type FlowRun,
   type MiniAppAnswer,
+  type MiniAppPayment,
   type MiniAppSession,
   type MiniAppStep,
   type ScreenNodeType,
+  type UsdcPaymentCollected,
+  type UsdcPaymentConfig,
   type WorldSelfieCheck,
   type WorldSelfieRejection,
 } from "@automator/contracts";
-import type { FlowStore, MiniAppSessionRow, RunStore, SessionStore } from "@automator/db";
+import type {
+  FlowStore,
+  MiniAppSessionRow,
+  RunStore,
+  SessionStore,
+  VisitorPaymentRow,
+} from "@automator/db";
 import {
+  parseTokenAmount,
   resolveTemplates,
   screenScope,
   runFlow,
+  type ChainProvider,
   type RunOptions,
   type SecretsResolver,
 } from "@automator/flow-engine";
+import { isAddress, isHex, type Address } from "viem";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Elysia } from "elysia";
 import type { IdentityProvider } from "../auth/privy";
 import type { ChainFactory } from "../chain/provider";
+import { checkVisitorPayment } from "../chain/visitor-payments";
 import type { DataFactory } from "../data/provider";
 import { clientAddress, createRateLimiter, defaultRateLimits } from "../rate-limit";
 import { WorldVerifyError, type WorldVerifier } from "../world/verify";
@@ -85,6 +98,89 @@ function screenConfig(node: FlowNode & { type: ScreenNodeType }, scope: ScreenSc
 
 export { failureCode };
 
+/** How long the API waits for a visitor's transfer to land before telling them to come back. */
+const paymentReceiptTimeoutMs = 60_000;
+const ZERO = BigInt(0);
+
+/**
+ * The transfer a `usdc.payment` screen asks its visitor for. The document only says how much and,
+ * optionally, to whom: the token, its decimals and the owner's own wallet come from the chain the
+ * flow runs on, so the API resolves them here and the browser signs numbers it did not invent.
+ */
+async function resolvePayment(
+  config: UsdcPaymentConfig,
+  chain: ChainProvider | undefined,
+  chainFactory: ChainFactory | undefined,
+): Promise<{ payment: MiniAppPayment } | { error: string }> {
+  if (!chain || !chainFactory) return { error: "No chain is configured for this run" };
+  const configured = chainFactory.chain(chain.chainId);
+  const token = configured?.usdcAddress;
+  if (!configured || !token)
+    return { error: `No USDC contract is configured for ${chain.chainName}` };
+  const wanted = config.to.trim();
+  const to = wanted || chain.account;
+  if (!to || !isAddress(to))
+    return {
+      error: wanted
+        ? "Recipient is not a valid address"
+        : "This app has no wallet configured to collect a payment into",
+    };
+  let decimals: number | null;
+  try {
+    decimals = await configured.usdcDecimals();
+  } catch {
+    return { error: `The ${chain.chainName} RPC could not be reached` };
+  }
+  if (decimals === null) return { error: `No USDC contract is configured for ${chain.chainName}` };
+  let units: bigint;
+  try {
+    units = parseTokenAmount(config.amount, decimals, "Amount");
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Amount must be a decimal amount" };
+  }
+  if (units <= ZERO) return { error: "Amount must be more than zero" };
+  return {
+    payment: {
+      chainId: chain.chainId,
+      chainName: chain.chainName,
+      token,
+      decimals,
+      to,
+      amount: config.amount.trim(),
+      amountUnits: units.toString(),
+    },
+  };
+}
+
+/** Either the payment to serve the screen with, or the reason it cannot be served at all. */
+type ScreenExtras = { payment?: MiniAppPayment; failure?: { nodeId: string; error: string } };
+
+/*
+ * What the API has to settle before a waiting screen can be shown. Only `usdc.payment` needs it:
+ * a screen whose payment cannot be resolved is an app that is not set up to take money, so the
+ * node fails and the visitor reads the payment sentence instead of a screen that cannot work.
+ */
+async function screenExtras(
+  document: FlowDocument,
+  run: FlowRun,
+  scope: ScreenScope,
+  chain: ChainProvider | undefined,
+  chainFactory: ChainFactory | undefined,
+): Promise<ScreenExtras> {
+  if (run.status !== "waiting") return {};
+  const waiting = run.nodes.find((result) => result.status === "waiting");
+  const node = waiting ? document.nodes.find((entry) => entry.id === waiting.nodeId) : undefined;
+  if (!node || node.type !== "usdc.payment") return {};
+  const config = screenConfig(
+    { ...node, type: node.type },
+    { ...scope, input: screenScope(document, run, node.id).input },
+  ) as UsdcPaymentConfig;
+  const resolved = await resolvePayment(config, chain, chainFactory);
+  return "error" in resolved
+    ? { failure: { nodeId: node.id, error: resolved.error } }
+    : { payment: resolved.payment };
+}
+
 function visitorHelp(document: FlowDocument): string {
   const entry = document.nodes.find((node) => node.type === "trigger.miniapp-open");
   if (!entry) return "";
@@ -104,6 +200,7 @@ function toSession(
   run: FlowRun,
   scope: ScreenScope,
   world: WorldVerifier | undefined,
+  payment?: MiniAppPayment,
 ): MiniAppSession {
   const byId = new Map(document.nodes.map((node) => [node.id, node]));
   const steps: MiniAppStep[] = [];
@@ -137,6 +234,7 @@ function toSession(
           label: node.label,
           config,
           ...(request ? { world: request } : {}),
+          ...(payment ? { payment } : {}),
         },
       };
     }
@@ -156,6 +254,25 @@ function toSession(
 }
 
 type Resume = NonNullable<RunOptions["resume"]>;
+
+/** Records a screen the API cannot serve as the failed node it is, keeping the rest of the run. */
+function failScreen(
+  document: FlowDocument,
+  run: FlowRun,
+  failure: { nodeId: string; error: string },
+  options: RunOptions,
+): Promise<FlowRun> {
+  return runFlow(document, {
+    ...options,
+    resume: {
+      nodeId: failure.nodeId,
+      outputs: {},
+      variables: run.variables,
+      completed: run.nodes,
+      error: failure.error,
+    },
+  });
+}
 
 type IdentityOutcome =
   | { resume: Resume }
@@ -260,6 +377,110 @@ async function answerIdentityScreen(
   return { status: 400, error: "invalid_request" };
 }
 
+type PaymentOutcome =
+  | { resume: Resume }
+  | {
+      status: 400 | 401 | 409;
+      error:
+        | "invalid_request"
+        | "unauthorized"
+        | "payment_pending"
+        | "payment_rejected"
+        | "payment_used";
+    }
+  /** The app itself cannot take money; the node fails and the visitor gets the payment sentence. */
+  | { failure: { nodeId: string; error: string } };
+
+const transactionHash = /^0x[0-9a-fA-F]{64}$/;
+
+/**
+ * Turns a visitor's claim that they paid into a verified payment, or into a refusal they can act
+ * on. Everything the transfer is checked against is recomputed here — the recipient, the amount,
+ * and the wallet of the Privy user whose token came with this answer — so nothing the browser
+ * sends decides whether the flow continues. The transfer is recorded in the same step that claims
+ * the screen, which is what stops one payment from answering two screens.
+ */
+async function collectPayment(
+  answer: {
+    node: FlowNode;
+    config: UsdcPaymentConfig;
+    body: MiniAppAnswer;
+    row: MiniAppSessionRow;
+  },
+  deps: {
+    identity: Pick<IdentityProvider, "visitor"> | undefined;
+    chain: ChainProvider | undefined;
+    chainFactory: ChainFactory | undefined;
+    sessions: SessionStore;
+  },
+): Promise<PaymentOutcome> {
+  const { node, config, body, row } = answer;
+  const hash = body.data?.txHash;
+  if (!hash || !transactionHash.test(hash) || !isHex(hash))
+    return { status: 400, error: "invalid_request" };
+  if (!body.privyToken) return { status: 400, error: "invalid_request" };
+  if (!deps.identity?.visitor)
+    return {
+      failure: {
+        nodeId: node.id,
+        error: "Sign-in is not configured on this server: set PRIVY_APP_ID and PRIVY_APP_SECRET",
+      },
+    };
+  const visitor = await deps.identity.visitor(body.privyToken);
+  if (!visitor) return { status: 401, error: "unauthorized" };
+  if (!isAddress(visitor.wallet)) return { status: 400, error: "payment_rejected" };
+  const payer = visitor.wallet as Address;
+
+  const resolved = await resolvePayment(config, deps.chain, deps.chainFactory);
+  if ("error" in resolved) return { failure: { nodeId: node.id, error: resolved.error } };
+  const { payment } = resolved;
+  const configured = deps.chainFactory?.chain(payment.chainId);
+  if (!configured)
+    return { failure: { nodeId: node.id, error: "No chain is configured for this run" } };
+
+  const receipt = await configured.payments.waitForReceipt(hash, paymentReceiptTimeoutMs);
+  // Still pending is not a refusal: the visitor answers again once it lands, on the same screen.
+  if (!receipt) return { status: 409, error: "payment_pending" };
+  const verdict = checkVisitorPayment(receipt, {
+    token: payment.token as Address,
+    from: payer,
+    to: payment.to as Address,
+    units: BigInt(payment.amountUnits),
+  });
+  if (!verdict.ok) return { status: 400, error: "payment_rejected" };
+
+  const record: VisitorPaymentRow = {
+    id: randomUUID(),
+    flowId: row.flowId,
+    sessionId: row.id,
+    runId: row.lastRunId,
+    chainId: payment.chainId,
+    txHash: hash,
+    fromAddress: payer,
+    toAddress: payment.to,
+    amountUnits: payment.amountUnits,
+  };
+  const claim = await deps.sessions.claimWithPayment(row, record);
+  if (claim === "spent") return { status: 409, error: "payment_used" };
+  if (claim === "lost") return { status: 409, error: "invalid_request" };
+
+  const collected: UsdcPaymentCollected = {
+    paid: true,
+    txHash: hash,
+    from: payer,
+    to: payment.to,
+    amount: payment.amount,
+    chainId: payment.chainId,
+  };
+  return {
+    resume: {
+      nodeId: node.id,
+      outputs: { [screenPorts("usdc.payment").primary]: collected },
+      variables: row.variables,
+    },
+  };
+}
+
 export function createSessionRoutes({
   flows,
   runs,
@@ -293,16 +514,21 @@ export function createSessionRoutes({
         const entry = document.nodes.find((node) => node.type === "trigger.miniapp-open");
         if (!entry) return status(422, { error: "invalid_flow" });
         const payload = { openedAt: new Date().toISOString() };
-        const run = await runFlow(document, {
+        const chain = chainFactory
+          ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))
+          : undefined;
+        const options: RunOptions = {
           ...engine,
           signal: request.signal,
           trigger: { nodeId: entry.id, payload },
           secrets: secretsFor?.(found.ownerId),
-          chain: chainFactory
-            ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))
-            : undefined,
+          chain,
           data: dataFactory?.forOwner(found.ownerId, "live"),
-        });
+        };
+        let run = await runFlow(document, options);
+        const scope = { vars: run.variables, trigger: payload };
+        const extras = await screenExtras(document, run, scope, chain, chainFactory);
+        if (extras.failure) run = await failScreen(document, run, extras.failure, options);
         await runs.create(found.ownerId, document, run, "miniapp");
         const sessionId = randomUUID();
         const token = randomBytes(24).toString("base64url");
@@ -312,6 +538,7 @@ export function createSessionRoutes({
           run,
           { vars: run.variables, trigger: payload },
           world,
+          extras.payment,
         );
         await sessions.create({
           id: sessionId,
@@ -354,8 +581,63 @@ export function createSessionRoutes({
         const ports = screenPorts(node.type);
         if (body.port !== ports.primary && body.port !== ports.secondary)
           return status(400, { error: "invalid_request" });
+        const input = screenScope(document, previous.run, node.id).input;
+        // Provider failures before execution remain retryable. Claim the screen only once
+        // every prerequisite is ready, before any node can send a message or transaction.
+        const chain = chainFactory
+          ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))
+          : undefined;
+        const options: RunOptions = {
+          ...engine,
+          signal: request.signal,
+          trigger: { payload: row.payload },
+          secrets: secretsFor?.(found.ownerId),
+          chain,
+          data: dataFactory?.forOwner(found.ownerId, "live"),
+        };
+
         let resume: Resume;
-        if (isIdentityScreenType(node.type)) {
+        if (node.type === "usdc.payment") {
+          const config = screenConfig(
+            { ...node, type: node.type },
+            { vars: row.variables, trigger: row.payload, input },
+          ) as UsdcPaymentConfig;
+          if (body.port === (ports.secondary ?? ports.primary)) {
+            resume = {
+              nodeId: node.id,
+              outputs: { [body.port]: { paid: false } },
+              variables: row.variables,
+            };
+            if (!(await sessions.claim(row))) return status(409, { error: "invalid_request" });
+          } else {
+            const outcome = await collectPayment(
+              { node, config, body, row },
+              { identity, chain, chainFactory, sessions },
+            );
+            if ("status" in outcome) return status(outcome.status, { error: outcome.error });
+            if ("failure" in outcome) {
+              const run = await failScreen(document, previous.run, outcome.failure, options);
+              await runs.create(found.ownerId, document, run, "miniapp");
+              const failed = toSession(
+                row.id,
+                document,
+                run,
+                { vars: run.variables, trigger: row.payload },
+                world,
+              );
+              await sessions.update(row.id, {
+                status: failed.status,
+                nodeId: null,
+                variables: run.variables,
+                lastRunId: run.id,
+                worldNonce: null,
+                worldExpiresAt: null,
+              });
+              return failed;
+            }
+            resume = outcome.resume;
+          }
+        } else if (isIdentityScreenType(node.type)) {
           // A valid proof for another visitor session is not this screen's answer. Keep the
           // issued request bound to this pause; mismatches never reach the World portal.
           if (
@@ -367,19 +649,14 @@ export function createSessionRoutes({
               row.worldExpiresAt <= now() / 1000)
           )
             return status(400, { error: "invalid_request" });
-          const outcome = await answerIdentityScreen(
-            node,
-            body,
-            row,
-            { identity, world },
-            screenScope(document, previous.run, node.id).input,
-          );
+          const outcome = await answerIdentityScreen(node, body, row, { identity, world }, input);
           if (!("resume" in outcome)) return status(outcome.status, { error: outcome.error });
           resume = outcome.resume;
+          if (!(await sessions.claim(row))) return status(409, { error: "invalid_request" });
         } else {
           if (node.type === "screen.form") {
             const config = resolveTemplates(parseScreenConfig(node.type, node.config), {
-              input: screenScope(document, previous.run, node.id).input,
+              input,
               vars: row.variables,
               trigger: row.payload,
             });
@@ -394,22 +671,15 @@ export function createSessionRoutes({
             },
             variables: row.variables,
           };
+          if (!(await sessions.claim(row))) return status(409, { error: "invalid_request" });
         }
-        // Provider failures before execution remain retryable. Claim the screen only once
-        // every prerequisite is ready, before any node can send a message or transaction.
-        const chain = chainFactory
-          ? await chainFactory.forUser(found.ownerId, "live", flowChainId(document))
-          : undefined;
-        if (!(await sessions.claim(row))) return status(409, { error: "invalid_request" });
-        const run = await runFlow(document, {
-          ...engine,
-          signal: request.signal,
-          trigger: { payload: row.payload },
+        let run = await runFlow(document, {
+          ...options,
           resume: { ...resume, completed: previous.run.nodes },
-          secrets: secretsFor?.(found.ownerId),
-          chain,
-          data: dataFactory?.forOwner(found.ownerId, "live"),
         });
+        const scope = { vars: run.variables, trigger: row.payload };
+        const extras = await screenExtras(document, run, scope, chain, chainFactory);
+        if (extras.failure) run = await failScreen(document, run, extras.failure, options);
         await runs.create(found.ownerId, document, run, "miniapp");
         const session = toSession(
           row.id,
@@ -417,6 +687,7 @@ export function createSessionRoutes({
           run,
           { vars: run.variables, trigger: row.payload },
           world,
+          extras.payment,
         );
         await sessions.update(row.id, {
           status: session.status,

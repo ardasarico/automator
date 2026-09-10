@@ -8,6 +8,7 @@ import {
   createWalletClient,
   defineChain,
   http,
+  parseAbi,
   type Address,
   type Chain,
   type Transport,
@@ -17,8 +18,11 @@ import type { EmbeddedWallet, IdentityProvider } from "../auth/privy";
 import type { ApiConfig } from "../config";
 import { createEventReader, type EventReader } from "./events";
 import { createPaymentPolicySigner } from "./payment-policy";
+import { createPaymentReader, type PaymentReader } from "./visitor-payments";
 
 export { defaultChainId } from "@automator/contracts";
+
+const erc20DecimalsAbi = parseAbi(["function decimals() view returns (uint8)"]);
 
 export interface ChainSettings {
   chainId: number;
@@ -40,6 +44,13 @@ export interface ConfiguredChain {
   nativeSymbol: string;
   reader: ChainReader;
   eventReader: EventReader;
+  /** Turns a visitor's transaction hash into the transfers it made, for `usdc.payment`. */
+  payments: PaymentReader;
+  /**
+   * The payment token's decimals, read once and kept: the contract is fixed for the chain's life.
+   * Null when the chain has no configured USDC.
+   */
+  usdcDecimals(): Promise<number | null>;
   usdcAddress?: Address;
 }
 
@@ -144,6 +155,9 @@ export function createChainFactory(
   for (const entry of settings) {
     const chain = resolveChain(entry.chainId, entry.rpcUrl);
     const transport = transportFor(entry);
+    const client = createPublicClient({ chain, transport });
+    const usdcAddress = entry.usdcAddress;
+    let decimals: Promise<number | null> | undefined;
     configured.set(entry.chainId, {
       chainId: chain.id,
       chainName: chain.name,
@@ -151,8 +165,21 @@ export function createChainFactory(
       chain,
       transport,
       reader: createReader(chain, transport),
-      eventReader: createEventReader(createPublicClient({ chain, transport })),
-      ...(entry.usdcAddress ? { usdcAddress: entry.usdcAddress } : {}),
+      eventReader: createEventReader(client),
+      payments: createPaymentReader(client),
+      usdcDecimals: () => {
+        if (!usdcAddress) return Promise.resolve(null);
+        // A failed read is not cached, so a flaky RPC does not poison the chain for the process.
+        decimals ??= client
+          .readContract({ address: usdcAddress, abi: erc20DecimalsAbi, functionName: "decimals" })
+          .then((value) => Number(value))
+          .catch((error: unknown) => {
+            decimals = undefined;
+            throw error;
+          });
+        return decimals;
+      },
+      ...(usdcAddress ? { usdcAddress } : {}),
     });
   }
   const wallet: ChainFactory["wallet"] = async (userId) => {

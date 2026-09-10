@@ -475,7 +475,13 @@ async function execute(
       continue;
     }
     if (executor.kind === "screen") {
-      const answer = options.screens === "auto" ? autoAnswer(node) : null;
+      const answer =
+        options.screens === "auto"
+          ? autoAnswer(node, {
+              scope: { input: nodeInputs, vars: variables, trigger: options.trigger?.payload },
+              ...(options.chain ? { chainId: options.chain.chainId } : {}),
+            })
+          : null;
       if (answer === null) {
         record({ nodeId: node.id, status: "waiting" });
         halted = { status: "waiting" };
