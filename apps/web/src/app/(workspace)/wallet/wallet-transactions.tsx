@@ -1,9 +1,9 @@
 import { chainName, explorerTransactionUrl, type WalletTransaction } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
-import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { RiErrorWarningLine, RiExchangeLine, RiExternalLinkLine } from "@remixicon/react";
 import Link from "next/link";
 import { getCatalogEntry, isFlowNodeType } from "../../../builder/catalog";
+import { EmptyState } from "../../../components/empty-state";
 import styles from "../flows/flows.module.css";
 import { LocalTime } from "../runs/local-time";
 import walletStyles from "./wallet.module.css";
@@ -23,34 +23,40 @@ export function WalletTransactions({
 }) {
   return (
     <section aria-labelledby="wallet-transactions-title" className={walletStyles.section}>
-      <h2 id="wallet-transactions-title" className="text-label">
-        Recent transactions
-      </h2>
+      <div className={walletStyles.sectionHead}>
+        <h2 id="wallet-transactions-title" className={walletStyles.sectionTitle}>
+          Recent transactions
+        </h2>
+      </div>
       {transactions === null ? (
-        <div className={styles.empty}>
-          <EmptyStateIllustration icon={<RiErrorWarningLine />} />
-          <p className="mt-6 text-panel text-balance" role="status">
-            Recent transactions could not load
-          </p>
-          <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
-            Transaction history is temporarily unavailable. Try again to check your recent runs.
-          </p>
-          <form action="/wallet" method="get" className="mt-6">
-            <Button variant="outline" type="submit">
-              Try again
-            </Button>
-          </form>
-        </div>
+        <EmptyState
+          status
+          heading="h3"
+          icon={<RiErrorWarningLine />}
+          title="Recent transactions could not load"
+          text="Transaction history is temporarily unavailable. Try again to check your recent runs."
+          action={
+            <form action="/wallet" method="get">
+              <Button variant="outline" type="submit">
+                Try again
+              </Button>
+            </form>
+          }
+        />
       ) : transactions.length === 0 ? (
-        <div className={styles.empty}>
-          <EmptyStateIllustration icon={<RiExchangeLine />} />
-          <p className="mt-6 text-panel text-balance">No transactions yet</p>
-          <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
-            Transactions appear here after a live run sends one from this wallet.
-          </p>
-        </div>
+        <EmptyState
+          heading="h3"
+          icon={<RiExchangeLine />}
+          title="No transactions yet"
+          text="Transactions appear here after a live run sends one from this wallet."
+          action={
+            <Button variant="outline" render={<Link href="/flows" />}>
+              Go to flows
+            </Button>
+          }
+        />
       ) : (
-        <div className={`${styles.tableWrap} mt-4`}>
+        <div className={styles.tableWrap}>
           <table className={styles.table}>
             <caption className="sr-only">
               Transactions your runs sent from this wallet, newest first

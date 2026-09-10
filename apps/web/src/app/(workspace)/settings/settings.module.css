@@ -1,0 +1,103 @@
+/*
+ * Three sections in a reading column, as on Connections: a title and one sentence over a
+ * rule, then one fact per row with its value or control at the end of the line.
+ */
+.section {
+  max-width: 880px;
+}
+.section + .section {
+  margin-top: 40px;
+}
+.sectionHead {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.sectionTitle {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+.sectionText {
+  max-width: 68ch;
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  text-wrap: pretty;
+}
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding-block: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.rowText {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+.rowLabel {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+.rowHint {
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  text-wrap: pretty;
+}
+.value {
+  min-width: 0;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  overflow-wrap: anywhere;
+}
+.valueMuted {
+  color: var(--muted-foreground);
+}
+.number {
+  font-variant-numeric: tabular-nums;
+}
+.wallet {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.address {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--text-code--line-height);
+  overflow-wrap: anywhere;
+}
+.note {
+  padding-top: 12px;
+  color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-block: 14px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.statusText {
+  color: var(--muted-foreground);
+}
+.error {
+  color: var(--destructive-text);
+}

@@ -2,7 +2,6 @@
 
 import type { DataColumn, DataRecord, DataTable } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
-import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { Input } from "@automator/ui/input";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "@automator/ui/menu";
 import {
@@ -16,9 +15,10 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import flowStyles from "../../flows/flows.module.css";
+import { EmptyState } from "../../../../components/empty-state";
 import { PageFrame } from "../../../../components/page-frame";
 import { humanize } from "../../../../components/schema-form";
-import flowStyles from "../../flows/flows.module.css";
 import styles from "../data.module.css";
 import { TableDialog } from "../table-dialog";
 import { DeleteTableDialog } from "./delete-table-dialog";
@@ -206,56 +206,53 @@ export function RecordBrowser({
       )}
       <section aria-label="Records">
         {records === null ? (
-          <div className={flowStyles.empty}>
-            <EmptyStateIllustration icon={<RiErrorWarningLine />} />
-            <p className="mt-6 text-panel text-balance" role="status">
-              Records could not load
-            </p>
-            <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
-              The record list is temporarily unavailable. Try again to read this table.
-            </p>
-            <form action={retryHref} method="get" className="mt-6">
-              {retryCursor && <input type="hidden" name="cursor" value={retryCursor} />}
-              <Button variant="outline" type="submit">
-                Try again
-              </Button>
-            </form>
-          </div>
+          <EmptyState
+            status
+            icon={<RiErrorWarningLine />}
+            title="Records could not load"
+            text="The record list is temporarily unavailable. Try again to read this table."
+            action={
+              <form action={retryHref} method="get">
+                {retryCursor && <input type="hidden" name="cursor" value={retryCursor} />}
+                <Button variant="outline" type="submit">
+                  Try again
+                </Button>
+              </form>
+            }
+          />
         ) : shown.length === 0 ? (
-          <div className={flowStyles.empty}>
-            <EmptyStateIllustration icon={narrowed ? <RiSearchLine /> : <RiTableLine />} />
-            <h2 className="mt-6 text-panel text-balance">
-              {narrowed ? "No records match" : latestHref ? "No more records" : "No records yet"}
-            </h2>
-            <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">
-              {narrowed
+          <EmptyState
+            icon={narrowed ? <RiSearchLine /> : <RiTableLine />}
+            title={
+              narrowed ? "No records match" : latestHref ? "No more records" : "No records yet"
+            }
+            text={
+              narrowed
                 ? "Nothing in this table matches what you asked for. Clear the filters to see everything."
                 : latestHref
                   ? "There is nothing on this page. Return to the first page to see this table's records."
-                  : "Add a record here, or let a flow write one with a Create record node."}
-            </p>
-            {narrowed ? (
-              <Button
-                variant="outline"
-                className="mt-6"
-                render={<Link href={recordsHref(table.id)} scroll={false} />}
-              >
-                Clear filters
-              </Button>
-            ) : latestHref ? (
-              <Button variant="outline" className="mt-6" render={<Link href={latestHref} />}>
-                Back to the first page
-              </Button>
-            ) : (
-              <Button
-                className="mt-6"
-                render={<Link href={`/data/${encodeURIComponent(table.id)}/new`} />}
-              >
-                <RiAddLine aria-hidden="true" />
-                Add record
-              </Button>
-            )}
-          </div>
+                  : "Add a record here, or let a flow write one with a Create record node."
+            }
+            action={
+              narrowed ? (
+                <Button
+                  variant="outline"
+                  render={<Link href={recordsHref(table.id)} scroll={false} />}
+                >
+                  Clear filters
+                </Button>
+              ) : latestHref ? (
+                <Button variant="outline" render={<Link href={latestHref} />}>
+                  Back to the first page
+                </Button>
+              ) : (
+                <Button render={<Link href={`/data/${encodeURIComponent(table.id)}/new`} />}>
+                  <RiAddLine aria-hidden="true" />
+                  Add record
+                </Button>
+              )
+            }
+          />
         ) : (
           <RecordGrid
             table={table}

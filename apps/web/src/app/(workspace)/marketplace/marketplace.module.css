@@ -283,13 +283,6 @@
 .catalogSort {
   margin-inline-start: auto;
 }
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding-block: 52px 60px;
-}
 /* A section expected to fill is an invitation, not an empty state. */
 .invite {
   display: flex;

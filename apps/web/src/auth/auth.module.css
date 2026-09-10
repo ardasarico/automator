@@ -1,67 +1,80 @@
+/*
+ * The screens outside the shell sit on the workspace's own ground: the page background with
+ * the Flows empty hero's line grid fading out from the middle, a centred 360 px column, and
+ * the page's own type for the title. Signing in looks like the product it opens.
+ */
 .page {
   position: relative;
   isolation: isolate;
-  min-height: 100dvh;
   display: flex;
+  min-height: 100dvh;
   flex-direction: column;
   background: var(--background);
 }
-.background {
+.field {
   position: absolute;
-  inset: 0;
   z-index: -1;
-  overflow: hidden;
+  inset: 0 0 auto;
+  height: min(72vh, 640px);
   pointer-events: none;
-  opacity: 0.6;
-  background: radial-gradient(
-    ellipse at 50% 50%,
-    color-mix(in srgb, var(--primary) 2%, transparent),
-    transparent 70%
-  );
-  mask-image: radial-gradient(ellipse 380px 460px at 50% 50%, #0008, #000 100%);
-}
-.backgroundBlur {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  backdrop-filter: blur(14px);
-  mask-image: radial-gradient(ellipse 46% 58% at 50% 50%, #000 20%, transparent 90%);
-}
-:global(.dark) .background {
-  opacity: 0.16;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: center;
+  mask-image: radial-gradient(ellipse at center, #000 10%, transparent 70%);
+  opacity: 0.8;
 }
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 28px 36px;
   gap: 24px;
+  padding: 24px 28px;
 }
 .main {
-  flex: 1;
   display: grid;
+  flex: 1;
   place-items: center;
-  padding: 48px 24px 80px;
+  padding: 32px 24px 80px;
 }
 .form {
   width: 100%;
   max-width: 360px;
 }
 .intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   margin-bottom: 32px;
+  text-align: center;
 }
 .intro h1 {
-  font-size: 30px;
-  line-height: 33px;
-  font-weight: 500;
-  letter-spacing: -0.035em;
+  font-size: var(--text-page);
+  line-height: var(--text-page--line-height);
+  font-weight: var(--text-page--font-weight);
+  letter-spacing: var(--text-page--letter-spacing);
   text-wrap: balance;
 }
 .intro p {
-  margin-top: 12px;
+  max-width: 46ch;
+  margin-top: 8px;
   color: var(--muted-foreground);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
   text-wrap: pretty;
+}
+/* The mark the account menu will show, in a card above the title: it is the person's own, derived
+ * from the account id, so it never changes with the name being typed. */
+.mark {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 20px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--card);
 }
 .stack {
   display: flex;
@@ -78,8 +91,8 @@
   gap: 16px;
   margin: 24px 0;
   color: var(--muted-foreground);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
 }
 .divider::before,
 .divider::after {
@@ -89,30 +102,30 @@
   background: var(--border);
 }
 .note {
-  margin-top: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 24px;
   color: var(--muted-foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
   text-align: center;
-  font-size: 14px;
-  line-height: 20px;
 }
 .privyBrand {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--foreground);
-  font-weight: 600;
+  font-weight: 500;
 }
 .error {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   color: var(--destructive-text);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
   overflow-wrap: anywhere;
 }
 .actions {
@@ -124,6 +137,7 @@
 .status {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   color: var(--muted-foreground);
 }
@@ -132,7 +146,6 @@
     padding: 20px;
   }
   .main {
-    padding-top: 32px;
-    padding-bottom: 48px;
+    padding-block: 24px 48px;
   }
 }

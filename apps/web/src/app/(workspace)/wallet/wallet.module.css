@@ -1,27 +1,262 @@
-.balances {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
-}
-.card {
+/*
+ * One reading column, no cards. The wallet's identity is the page's first lines; what it holds,
+ * what governs it and what it sent follow as sections under rules that stop at the gutter, as
+ * every other rule on the frame does.
+ */
+.identity {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  background: var(--card);
+  gap: 8px;
 }
-.amounts {
+.identityTitle {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+.identityText {
+  margin-top: 2px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.address {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.address code {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--text-code--line-height);
+  overflow-wrap: anywhere;
+}
+.explorers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.explorers a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+  transition: color 150ms var(--ease-press);
+}
+.explorers a:hover {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.explorers a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+.explorers svg {
+  width: 14px;
+  height: 14px;
+}
+.line {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+.alert {
+  color: var(--destructive-text);
+}
+
+/* A section opens with its rule, its title and one sentence; a control that governs the whole
+ * section sits at the end of that head line. */
+.section {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin-bottom: 16px;
+}
+.sectionTitle {
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+.sectionText {
+  max-width: 64ch;
+  margin-top: 2px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
+}
+
+/* Balances as the Runs band draws its numbers: the amount in panel type, the unit beside it. */
+.tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 40px;
+}
+.tile {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.tileChain {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.amounts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 20px;
+}
+.amount {
+  font-size: var(--text-panel);
+  line-height: var(--text-panel--line-height);
+  font-weight: var(--text-panel--font-weight);
+  letter-spacing: var(--text-panel--letter-spacing);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-/* The wallet stacks four sections in one frame; each one after the first opens with the same
- * gap, so the page reads as a column rather than a set of cards. */
-.section {
-  margin-top: 32px;
+.amount span {
+  margin-inline-start: 2px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--muted-foreground);
+}
+.tileNote {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--warning-foreground);
+}
+.tileNote[data-tone="muted"] {
+  color: var(--muted-foreground);
+}
+
+/* One limit per row: the pair it caps, the two amounts, and what that pair has reserved
+ * today, so the cap and its usage share a line. The grid keeps its columns and scrolls
+ * sideways inside the frame when there is no room. */
+.enable {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+}
+.form {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+.limitsWrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.limits {
+  display: grid;
+  width: fit-content;
+  grid-template-columns: 200px 100px 120px 120px 120px 28px;
+  align-items: center;
+  gap: 8px 12px;
+}
+.noLimits {
+  grid-column: 1 / -1;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.limitsHead,
+.limitRow {
+  display: contents;
+}
+.limitsHead > span {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.limitRow > * {
+  min-width: 0;
+}
+.reserved {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.reserved span {
+  color: var(--muted-foreground);
+}
+.limitsFoot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.also {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.also ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 2px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+.field {
+  display: flex;
+  max-width: 640px;
+  flex-direction: column;
+  gap: 6px;
+}
+.field label,
+.help {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.help {
+  color: var(--muted-foreground);
+}
+.problem {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--destructive-text);
+}
+.problem:empty {
+  display: none;
+}
+.submit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
 }

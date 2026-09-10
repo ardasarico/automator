@@ -9,17 +9,16 @@ import {
 } from "@automator/contracts";
 import { Badge } from "@automator/ui/badge";
 import { Button } from "@automator/ui/button";
-import { EmptyStateIllustration } from "@automator/ui/empty-state-illustration";
 import { Menu, MenuLinkItem, MenuPopup, MenuSeparator, MenuTrigger } from "@automator/ui/menu";
 import { RiArrowDownSLine, RiArrowUpSLine, RiCheckLine, RiPlayCircleLine } from "@remixicon/react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import flowStyles from "../flows/flows.module.css";
 import { LocalTime } from "./local-time";
 import { runDuration, runSourceLabels, runStatusLabels } from "./run-labels";
 import { runHref, runsHref, type RunListState } from "./run-links";
 import styles from "./runs.module.css";
 import { useRunPages } from "./use-run-pages";
+import { EmptyState } from "../../../components/empty-state";
 
 /* Each column says what its own order means, rather than repeating "ascending". */
 const sortWords: Record<RunSortKey, { asc: string; desc: string }> = {
@@ -170,20 +169,20 @@ export function RunHistory({
   if (runs.length === 0) {
     const copy = emptyCopy(state.status, filtered, Boolean(latestHref));
     return (
-      <section className={flowStyles.empty} aria-labelledby="runs-empty-title">
-        <EmptyStateIllustration icon={<RiPlayCircleLine />} />
-        <h2 id="runs-empty-title" className="mt-6 text-panel text-balance">
-          {copy.title}
-        </h2>
-        <p className="mt-3 max-w-sm text-body text-pretty text-muted-foreground">{copy.body}</p>
-        <Button
-          variant="outline"
-          className="mt-6"
-          render={<Link href={latestHref ?? (filtered ? "/runs" : "/flows")} />}
-        >
-          {latestHref ? "View latest runs" : filtered ? "Show all runs" : "Go to flows"}
-        </Button>
-      </section>
+      <EmptyState
+        icon={<RiPlayCircleLine />}
+        titleId="runs-empty-title"
+        title={copy.title}
+        text={copy.body}
+        action={
+          <Button
+            variant="outline"
+            render={<Link href={latestHref ?? (filtered ? "/runs" : "/flows")} />}
+          >
+            {latestHref ? "View latest runs" : filtered ? "Show all runs" : "Go to flows"}
+          </Button>
+        }
+      />
     );
   }
   const selectedFlow = flows.find((flow) => flow.id === state.flowId);

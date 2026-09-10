@@ -68,12 +68,12 @@ fills the viewport and lists scroll inside their own region.
 ## Information architecture
 
 Nine destinations: eight in three bands, plus Settings beside the account menu
-at the foot.
+at the foot. (2026-09-10: Mini-apps was dropped from the Share band; see below.)
 
 ```
 WORKSPACE   Home · Flows · Runs
 RESOURCES   Data · Connections · Wallet
-SHARE       Mini-apps · Marketplace
+SHARE       Marketplace
 (foot)      Settings · account
 ```
 
@@ -85,10 +85,12 @@ land:
 - **Connections** — secrets and connected apps, to be moved out of the settings
   dialog. Existing APIs cover it.
 - **Mini-apps** — flows shared as mini-apps, with their links and recent sessions.
-  Needs one read endpoint.
+  Needs one read endpoint. **Dropped on 2026-09-10:** the placeholder page and its
+  sidebar entry were removed; sharing stays in the builder's Share menu.
 - **Settings** — the dialog becomes a page once Connections has taken the secrets
   and connected apps out of it. Until then the dialog stays reachable from the
-  account menu, so the two overlap on purpose.
+  account menu, so the two overlap on purpose. (2026-09-10: landed; the dialog is
+  gone and `/settings` is the page.)
 
 `/` stops redirecting to `/flows` and becomes Home.
 
@@ -204,9 +206,10 @@ or settings, not pages.
 
 ## Still to design
 
-Contracts, Connections, Wallet, empty states, onboarding and
-login, the settings dialog, and narrow-viewport behaviour — which
-`docs/web-ui.md` still records as out of scope.
+Contracts (its own plan; needs a table and API) and narrow-viewport behaviour,
+which `docs/web-ui.md` still records as out of scope. Connections landed with
+the implementation plan; Wallet, login and onboarding, the settings dialog and
+the shared empty state landed on 2026-09-10 (see `docs/web-ui.md`).
 
 ## Working notes
 

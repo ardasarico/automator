@@ -16,7 +16,7 @@ import {
 } from "@remixicon/react";
 import type { RemixiconComponentType } from "@remixicon/react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { usePanelEscape, useResponsivePanels } from "./responsive-panels";
 import styles from "./flow-builder.module.css";
 import { NodePalette } from "./node-palette";
@@ -50,6 +50,8 @@ function FlowTitle() {
   const setMeta = useBuilderStore((state) => state.setMeta);
   const [draft, setDraft] = useState<string | null>(null);
   const field = useRef<HTMLInputElement>(null);
+  const label = useId();
+  const hint = useId();
   const editing = draft !== null;
   // Opening the field selects the name, so the common case of replacing it takes one keystroke.
   useEffect(() => {
@@ -62,48 +64,58 @@ function FlowTitle() {
     setDraft(null);
   }
 
+  /* The button's name is the flow's name, so the h1 is too; what pressing it does lives in a
+   * description outside the heading, where it cannot join the heading's name. */
   return (
-    <h1 className={styles.flowTitleHeading}>
-      {!editing ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                className={styles.flowTitle}
-                aria-label={`Rename flow: ${name}`}
-                onClick={() => setDraft(name)}
-              />
-            }
-          >
-            <RiFlowChart aria-hidden="true" className={styles.flowTitleIcon} />
-            <span className="truncate">{name}</span>
-            <RiPencilLine aria-hidden="true" className={styles.flowTitlePencil} />
-          </TooltipTrigger>
-          <TooltipPopup side="bottom">Rename flow</TooltipPopup>
-        </Tooltip>
-      ) : (
-        <Input
-          ref={field}
-          size="sm"
-          aria-label="Flow name"
-          className="min-w-0 flex-1"
-          maxLength={nameLimit}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commit();
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              setDraft(null);
-            }
-          }}
-        />
-      )}
-    </h1>
+    <>
+      <h1 className={styles.flowTitleHeading}>
+        {!editing ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  className={styles.flowTitle}
+                  aria-labelledby={label}
+                  aria-describedby={hint}
+                  onClick={() => setDraft(name)}
+                />
+              }
+            >
+              <RiFlowChart aria-hidden="true" className={styles.flowTitleIcon} />
+              <span id={label} className="truncate">
+                {name}
+              </span>
+              <RiPencilLine aria-hidden="true" className={styles.flowTitlePencil} />
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">Rename flow</TooltipPopup>
+          </Tooltip>
+        ) : (
+          <Input
+            ref={field}
+            size="sm"
+            aria-label="Flow name"
+            className="min-w-0 flex-1"
+            maxLength={nameLimit}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={commit}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commit();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                setDraft(null);
+              }
+            }}
+          />
+        )}
+      </h1>
+      <span id={hint} className="sr-only">
+        Rename flow
+      </span>
+    </>
   );
 }
 

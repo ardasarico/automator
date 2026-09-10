@@ -14,6 +14,7 @@ import { Input } from "@automator/ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@automator/ui/select";
 import { Switch } from "@automator/ui/switch";
 import { Textarea } from "@automator/ui/textarea";
+import { RiCloseLine } from "@remixicon/react";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useAccessToken } from "../../../auth/access-token";
 import { useAuthSession } from "../../../auth/provider";
@@ -24,6 +25,8 @@ export function PaymentLimits() {
   const { user } = useAuthSession();
   return user ? <AccountPaymentLimits key={`${user.id}:${user.walletAddress}`} /> : null;
 }
+
+const assetLabel = (asset: PaymentLimit["asset"]) => (asset === "native" ? "ETH" : "USDC");
 
 function AccountPaymentLimits() {
   const getAccessToken = useAccessToken();
@@ -129,148 +132,186 @@ function AccountPaymentLimits() {
           (limit) => limit.chainId === candidate.chainId && limit.asset === candidate.asset,
         ),
     );
+  /* What a pair has reserved today sits on that pair's row; a reservation whose rule is gone
+   * is still owed, so it is listed under the rows rather than dropped. */
+  const reservedFor = (limit: PaymentLimit) =>
+    state?.usage.find((usage) => usage.chainId === limit.chainId && usage.asset === limit.asset);
+  const orphaned =
+    state?.usage.filter(
+      (usage) =>
+        !draft?.limits.some(
+          (limit) => limit.chainId === usage.chainId && limit.asset === usage.asset,
+        ),
+    ) ?? [];
 
   return (
     <section aria-labelledby="payment-limits-title" className={styles.section}>
-      <div className={styles.card}>
+      <div className={styles.sectionHead}>
         <div>
-          <h2 id="payment-limits-title" className="text-label">
+          <h2 id="payment-limits-title" className={styles.sectionTitle}>
             Payment limits
           </h2>
-          <p className="mt-1 text-caption text-muted-foreground">
-            Set limits for direct ETH and USDC sends through Automator. When enabled, other contract
-            writes and signatures are unavailable. Gas fees and actions outside Automator are
-            excluded.
+          <p className={styles.sectionText}>
+            Caps on direct ETH and USDC sends through Automator. While enabled, only the pairs below
+            can be sent and other contract writes and signatures are blocked; gas and activity
+            outside Automator are not counted. Saving applies immediately.
           </p>
         </div>
-        {loading ? (
-          <p role="status" className="text-caption text-muted-foreground">
-            Loading payment limits…
-          </p>
-        ) : !draft ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <p role="alert" className="text-caption text-destructive-foreground">
-              {error}
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setLoading(true);
-                setError(null);
-                setAttempt((value) => value + 1);
-              }}
-            >
-              Retry
-            </Button>
+        {draft && (
+          <div className={styles.enable}>
+            <Switch
+              id="payment-limits-enabled"
+              checked={draft.enabled}
+              onCheckedChange={(enabled) => edit({ ...draft, enabled })}
+              aria-label="Enable payment limits"
+            />
+            <label htmlFor="payment-limits-enabled">Enable payment limits</label>
           </div>
-        ) : (
-          <form
-            className="flex min-w-0 flex-col gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void save();
+        )}
+      </div>
+      {loading ? (
+        <p role="status" className={styles.line}>
+          Loading payment limits…
+        </p>
+      ) : !draft ? (
+        <div className={styles.status}>
+          <p role="alert" className={styles.problem}>
+            {error}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setLoading(true);
+              setError(null);
+              setAttempt((value) => value + 1);
             }}
-            aria-describedby="payment-limits-problem"
           >
-            <div className="flex items-center gap-3">
-              <Switch
-                id="payment-limits-enabled"
-                checked={draft.enabled}
-                onCheckedChange={(enabled) => edit({ ...draft, enabled })}
-              />
-              <label htmlFor="payment-limits-enabled" className="text-body">
-                Enable payment limits
-              </label>
-            </div>
-            <p className="text-caption text-muted-foreground">
-              Save applies changes immediately. While enabled, only the chain and asset pairs listed
-              below can be sent.
-            </p>
-            {draft.limits.map((limit, index) => (
-              <fieldset
-                key={index}
-                className="grid min-w-0 gap-3 rounded-lg border border-border p-3 sm:grid-cols-2 lg:grid-cols-4"
-              >
-                <legend className="px-1 text-caption">Limit {index + 1}</legend>
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <label htmlFor={`payment-chain-${index}`} className="text-caption">
-                    Chain
-                  </label>
-                  <Select
-                    items={chains.map((chain) => ({ value: chain.id, label: chain.name }))}
-                    value={limit.chainId}
-                    onValueChange={(value) => {
-                      if (value !== null) updateLimit(index, { chainId: value });
-                    }}
-                  >
-                    <SelectTrigger id={`payment-chain-${index}`} className="w-full min-w-0">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectPopup>
-                      {chains.map((chain) => (
-                        <SelectItem key={chain.id} value={chain.id}>
-                          {chain.name}
-                        </SelectItem>
-                      ))}
-                    </SelectPopup>
-                  </Select>
+            Retry
+          </Button>
+        </div>
+      ) : (
+        <form
+          className={styles.form}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+          aria-describedby="payment-limits-problem"
+        >
+          <div className={styles.limitsWrap}>
+            <div className={styles.limits} role="table" aria-label="Limits per chain and asset">
+              <div className={styles.limitsHead} role="row">
+                <span role="columnheader">Chain</span>
+                <span role="columnheader">Asset</span>
+                <span role="columnheader">Per transfer</span>
+                <span role="columnheader">Per UTC day</span>
+                <span role="columnheader">Reserved today</span>
+                <span role="columnheader">
+                  <span className="sr-only">Remove</span>
+                </span>
+              </div>
+              {draft.limits.length === 0 && (
+                <div className={styles.noLimits} role="row">
+                  <span role="cell">
+                    No limits yet. Add one per chain and asset you want to cap.
+                  </span>
                 </div>
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <label htmlFor={`payment-asset-${index}`} className="text-caption">
-                    Asset
-                  </label>
-                  <Select
-                    items={[
-                      { value: "native", label: "ETH" },
-                      { value: "usdc", label: "USDC" },
-                    ]}
-                    value={limit.asset}
-                    onValueChange={(value) => {
-                      if (value === "native" || value === "usdc")
-                        updateLimit(index, { asset: value });
-                    }}
-                  >
-                    <SelectTrigger id={`payment-asset-${index}`} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectPopup>
-                      <SelectItem value="native">ETH</SelectItem>
-                      <SelectItem value="usdc">USDC</SelectItem>
-                    </SelectPopup>
-                  </Select>
-                </div>
-                {(["perTransfer", "perDay"] as const).map((field) => (
-                  <div key={field} className="flex min-w-0 flex-col gap-1.5">
-                    <label htmlFor={`payment-${field}-${index}`} className="text-caption">
-                      {field === "perTransfer" ? "Per transfer" : "Per UTC day"} (
-                      {limit.asset === "native" ? "ETH" : "USDC"})
-                    </label>
-                    <Input
-                      id={`payment-${field}-${index}`}
-                      inputMode="decimal"
-                      autoComplete="off"
-                      value={limit[field]}
-                      onChange={(event) => updateLimit(index, { [field]: event.target.value })}
-                      aria-describedby="payment-limits-problem"
-                    />
+              )}
+              {draft.limits.map((limit, index) => {
+                const unit = assetLabel(limit.asset);
+                const reserved = reservedFor(limit);
+                return (
+                  <div key={index} className={styles.limitRow} role="row">
+                    <div role="cell">
+                      <Select
+                        items={chains.map((chain) => ({ value: chain.id, label: chain.name }))}
+                        value={limit.chainId}
+                        onValueChange={(value) => {
+                          if (value !== null) updateLimit(index, { chainId: value });
+                        }}
+                      >
+                        <SelectTrigger
+                          size="sm"
+                          className="w-full min-w-0"
+                          aria-label={`Chain, limit ${index + 1}`}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectPopup>
+                          {chains.map((chain) => (
+                            <SelectItem key={chain.id} value={chain.id}>
+                              {chain.name}
+                            </SelectItem>
+                          ))}
+                        </SelectPopup>
+                      </Select>
+                    </div>
+                    <div role="cell">
+                      <Select
+                        items={[
+                          { value: "native", label: "ETH" },
+                          { value: "usdc", label: "USDC" },
+                        ]}
+                        value={limit.asset}
+                        onValueChange={(value) => {
+                          if (value === "native" || value === "usdc")
+                            updateLimit(index, { asset: value });
+                        }}
+                      >
+                        <SelectTrigger
+                          size="sm"
+                          className="w-full min-w-0"
+                          aria-label={`Asset, limit ${index + 1}`}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectPopup>
+                          <SelectItem value="native">ETH</SelectItem>
+                          <SelectItem value="usdc">USDC</SelectItem>
+                        </SelectPopup>
+                      </Select>
+                    </div>
+                    {(["perTransfer", "perDay"] as const).map((field) => (
+                      <div key={field} role="cell">
+                        <Input
+                          size="sm"
+                          inputMode="decimal"
+                          autoComplete="off"
+                          value={limit[field]}
+                          onChange={(event) => updateLimit(index, { [field]: event.target.value })}
+                          aria-label={`${field === "perTransfer" ? "Per transfer" : "Per UTC day"} (${unit})`}
+                          aria-describedby="payment-limits-problem"
+                        />
+                      </div>
+                    ))}
+                    <p role="cell" className={styles.reserved}>
+                      {reserved?.reserved ?? "0"} <span>{unit}</span>
+                    </p>
+                    <div role="cell">
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() =>
+                          edit({
+                            ...draft,
+                            limits: draft.limits.filter((_, row) => row !== index),
+                          })
+                        }
+                        aria-label={`Remove limit ${index + 1}`}
+                      >
+                        <RiCloseLine aria-hidden="true" />
+                      </Button>
+                    </div>
                   </div>
-                ))}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="justify-self-start"
-                  onClick={() =>
-                    edit({ ...draft, limits: draft.limits.filter((_, row) => row !== index) })
-                  }
-                  aria-label={`Remove limit ${index + 1}`}
-                >
-                  Remove limit
-                </Button>
-              </fieldset>
-            ))}
+                );
+              })}
+            </div>
+          </div>
+          <div className={styles.limitsFoot}>
             <Button
               variant="outline"
-              className="self-start"
+              size="sm"
               disabled={!available}
               onClick={() => {
                 if (available)
@@ -282,72 +323,66 @@ function AccountPaymentLimits() {
             >
               Add asset limit
             </Button>
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <label htmlFor="payment-recipients" className="text-caption">
-                Allowed recipients
-              </label>
-              <Textarea
-                id="payment-recipients"
-                value={recipients}
-                onChange={(event) => {
-                  edit(draft);
-                  setRecipients(event.target.value);
-                }}
-                autoComplete="off"
-                spellCheck={false}
-                aria-describedby="payment-recipients-help payment-limits-problem"
-              />
-              <p id="payment-recipients-help" className="text-caption text-muted-foreground">
-                One wallet address per line. Leave blank to allow any direct recipient.
-              </p>
-            </div>
-            <p
-              id="payment-limits-problem"
-              role="status"
-              className="text-caption text-destructive-foreground"
-            >
-              {problem}
-            </p>
-            {error && (
-              <p role="alert" className="text-caption text-destructive-foreground">
-                {error}
-              </p>
-            )}
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" disabled={!dirty || !!problem || saving} loading={saving}>
-                Save limits
-              </Button>
-              <p role="status" className="text-caption text-muted-foreground">
-                {notice || (dirty ? "Unsaved changes" : "")}
-              </p>
-            </div>
-          </form>
-        )}
-        {state && (
-          <div className="flex flex-col gap-2 border-t border-border pt-4">
-            <h3 className="text-caption">Reserved today · {state.day} UTC</h3>
-            <p className="text-caption text-muted-foreground">
-              Payment attempts reserve the daily budget, including uncertain failures. Editing or
-              disabling limits keeps these reservations. Usage is a snapshot from the last load or
-              save.
-            </p>
-            {state.usage.length ? (
-              <ul className="flex flex-col gap-1 text-caption">
-                {state.usage.map((usage) => (
-                  <li key={`${usage.chainId}:${usage.asset}`} className="wrap-anywhere">
-                    {chainName(usage.chainId)} · {usage.reserved}{" "}
-                    {usage.asset === "native" ? "ETH" : "USDC"}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-caption text-muted-foreground">
-                No reserved payments for this UTC day.
+            {state && (
+              <p className={styles.also}>
+                Reserved today counts {state.day} UTC and includes uncertain attempts; editing or
+                disabling limits keeps it.
               </p>
             )}
           </div>
-        )}
-      </div>
+          {orphaned.length > 0 && (
+            <div className={styles.also}>
+              Also reserved today, with no limit set:
+              <ul>
+                {orphaned.map((usage) => (
+                  <li key={`${usage.chainId}:${usage.asset}`}>
+                    {chainName(usage.chainId)} · {usage.reserved} {assetLabel(usage.asset)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className={styles.field}>
+            <label htmlFor="payment-recipients">Allowed recipients</label>
+            <Textarea
+              id="payment-recipients"
+              rows={2}
+              value={recipients}
+              onChange={(event) => {
+                edit(draft);
+                setRecipients(event.target.value);
+              }}
+              autoComplete="off"
+              spellCheck={false}
+              aria-describedby="payment-recipients-help payment-limits-problem"
+            />
+            <p id="payment-recipients-help" className={styles.help}>
+              One wallet address per line. Leave blank to allow any direct recipient.
+            </p>
+          </div>
+          <p id="payment-limits-problem" role="status" className={styles.problem}>
+            {problem}
+          </p>
+          {error && (
+            <p role="alert" className={styles.problem}>
+              {error}
+            </p>
+          )}
+          <div className={styles.submit}>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={!dirty || !!problem || saving}
+              loading={saving}
+            >
+              Save limits
+            </Button>
+            <p role="status" className={styles.line}>
+              {notice || (dirty ? "Unsaved changes" : "")}
+            </p>
+          </div>
+        </form>
+      )}
     </section>
   );
 }
