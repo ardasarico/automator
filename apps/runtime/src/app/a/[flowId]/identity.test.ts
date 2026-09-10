@@ -2,6 +2,8 @@
 import { describe, expect, test } from "bun:test";
 import {
   describeIdKitError,
+  isIdKitBackdropClick,
+  isIdKitEscape,
   describePrivyError,
   privyLoginMethods,
   selfieCheckAsk,
@@ -86,7 +88,8 @@ describe("login and error helpers", () => {
   });
 
   test("describes known codes and falls back to a generic message", () => {
-    expect(describeIdKitError("user_rejected")).toContain("closed the verification");
+    expect(describeIdKitError("dismissed")).toContain("window closed before World App answered");
+    expect(describeIdKitError("user_rejected")).toContain("rejected the request");
     expect(describeIdKitError("rp_signature_expired")).toContain("Reload the page");
     expect(describeIdKitError("timestamp_too_old")).toContain("Reload the page");
     expect(describeIdKitError("something_else")).toBe(
@@ -94,5 +97,14 @@ describe("login and error helpers", () => {
     );
     expect(describePrivyError("exited_auth_flow")).toContain("closed the sign-in");
     expect(describePrivyError("unknown")).toBe("Sign-in did not complete. Try again.");
+  });
+
+  test("only the IDKit backdrop and the Escape key are swallowed while a request is open", () => {
+    expect(isIdKitEscape("Escape")).toBe(true);
+    expect(isIdKitEscape("Esc")).toBe(true);
+    expect(isIdKitEscape("Enter")).toBe(false);
+    // Without a DOM there is no Element to match, so nothing is swallowed.
+    expect(isIdKitBackdropClick(null)).toBe(false);
+    expect(isIdKitBackdropClick({} as EventTarget)).toBe(false);
   });
 });

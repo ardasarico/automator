@@ -68,7 +68,11 @@ export function privyLoginMethods(config: Pick<PrivyLoginConfig, "methods">) {
 }
 
 const idKitMessages: Record<string, string> = {
-  user_rejected: "You closed the verification before it finished.",
+  // Our own code: the IDKit window closed before World App answered. It is not an IDKit
+  // code; IDKit only reports that the window closed, never why.
+  dismissed:
+    "The verification window closed before World App answered. Press the button to try again.",
+  user_rejected: "World App reported that you rejected the request.",
   verification_rejected: "World App declined this verification.",
   credential_unavailable: "Your World ID does not have the credential this step needs.",
   feature_unavailable: "Your World App does not support this verification yet.",
@@ -86,6 +90,25 @@ const idKitMessages: Record<string, string> = {
 
 export function describeIdKitError(code: string): string {
   return idKitMessages[code] ?? `Verification failed (${code}). Try again.`;
+}
+
+/*
+ * IDKit's modal closes on a backdrop click and on Escape, which loses the proof a visitor is
+ * completing on their phone: a closed request stops polling, so World App reports success while
+ * the page shows nothing. While a request is open, only the modal's own close button may
+ * dismiss it. These predicates pick the two events to swallow; the host stops their propagation
+ * in the capture phase so IDKit's handlers never see them.
+ */
+export function isIdKitBackdropClick(target: EventTarget | null): boolean {
+  return (
+    typeof Element !== "undefined" &&
+    target instanceof Element &&
+    target.classList.contains("idkit-backdrop")
+  );
+}
+
+export function isIdKitEscape(key: string): boolean {
+  return key === "Escape" || key === "Esc";
 }
 
 const privyMessages: Record<string, string> = {

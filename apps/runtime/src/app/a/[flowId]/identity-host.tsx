@@ -15,6 +15,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   describeIdKitError,
   describePrivyError,
+  isIdKitBackdropClick,
+  isIdKitEscape,
   privyLoginMethods,
   selfieCheckAsk,
   toIdKitRequest,
@@ -93,6 +95,24 @@ function IdentityBridge({ privyLogin, children }: { privyLogin: PrivyLogin; chil
     setPending(null);
   };
 
+  // A backdrop click or Escape while the visitor is busy on their phone would close the request
+  // and drop the proof; only the modal's close button may dismiss an open request.
+  useEffect(() => {
+    if (!pending || typeof document === "undefined") return;
+    const swallowClick = (event: MouseEvent) => {
+      if (isIdKitBackdropClick(event.target)) event.stopPropagation();
+    };
+    const swallowEscape = (event: KeyboardEvent) => {
+      if (isIdKitEscape(event.key)) event.stopPropagation();
+    };
+    document.addEventListener("click", swallowClick, true);
+    window.addEventListener("keydown", swallowEscape, true);
+    return () => {
+      document.removeEventListener("click", swallowClick, true);
+      window.removeEventListener("keydown", swallowEscape, true);
+    };
+  }, [pending]);
+
   return (
     <IdentityActionsProvider actions={actions}>
       {children}
@@ -101,7 +121,7 @@ function IdentityBridge({ privyLogin, children }: { privyLogin: PrivyLogin; chil
           {...pending.idKit}
           open
           onOpenChange={(open) => {
-            if (!open) finish({ error: new Error(describeIdKitError("user_rejected")) });
+            if (!open) finish({ error: new Error(describeIdKitError("dismissed")) });
           }}
           onSuccess={(result) => {
             try {
