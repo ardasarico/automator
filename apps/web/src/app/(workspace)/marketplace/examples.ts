@@ -1,5 +1,6 @@
 import {
   RiBubbleChartLine,
+  RiCornerDownLeftLine,
   RiCameraLensLine,
   RiCheckboxCircleLine,
   RiCoinLine,
@@ -11,6 +12,7 @@ import {
   RiPriceTag3Line,
   RiQrCodeLine,
   RiSparklingLine,
+  RiTerminalBoxLine,
   RiTimeLine,
   RiWebhookLine,
 } from "@remixicon/react";
@@ -234,5 +236,29 @@ export const flowExamples = [
       { name: "USDC payout", icon: RiCoinLine },
     ],
     nodeTypes: ["privy.login", "world.selfie-check", "logic.condition", "usdc.payout"],
+  },
+  {
+    id: "price-quote-api",
+    name: "Price quote API",
+    description: "Publish a pool price as an HTTP endpoint your own code and agents can call.",
+    steps: [
+      {
+        name: "API call",
+        description: "The endpoint takes a pool address and hands it to the rest of the flow.",
+      },
+      {
+        name: "Read the pool",
+        description: "Query subgraph asks Uniswap v3 what that pool prices its tokens at.",
+      },
+      {
+        name: "Answer the caller",
+        description: "Return hands back the price and the pool's locked value as JSON.",
+      },
+    ],
+    nodes: [
+      { name: "API call", icon: RiTerminalBoxLine },
+      { name: "Return", icon: RiCornerDownLeftLine },
+    ],
+    nodeTypes: ["trigger.api", "graph.query-subgraph", "logic.return"],
   },
 ] as const;

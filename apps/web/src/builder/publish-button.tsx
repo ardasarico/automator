@@ -16,6 +16,7 @@ export function PublishButton() {
       </MenuTrigger>
       <MenuPopup align="end">
         <MenuItem onClick={() => dialogs.open("share-app")}>Share as a mini app</MenuItem>
+        <MenuItem onClick={() => dialogs.open("use-api")}>Use as API</MenuItem>
         <MenuItem onClick={() => dialogs.open("listing")}>Publish to the marketplace</MenuItem>
       </MenuPopup>
     </Menu>

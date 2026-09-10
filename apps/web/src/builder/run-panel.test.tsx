@@ -205,6 +205,22 @@ describe("RunPanel", () => {
     expect(legacy).not.toContain("No incoming edge fired");
   });
 
+  test("a run that answered its caller shows the answer under the node it inspected", async () => {
+    await mount({
+      ...run,
+      status: "succeeded",
+      nodes: [{ nodeId: "t", status: "succeeded", outputs: { run: {} } }],
+      output: { price: "1800.42" },
+    });
+    expect(container.textContent).toContain("Answered the caller");
+    expect(container.textContent).toContain("1800.42");
+  });
+
+  test("a run with no answer says nothing about one", async () => {
+    await mount(run);
+    expect(container.textContent).not.toContain("Answered the caller");
+  });
+
   test("a historical result remains inspectable after its canvas node was removed", async () => {
     const snapshot = structuredClone(document);
     snapshot.nodes.push({

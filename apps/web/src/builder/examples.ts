@@ -446,6 +446,41 @@ const fixtures: Record<FlowExample["id"], () => Fixture> = {
       edge("check", "true", "notify", "message"),
     ],
   }),
+  "price-quote-api": () => ({
+    nodes: [
+      node("call", "trigger.api", 0, 0, "API call", {
+        description: "Quote what a Uniswap v3 pool prices its tokens at right now.",
+        inputs: [
+          {
+            name: "pool",
+            type: "address",
+            description: "The Uniswap v3 pool to read, such as the USDC/WETH 0.05% pool.",
+            required: true,
+          },
+        ],
+      }),
+      node("pool", "graph.query-subgraph", 1, 0, "Read the pool", {
+        // Uniswap v3 on Ethereum mainnet; the caller names which of its pools to read.
+        subgraph: "5zvR82QoaXYFyDEKLZ9t6v9adgnptxYpKpSbxtgVENFV",
+        query: [
+          "query Pool($id: ID!) {",
+          "  pool(id: $id) {",
+          "    token0Price",
+          "    totalValueLockedUSD",
+          "  }",
+          "}",
+        ].join("\n"),
+        variables: '{"id": "{{input.params.pool}}"}',
+      }),
+      node("answer", "logic.return", 2, 0, "Answer the caller", {
+        outputs: [
+          { name: "price", value: "{{input.value.data.pool.token0Price}}" },
+          { name: "tvlUsd", value: "{{input.value.data.pool.totalValueLockedUSD}}" },
+        ],
+      }),
+    ],
+    edges: [edge("call", "input", "pool", "params"), edge("pool", "data", "answer", "value")],
+  }),
   "selfie-gated-claim": () => ({
     nodes: [
       node("open", "trigger.miniapp-open", 0, 0, "Mini-app opened"),

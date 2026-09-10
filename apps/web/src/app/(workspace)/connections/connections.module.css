@@ -124,3 +124,41 @@
   gap: 12px;
   padding: 16px;
 }
+/* A key's own name comes first; its visible head is the mono column a secret's template uses. */
+.keyName {
+  flex: none;
+  max-width: 30ch;
+  overflow: hidden;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Shown once, so it gets a surface of its own rather than a row that could be scrolled past. */
+.issued {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  background: var(--accent);
+}
+.issuedRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.issuedKey {
+  flex: 1 1 260px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  white-space: nowrap;
+}

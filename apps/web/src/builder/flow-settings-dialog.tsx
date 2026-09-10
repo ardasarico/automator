@@ -19,26 +19,18 @@ import { Textarea } from "@automator/ui/textarea";
 import { RiCheckLine, RiFileCopyLine } from "@remixicon/react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { FlowRequestError, setFlowEnabledRequest } from "../flows/client";
 import { EnableSigningButton } from "./enable-signing-button";
 import { useFlowActivation } from "./flow-activation";
 import { useBuilderStore } from "./store-provider";
 import { getCatalogEntry } from "./catalog";
-import { useFlowProblems } from "./use-flow-problems";
+import { useFlowEnabled } from "./use-flow-enabled";
 import { needsSigning, useWalletSigning } from "./use-wallet-signing";
-import type { FlowProblem } from "./validation";
 import { TriggerIssues } from "./trigger-issues";
 import { WalletFunds } from "./wallet-funds";
-import { useAccessToken } from "../auth/access-token";
 
 const nameLimit = 120;
 const chainItems = chains.map((chain) => ({ value: String(chain.id), label: chain.name }));
 const descriptionLimit = 1000;
-
-const activationFailures: Record<string, string> = {
-  unauthorized: "Your session expired. Reload the page and try again.",
-  not_found: "This flow no longer exists.",
-};
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -69,7 +61,6 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
-  const getAccessToken = useAccessToken();
   const meta = useBuilderStore((state) => state.meta);
   const setMeta = useBuilderStore((state) => state.setMeta);
   const hasWebhook = useBuilderStore((state) =>
@@ -95,7 +86,6 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
     ),
   );
   const dirty = useBuilderStore((state) => state.dirty);
-  const problems = useFlowProblems();
   const activation = useFlowActivation();
   const [name, setName] = useState(meta.name);
   const [description, setDescription] = useState(meta.description);
@@ -104,9 +94,7 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
   // the server sign; the switch waits for that, and the API refuses it too.
   const signing = useWalletSigning(signerLabels.length > 0 && !activation.enabled, chainId);
   const signingOff = signerLabels.length > 0 && signing.status === "disabled";
-  const [toggling, setToggling] = useState(false);
-  const [activationError, setActivationError] = useState<string | null>(null);
-  const [blockers, setBlockers] = useState<FlowProblem[] | null>(null);
+  const { toggling, error: activationError, blockers, toggle } = useFlowEnabled();
   const trimmedName = name.trim();
   const webhookUrl =
     activation.webhookToken && typeof window !== "undefined"
@@ -120,33 +108,6 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
     if (trimmedName !== meta.name || description !== meta.description || chainChanged)
       setMeta({ name: trimmedName, description, ...(chainChanged ? { chainId } : {}) });
     onClose();
-  }
-
-  async function toggle(enabled: boolean) {
-    setToggling(true);
-    setActivationError(null);
-    setBlockers(null);
-    try {
-      const record = await setFlowEnabledRequest(meta.id, await getAccessToken(), enabled);
-      activation.setEnabled(record.enabled ?? enabled);
-    } catch (caught) {
-      const code = caught instanceof FlowRequestError ? caught.code : "unavailable";
-      // The API refuses to run a flow it can see is broken. It checked the saved flow, so name
-      // the problems it sent, or failing that the errors the canvas found, rather than
-      // repeating a code the reader cannot act on.
-      if (enabled && code === "invalid_flow")
-        setBlockers(
-          caught instanceof FlowRequestError && caught.problems.length > 0
-            ? [...caught.problems]
-            : problems.filter((problem) => problem.severity === "error"),
-        );
-      else
-        setActivationError(
-          activationFailures[code] ?? "The change could not be saved. Please try again.",
-        );
-    } finally {
-      setToggling(false);
-    }
   }
 
   return (
