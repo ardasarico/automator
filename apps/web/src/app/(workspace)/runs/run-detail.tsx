@@ -3,6 +3,7 @@ import {
   explorerTransactionUrl,
   flowChainId,
   type FlowDocument,
+  type FlowNode,
   type FlowRunNodeResult,
   type FlowRunRecord,
 } from "@automator/contracts";
@@ -27,12 +28,16 @@ import {
 } from "../../../builder/run-selectors";
 import { LocalTime } from "./local-time";
 import { nodeStatusLabels, runDuration, runSourceLabels, runStatusLabels } from "./run-labels";
+import { runTriggerNode } from "./run-trigger";
 import styles from "./run-detail.module.css";
 
 type NodeFacts = { label: string; type?: string; icon?: CatalogIcon };
 
 function nodeFacts(document: FlowDocument, nodeId: string): NodeFacts {
-  const node = document.nodes.find((item) => item.id === nodeId);
+  return factsFor(document.nodes.find((item) => item.id === nodeId) ?? null);
+}
+
+function factsFor(node: FlowNode | null): NodeFacts {
   if (!node) return { label: "Removed node" };
   const entry = getCatalogEntry(node.type);
   return { label: node.label || entry.label, type: entry.label, icon: entry.icon };
@@ -165,7 +170,10 @@ export function RunDetail({ record }: { record: FlowRunRecord }) {
   const status = runStatusLabels[run.status];
   const duration = runDuration(run.status, run.startedAt, run.finishedAt);
   const chainId = flowChainId(document);
-  const trigger = run.trigger.nodeId ? nodeFacts(document, run.trigger.nodeId) : null;
+  /* Not `run.trigger.nodeId` alone: a resumed mini-app pass records none, and its payload is
+   * still the trigger's, so the document says which node that was. */
+  const fired = runTriggerNode(document, source, run.trigger.nodeId);
+  const trigger = fired ? factsFor(fired.node) : null;
   const variables = Object.entries(run.variables);
   const canvasHref = `/flows/${run.flowId}?run=${encodeURIComponent(run.id)}`;
   return (

@@ -91,6 +91,52 @@ test("the trigger section shows the node that fired and its payload", () => {
   expect(trigger).not.toContain("No payload");
 });
 
+/* A mini-app session resumes from the screen the visitor answered, and the engine names no
+ * trigger node on a resumed pass — the run detail used to report that as "No trigger node
+ * fired." for a session whose mini-app trigger plainly had. */
+test("a resumed mini-app run names the trigger that opened the session", () => {
+  const session: FlowRunRecord = {
+    ...record,
+    source: "miniapp",
+    document: {
+      ...record.document,
+      nodes: [
+        { id: "o", type: "trigger.miniapp-open", position: { x: 0, y: 0 }, label: "", config: {} },
+        { id: "s", type: "screen.form", position: { x: 300, y: 0 }, label: "Ask", config: {} },
+      ],
+      edges: [],
+    },
+    run: {
+      ...record.run,
+      trigger: { nodeId: null, payload: { openedAt: "2026-09-07T10:00:00.000Z" } },
+      nodes: [],
+    },
+  };
+  const page = renderToString(<RunDetail record={session} />);
+  const trigger = page.slice(page.indexOf('id="run-trigger"'), page.indexOf('id="run-steps"'));
+  expect(trigger).not.toContain("No trigger node fired.");
+  expect(trigger).toContain("Mini-app opened");
+  expect(trigger).toContain("&quot;openedAt&quot;");
+});
+
+test("a run whose document carries no trigger still says none fired", () => {
+  const orphan: FlowRunRecord = {
+    ...record,
+    source: "miniapp",
+    document: {
+      ...record.document,
+      nodes: [
+        { id: "d", type: "notify.discord", position: { x: 0, y: 0 }, label: "Say", config: {} },
+      ],
+      edges: [],
+    },
+    run: { ...record.run, trigger: { nodeId: null }, nodes: [] },
+  };
+  const page = renderToString(<RunDetail record={orphan} />);
+  const trigger = page.slice(page.indexOf('id="run-trigger"'), page.indexOf('id="run-steps"'));
+  expect(trigger).toContain("No trigger node fired.");
+});
+
 test("every node is a step; failed ones start open with their error, others closed", () => {
   const steps = html.slice(html.indexOf('id="run-steps"'), html.indexOf('id="run-variables"'));
   const details = steps.split("<details").slice(1);
@@ -156,7 +202,9 @@ test("a run-level error is a callout, and an auto-answered screen says so", () =
   };
   const page = renderToString(<RunDetail record={waiting} />);
   expect(page).toContain("The graph has a cycle");
-  expect(page).toContain("No trigger node fired.");
+  /* This run recorded no trigger node id, but node "t" ran and the document has one schedule
+   * trigger, so the section names it. Only a document without any trigger says none fired. */
+  expect(page).not.toContain("No trigger node fired.");
   expect(page).toContain("No payload");
   expect(page).toContain("Auto-answered");
   expect(page).toContain("continued on “next”");
