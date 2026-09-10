@@ -11,6 +11,11 @@ export default defineRailway(() => {
   });
   const api = service("api", {
     source: github("ardasarico/automator", { branch: "main" }),
+    /* Machines call published flows and the MCP server directly, so the API needs a public host
+     * of its own; web and runtime still reach it over the private network. */
+    networking: {
+      customDomains: { "api.automator.ardasari.co": { port: 3001 } },
+    },
     build: {
       builder: "RAILPACK",
       buildCommand: "bun run build --filter=@automator/api",
@@ -85,6 +90,7 @@ export default defineRailway(() => {
     deploy: { restartPolicyMaxRetries: 3 },
     env: {
       API_URL: "http://${{api.RAILWAY_PRIVATE_DOMAIN}}:3001",
+      NEXT_PUBLIC_API_URL: "https://api.automator.ardasari.co",
       NEXT_PUBLIC_PRIVY_APP_ID: preserve(),
       NEXT_PUBLIC_PRIVY_SIGNER_ID: preserve(),
       NEXT_PUBLIC_RUNTIME_URL: "https://run.automator.ardasari.co",
