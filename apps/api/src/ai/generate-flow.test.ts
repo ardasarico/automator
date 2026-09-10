@@ -215,7 +215,30 @@ describe("generateFlow", () => {
       tests: tests(50),
     };
     const { model } = scriptedModel([text(broken), text({ ...proposal, tests: tests(49) })]);
-    await expect(generateFlow(model, "Two tickets cost 50")).rejects.toThrow("expected 50, got 49");
+    /*
+     * The repair still does not pass, but there is a flow: it is handed over with the failure
+     * attached rather than thrown away, so the user can see the wiring fault on the canvas.
+     */
+    const answer = await generateFlow(model, "Two tickets cost 50");
+    expect(answer.kind).toBe("flow");
+    if (answer.kind !== "flow") throw new Error("expected a flow");
+    expect(answer.verification?.checks).toEqual([
+      { name: "Automatic checks", status: "failed", detail: expect.stringContaining("got 49") },
+    ]);
+    expect(answer.verification?.warnings.join(" ")).toContain("did not pass its automatic checks");
+  });
+
+  test("an answer with no usable flow in it at all is still fatal", async () => {
+    /* Nothing to hand over: the graph never materialises, so there is no draft to salvage. */
+    const orphan = { ...good, edges: [] };
+    const { model } = scriptedModel([text(orphan), text(orphan)]);
+    await expect(generateFlow(model, "Two tickets cost 50")).rejects.toThrow(
+      "has no incoming edge",
+    );
+    const gibberish = { content: "not json at all", toolCalls: [] };
+    await expect(
+      generateFlow(scriptedModel([gibberish, gibberish]).model, "anything"),
+    ).rejects.toThrow(FlowGenerationError);
   });
 });
 

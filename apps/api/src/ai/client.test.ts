@@ -1,6 +1,16 @@
-import { LanguageModelError } from "@automator/flow-engine";
+import { aiRequestTimeoutMs } from "@automator/contracts";
+import { LanguageModelError, type LanguageModel } from "@automator/flow-engine";
 import { describe, expect, test } from "bun:test";
-import { createOpenAiModel, createOpenRouterModel, withFallbackModel } from "./client";
+import {
+  createOpenAiModel,
+  createOpenRouterModel,
+  modelTimeoutMs,
+  requestBudgetMs,
+  withFallbackModel,
+  withRequestDeadline,
+} from "./client";
+import { askForFlow, modelAttempts } from "./generate-flow";
+import { scenarioTimeoutMs, verificationBudgetMs } from "./verify-flow";
 
 type Call = { url: string; headers: Headers; body: Record<string, unknown> };
 
@@ -165,6 +175,173 @@ describe("OpenRouter client", () => {
         throw timeout;
       }),
     ).toEqual(["timeout", undefined]);
+  });
+
+  test("running out of time while the answer arrives is a timeout, not malformed JSON", async () => {
+    const timeout = new Error("The operation timed out.");
+    timeout.name = "TimeoutError";
+    /* Headers first, completion last: the budget expires on the body a slow model is still writing. */
+    const { model } = fixture(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw timeout;
+          },
+        }) as unknown as Response,
+    );
+    const failure = await model({ messages: [{ role: "user", content: "hi" }] }).catch(
+      (error: unknown) => error,
+    );
+    expect(failure).toBeInstanceOf(LanguageModelError);
+    expect((failure as LanguageModelError).kind).toBe("timeout");
+    expect((failure as LanguageModelError).message).toBe("The model did not answer in time");
+  });
+
+  test("a body that is genuinely not JSON still says so", async () => {
+    const { model } = fixture(async () => new Response("<html>gateway</html>", { status: 200 }));
+    const failure = await model({ messages: [{ role: "user", content: "hi" }] }).catch(
+      (error: unknown) => error,
+    );
+    expect((failure as LanguageModelError).kind).toBe("invalid_response");
+    expect((failure as LanguageModelError).message).toBe("The model answered with no JSON");
+  });
+
+  test("a model that only accepts its default temperature is asked again without one", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const model = createOpenAiModel({
+      apiKey: "sk-test",
+      model: "gpt-5.6-luna",
+      fetcher: (async (_url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        bodies.push(body);
+        return body.temperature === undefined
+          ? Response.json({ choices: [{ message: { content: "ok" } }] })
+          : Response.json(
+              {
+                error: {
+                  message:
+                    "Unsupported value: 'temperature' does not support 0.2 with this model. Only the default (1) is supported.",
+                },
+              },
+              { status: 400 },
+            );
+      }) as typeof fetch,
+    })!;
+    expect(await model({ messages: [{ role: "user", content: "hi" }], temperature: 0.2 })).toEqual({
+      content: "ok",
+      toolCalls: [],
+    });
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]!.temperature).toBe(0.2);
+    expect(bodies[1]).not.toHaveProperty("temperature");
+    /* Everything else about the request is unchanged, so the answer is still the one we asked for. */
+    expect(bodies[1]!.messages).toEqual(bodies[0]!.messages);
+  });
+
+  test("an AI node's temperature 0 gets the same retry as flow generation", async () => {
+    /*
+     * ai.classify and ai.extract send temperature 0 through the very model index.ts hands the run
+     * engine, so both paths share this factory and neither needs its own retry. Without it every
+     * classify node in every live flow would fail with an opaque 400 the moment the model changed.
+     */
+    let calls = 0;
+    const model = createOpenAiModel({
+      apiKey: "sk-test",
+      model: "gpt-5.6-luna",
+      fetcher: (async (_url: string | URL | Request, init?: RequestInit) => {
+        calls += 1;
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return body.temperature === undefined
+          ? Response.json({ choices: [{ message: { content: "urgent" } }] })
+          : Response.json(
+              { error: { message: "Unsupported value: 'temperature' does not support 0 …" } },
+              { status: 400 },
+            );
+      }) as unknown as typeof fetch,
+    })!;
+    expect(
+      await model({ messages: [{ role: "user", content: "classify" }], temperature: 0 }),
+    ).toEqual({ content: "urgent", toolCalls: [] });
+    expect(calls).toBe(2);
+  });
+
+  test("a 400 that is not about temperature is not retried", async () => {
+    let calls = 0;
+    const model = createOpenAiModel({
+      apiKey: "sk-test",
+      model: "gpt-4.1",
+      fetcher: (async () => {
+        calls += 1;
+        return Response.json({ error: { message: "context length exceeded" } }, { status: 400 });
+      }) as unknown as typeof fetch,
+    })!;
+    const failure = await model({
+      messages: [{ role: "user", content: "hi" }],
+      temperature: 0.2,
+    }).catch((error: unknown) => error);
+    expect((failure as LanguageModelError).kind).toBe("upstream");
+    expect(calls).toBe(1);
+  });
+
+  test("the request budget is the whole worst case, and fits inside the client's patience", () => {
+    /*
+     * One number, not a product: `withRequestDeadline` bounds the request no matter how many
+     * hops it makes, so growing the call graph — a third attempt, another fallback — cannot
+     * push past the browser's patience. Being cut off past it costs the user the entire wait.
+     */
+    expect(requestBudgetMs).toBeLessThanOrEqual(aiRequestTimeoutMs + 5_000);
+    /* Each part has to be able to happen at least once inside the whole. */
+    expect(modelTimeoutMs).toBeLessThan(requestBudgetMs);
+    expect(verificationBudgetMs).toBeLessThan(requestBudgetMs);
+    expect(scenarioTimeoutMs).toBeLessThan(verificationBudgetMs);
+    expect(modelAttempts).toBeGreaterThanOrEqual(1);
+  });
+
+  test("a deadline already spent stops the request instead of starting another call", async () => {
+    let calls = 0;
+    const slow: LanguageModel = async () => {
+      calls += 1;
+      return new Promise(() => {});
+    };
+    const bounded = withRequestDeadline(slow, Date.now() - 1);
+    const failure = await bounded({ messages: [] }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(LanguageModelError);
+    expect((failure as LanguageModelError).kind).toBe("timeout");
+    expect(calls).toBe(0);
+  });
+
+  test("a fallback hop cannot spend past the deadline the primary left", async () => {
+    /* Both models hang; without the shared deadline this is two full per-call timeouts. */
+    const hang: LanguageModel = async () => new Promise(() => {});
+    const composite = withFallbackModel(hang, hang);
+    const started = Date.now();
+    const failure = await withRequestDeadline(
+      composite,
+      started + 40,
+    )({ messages: [] }).catch((error: unknown) => error);
+    expect((failure as LanguageModelError).kind).toBe("timeout");
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
+  test("running out of time is a timeout, never a repair attempt or an invalid flow", async () => {
+    let calls = 0;
+    const slow: LanguageModel = async () => {
+      calls += 1;
+      return new Promise(() => {});
+    };
+    const failure = await askForFlow(
+      slow,
+      [{ role: "user", content: "hi" }],
+      [],
+      0,
+      Date.now() + 30,
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(LanguageModelError);
+    expect((failure as LanguageModelError).kind).toBe("timeout");
+    /* One hop attempted, not `modelAttempts` of them: a clock cannot be repaired. */
+    expect(calls).toBe(1);
   });
 
   test.each([

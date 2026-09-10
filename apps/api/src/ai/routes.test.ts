@@ -3,12 +3,21 @@ import {
   explainRunContract,
   generateFlowContract,
   parseResponse,
+  type AiError,
   type DataTable,
+  type EndpointContract,
 } from "@automator/contracts";
 import { scriptedModel, type LanguageModel } from "@automator/flow-engine";
 import { Elysia } from "elysia";
 import type { IdentityProvider } from "../auth/privy";
 import { createAiRoutes } from "./routes";
+
+/** Reads a rejection through the contract, so the detail has to be part of it to arrive. */
+function aiFailure<C extends EndpointContract>(contract: C, body: unknown): AiError {
+  const result = parseResponse(contract, 422, body);
+  if (result.status !== 422) throw new Error(`expected a 422 body, got ${result.status}`);
+  return result.data as AiError;
+}
 
 const identity: IdentityProvider = {
   verify: async (token) => (token === "alice" ? { id: "did:privy:alice", expiresAt: 2e9 } : null),
@@ -197,15 +206,65 @@ describe("POST /ai/flows", () => {
     const { post } = fixture(scriptedModel([invented, invented]).model, undefined, { dataTables });
     const response = await post({ prompt: "store the signup" }, "alice");
     expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "invalid_flow" });
+    const body = aiFailure(generateFlowContract, await response.json());
+    expect(body.error).toBe("invalid_flow");
+    expect(body.detail).toContain("tbl-invented");
   });
 
-  test("answers 422 when the model cannot produce a valid flow", async () => {
+  test("answers 422 with the reason when the model cannot produce a valid flow", async () => {
     const bad = { content: JSON.stringify({ ...answer, edges: [] }), toolCalls: [] };
     const { post } = fixture(scriptedModel([bad, bad]).model);
     const response = await post({ prompt: "x" }, "alice");
     expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "invalid_flow" });
+    const body = aiFailure(generateFlowContract, await response.json());
+    expect(body).toEqual({ error: "invalid_flow", detail: 'Node "n2" has no incoming edge' });
+  });
+
+  test("a delivered draft's failed check is redacted, one line and bounded", async () => {
+    /*
+     * The expectation fails on the value the node produced, so the raw message quotes it — and
+     * that message now travels to the user on the flow itself rather than as a rejection.
+     */
+    const leak = {
+      content: JSON.stringify({
+        name: "Leak",
+        description: "",
+        summary: "Sets a variable.",
+        nodes: [
+          { id: "n1", type: "trigger.manual", label: "Run", config: {} },
+          {
+            id: "n2",
+            type: "logic.set-variable",
+            label: "Remember",
+            config: { name: "hook", value: "https://discord.com/api/webhooks/1/s3cr3t" },
+          },
+        ],
+        edges: [{ source: "n1", sourceHandle: "run", target: "n2", targetHandle: "value" }],
+        tests: [
+          {
+            name: "Keeps the hook",
+            triggerNodeId: "n1",
+            expect: [{ nodeId: "n2", output: "value", equals: "something else" }],
+          },
+        ],
+      }),
+      toolCalls: [],
+    };
+    const { post } = fixture(scriptedModel([leak, leak]).model);
+    const response = await post({ prompt: "x" }, "alice");
+    expect(response.status).toBe(200);
+    const parsed = parseResponse(generateFlowContract, 200, await response.json());
+    if (parsed.status !== 200) throw new Error(`expected a 200 body, got ${parsed.status}`);
+    const delivered = parsed.data;
+    expect(delivered.kind).toBe("flow");
+    if (delivered.kind !== "flow") throw new Error("expected a flow");
+    const check = delivered.verification!.checks[0]!;
+    expect(check.status).toBe("failed");
+    expect(check.detail).toContain("Keeps the hook");
+    expect(check.detail).not.toContain("s3cr3t");
+    expect(check.detail).toContain("[redacted]");
+    expect(check.detail).not.toContain("\n");
+    expect(check.detail.length).toBeLessThanOrEqual(300);
   });
 });
 
@@ -250,6 +309,9 @@ describe("POST /ai/runs/explain", () => {
     const { post } = fixture(scriptedModel([bad, bad]).model);
     const response = await post(body, "alice", explainRunContract.path);
     expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "invalid_flow" });
+    expect(aiFailure(explainRunContract, await response.json())).toEqual({
+      error: "invalid_flow",
+      detail: 'Node "n2" has no incoming edge',
+    });
   });
 });

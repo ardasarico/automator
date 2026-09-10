@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readConfig } from "./config";
+import { readConfig, defaultOpenAiModel } from "./config";
 
 const secretsKey = Buffer.alloc(32, 7).toString("base64");
 
@@ -46,7 +46,7 @@ describe("API configuration", () => {
       tokenApiKey: undefined,
       tokenApiUrl: undefined,
       openAiApiKey: undefined,
-      openAiModel: "gpt-4.1-mini",
+      openAiModel: defaultOpenAiModel,
       secretsKey: Buffer.from(secretsKey, "base64"),
       chainId: 84532,
       chainRpcUrl: "https://sepolia.base.org",
@@ -119,7 +119,7 @@ describe("API configuration", () => {
   test("OpenAI is optional, with a default model that a blank variable keeps", () => {
     expect(readConfig({ ...complete, OPENAI_API_KEY: "", OPENAI_MODEL: "" })).toMatchObject({
       openAiApiKey: undefined,
-      openAiModel: "gpt-4.1-mini",
+      openAiModel: defaultOpenAiModel,
     });
     expect(
       readConfig({ ...complete, OPENAI_API_KEY: "sk-proj", OPENAI_MODEL: "gpt-5" }),

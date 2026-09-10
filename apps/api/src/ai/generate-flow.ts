@@ -1,4 +1,5 @@
 import {
+  aiErrorDetail,
   aiFlowTestSchema,
   findFlowDocumentProblem,
   findFlowConfigProblems,
@@ -15,6 +16,7 @@ import {
   type FlowDocumentInput,
   type FlowEdge,
   type FlowNode,
+  type AiVerification,
   type FlowNodeType,
   type GenerateFlowResponse,
   type TObject,
@@ -27,7 +29,17 @@ import {
   type LanguageModel,
 } from "@automator/flow-engine";
 
-import { verifyFlow } from "./verify-flow";
+import { requestBudgetMs, withRequestDeadline } from "./client";
+import {
+  FlowTestError,
+  maxTestScenarios,
+  verificationBudgetMs,
+  VerificationTimeoutError,
+  verifyFlow,
+} from "./verify-flow";
+
+/** One draft and, if it does not check out, one repair. */
+export const modelAttempts = 2;
 
 export const generatableNodeTypes = flowNodeTypes.filter(
   (type) => type === "logic.for-each" || defaultExecutors[type] !== undefined,
@@ -87,6 +99,28 @@ export function describeDataTables(tables: readonly AiDataTable[]): string {
   return `A data.* node's tableId must be one of these table ids exactly, and its column references must be column ids of that table. Never invent a table id, a column id or a table name:\n${lines}`;
 }
 
+/*
+ * One line per node type: handles first, then the config schema.
+ *
+ * Measured, do not "improve" this without measuring again. Wrong-handle failures are the most
+ * common way a generated flow is rejected, and they are never invented names — always a real
+ * token from an adjacent namespace: the node's own output (an edge into trigger.balance's
+ * "balance"), or one of its config keys (an edge into notify.email's "text"). The obvious fix,
+ * listing the config keys beside the handles as forbidden, was tried on 2026-09-10 and made
+ * things worse: enumerating the wrong answers put them in front of the model in the same breath
+ * as forbidding them, and the failures moved onto the newly listed tokens. gpt-4.1-mini went
+ * 5/5 -> 2/5 on a webhook prompt. (The salience story is unproven: the baseline prompt reaches
+ * for config keys too, so listing them did not create that substitution.) Length is not free
+ * either — that variant was 11% longer, and gpt-oss-120b, already answering in 33-104s against a
+ * 130s ceiling, went from one timeout in five to three. Separating any of this from prominence
+ * needs a real evaluation, not another guess.
+ *
+ * The same shape shows up a second time, so restating rules is not the lever: the prompt already
+ * says "each input handle takes at most one edge", and the commonest failure on any branching
+ * request is still two edges into one input. logic.merge exists for exactly that fan-in and the
+ * model reaches past it. Whether merge is discoverable enough — here and on the canvas, for human
+ * authors too — is a product question, not a prompt one.
+ */
 export function describeNodeTypes(): string {
   return generatableNodeTypes
     .map((type) => {
@@ -124,7 +158,7 @@ Answer with one JSON object and nothing else. To propose a flow:
 Include a "tests" array in flow answers. A mini-app with a form MUST include at least one test (at least two when it branches), with concrete answers and expected result screens or output values derived from the user's request. Include boundary cases such as 0, 4 and 5 for a 1-to-4 limit. These are test-only inputs, never changes to the saved form sample. Each test follows this schema:
 ${JSON.stringify(aiFlowTestSchema)}
 Example: {"name":"Two tickets cost 50","answers":{"form":{"port":"submitted","data":{"ticketCount":"2"}}},"expect":[{"nodeId":"calculate","output":"output","path":"totalCost","equals":50},{"nodeId":"result","screenBody":"Total: 50"}]}.
-A nodeId-only expectation asserts that the node was reached. Use output/path/equals to check a calculation, screenBody to check rendered text. Use actual node ids from the proposal. For non-mini-app triggers also provide triggerNodeId and payload.
+A nodeId-only expectation asserts that the node was reached. Add output (and path) to assert that value was produced, narrowed by equals, greaterThan, lessThan or contains; screenBody checks rendered text. Use actual node ids from the proposal. For non-mini-app triggers also provide triggerNodeId and payload.
 Use short unique ids such as "n1", "n2". Labels are short and human. Only set config fields listed above; leave secrets such as webhook URLs empty for the user to fill in. "summary" is one or two sentences for the user about what the flow does or what you changed.
 When the request is a question, asks for an explanation, or needs one clarification before you can build anything, answer {"message": string} instead, in plain prose; never propose a flow for a message that does not ask to build or change one. The user decides what lands on the canvas.`;
 
@@ -333,15 +367,64 @@ export function historyMessages(history: readonly AiHistoryTurn[] = []): ChatMes
     .map((turn) => ({ role: turn.role, content: turn.text.slice(0, modelHistoryTurnLength) }));
 }
 
+/**
+ * Runs the automatic checks, keeping the two failures apart: a flow that misbehaves is fatal and
+ * worth a repair attempt, while scenarios the model wrote badly are its own bookkeeping. Those
+ * degrade to a warning on a flow that is otherwise delivered, because throwing away a good draft
+ * over an unusable test scenario is the worse answer.
+ */
+async function checkFlow(
+  document: FlowDocumentInput,
+  tests: unknown,
+  budgetMs: number,
+  deadlineAt: number,
+  tables: readonly AiDataTable[],
+): Promise<AiVerification> {
+  /* Whichever comes first: the checks' own ceiling, or what is left of the whole request. */
+  const deadline = Math.min(Date.now() + budgetMs, deadlineAt);
+  try {
+    return await verifyFlow(document, tests, deadline, tables);
+  } catch (error) {
+    if (!(error instanceof FlowTestError))
+      throw new FlowGenerationError(
+        error instanceof Error ? error.message : "Automatic checks failed",
+      );
+    const unusable =
+      error instanceof VerificationTimeoutError
+        ? `The automatic checks did not finish in time: ${error.message}`
+        : `The model's own test scenarios could not be used: ${error.message}`;
+    // No budget left for a second pass, and none of this is worth losing the flow over.
+    if (Date.now() >= deadline) return { checks: [], warnings: [unusable] };
+    try {
+      // The scenarios are gone, so this is a sample run of the flow: still a real check.
+      const fallback = await verifyFlow(document, undefined, deadline, tables);
+      return { ...fallback, warnings: [...fallback.warnings, unusable] };
+    } catch (fallbackError) {
+      if (!(fallbackError instanceof FlowTestError))
+        throw new FlowGenerationError(
+          fallbackError instanceof Error ? fallbackError.message : "Automatic checks failed",
+        );
+      return { checks: [], warnings: [unusable] };
+    }
+  }
+}
+
 export async function askForFlow(
   model: LanguageModel,
   messages: ChatMessage[],
   tables: readonly AiDataTable[] = [],
+  /** What the automatic checks may spend per attempt; the default is the shipped ceiling. */
+  budgetMs: number = verificationBudgetMs,
+  /** The instant the whole request must be done by, shared by every attempt and fallback hop. */
+  deadlineAt: number = Date.now() + requestBudgetMs,
 ): Promise<GenerateFlowResponse> {
+  const ask = withRequestDeadline(model, deadlineAt);
   let lastProblem: string | undefined;
   let pinnedTests: unknown;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const answer = await model({
+  /* The most recent answer that produced a real flow document, checks aside. */
+  let drafted: { document: FlowDocumentInput; summary: string } | undefined;
+  for (let attempt = 0; attempt < modelAttempts; attempt += 1) {
+    const answer = await ask({
       messages,
       responseFormat: { type: "json_object" },
       temperature: 0.2,
@@ -354,11 +437,13 @@ export async function askForFlow(
       if (
         Array.isArray(tests) &&
         tests.length &&
-        Value.Check(Type.Array(aiFlowTestSchema, { maxItems: 6 }), tests)
+        Value.Check(Type.Array(aiFlowTestSchema, { maxItems: maxTestScenarios }), tests)
       )
         pinnedTests = structuredClone(tests);
       const draft = readDraft(parsed);
       const document = materialize(draft, tables);
+      // Past this line there is a flow worth handing over, whatever its checks go on to say.
+      drafted = { document, summary: draft.summary };
       if (
         document.nodes.some((n) => n.type === "trigger.miniapp-open") &&
         document.nodes.some((n) => n.type === "screen.form")
@@ -369,18 +454,13 @@ export async function askForFlow(
             `This mini-app needs at least ${minimum} behavioral test scenarios with form answers and expected results.`,
           );
       }
-      let verification;
-      try {
-        verification = await verifyFlow(document, tests);
-      } catch (error) {
-        throw new FlowGenerationError(
-          error instanceof Error ? error.message : "Automatic checks failed",
-        );
-      }
+      const verification = await checkFlow(document, tests, budgetMs, deadlineAt, tables);
       return { kind: "flow", document, summary: draft.summary, verification };
     } catch (error) {
       if (!(error instanceof FlowGenerationError) && !(error instanceof LanguageModelError))
         throw error;
+      /* Out of time is not something a repair prompt can fix, and it is not an invalid flow. */
+      if (error instanceof LanguageModelError && error.kind === "timeout") throw error;
       lastProblem = error.message;
       messages.push({ role: "assistant", content: answer.content ?? "" });
       messages.push({
@@ -389,6 +469,29 @@ export async function askForFlow(
       });
     }
   }
+  /*
+   * The repair failed, but a flow that does not pass its checks is not the same as no flow. The
+   * user is looking at a canvas: a wiring fault they can see and fix beats being told to rephrase
+   * and losing the draft with it. Only a genuinely empty hand — an unreadable answer, a graph
+   * `materialize` rejects, a model that never replied — is still fatal.
+   */
+  if (drafted !== undefined)
+    return {
+      kind: "flow",
+      ...drafted,
+      verification: {
+        checks: [
+          {
+            name: "Automatic checks",
+            status: "failed",
+            detail: aiErrorDetail(lastProblem ?? "") ?? "The checks did not pass.",
+          },
+        ],
+        warnings: [
+          "This draft did not pass its automatic checks. Read the failure above, fix it on the canvas, and do not turn the flow on until it passes.",
+        ],
+      },
+    };
   throw new FlowGenerationError(lastProblem ?? "The model did not produce a valid flow");
 }
 
@@ -398,6 +501,8 @@ export async function generateFlow(
   current?: FlowDocumentInput,
   history?: readonly AiHistoryTurn[],
   tables: readonly AiDataTable[] = [],
+  budgetMs: number = verificationBudgetMs,
+  deadlineAt: number = Date.now() + requestBudgetMs,
 ): Promise<GenerateFlowResponse> {
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt(tables) },
@@ -411,5 +516,5 @@ export async function generateFlow(
   } else {
     messages.push({ role: "user", content: `Design a flow for this request: ${prompt}` });
   }
-  return askForFlow(model, messages, tables);
+  return askForFlow(model, messages, tables, budgetMs, deadlineAt);
 }

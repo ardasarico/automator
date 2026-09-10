@@ -1,9 +1,12 @@
 import {
+  aiErrorDetail,
   explainRunContract,
   generateFlowContract,
   redactFlowSecrets,
   Type,
   Value,
+  type AiError,
+  type ApiErrorCode,
 } from "@automator/contracts";
 import type { DataTableStore } from "@automator/db";
 import { LanguageModelError, type LanguageModel } from "@automator/flow-engine";
@@ -34,18 +37,29 @@ export function createAiRoutes({
 }: AiDependencies) {
   const limiter = createRateLimiter(callsPerMinute, now);
   const attempt = async <T>(what: string, ask: (model: LanguageModel) => Promise<T>) => {
-    if (!model) return { status: 503 as const, error: "unavailable" as const };
+    if (!model) return { status: 503 as const, error: "unavailable" as const, detail: undefined };
     try {
       return { status: 200 as const, data: await ask(model) };
     } catch (error) {
       if (log) console.warn(`${what} failed`, error instanceof Error ? error.message : error);
+      // Our own message says what was wrong with the proposal, so it reaches the user; an
+      // upstream provider failure keeps its payload here and only its code travels.
       if (error instanceof FlowGenerationError)
-        return { status: 422 as const, error: "invalid_flow" as const };
+        return {
+          status: 422 as const,
+          error: "invalid_flow" as const,
+          detail: aiErrorDetail(error.message),
+        };
       if (error instanceof LanguageModelError)
-        return { status: 503 as const, error: "unavailable" as const };
+        return { status: 503 as const, error: "unavailable" as const, detail: undefined };
       throw error;
     }
   };
+  /* The code is what the client switches on; the detail rides along only when there is one. */
+  const failure = (result: { error: ApiErrorCode; detail?: string }): AiError =>
+    result.detail === undefined
+      ? { error: result.error }
+      : { error: result.error, detail: result.detail };
   return new Elysia({ name: "ai" })
     .use(createAuthGuard(identity))
     .onBeforeHandle(({ claims, set, status }) => {
@@ -64,7 +78,7 @@ export function createAiRoutes({
         const result = await attempt("Flow generation", (model) =>
           generateFlow(model, body.prompt, current, body.history, tables),
         );
-        return result.status === 200 ? result.data : status(result.status, { error: result.error });
+        return result.status === 200 ? result.data : status(result.status, failure(result));
       },
       { body: Type.Unknown(), response: generateFlowContract.response },
     )
@@ -74,7 +88,7 @@ export function createAiRoutes({
         if (!Value.Check(explainRunContract.body, body))
           return status(400, { error: "invalid_request" });
         const result = await attempt("Run explanation", (model) => explainRun(model, body));
-        return result.status === 200 ? result.data : status(result.status, { error: result.error });
+        return result.status === 200 ? result.data : status(result.status, failure(result));
       },
       { body: Type.Unknown(), response: explainRunContract.response },
     );

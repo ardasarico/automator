@@ -22,10 +22,16 @@ const openRouter = createOpenRouterModel({
   model: config.openRouterModel,
 });
 const openAi = createOpenAiModel({ apiKey: config.openAiApiKey, model: config.openAiModel });
+/*
+ * OpenAI leads because speed was the failure: the configured OpenRouter model reasons before it
+ * answers and measured 33-104s a call against budgets it kept losing, while gpt-4.1-mini does
+ * not reason and answers in seconds. OpenRouter still catches an OpenAI outage, and either key
+ * alone is a working configuration.
+ */
 const model =
-  openRouter && openAi
-    ? withFallbackModel(openRouter, openAi, (line) => console.warn(line))
-    : (openRouter ?? openAi);
+  openAi && openRouter
+    ? withFallbackModel(openAi, openRouter, (line) => console.warn(line))
+    : (openAi ?? openRouter);
 const identity = withE2eIdentity(
   createPrivyIdentity(config.privyAppId, config.privyAppSecret, config.privyVerificationKey),
   config.e2eTestToken,

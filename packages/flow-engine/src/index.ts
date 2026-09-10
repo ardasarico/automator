@@ -8,6 +8,7 @@ export {
 } from "./executor";
 export { defaultExecutors } from "./executors";
 export { compare, ComparisonError, compareForNode } from "./compare";
+export { hasFixture, nodeFixture, nodeFixtures, type FixtureTable } from "./fixtures";
 export type {
   ChainMode,
   ChainProvider,

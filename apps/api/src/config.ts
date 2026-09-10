@@ -35,7 +35,23 @@ export const defaultUsdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
 export const defaultOpenRouterModel = "openai/gpt-oss-120b";
 
-export const defaultOpenAiModel = "gpt-4.1-mini";
+/*
+ * Chosen 2026-09-10 on partial evidence — say so, because it was a judgement call and not a
+ * completed evaluation. Luna was measured on one prompt only (the onchain one), 8 runs: 7 flows
+ * that passed their checks outright and 1 delivered with a failed check, so 8/8 produced a usable
+ * document. On that same prompt gpt-4.1-mini produced nothing usable in 10 of 10, and gpt-4.1
+ * produced a document 10 of 10 but every one failed its checks. Webhook, mini-app and data cells
+ * were never run for luna.
+ *
+ * Cost, measured against the real system prompt rather than taken from a price list: 7,782 prompt
+ * and 1,200 completion tokens a call, 512 of the completion spent on reasoning, which bills at the
+ * dearer rate — about $0.0030 a call against gpt-4.1's $0.0216. Roughly seven times cheaper, not
+ * the ten the sticker prices suggest. A model call takes ~14s against gpt-4.1's ~3.5s.
+ *
+ * Before swapping this: gpt-5-family models reject an explicit temperature, which every ai.* node
+ * sends. `client.ts` handles that by asking again without one — read that comment first.
+ */
+export const defaultOpenAiModel = "gpt-5.6-luna";
 
 const required = [
   "DATABASE_URL",
