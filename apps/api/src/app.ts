@@ -35,6 +35,8 @@ import { createFlowVersionRoutes } from "./flows/versions";
 import { createHookRoutes } from "./hooks/routes";
 import { createPublicRoutes } from "./public/routes";
 import { createMarketplaceRoutes } from "./marketplace/routes";
+import type { CallableFlowSource } from "./mcp/callable-flows";
+import { createMcpRoutes, type ApiKeyVerifier } from "./mcp/routes";
 import { createRunRoutes } from "./runs/routes";
 import { defaultRateLimits, type RateLimits } from "./rate-limit";
 import { createQuickJsSandbox } from "./sandbox/quickjs";
@@ -72,6 +74,9 @@ export interface AppDependencies {
   flowVersions?: FlowVersionStore;
   triggerIssues?: TriggerIssueReader;
   paymentPolicies?: PaymentPolicyAccess;
+  /* The flows an API key may run as MCP tools, and the keys that name their owner. */
+  callableFlows?: CallableFlowSource;
+  apiKeys?: ApiKeyVerifier;
 }
 
 function sanitize(
@@ -119,6 +124,8 @@ export function createApp({
   flowVersions,
   triggerIssues,
   paymentPolicies,
+  callableFlows,
+  apiKeys,
 }: AppDependencies) {
   const limits = { ...defaultRateLimits, ...rateLimits };
   const startedAt = new WeakMap<Request, number>();
@@ -266,6 +273,11 @@ export function createApp({
     .use(
       listings && flows && users
         ? createMarketplaceRoutes({ listings, flows, users, identity, log })
+        : new Elysia(),
+    )
+    .use(
+      callableFlows && apiKeys
+        ? createMcpRoutes({ source: callableFlows, keys: apiKeys })
         : new Elysia(),
     );
 }

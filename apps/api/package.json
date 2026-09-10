@@ -15,6 +15,7 @@
     "@automator/contracts": "workspace:*",
     "@automator/db": "workspace:*",
     "@automator/flow-engine": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@privy-io/node": "0.34.0",
     "@worldcoin/idkit-server": "1.1.1",
     "elysia": "1.4.30",
