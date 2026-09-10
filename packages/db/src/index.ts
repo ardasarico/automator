@@ -1,6 +1,7 @@
 import type { DatabaseStatus } from "@automator/contracts";
 import { SQL } from "bun";
 import { createAccountStore } from "./account";
+import { createAiMessageStore } from "./ai-messages";
 import { createApiKeyStore } from "./api-keys";
 import { createEventCursorStore } from "./event-cursors";
 import { createFlowStore } from "./flows";
@@ -30,6 +31,7 @@ export {
   type TriggerClaimStore,
 } from "./trigger-claims";
 export { type AccountStore } from "./account";
+export { type AiMessageStore } from "./ai-messages";
 export { apiKeyLimit, ApiKeyLimitError, type ApiKeyStore } from "./api-keys";
 export {
   documentTriggerTypes,
@@ -83,6 +85,7 @@ export function createDatabase(url: string | undefined) {
 
   return {
     users: createUserStore(sql),
+    aiMessages: createAiMessageStore(sql),
     flows: createFlowStore(sql),
     listings: createListingStore(sql),
     runs: createRunStore(sql),
