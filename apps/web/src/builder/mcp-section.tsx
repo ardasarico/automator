@@ -76,9 +76,11 @@ function Snippet({
       </div>
       <pre
         className={`bg-muted rounded-md p-3 font-mono text-xs ${
-          /* A command wraps so a narrow dialog shows all of it; JSON keeps its indentation
-             and scrolls instead, because wrapped JSON is harder to read than scrolled JSON. */
-          wrap ? "whitespace-pre-wrap break-all" : "overflow-x-auto"
+          /* A command wraps so a narrow dialog shows all of it; JSON keeps its indentation and
+             scrolls instead, because wrapped JSON is harder to read than scrolled JSON.
+             `wrap-anywhere`, not `break-all`: break-all splits the URL mid-host, and a command
+             a reader retypes should break between its words wherever it can. */
+          wrap ? "whitespace-pre-wrap wrap-anywhere" : "overflow-x-auto"
         }`}
       >
         <code>{text}</code>
@@ -109,12 +111,13 @@ export function McpSection({ apiUrl = publicApiUrl }: { apiUrl?: string }) {
       </div>
       <Field>
         <FieldLabel htmlFor="mcp-server-url">Server URL</FieldLabel>
-        <div className="flex items-center gap-1">
+        {/* Field lays its children out with items-start, so a row must claim the width. */}
+        <div className="flex w-full items-center gap-1">
           <Input
             id="mcp-server-url"
             readOnly
             value={url}
-            className="font-mono text-xs"
+            className="min-w-0 flex-1 font-mono text-xs"
             onFocus={(event) => event.target.select()}
           />
           <CopyButton text={url} copyLabel="Copy server URL" copiedLabel="Server URL copied" />
