@@ -156,17 +156,16 @@ test("account settings load every section and the test identity has a clear wall
   await page.goto("/flows");
   await page.getByRole("button", { name: /^Account menu/ }).click();
   await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Settings", exact: true });
+  await expect(page).toHaveURL(/\/settings$/);
   for (const section of ["Preferences", "Usage", "Account"]) {
-    await dialog.getByRole("tab", { name: section, exact: true }).click();
-    await expect(dialog.getByRole("heading", { name: section, exact: true })).toBeVisible();
+    const region = page.getByRole("region", { name: section, exact: true });
+    await expect(region.getByRole("heading", { name: section, exact: true })).toBeVisible();
     if (section === "Usage")
-      await expect(dialog.getByText("Runs in the last 30 days", { exact: true })).toBeVisible();
-    await expect(dialog.getByRole("alert")).toHaveCount(0);
+      await expect(region.getByText("Runs in the last 30 days", { exact: true })).toBeVisible();
+    await expect(region.getByRole("alert")).toHaveCount(0);
   }
-  // Secrets and the apps they reach are a page now; the dialog only points at it.
-  await dialog.getByRole("tab", { name: "Preferences", exact: true }).click();
-  await dialog.getByRole("link", { name: "Open connections", exact: true }).click();
+  // Secrets and the apps they reach are a page of their own; Preferences only points at it.
+  await page.getByRole("link", { name: "Open connections", exact: true }).click();
   await expect(page).toHaveURL(/\/connections$/);
   await expect(page.getByRole("heading", { name: "Secrets", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Connected apps", exact: true })).toBeVisible();

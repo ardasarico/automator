@@ -2,16 +2,16 @@
 import type { AccountUsage } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, afterEach, beforeEach, expect, spyOn, test } from "bun:test";
-import { act, createRef } from "react";
+import { act } from "react";
 import type { Root } from "react-dom/client";
 
 GlobalRegistrator.register();
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const { createRoot } = await import("react-dom/client");
-const auth = await import("../auth/provider");
-const accessToken = await import("../auth/access-token");
-const { SettingsDialog } = await import("./settings-dialog");
+const auth = await import("../../../auth/provider");
+const accessToken = await import("../../../auth/access-token");
+const { SettingsBrowser } = await import("./settings-browser");
 
 const usage: AccountUsage = {
   flows: 4,
@@ -22,7 +22,6 @@ const usage: AccountUsage = {
   since: "2026-08-09T00:00:00.000Z",
 };
 const originalFetch = globalThis.fetch;
-const finalFocus = createRef<HTMLButtonElement>();
 let container: HTMLDivElement;
 let root: Root;
 let token: () => Promise<string | null>;
@@ -64,14 +63,13 @@ afterAll(async () => {
   await GlobalRegistrator.unregister();
 });
 
-async function mount(section?: "Usage") {
+async function mount() {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
   await act(async () => {
-    root.render(<SettingsDialog open onOpenChange={() => {}} finalFocus={finalFocus} />);
+    root.render(<SettingsBrowser />);
   });
-  if (section) await click(section);
 }
 
 async function click(label: string) {
@@ -82,21 +80,20 @@ async function click(label: string) {
   await act(async () => button!.click());
 }
 
-test("secrets and connected apps are a page, which Preferences points at", async () => {
+test("the three sections are headings on one page, and Preferences points at Connections", async () => {
   await mount();
-  const tabs = Array.from(document.querySelectorAll('[role="tab"]')).map((tab) =>
-    tab.textContent?.trim(),
-  );
-  expect(tabs).toEqual(["Preferences", "Usage", "Account"]);
+  const headings = Array.from(document.querySelectorAll("h2")).map((h) => h.textContent?.trim());
+  expect(headings).toEqual(["Preferences", "Usage", "Account"]);
   const link = document.querySelector<HTMLAnchorElement>('a[href="/connections"]');
   expect(link?.textContent).toContain("Open connections");
-  /* The dialog no longer reads secrets to draw a status, so opening it asks for nothing. */
-  expect(calls).toEqual([]);
+  /* The page reads usage and nothing else; secrets have their own page. */
+  expect(calls).toEqual(["/api/account/usage"]);
+  expect(document.body.textContent).toContain("@test_user");
 });
 
 test("usage can recover in place and includes watch runs in its total", async () => {
   respond = () => Response.json({ error: "unavailable" }, { status: 503 });
-  await mount("Usage");
+  await mount();
   expect(document.querySelector('[role="alert"]')?.textContent).toContain("Usage is unavailable");
 
   respond = () => Response.json(usage);

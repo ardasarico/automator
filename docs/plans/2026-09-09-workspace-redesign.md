@@ -89,7 +89,8 @@ land:
   sidebar entry were removed; sharing stays in the builder's Share menu.
 - **Settings** — the dialog becomes a page once Connections has taken the secrets
   and connected apps out of it. Until then the dialog stays reachable from the
-  account menu, so the two overlap on purpose.
+  account menu, so the two overlap on purpose. (2026-09-10: landed; the dialog is
+  gone and `/settings` is the page.)
 
 `/` stops redirecting to `/flows` and becomes Home.
 

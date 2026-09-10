@@ -1,12 +1,17 @@
 "use client";
 
 import { DitherAvatar } from "@automator/ui/dither-avatar";
-import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from "@automator/ui/menu";
+import {
+  Menu,
+  MenuTrigger,
+  MenuPopup,
+  MenuItem,
+  MenuLinkItem,
+  MenuSeparator,
+} from "@automator/ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiExpandUpDownLine, RiSettings3Line, RiLogoutBoxRLine } from "@remixicon/react";
-import { useRef, useState } from "react";
 import { useSidebar } from "./sidebar-context";
-import { SettingsDialog } from "./settings-dialog";
 import styles from "./account-menu.module.css";
 import { useAuthSession } from "../auth/provider";
 
@@ -15,12 +20,9 @@ export function AccountMenu() {
   const walletAddress = user?.walletAddress ?? undefined;
   const { state } = useSidebar();
   const isOpen = state === "open";
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const trigger = (
     <MenuTrigger
-      ref={triggerRef}
       className={styles.trigger}
       data-state={state}
       aria-label={walletAddress ? `Account menu, ${walletAddress}` : "Account menu"}
@@ -64,10 +66,10 @@ export function AccountMenu() {
           className="w-max"
           style={{ minWidth: "max(14rem, var(--anchor-width))" }}
         >
-          <MenuItem onClick={() => setSettingsOpen(true)}>
+          <MenuLinkItem href="/settings">
             <RiSettings3Line aria-hidden="true" />
             Settings
-          </MenuItem>
+          </MenuLinkItem>
           <MenuSeparator />
           {error && (
             <MenuItem
@@ -95,7 +97,6 @@ export function AccountMenu() {
           {error}
         </p>
       )}
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} finalFocus={triggerRef} />
     </>
   );
 }
