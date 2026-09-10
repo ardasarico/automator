@@ -32,6 +32,21 @@ function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
   });
 }
 
+/** Same, but the chunks are already bytes, so a split can land inside one character's encoding. */
+function streamOfBytes(chunks: Uint8Array[]): ReadableStream<Uint8Array> {
+  let index = 0;
+  return new ReadableStream({
+    pull(controller) {
+      if (index >= chunks.length) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(chunks[index]);
+      index += 1;
+    },
+  });
+}
+
 describe("sendAiMessage", () => {
   test("delivers every event in order even when a frame is split across chunks", async () => {
     const chunks = [
@@ -56,6 +71,24 @@ describe("sendAiMessage", () => {
     ]);
     expect(calledUrl).toBe("/api/flows/flow-1/ai/messages");
     expect((calledInit?.headers as Record<string, string>).Authorization).toBe("Bearer token-1");
+  });
+
+  test("delivers a multi-byte character split mid-byte-sequence across chunks", async () => {
+    // A 4-byte UTF-8 emoji; the split lands after its second byte, not on a character boundary.
+    const prefix = 'data: {"type":"text.delta","delta":"';
+    const emoji = "\u{1F600}";
+    const suffix = '"}\n\ndata: {"type":"done"}\n\n';
+    const full = new TextEncoder().encode(prefix + emoji + suffix);
+    const splitAt = new TextEncoder().encode(prefix).length + 2;
+    const chunks = [full.slice(0, splitAt), full.slice(splitAt)];
+
+    globalThis.fetch = (async () =>
+      new Response(streamOfBytes(chunks), { status: 200 })) as unknown as typeof fetch;
+
+    const events: unknown[] = [];
+    await sendAiMessage("token-1", "flow-1", { text: "hi" }, (event) => events.push(event));
+
+    expect(events).toEqual([{ type: "text.delta", delta: emoji }, { type: "done" }]);
   });
 
   test("a 429 response becomes an AiRequestError with code rate_limited", async () => {

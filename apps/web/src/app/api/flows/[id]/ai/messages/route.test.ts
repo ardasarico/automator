@@ -28,6 +28,11 @@ function sseResponse(chunks: string[], status = 200) {
 
 let answer: () => Promise<Response> = async () => Response.json(listing);
 const calls: Array<{ url: string; authorization: string | null; body: unknown }> = [];
+/* Set to hold the upstream call open, so a mid-stream abort can be observed before it resolves. */
+let deferred: Promise<void> | null = null;
+let lastSignal: AbortSignal | undefined;
+let signalCaptured: Promise<void>;
+let resolveSignalCaptured: () => void;
 
 const { GET, DELETE, POST } = await import("./route");
 
@@ -39,11 +44,14 @@ beforeAll(() => {
   process.env.API_URL = "http://api.internal:3001";
   console.warn = () => {};
   globalThis.fetch = (async (url: URL, init: RequestInit) => {
+    lastSignal = init.signal as AbortSignal | undefined;
+    resolveSignalCaptured();
     calls.push({
       url: String(url),
       authorization: new Headers(init.headers).get("authorization"),
       body: typeof init.body === "string" ? JSON.parse(init.body) : init.body,
     });
+    if (deferred) await deferred;
     return answer();
   }) as unknown as typeof fetch;
 });
@@ -56,6 +64,9 @@ afterAll(() => {
 beforeEach(() => {
   calls.length = 0;
   answer = async () => Response.json(listing);
+  deferred = null;
+  lastSignal = undefined;
+  signalCaptured = new Promise((resolve) => (resolveSignalCaptured = resolve));
 });
 
 const signedIn = { origin: "https://app.automator.dev", authorization: "Bearer privy-token" };
@@ -181,4 +192,27 @@ test("malformed upstream error evidence is reported as unavailable", async () =>
   const response = await send(JSON.stringify({ text: "hi" }));
   expect(response.status).toBe(503);
   expect(await response.json()).toEqual({ error: "unavailable" });
+});
+
+test("aborting the incoming request also aborts the upstream fetch", async () => {
+  let release = () => {};
+  deferred = new Promise<void>((resolve) => (release = resolve));
+  const controller = new AbortController();
+  const responsePromise = POST(
+    new Request("https://app.automator.dev/api/flows/flow-1/ai/messages", {
+      method: "POST",
+      headers: jsonSignedIn,
+      body: JSON.stringify({ text: "hi" }),
+      signal: controller.signal,
+    }),
+    { params: Promise.resolve({ id: "flow-1" }) },
+  );
+
+  await signalCaptured;
+  expect(lastSignal?.aborted).toBe(false);
+  controller.abort();
+  expect(lastSignal?.aborted).toBe(true);
+
+  release();
+  await responsePromise;
 });

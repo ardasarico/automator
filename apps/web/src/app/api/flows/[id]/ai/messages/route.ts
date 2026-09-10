@@ -74,7 +74,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(aiRequestTimeoutMs + 5_000),
+        signal: AbortSignal.any([req.signal, AbortSignal.timeout(aiRequestTimeoutMs + 5_000)]),
       },
     );
     if (!upstream.ok) {

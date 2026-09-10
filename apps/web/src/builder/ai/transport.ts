@@ -54,6 +54,13 @@ function failureDetail(body: unknown): string | undefined {
   return text === "" ? undefined : text;
 }
 
+/** Reads and throws the API's own account of a failed response; a no-op on success. */
+async function throwIfNotOk(response: Response): Promise<void> {
+  if (response.ok) return;
+  const data: unknown = await response.json().catch(() => ({}));
+  throw new AiRequestError(parseAuthError(data).error, failureDetail(data));
+}
+
 /** mm:ss for a wait measured in whole seconds, so the panel never implies precision it lacks. */
 export function formatElapsed(seconds: number): string {
   const whole = Math.max(0, Math.floor(seconds));
@@ -75,8 +82,8 @@ async function request<C extends EndpointContract>(
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(20_000),
   });
+  await throwIfNotOk(response);
   const data: unknown = await response.json().catch(() => ({}));
-  if (!response.ok) throw new AiRequestError(parseAuthError(data).error, failureDetail(data));
   return parseResponse(contract, response.status, data).data;
 }
 
@@ -123,19 +130,23 @@ export async function sendAiMessage(
     body: JSON.stringify(body),
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   });
-  if (!response.ok) {
-    const data: unknown = await response.json().catch(() => ({}));
-    throw new AiRequestError(parseAuthError(data).error, failureDetail(data));
-  }
+  await throwIfNotOk(response);
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const { events, rest } = parseSseFrames(buffer);
-    buffer = rest;
-    for (const event of events) onEvent(event);
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const { events, rest } = parseSseFrames(buffer);
+      buffer = rest;
+      for (const event of events) onEvent(event);
+    }
+  } catch (error) {
+    void reader.cancel().catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
   }
 }
