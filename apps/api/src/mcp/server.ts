@@ -6,7 +6,7 @@ import {
   McpError,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
-import type { FlowApiInputProblem } from "@automator/contracts";
+import { describeFlowApiProblems } from "@automator/contracts";
 import type { InvokeOutcome } from "../api-publishing/invoke";
 import type { CallableFlow, CallableFlowSource } from "./callable-flows";
 import { mcpInputSchema, mcpToolDefinition, mcpToolName, type McpToolDefinition } from "./tools";
@@ -62,14 +62,6 @@ async function guarded<T>(work: () => Promise<T>): Promise<T> {
 
 function toolError(message: string): CallToolResult {
   return { isError: true, content: [{ type: "text", text: message }] };
-}
-
-/* TEMPORARY: mirrors `describeFlowApiProblems`, which automator-8c is adding to
- * `@automator/contracts`. Replace this with that import once their branch carries it, so the
- * tool's sentence and the builder's field errors cannot drift apart. */
-function describeFlowApiProblems(problems: readonly FlowApiInputProblem[]): string {
-  if (problems.length === 0) return "The input did not match what this flow declares.";
-  return problems.map((problem) => problem.message).join(" ");
 }
 
 /*

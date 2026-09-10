@@ -18,6 +18,7 @@ import { RiCheckLine, RiFileCopyLine } from "@remixicon/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiCurlSnippet, apiInvokeUrl } from "./api-snippets";
+import { McpSection } from "./mcp-section";
 import { useBuilderStore } from "./store-provider";
 import { useFlowEnabled } from "./use-flow-enabled";
 
@@ -164,7 +165,7 @@ export function UseAsApiDialog({ onClose, unsaved }: { onClose: () => void; unsa
         </DialogHeader>
         <DialogPanel className="flex flex-col gap-6">
           <ApiHttpSection unsaved={unsaved} />
-          {/* The MCP server section (automator-74's <McpSection />) mounts here on merge. */}
+          <McpSection />
         </DialogPanel>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
