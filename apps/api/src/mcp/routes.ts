@@ -25,7 +25,9 @@ async function answer(request: Request, source: CallableFlowSource, ownerId: str
   const server = createFlowMcpServer({ source, ownerId });
   await server.connect(transport);
   try {
-    return await transport.handleRequest(request, { parsedBody: await request.json() });
+    /* The body is left for the transport to read: it answers a malformed one with the JSON-RPC
+     * parse error a client expects, where parsing it here would surface as a server failure. */
+    return await transport.handleRequest(request);
   } finally {
     await server.close();
   }
@@ -68,17 +70,15 @@ export function createMcpRoutes({
       })
       /* A stateless server has no stream to hand back and no session to delete. 405 tells a
        * client that at once, instead of leaving an SSE socket open that never sends anything. */
-      .get(mcpPath, ({ owner }) =>
-        owner
-          ? jsonRpcError(405, -32_000, "This MCP server is stateless; use POST.", { Allow: "POST" })
-          : unauthorized(),
-      )
-      .delete(mcpPath, ({ owner }) =>
-        owner
-          ? jsonRpcError(405, -32_000, "This MCP server is stateless; use POST.", { Allow: "POST" })
-          : unauthorized(),
-      )
+      .get(mcpPath, statelessOnly)
+      .delete(mcpPath, statelessOnly)
   );
+}
+
+function statelessOnly({ owner }: { owner: { id: string } | null }) {
+  return owner
+    ? jsonRpcError(405, -32_000, "This MCP server is stateless; use POST.", { Allow: "POST" })
+    : unauthorized();
 }
 
 function unauthorized() {

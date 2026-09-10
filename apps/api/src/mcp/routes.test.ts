@@ -263,6 +263,22 @@ describe("MCP authentication", () => {
   });
 });
 
+describe("MCP request bodies", () => {
+  test("answers a malformed body with a JSON-RPC parse error, not a server failure", async () => {
+    const response = await fetch(serve(stubSource([swap])), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        Authorization: "Bearer ak_live_good",
+      },
+      body: "{not json",
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ jsonrpc: "2.0", error: { code: -32_700 } });
+  });
+});
+
 describe("MCP rate limiting", () => {
   test("refuses an owner who calls faster than the bucket allows", async () => {
     const url = serve(stubSource([swap]), { callsPerMinute: 1 });
