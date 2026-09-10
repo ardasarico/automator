@@ -2,3 +2,1461 @@
 @import "@automator/ui/styles.css";
 
 @source "..";
+
+/*
+ * "What you build" runs three illustrations on their own clocks: the automation on a 12s loop,
+ * the phone on 14s, the endpoint tabs on 12s. Every keyframe is paired with the class that uses
+ * it, and all of them stop for a visitor who asked for less motion.
+ */
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes tab-answer {
+  0%,
+  4% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  9%,
+  29% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  33%,
+  100% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+.tab-answer {
+  opacity: 0;
+  animation: tab-answer 12s cubic-bezier(0.2, 0, 0.1, 1) infinite;
+}
+
+@keyframes seg-slide {
+  0%,
+  29% {
+    transform: translateX(0);
+  }
+  33%,
+  62% {
+    transform: translateX(100%);
+  }
+  66%,
+  95% {
+    transform: translateX(200%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+.seg-slide {
+  animation: seg-slide 12s cubic-bezier(0.65, 0, 0.15, 1) infinite;
+}
+
+@keyframes pane-slide {
+  0%,
+  29% {
+    transform: translateX(0);
+  }
+  33%,
+  62% {
+    transform: translateX(-33.3333%);
+  }
+  66%,
+  95% {
+    transform: translateX(-66.6667%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+.pane-slide {
+  display: flex;
+  width: 300%;
+  animation: pane-slide 12s cubic-bezier(0.65, 0, 0.15, 1) infinite;
+}
+
+@keyframes seg-label {
+  0%,
+  2% {
+    color: var(--muted-foreground);
+  }
+  5%,
+  29% {
+    color: var(--foreground);
+  }
+  36%,
+  100% {
+    color: var(--muted-foreground);
+  }
+}
+.seg-label {
+  animation: seg-label 12s linear infinite;
+}
+
+@keyframes page-4 {
+  0%,
+  17.86% {
+    transform: translateX(0);
+  }
+  24.29%,
+  42.14% {
+    transform: translateX(-25%);
+  }
+  48.57%,
+  66.43% {
+    transform: translateX(-50%);
+  }
+  72.86%,
+  95.71% {
+    transform: translateX(-75%);
+  }
+  100% {
+    transform: translateX(-75%);
+  }
+}
+.page-4 {
+  display: flex;
+  width: 400%;
+  animation: page-4 14s cubic-bezier(0.65, 0, 0.15, 1) infinite;
+}
+
+@keyframes step0 {
+  0% {
+    transform: scaleX(0);
+  }
+  2.86% {
+    transform: scaleX(0);
+  }
+  7.14% {
+    transform: scaleX(1);
+  }
+  95.71% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0);
+  }
+}
+.step0 {
+  transform-origin: left;
+  animation: step0 14s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+
+@keyframes step1 {
+  0% {
+    transform: scaleX(0);
+  }
+  27.14% {
+    transform: scaleX(0);
+  }
+  31.43% {
+    transform: scaleX(1);
+  }
+  95.71% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0);
+  }
+}
+.step1 {
+  transform-origin: left;
+  animation: step1 14s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+
+@keyframes step2 {
+  0% {
+    transform: scaleX(0);
+  }
+  51.43% {
+    transform: scaleX(0);
+  }
+  55.71% {
+    transform: scaleX(1);
+  }
+  95.71% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0);
+  }
+}
+.step2 {
+  transform-origin: left;
+  animation: step2 14s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+
+@keyframes tap0 {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  15% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  16.07% {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+  19.29% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+}
+.tap0 {
+  animation: tap0 14s ease-out infinite;
+}
+
+@keyframes tap1 {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  39.29% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  40.36% {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+  43.57% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+}
+.tap1 {
+  animation: tap1 14s ease-out infinite;
+}
+
+@keyframes tap2 {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  63.57% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  64.64% {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+  67.86% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+}
+.tap2 {
+  animation: tap2 14s ease-out infinite;
+}
+
+@keyframes tick-4 {
+  0% {
+    stroke-dashoffset: 26;
+  }
+  75.71% {
+    stroke-dashoffset: 26;
+  }
+  80.71% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+.tick-4 {
+  stroke-dasharray: 26;
+  stroke-dashoffset: 26;
+  animation: tick-4 14s ease-out infinite;
+}
+
+@keyframes off-4 {
+  0% {
+    opacity: 0;
+  }
+  95% {
+    opacity: 0;
+  }
+  98.57% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.off-4 {
+  opacity: 0;
+  animation: off-4 14s ease-in infinite;
+}
+
+@keyframes f0-idle {
+  0% {
+    opacity: 0;
+  }
+  0.42% {
+    opacity: 0;
+  }
+  90% {
+    opacity: 0;
+  }
+  95% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.f0-idle {
+  animation: f0-idle 12s linear infinite;
+}
+
+@keyframes f0-run {
+  0% {
+    opacity: 1;
+  }
+  0.42% {
+    opacity: 1;
+  }
+  13.33% {
+    opacity: 1;
+  }
+  15.42% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.f0-run {
+  animation: f0-run 12s linear infinite;
+}
+
+@keyframes f0-done {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  14.58% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  17.92% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  95% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+.f0-done {
+  animation: f0-done 12s cubic-bezier(0.2, 0, 0.1, 1) infinite;
+}
+
+@keyframes f0-card {
+  0% {
+    border-color: var(--step-accent);
+    background: color-mix(in srgb, var(--step-accent) 8%, var(--card));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--step-accent) 12%, transparent);
+  }
+  1.25% {
+    border-color: var(--step-accent);
+    background: color-mix(in srgb, var(--step-accent) 8%, var(--card));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--step-accent) 12%, transparent);
+  }
+  13.33% {
+    border-color: var(--step-accent);
+    background: color-mix(in srgb, var(--step-accent) 8%, var(--card));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--step-accent) 12%, transparent);
+  }
+  17.5% {
+    border-color: color-mix(in srgb, var(--step-accent) 45%, var(--border));
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  90% {
+    border-color: color-mix(in srgb, var(--step-accent) 45%, var(--border));
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  95% {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  100% {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.f0-card {
+  animation: f0-card 12s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+
+@keyframes f0-bar {
+  0% {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  13.33% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  15.83% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+.f0-bar {
+  transform-origin: left;
+  animation: f0-bar 12s linear infinite;
+}
+
+@keyframes f1-idle {
+  0% {
+    opacity: 1;
+  }
+  27.92% {
+    opacity: 1;
+  }
+  28.75% {
+    opacity: 0;
+  }
+  90% {
+    opacity: 0;
+  }
+  95% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.f1-idle {
+  animation: f1-idle 12s linear infinite;
+}
+
+@keyframes f1-run {
+  0% {
+    opacity: 0;
+  }
+  27.92% {
+    opacity: 0;
+  }
+  28.75% {
+    opacity: 1;
+  }
+  41.67% {
+    opacity: 1;
+  }
+  43.75% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.f1-run {
+  animation: f1-run 12s linear infinite;
+}
+
+@keyframes f1-done {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  42.92% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  46.25% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  95% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+.f1-done {
+  animation: f1-done 12s cubic-bezier(0.2, 0, 0.1, 1) infinite;
+}
+
+@keyframes f1-card {
+  0% {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  27.92% {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  29.58% {
+    border-color: var(--step-accent);
+    background: color-mix(in srgb, var(--step-accent) 8%, var(--card));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--step-accent) 12%, transparent);
+  }
+  41.67% {
+    border-color: var(--step-accent);
+    background: color-mix(in srgb, var(--step-accent) 8%, var(--card));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--step-accent) 12%, transparent);
+  }
+  45.83% {
+    border-color: color-mix(in srgb, var(--step-accent) 45%, var(--border));
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  90% {
+    border-color: color-mix(in srgb, var(--step-accent) 45%, var(--border));
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  95% {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  100% {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.f1-card {
+  animation: f1-card 12s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+
+@keyframes f1-bar {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  28.33% {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  41.67% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  44.17% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+.f1-bar {
+  transform-origin: left;
+  animation: f1-bar 12s linear infinite;
+}
+
+@keyframes f2-idle {
+  0% {
+    opacity: 1;
+  }
+  56.25% {
+    opacity: 1;
+  }
+  57.08% {
+    opacity: 0;
+  }
+  90% {
+    opacity: 0;
+  }
+  95% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.f2-idle {
+  animation: f2-idle 12s linear infinite;
+}
+
+@keyframes f2-run {
+  0% {
+    opacity: 0;
+  }
+  56.25% {
+    opacity: 0;
+  }
+  57.08% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  72.08% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.f2-run {
+  animation: f2-run 12s linear infinite;
+}
+
+@keyframes f2-done {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  71.25% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  74.58% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  95% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+.f2-done {
+  animation: f2-done 12s cubic-bezier(0.2, 0, 0.1, 1) infinite;
+}
+
+@keyframes f2-card {
+  0% {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  56.25% {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  57.92% {
+    border-color: var(--step-accent);
+    background: color-mix(in srgb, var(--step-accent) 8%, var(--card));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--step-accent) 12%, transparent);
+  }
+  70% {
+    border-color: var(--step-accent);
+    background: color-mix(in srgb, var(--step-accent) 8%, var(--card));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--step-accent) 12%, transparent);
+  }
+  74.17% {
+    border-color: color-mix(in srgb, var(--step-accent) 45%, var(--border));
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  90% {
+    border-color: color-mix(in srgb, var(--step-accent) 45%, var(--border));
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  95% {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  100% {
+    border-color: var(--border);
+    background: var(--card);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.f2-card {
+  animation: f2-card 12s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+
+@keyframes f2-bar {
+  0% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  56.67% {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  70% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  72.5% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+.f2-bar {
+  transform-origin: left;
+  animation: f2-bar 12s linear infinite;
+}
+
+@keyframes f1-port {
+  0% {
+    box-shadow: 0 0 0 0 transparent;
+    background: var(--background);
+  }
+  24.58% {
+    box-shadow: 0 0 0 0 transparent;
+    background: var(--background);
+  }
+  25.83% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--step-accent) 35%, transparent);
+    background: var(--step-accent);
+  }
+  30% {
+    box-shadow: 0 0 0 0 transparent;
+    background: var(--step-accent);
+  }
+  90% {
+    background: var(--step-accent);
+  }
+  95% {
+    background: var(--background);
+  }
+  100% {
+    background: var(--background);
+  }
+}
+.f1-port {
+  animation: f1-port 12s ease-out infinite;
+}
+
+@keyframes f2-port {
+  0% {
+    box-shadow: 0 0 0 0 transparent;
+    background: var(--background);
+  }
+  52.92% {
+    box-shadow: 0 0 0 0 transparent;
+    background: var(--background);
+  }
+  54.17% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--step-accent) 35%, transparent);
+    background: var(--step-accent);
+  }
+  58.33% {
+    box-shadow: 0 0 0 0 transparent;
+    background: var(--step-accent);
+  }
+  90% {
+    background: var(--step-accent);
+  }
+  95% {
+    background: var(--background);
+  }
+  100% {
+    background: var(--background);
+  }
+}
+.f2-port {
+  animation: f2-port 12s ease-out infinite;
+}
+
+@keyframes g0-draw {
+  0% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  16.67% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  25% {
+    stroke-dashoffset: 0;
+  }
+  90% {
+    stroke-dashoffset: 0;
+  }
+  95% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  100% {
+    stroke-dashoffset: var(--edge-length);
+  }
+}
+.g0-draw {
+  animation: g0-draw 12s cubic-bezier(0.4, 0, 0.3, 1) infinite;
+}
+
+@keyframes g1-draw {
+  0% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  45% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  53.33% {
+    stroke-dashoffset: 0;
+  }
+  90% {
+    stroke-dashoffset: 0;
+  }
+  95% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  100% {
+    stroke-dashoffset: var(--edge-length);
+  }
+}
+.g1-draw {
+  animation: g1-draw 12s cubic-bezier(0.4, 0, 0.3, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin,
+  .tab-answer,
+  .seg-slide,
+  .pane-slide,
+  .seg-label,
+  .page-4,
+  .step0,
+  .step1,
+  .step2,
+  .tap0,
+  .tap1,
+  .tap2,
+  .tick-4,
+  .off-4,
+  .f0-idle,
+  .f0-run,
+  .f0-done,
+  .f0-card,
+  .f0-bar,
+  .f1-idle,
+  .f1-run,
+  .f1-done,
+  .f1-card,
+  .f1-bar,
+  .f2-idle,
+  .f2-run,
+  .f2-done,
+  .f2-card,
+  .f2-bar,
+  .f1-port,
+  .f2-port,
+  .g0-draw,
+  .g1-draw {
+    animation: none;
+  }
+  .f0-run,
+  .f1-run,
+  .f2-run,
+  .f0-idle,
+  .f1-idle,
+  .f2-idle,
+  .f0-bar,
+  .f1-bar,
+  .f2-bar {
+    opacity: 0;
+  }
+  .f0-done,
+  .f1-done,
+  .f2-done,
+  .tab-answer {
+    opacity: 1;
+    transform: none;
+  }
+  .g0-draw,
+  .g1-draw {
+    stroke-dashoffset: 0;
+  }
+  .step0,
+  .step1,
+  .step2 {
+    transform: scaleX(1);
+  }
+  .tick-4 {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---- The canvas section clock ------------------------------------------------------- */
+
+@keyframes c0-card {
+  0% {
+    border-color: var(--edge-active);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--edge-active) 32%, transparent),
+      0 1px 2px var(--shadow-color);
+  }
+  1.07% {
+    border-color: var(--edge-active);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--edge-active) 32%, transparent),
+      0 1px 2px var(--shadow-color);
+  }
+  10.71% {
+    border-color: var(--edge-active);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--edge-active) 32%, transparent),
+      0 1px 2px var(--shadow-color);
+  }
+  13.57% {
+    border-color: var(--chart-2);
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  90% {
+    border-color: var(--chart-2);
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  94.29% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  100% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+}
+@keyframes c0-run {
+  0% {
+    opacity: 1;
+  }
+  0.36% {
+    opacity: 1;
+  }
+  10.71% {
+    opacity: 1;
+  }
+  12.14% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes c0-done {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  11.79% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  14.29% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  94.29% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+.c0-card {
+  animation: c0-card 14s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+.c0-run {
+  opacity: 0;
+  animation: c0-run 14s linear infinite;
+}
+.c0-done {
+  opacity: 0;
+  animation: c0-done 14s cubic-bezier(0.2, 0, 0.1, 1) infinite;
+}
+@keyframes c1-card {
+  0% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  19.64% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  21.07% {
+    border-color: var(--edge-active);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--edge-active) 32%, transparent),
+      0 1px 2px var(--shadow-color);
+  }
+  30.71% {
+    border-color: var(--edge-active);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--edge-active) 32%, transparent),
+      0 1px 2px var(--shadow-color);
+  }
+  33.57% {
+    border-color: var(--chart-2);
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  90% {
+    border-color: var(--chart-2);
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  94.29% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  100% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+}
+@keyframes c1-run {
+  0% {
+    opacity: 0;
+  }
+  19.64% {
+    opacity: 0;
+  }
+  20.36% {
+    opacity: 1;
+  }
+  30.71% {
+    opacity: 1;
+  }
+  32.14% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes c1-done {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  31.79% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  34.29% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  94.29% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+.c1-card {
+  animation: c1-card 14s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+.c1-run {
+  opacity: 0;
+  animation: c1-run 14s linear infinite;
+}
+.c1-done {
+  opacity: 0;
+  animation: c1-done 14s cubic-bezier(0.2, 0, 0.1, 1) infinite;
+}
+@keyframes c2-card {
+  0% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  39.64% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  41.07% {
+    border-color: var(--edge-active);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--edge-active) 32%, transparent),
+      0 1px 2px var(--shadow-color);
+  }
+  50.71% {
+    border-color: var(--edge-active);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--edge-active) 32%, transparent),
+      0 1px 2px var(--shadow-color);
+  }
+  53.57% {
+    border-color: var(--chart-2);
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  90% {
+    border-color: var(--chart-2);
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  94.29% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  100% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+}
+@keyframes c2-run {
+  0% {
+    opacity: 0;
+  }
+  39.64% {
+    opacity: 0;
+  }
+  40.36% {
+    opacity: 1;
+  }
+  50.71% {
+    opacity: 1;
+  }
+  52.14% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes c2-done {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  51.79% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  54.29% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  94.29% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+.c2-card {
+  animation: c2-card 14s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+.c2-run {
+  opacity: 0;
+  animation: c2-run 14s linear infinite;
+}
+.c2-done {
+  opacity: 0;
+  animation: c2-done 14s cubic-bezier(0.2, 0, 0.1, 1) infinite;
+}
+@keyframes c3-card {
+  0% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  59.64% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  61.07% {
+    border-color: var(--edge-active);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--edge-active) 32%, transparent),
+      0 1px 2px var(--shadow-color);
+  }
+  70.71% {
+    border-color: var(--edge-active);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--edge-active) 32%, transparent),
+      0 1px 2px var(--shadow-color);
+  }
+  73.57% {
+    border-color: var(--chart-2);
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  90% {
+    border-color: var(--chart-2);
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  94.29% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+  100% {
+    border-color: var(--node-border, var(--border));
+    box-shadow: 0 1px 2px var(--shadow-color);
+  }
+}
+@keyframes c3-run {
+  0% {
+    opacity: 0;
+  }
+  59.64% {
+    opacity: 0;
+  }
+  60.36% {
+    opacity: 1;
+  }
+  70.71% {
+    opacity: 1;
+  }
+  72.14% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes c3-done {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  71.79% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  74.29% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  94.29% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+.c3-card {
+  animation: c3-card 14s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+}
+.c3-run {
+  opacity: 0;
+  animation: c3-run 14s linear infinite;
+}
+.c3-done {
+  opacity: 0;
+  animation: c3-done 14s cubic-bezier(0.2, 0, 0.1, 1) infinite;
+}
+@keyframes ce0 {
+  0% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  12.14% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  18.57% {
+    stroke-dashoffset: 0;
+  }
+  90% {
+    stroke-dashoffset: 0;
+  }
+  94.29% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  100% {
+    stroke-dashoffset: var(--edge-length);
+  }
+}
+.ce0 {
+  animation: ce0 14s cubic-bezier(0.4, 0, 0.3, 1) infinite;
+}
+@keyframes ce1 {
+  0% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  32.14% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  38.57% {
+    stroke-dashoffset: 0;
+  }
+  90% {
+    stroke-dashoffset: 0;
+  }
+  94.29% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  100% {
+    stroke-dashoffset: var(--edge-length);
+  }
+}
+.ce1 {
+  animation: ce1 14s cubic-bezier(0.4, 0, 0.3, 1) infinite;
+}
+@keyframes ce2 {
+  0% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  52.14% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  58.57% {
+    stroke-dashoffset: 0;
+  }
+  90% {
+    stroke-dashoffset: 0;
+  }
+  94.29% {
+    stroke-dashoffset: var(--edge-length);
+  }
+  100% {
+    stroke-dashoffset: var(--edge-length);
+  }
+}
+.ce2 {
+  animation: ce2 14s cubic-bezier(0.4, 0, 0.3, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .c0-card,
+  .c0-run,
+  .c0-done,
+  .c1-card,
+  .c1-run,
+  .c1-done,
+  .c2-card,
+  .c2-run,
+  .c2-done,
+  .c3-card,
+  .c3-run,
+  .c3-done,
+  .ce0,
+  .ce1,
+  .ce2 {
+    animation: none;
+  }
+  .c0-run,
+  .c1-run,
+  .c2-run,
+  .c3-run {
+    opacity: 0;
+  }
+  .c0-done,
+  .c1-done,
+  .c2-done,
+  .c3-done {
+    opacity: 1;
+    transform: none;
+  }
+  .ce0,
+  .ce1,
+  .ce2 {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* The branch not taken: once the condition has answered, the node on the other side is skipped. */
+@keyframes c-skip {
+  0%,
+  31.43% {
+    opacity: 1;
+  }
+  33.57%,
+  90% {
+    opacity: 0.55;
+  }
+  94.29%,
+  100% {
+    opacity: 1;
+  }
+}
+.c-skip {
+  animation: c-skip 14s ease-out infinite;
+}
+@keyframes c-skip-pill {
+  0%,
+  31.43% {
+    opacity: 0;
+  }
+  33.57%,
+  90% {
+    opacity: 1;
+  }
+  94.29%,
+  100% {
+    opacity: 0;
+  }
+}
+.c-skip-pill {
+  opacity: 0;
+  animation: c-skip-pill 14s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .c-skip,
+  .c-skip-pill {
+    animation: none;
+  }
+  .c-skip {
+    opacity: 0.55;
+  }
+  .c-skip-pill {
+    opacity: 1;
+  }
+}

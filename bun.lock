@@ -38,9 +38,11 @@
       "dependencies": {
         "@automator/ui": "workspace:*",
         "@remixicon/react": "4.9.0",
+        "agentation": "3.0.2",
         "motion": "13.2.0",
         "next": "16.3.4",
         "next-themes": "0.4.6",
+        "ogl": "^1.0.11",
         "react": "19.2.8",
         "react-dom": "19.2.8",
       },
