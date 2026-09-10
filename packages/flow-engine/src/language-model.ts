@@ -28,6 +28,8 @@ export interface ChatRequest {
   tools?: ToolDefinition[];
   responseFormat?: ResponseFormat;
   temperature?: number;
+  /** Called with each content delta when the provider streams; absent, the answer arrives whole. */
+  onText?: (delta: string) => void;
 }
 
 export interface ChatResponse {
@@ -66,8 +68,10 @@ export function scriptedModel(turns: readonly ChatResponse[]) {
   const requests: ChatRequest[] = [];
   let index = 0;
   const model: LanguageModel = async (request) => {
-    // A snapshot, since callers keep appending to the same messages array.
-    requests.push(structuredClone(request));
+    // A snapshot, since callers keep appending to the same messages array. `onText` is dropped:
+    // a scripted answer never streams, and `structuredClone` cannot copy a function.
+    const { onText: _onText, ...rest } = request;
+    requests.push(structuredClone(rest));
     const turn = turns[index++];
     if (!turn) throw new Error(`Scripted model has no answer for turn ${index}`);
     return turn;

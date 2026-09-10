@@ -136,10 +136,18 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
   let repaired = false;
 
   const emit = input.emit;
-  /* Prose from consecutive hops with nothing between them is one part, joined by a blank line. */
+  /* Prose from consecutive hops with nothing between them is one part, joined by a blank line.
+   * The separator is a delta of its own, so the panel reading the stream and the stored part end
+   * up with the same text. */
+  const separate = () => {
+    if (!text || /\s$/.test(text)) return;
+    text += "\n\n";
+    emit({ type: "text.delta", delta: "\n\n" });
+  };
   const pushText = (content: string | null) => {
     if (!content) return;
-    text += (text ? "\n\n" : "") + content;
+    separate();
+    text += content;
     emit({ type: "text.delta", delta: content });
   };
   /**
@@ -219,8 +227,23 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
   const loop = async (): Promise<void> => {
     for (;;) {
       input.signal?.throwIfAborted();
-      const answer = await ask({ messages, tools: canvasTools, temperature: 0.2 });
-      pushText(answer.content);
+      /* A model that streams has already said everything by the time it answers. */
+      let streamed = false;
+      const answer = await ask({
+        messages,
+        tools: canvasTools,
+        temperature: 0.2,
+        onText: (delta) => {
+          if (!delta) return;
+          if (!streamed) {
+            streamed = true;
+            separate();
+          }
+          text += delta;
+          emit({ type: "text.delta", delta });
+        },
+      });
+      if (!streamed) pushText(answer.content);
       if (answer.toolCalls.length === 0) return;
       messages.push({
         role: "assistant",

@@ -409,6 +409,37 @@ describe("OpenAI client", () => {
     });
   });
 
+  test("streams content deltas and assembles tool calls when onText is given", async () => {
+    const chunks = [
+      'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"add_node","arguments":"{\\"id\\":"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"t\\"}"}}]}}]}\n\n',
+      "data: [DONE]\n\n",
+    ];
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body)).stream).toBe(true);
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+    }) as unknown as typeof fetch;
+    const model = createOpenAiModel({ apiKey: "k", model: "m", fetcher })!;
+    const deltas: string[] = [];
+    const answer = await model({
+      messages: [{ role: "user", content: "hi" }],
+      onText: (delta) => deltas.push(delta),
+    });
+    expect(deltas).toEqual(["Hel", "lo"]);
+    expect(answer.content).toBe("Hello");
+    expect(answer.toolCalls).toEqual([{ id: "c1", name: "add_node", arguments: { id: "t" } }]);
+  });
+
   test("names OpenAI in upstream failures", async () => {
     const model = createOpenAiModel({
       apiKey: "sk-openai",

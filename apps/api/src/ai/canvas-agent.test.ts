@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { AiStreamEvent } from "@automator/contracts";
-import { LanguageModelError, scriptedModel, type ChatResponse } from "@automator/flow-engine";
+import {
+  LanguageModelError,
+  scriptedModel,
+  type ChatResponse,
+  type LanguageModel,
+} from "@automator/flow-engine";
 import { runCanvasAgent } from "./canvas-agent";
 import { VerificationTimeoutError } from "./verify-flow";
 
@@ -16,12 +21,17 @@ function turn(content: string | null, ...toolCalls: ReturnType<typeof call>[]): 
 
 async function run(
   turns: ChatResponse[],
-  options: { text?: string; current?: Parameters<typeof runCanvasAgent>[0]["current"] } = {},
+  options: {
+    text?: string;
+    current?: Parameters<typeof runCanvasAgent>[0]["current"];
+    /** A model of its own, for the turns a script cannot express — a streamed answer. */
+    model?: LanguageModel;
+  } = {},
 ) {
   const { model, requests } = scriptedModel(turns);
   const events: AiStreamEvent[] = [];
   const parts = await runCanvasAgent({
-    model,
+    model: options.model ?? model,
     text: options.text ?? "Post hi to Discord when I run it",
     current: options.current,
     history: [],
@@ -30,6 +40,14 @@ async function run(
   });
   return { parts, events, requests };
 }
+
+const pingFlow: Parameters<typeof runCanvasAgent>[0]["current"] = {
+  version: 1,
+  name: "Ping",
+  description: "",
+  nodes: [{ id: "t", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Run", config: {} }],
+  edges: [],
+};
 
 describe("canvas agent", () => {
   test("builds a flow through tools, checks it and proposes it", async () => {
@@ -176,26 +194,30 @@ describe("canvas agent", () => {
   test("a prose-only turn makes no proposal", async () => {
     const { parts, events } = await run([turn("This flow posts to Discord when you run it.")], {
       text: "What does this flow do?",
-      current: {
-        version: 1,
-        name: "Ping",
-        description: "",
-        nodes: [
-          {
-            id: "t",
-            type: "trigger.manual",
-            position: { x: 0, y: 0 },
-            label: "Run",
-            config: {},
-          },
-        ],
-        edges: [],
+      current: pingFlow,
+    });
+    expect(events.every((event) => event.type === "text.delta")).toBe(true);
+    expect(events.map((event) => (event.type === "text.delta" ? event.delta : "")).join("")).toBe(
+      "This flow posts to Discord when you run it.",
+    );
+    expect(parts).toEqual([{ type: "text", text: "This flow posts to Discord when you run it." }]);
+  });
+
+  test("a model that streams emits one event per delta and stores the joined text", async () => {
+    const { parts, events } = await run([], {
+      text: "What does this flow do?",
+      current: pingFlow,
+      model: async (request) => {
+        request.onText?.("Hel");
+        request.onText?.("lo");
+        return { content: "Hello", toolCalls: [] };
       },
     });
     expect(events).toEqual([
-      { type: "text.delta", delta: "This flow posts to Discord when you run it." },
+      { type: "text.delta", delta: "Hel" },
+      { type: "text.delta", delta: "lo" },
     ]);
-    expect(parts).toEqual([{ type: "text", text: "This flow posts to Discord when you run it." }]);
+    expect(parts).toEqual([{ type: "text", text: "Hello" }]);
   });
 
   test("document checks that fail get one repair, then the draft is offered with a failed check", async () => {
