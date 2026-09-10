@@ -41,6 +41,25 @@ Written while adding the `world.selfie-check` screen node to Automator on 2026-0
 - **Broken:** nothing we could prove broken without a phone. The portal's bare 404 for a guessed deep link is a small paper cut.
 - **Hard to test:** everything past the QR code. The integration can be exercised with unit tests (contracts, engine Simulate, mini-app preview, API verifier and session routes with a stubbed verifier), but the one thing the track is about, a live selfie, needs a phone with the sandbox or staging World App, a published mini-app URL, and the beta flag we cannot see. A web-based simulator for the credential, or a "test result" button in the portal that emits a signed sample result for the RP, would turn a half-day of blind building into a ten-minute check.
 
-## Live check still to do
+## Live check
 
-Open the published "Selfie-gated claim" flow on `https://run.automator.ardasari.co/a/<flowId>` on a desktop browser with the API's `WORLD_ENVIRONMENT` matching the World App build on the phone (`staging` for the simulator build, `sandbox` for the sandbox build), sign in with Privy, press "Verify with Selfie Check", scan the QR code with World App, complete the selfie, and confirm the flow reaches the USDC payout. Then run it a second time with the same World ID and confirm the `rejected` branch fires (`max_verifications_reached` or `nullifier_replayed`).
+Done on 2026-09-10 with the sandbox World App build (TestFlight) against the production API with
+`WORLD_ENVIRONMENT=sandbox`. The published "Selfie-gated claim" mini-app was opened on a desktop browser,
+the visitor signed in with Privy, scanned the IDKit QR code with the sandbox World App, completed the
+selfie, and the run reached the USDC payout: Sign in → Selfie Check → Verified? → Send USDC (1.2 s on
+Base Sepolia) → Claimed, all succeeded. So the credential is enabled for this app and the v4 verify
+endpoint accepts the 3.0 `selfie` result inside a signed 4.0 request.
+
+Two things had to be fixed on our side first, both worth a line in the docs:
+
+- With `environment: staging` the IDKit deep link and QR code send a phone that runs the sandbox
+  build to the App Store (which, in our country, does not even list World App); only
+  `environment: sandbox` reaches the TestFlight build. The sandbox access page says this, the Selfie
+  Check pages do not.
+- IDKit's modal closes on a backdrop click or Escape and stops polling, so a visitor who touches the
+  page while picking up their phone loses a proof World App reports as completed. Our host now
+  swallows those two events while a request is open; an `IDKitRequestWidget` option to disable
+  dismiss-on-backdrop would remove the workaround.
+
+The second-attempt check (same World ID again, expecting the `rejected` branch through
+`max_verifications_reached` or `nullifier_replayed`) is still to run.
