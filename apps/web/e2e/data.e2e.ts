@@ -143,6 +143,33 @@ test("the empty data section creates its first table through the dialog", async 
   await expect(page.getByRole("navigation", { name: "Tables" })).toContainText(name);
 });
 
+/* The rail is rendered by data/layout.tsx, which a push between the layout's own children does
+ * not re-run, so a created table used to reach the pane and not the rail until a reload. */
+test("a created table reaches the rail without a reload", async ({ page }) => {
+  const first = await seedTable(`E2E first ${Date.now()}`, [
+    { id: "email", name: "Email", type: "text", required: true },
+  ]);
+  await page.goto("/data");
+  const rail = page.getByRole("navigation", { name: "Tables" });
+  await expect(rail).toContainText(first.name);
+
+  // The rail's own New table button, which the layout renders ahead of the gallery's.
+  await page.getByRole("button", { name: "New table", exact: true }).first().click();
+  const dialog = page.getByRole("dialog", { name: "New table" });
+  const name = `E2E second ${Date.now()}`;
+  await dialog.locator("#data-table-name").fill(name);
+  await dialog.getByRole("group").nth(0).getByLabel("Name", { exact: true }).fill("Title");
+  await dialog.getByRole("button", { name: "Create table", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/data\/[^/?]+$/);
+  // No goto here: the rail has to carry the new table on the navigation the dialog made.
+  await expect(rail).toContainText(name);
+  await expect(rail.getByRole("link", { name: new RegExp(name) })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+});
+
 test("a record is added, edited and deleted from the record panel", async ({ page }) => {
   const table = await seedTable(`E2E people ${Date.now()}`, [
     { id: "email", name: "Email", type: "text", required: true },

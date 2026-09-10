@@ -95,7 +95,12 @@ export function DataBrowser({ tables }: { tables: readonly DataTable[] }) {
       onClose={() => setCreating(false)}
       onSaved={(saved) => {
         setCreating(false);
+        /* The rail is the layout's, and a push between the layout's own children does not
+         * re-run the layout, so the new table would reach the pane and not the rail. The
+         * refresh has to follow the push: called first, the navigation supersedes it and the
+         * rail stays stale. */
         router.push(`/data/${encodeURIComponent(saved.id)}`);
+        router.refresh();
       }}
     />
   );
