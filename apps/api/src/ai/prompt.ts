@@ -70,7 +70,9 @@ export function describeRun(context: AiRunContext): string {
     }${run.trigger.payload === undefined ? "" : ` with the payload ${excerpt(run.trigger.payload)}`}. Secrets and webhook URLs are redacted in what you see; that redaction is not the problem.`,
     `Node results in execution order:\n${results || "(no node ran)"}`,
     subject
-      ? `Explain node ${subject.nodeId}: why it failed and how to fix it.`
+      ? subject.status === "failed"
+        ? `Explain node ${subject.nodeId}: why it failed and how to fix it.`
+        : `Explain what happened at node ${subject.nodeId}.`
       : run.error
         ? "Explain why the run failed as a whole and how to fix it."
         : "Explain what this run did and whether anything should change.",

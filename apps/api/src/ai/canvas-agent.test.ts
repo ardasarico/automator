@@ -74,7 +74,17 @@ describe("canvas agent", () => {
     ]);
     const proposal = events.find((event) => event.type === "proposal");
     expect(proposal).toMatchObject({ replaces: true });
-    expect(parts.filter((part) => part.type === "text")).toHaveLength(1);
+    // Arrival order, so a reload renders the turn exactly as the stream did.
+    expect(parts.map((part) => part.type)).toEqual([
+      "text",
+      "tool",
+      "tool",
+      "tool",
+      "text",
+      "suggestions",
+      "text",
+      "proposal",
+    ]);
     expect(parts.at(-1)).toMatchObject({ type: "proposal", state: "pending" });
     expect(parts.find((part) => part.type === "suggestions")).toEqual({
       type: "suggestions",
@@ -124,6 +134,43 @@ describe("canvas agent", () => {
       text: "Which chain?",
       options: ["Base Sepolia", "World Chain Sepolia"],
     });
+  });
+
+  test("a refused conversation tool is stored, so a reload shows the refusal", async () => {
+    const { parts } = await run([
+      turn(null, call("c1", "ask_user", { question: "   ", options: [] })),
+      turn(
+        null,
+        call("c2", "add_node", { id: "t", type: "trigger.manual", label: "Run", config: {} }),
+      ),
+      turn("Built it."),
+    ]);
+    expect(parts[0]).toMatchObject({ type: "tool", name: "ask_user", ok: false });
+    expect(parts.at(-1)).toMatchObject({ type: "proposal" });
+  });
+
+  test("suggestions still reach the stream when a question ends the batch", async () => {
+    const { parts, events } = await run([
+      turn(
+        "Here you go.",
+        call("c1", "add_node", { id: "t", type: "trigger.manual", label: "Run", config: {} }),
+        call("c2", "suggest_next", { items: ["Add a condition"] }),
+        call("c3", "ask_user", { question: "Which chain?", options: ["Base Sepolia"] }),
+      ),
+    ]);
+    expect(events.map((event) => event.type)).toEqual([
+      "text.delta",
+      "tool.call",
+      "tool.result",
+      "tool.call",
+      "tool.result",
+      "tool.call",
+      "tool.result",
+      "suggestions",
+      "question",
+    ]);
+    expect(parts.map((part) => part.type)).toEqual(["text", "tool", "suggestions", "question"]);
+    expect(parts.some((part) => part.type === "proposal")).toBe(false);
   });
 
   test("a prose-only turn makes no proposal", async () => {

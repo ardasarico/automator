@@ -13,7 +13,7 @@ import { LanguageModelError, type ChatMessage, type LanguageModel } from "@autom
 import { requestBudgetMs, withRequestDeadline } from "./client";
 import { FlowGenerationError, materialize, type AiDataTable } from "./draft";
 import { systemPrompt, userTurn } from "./prompt";
-import { canvasTools } from "./tools";
+import { canvasTools, conversationTools, mutatingTools } from "./tools";
 import {
   FlowTestError,
   maxTestScenarios,
@@ -26,14 +26,6 @@ import { ToolCallError, WorkingCopy } from "./working-copy";
 export const maxToolCalls = 40;
 const historyMessages = 12;
 const historyTextLength = 1500;
-const mutatingTools = [
-  "add_node",
-  "update_node",
-  "remove_node",
-  "connect",
-  "disconnect",
-  "set_flow",
-];
 
 export interface CanvasAgentInput {
   model: LanguageModel;
@@ -144,14 +136,27 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
   let repaired = false;
 
   const emit = input.emit;
+  /* Prose from consecutive hops with nothing between them is one part, joined by a blank line. */
   const pushText = (content: string | null) => {
     if (!content) return;
     text += (text ? "\n\n" : "") + content;
     emit({ type: "text.delta", delta: content });
   };
+  /**
+   * Closes the running text before whatever comes next is pushed. Parts are stored in arrival
+   * order, so a reload renders the turn exactly as the stream did: prose, the tools it announced,
+   * then the prose about those.
+   */
   const flushText = () => {
     if (text) parts.push({ type: "text", text });
     text = "";
+  };
+  const emitSuggestions = () => {
+    if (suggested) return;
+    const suggestions = parts.find((part) => part.type === "suggestions");
+    if (!suggestions) return;
+    suggested = true;
+    emit({ type: "suggestions", items: suggestions.items });
   };
 
   const messages: ChatMessage[] = [
@@ -222,6 +227,8 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
         content: answer.content ?? "",
         toolCalls: answer.toolCalls,
       });
+      // Whatever the model said before reaching for a tool belongs in front of these calls.
+      flushText();
       for (const call of answer.toolCalls) {
         if (calls >= maxToolCalls)
           throw new FlowGenerationError(
@@ -238,13 +245,13 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
           ok = false;
           if (error instanceof ToolCallError) detail = error.message;
           else {
-            // Not a refusal the tools model. It ends the turn, but only once this call is
-            // closed: a tool.call the panel never sees answered would spin forever.
+            // Something the tools do not model as a refusal. It ends the turn, but only once
+            // this call is closed: a tool.call the panel never sees answered would spin forever.
             failure = error;
             detail = "The tool failed unexpectedly";
           }
         }
-        const mutated = ok && mutatingTools.includes(call.name);
+        const mutated = ok && mutatingTools.has(call.name);
         emit({
           type: "tool.result",
           id: call.id,
@@ -252,7 +259,8 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
           detail,
           ...(mutated ? { document: copy.toPreview() } : {}),
         });
-        if (call.name !== "ask_user" && call.name !== "suggest_next")
+        /* A conversation tool that worked already pushed its own part; a refused one has none. */
+        if (!ok || !conversationTools.has(call.name))
           parts.push({
             type: "tool",
             id: call.id,
@@ -263,15 +271,12 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
           });
         if (failure !== undefined) throw failure;
         messages.push({ role: "tool", toolCallId: call.id, content: detail });
-        if (asked) return;
-      }
-      if (!suggested) {
-        const suggestions = parts.find((part) => part.type === "suggestions");
-        if (suggestions) {
-          suggested = true;
-          emit({ type: "suggestions", items: suggestions.items });
+        if (asked) {
+          emitSuggestions();
+          return;
         }
       }
+      emitSuggestions();
     }
   };
 
@@ -279,8 +284,7 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
   const finishWithQuestion = (): AiPart[] => {
     const question = parts.find((part) => part.type === "question")!;
     emit({ type: "question", text: question.text, options: question.options });
-    flushText();
-    return orderParts(parts);
+    return parts;
   };
 
   try {
@@ -288,7 +292,7 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
     if (asked) return finishWithQuestion();
     if (!copy.changed) {
       flushText();
-      return orderParts(parts);
+      return parts;
     }
     emit({ type: "status", phase: "checking" });
     let document: FlowDocumentInput | undefined;
@@ -336,7 +340,7 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
       };
       emit({ type: "proposal", document: draft, verification, replaces });
       parts.push({ type: "proposal", document: draft, verification, replaces, state: "pending" });
-      return orderParts(parts);
+      return parts;
     }
     const verification = await checkFlow(
       document,
@@ -348,7 +352,7 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
     );
     emit({ type: "proposal", document, verification, replaces });
     parts.push({ type: "proposal", document, verification, replaces, state: "pending" });
-    return orderParts(parts);
+    return parts;
   } catch (error) {
     if (error instanceof LanguageModelError) throw error;
     flushText();
@@ -357,23 +361,6 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
       error instanceof FlowGenerationError ? ("invalid_flow" as const) : ("unavailable" as const);
     emit({ type: "error", error: code, ...(detail ? { detail } : {}) });
     parts.push({ type: "error", error: code, ...(detail ? { detail } : {}) });
-    return orderParts(parts);
+    return parts;
   }
-}
-
-/**
- * The render order of one assistant message: the tool calls as they happened, then the prose the
- * model wrote about them, then a question or the follow-up chips, then the proposal card the user
- * acts on, and an error last. `Array.prototype.sort` is stable in Bun, so tools keep their order.
- */
-function orderParts(parts: AiPart[]): AiPart[] {
-  const rank: Record<AiPart["type"], number> = {
-    tool: 0,
-    text: 1,
-    question: 2,
-    suggestions: 3,
-    proposal: 4,
-    error: 5,
-  };
-  return [...parts].sort((a, b) => rank[a.type] - rank[b.type]);
 }

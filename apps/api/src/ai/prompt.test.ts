@@ -53,4 +53,36 @@ describe("user turn", () => {
     expect(text).toContain(JSON.stringify(withoutPositions(document)));
     expect(text).not.toContain("The canvas is empty");
   });
+
+  test("describes a failed run and names the node to explain", () => {
+    const text = userTurn("why did it fail?", document, {
+      run: {
+        status: "failed",
+        trigger: { nodeId: "t", payload: { source: "manual" } },
+        nodes: [
+          { nodeId: "t", status: "succeeded", outputs: { run: { ok: true } } },
+          { nodeId: "d", status: "failed", error: "Discord answered 404" },
+        ],
+      },
+    });
+    expect(text).toContain(
+      'The run failed. It was started by t with the payload {"source":"manual"}',
+    );
+    expect(text).toContain("- t: succeeded; outputs:");
+    expect(text).toContain("- d: failed; error: Discord answered 404");
+    expect(text).toContain("Explain node d: why it failed and how to fix it.");
+    expect(text).toContain("make it with the tools");
+  });
+
+  test("asks what happened when the named node did not fail", () => {
+    const text = userTurn("what did this do?", document, {
+      run: {
+        status: "succeeded",
+        trigger: { nodeId: "t" },
+        nodes: [{ nodeId: "t", status: "succeeded" }],
+        nodeId: "t",
+      },
+    });
+    expect(text).toContain("Explain what happened at node t.");
+  });
 });

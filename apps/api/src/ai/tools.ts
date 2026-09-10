@@ -11,6 +11,19 @@ const edgeParameters = {
   required: ["source", "sourceHandle", "target", "targetHandle"],
 } as const;
 
+/** The tools that change the working copy, so a successful call carries a canvas preview. */
+export const mutatingTools = new Set([
+  "add_node",
+  "update_node",
+  "remove_node",
+  "connect",
+  "disconnect",
+  "set_flow",
+]);
+
+/** The tools that speak to the user rather than the flow: each produces its own part instead. */
+export const conversationTools = new Set(["ask_user", "suggest_next"]);
+
 export const canvasTools: ToolDefinition[] = [
   {
     name: "add_node",
