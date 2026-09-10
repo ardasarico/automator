@@ -296,6 +296,13 @@ export const migrations: Migration[] = [
     CREATE INDEX IF NOT EXISTS automator_api_keys_owner
       ON automator_api_keys (owner_id, created_at DESC, id DESC)`,
   },
+  /* 0018 belongs to the visitor-payment work; this is the next free number. */
+  {
+    name: "0019_run_source_api",
+    sql: `ALTER TABLE automator_runs DROP CONSTRAINT IF EXISTS automator_runs_source_check;
+    ALTER TABLE automator_runs ADD CONSTRAINT automator_runs_source_check
+      CHECK (source IN ('manual', 'webhook', 'schedule', 'miniapp', 'event', 'watch', 'api'))`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (

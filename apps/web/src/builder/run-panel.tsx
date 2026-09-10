@@ -258,6 +258,22 @@ export function RunPanel() {
             ) : (
               <p className={styles.runDetailMuted}>No node ran.</p>
             )}
+            {run.output && (
+              /* What a Return node handed back. Only a flow published as an API reaches one. */
+              <>
+                <p className={styles.runDetailTitle}>Answered the caller</p>
+                <dl className={styles.runOutputs}>
+                  {Object.entries(run.output).map(([name, value]) => (
+                    <div key={name}>
+                      <dt>{name}</dt>
+                      <dd>
+                        <pre>{JSON.stringify(value, null, 2) ?? "undefined"}</pre>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </>
+            )}
           </div>
         </div>
       )}

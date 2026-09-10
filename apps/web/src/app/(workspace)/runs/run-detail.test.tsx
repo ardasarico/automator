@@ -165,3 +165,19 @@ test("a run-level error is a callout, and an auto-answered screen says so", () =
   const details = page.split("<details").slice(1);
   expect(details[1]).toContain(" open");
 });
+
+test("a run that answered its caller shows what it answered with", () => {
+  const answered: FlowRunRecord = {
+    ...record,
+    source: "api",
+    run: { ...record.run, output: { price: "1800.42" } },
+  };
+  const html = renderToString(<RunDetail record={answered} />);
+  expect(html).toContain("Answer");
+  expect(html).toContain("1800.42");
+});
+
+test("a run that answered nothing has no answer section", () => {
+  const html = renderToString(<RunDetail record={record} />);
+  expect(html).not.toContain("run-answer");
+});

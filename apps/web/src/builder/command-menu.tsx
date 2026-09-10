@@ -82,6 +82,7 @@ export function CommandMenu() {
       },
       { id: "settings", label: "Flow settings", run: close(() => dialogs.open("settings")) },
       { id: "share", label: "Share as a mini app", run: close(() => dialogs.open("share-app")) },
+      { id: "use-api", label: "Use as API", run: close(() => dialogs.open("use-api")) },
       {
         id: "publish",
         label: "Publish to the marketplace",

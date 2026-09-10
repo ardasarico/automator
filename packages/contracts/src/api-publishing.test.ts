@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  describeFlowApiProblems,
   flowApiSchema,
   isApiFlow,
   readFlowApiInputs,
@@ -171,5 +172,20 @@ describe("validateFlowApiInput", () => {
     expect(validateFlowApiInput([amount], { amount: Number.POSITIVE_INFINITY })).toEqual({
       problems: [{ input: "amount", message: "amount must be a number." }],
     });
+  });
+});
+
+describe("describeFlowApiProblems", () => {
+  test("joins the problems into one sentence a caller can act on", () => {
+    expect(
+      describeFlowApiProblems([
+        { input: "amount", message: "amount must be a number." },
+        { input: "to", message: "to is required." },
+      ]),
+    ).toBe("amount must be a number. to is required.");
+  });
+
+  test("says the input was refused when it carries no problems", () => {
+    expect(describeFlowApiProblems([])).toBe("The input did not match what this flow declares.");
   });
 });

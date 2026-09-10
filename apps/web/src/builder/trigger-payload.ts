@@ -2,6 +2,8 @@ import {
   flowNodeConfigSchemas,
   parseNodeConfig,
   parseSamplePayload,
+  readFlowApiInputs,
+  sampleFlowApiInput,
   type FlowEdge,
   type FlowNode,
   type TObject,
@@ -39,14 +41,29 @@ export function findSimulationTrigger<T extends NodeLike>(
   return starting.find((node) => node.id === requestedId) ?? starting[0];
 }
 
+function isEmptyObject(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 0
+  );
+}
+
 export function triggerSamplePayload(node: Pick<FlowNode, "type" | "config">): unknown {
   const schema = configSchemas[node.type];
-  if (!schema) return parseSamplePayload(node.config);
-  try {
-    return parseSamplePayload(parseNodeConfig(schema, node.config));
-  } catch {
-    return parseSamplePayload(node.config);
-  }
+  const written = schema
+    ? (() => {
+        try {
+          return parseSamplePayload(parseNodeConfig(schema, node.config));
+        } catch {
+          return parseSamplePayload(node.config);
+        }
+      })()
+    : parseSamplePayload(node.config);
+  /* An API trigger already says what a caller sends, so an unwritten sample writes itself. */
+  if (node.type !== "trigger.api" || !isEmptyObject(written)) return written;
+  return sampleFlowApiInput(readFlowApiInputs([node]));
 }
 
 export function simulationTriggerPayload(
