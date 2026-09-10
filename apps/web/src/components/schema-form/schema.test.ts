@@ -58,6 +58,12 @@ describe("textFieldShape", () => {
     expect(textFieldShape("chatId", {})).toBe("line");
   });
 
+  /* An ABI is a JSON array or a list of signatures: many lines either way, and never checked
+   * as JSON, since only one of the two forms is. */
+  test("gives an ABI room for either form it accepts", () => {
+    expect(textFieldShape("abi", {})).toBe("code");
+  });
+
   test("follows a schema that names a source media type", () => {
     expect(textFieldShape("expression", { contentMediaType: "text/javascript" })).toBe("code");
     expect(textFieldShape("query", { contentMediaType: "application/graphql" })).toBe("code");
