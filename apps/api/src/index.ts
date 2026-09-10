@@ -1,6 +1,7 @@
 import { createDatabase } from "@automator/db";
 import { PrivyClient } from "@privy-io/node";
 import { createOpenAiModel, createOpenRouterModel, withFallbackModel } from "./ai/client";
+import { createScriptedCanvasModel } from "./ai/scripted";
 import { createApp } from "./app";
 import { createPrivyIdentity, withE2eIdentity } from "./auth/privy";
 import { createChainFactory, resolveChainSettings } from "./chain/provider";
@@ -28,8 +29,9 @@ const openAi = createOpenAiModel({ apiKey: config.openAiApiKey, model: config.op
  * not reason and answers in seconds. OpenRouter still catches an OpenAI outage, and either key
  * alone is a working configuration.
  */
-const model =
-  openAi && openRouter
+const model = config.aiScriptedModel
+  ? createScriptedCanvasModel()
+  : openAi && openRouter
     ? withFallbackModel(openAi, openRouter, (line) => console.warn(line))
     : (openAi ?? openRouter);
 const identity = withE2eIdentity(

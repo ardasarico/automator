@@ -33,6 +33,14 @@ describe("API configuration", () => {
     ).toThrow("E2E_TEST_TOKEN must not be set in production");
   });
 
+  test("AI_SCRIPTED_MODEL is refused in production", () => {
+    expect(() =>
+      readConfig({ ...complete, NODE_ENV: "production", AI_SCRIPTED_MODEL: "1" }),
+    ).toThrow(/AI_SCRIPTED_MODEL/);
+    expect(readConfig({ ...complete, AI_SCRIPTED_MODEL: "1" }).aiScriptedModel).toBe(true);
+    expect(readConfig({ ...complete }).aiScriptedModel).toBe(false);
+  });
+
   test("reads every variable", () => {
     const config = readConfig({ ...complete, PORT: "4000" });
     expect(config).toEqual({
@@ -58,6 +66,7 @@ describe("API configuration", () => {
       privySignerId: undefined,
       world: undefined,
       e2eTestToken: undefined,
+      aiScriptedModel: false,
       rateLimits: { runs: 30, data: 30, ai: 10, secrets: 30, sessions: 60, webhooks: 60, api: 60 },
     });
   });
