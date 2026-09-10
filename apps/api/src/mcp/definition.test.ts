@@ -6,8 +6,8 @@ const flow = (over: Partial<CallableFlow> = {}): CallableFlow => ({
   id: "2fa12cc4-9d3e-4a1b-8c7d-000000000000",
   name: "Swap USDC",
   description: "Swaps USDC for ETH on Base",
-  inputs: [{ name: "amount", type: "number", required: true }],
-  outputs: [{ name: "hash", type: "text" }],
+  inputs: [{ name: "amount", type: "number", required: true, description: "" }],
+  outputs: ["hash"],
   ...over,
 });
 

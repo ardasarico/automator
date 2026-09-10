@@ -4,6 +4,8 @@ import {
   ListToolsRequestSchema,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
+import type { FlowApiInputProblem } from "@automator/contracts";
+import type { InvokeOutcome } from "../api-publishing/invoke";
 import type { CallableFlow, CallableFlowSource } from "./callable-flows";
 import { mcpInputSchema, mcpToolDefinition, mcpToolName, type McpToolDefinition } from "./tools";
 
@@ -46,6 +48,41 @@ function toolError(message: string): CallToolResult {
   return { isError: true, content: [{ type: "text", text: message }] };
 }
 
+/* TEMPORARY: mirrors `describeFlowApiProblems`, which automator-8c is adding to
+ * `@automator/contracts`. Replace this with that import once their branch carries it, so the
+ * tool's sentence and the builder's field errors cannot drift apart. */
+function describeFlowApiProblems(problems: readonly FlowApiInputProblem[]): string {
+  if (problems.length === 0) return "The input did not match what this flow declares.";
+  return problems.map((problem) => problem.message).join(" ");
+}
+
+/*
+ * Every refusal reaches a model that will try again, so each one says what to do differently:
+ * fix these fields, stop calling this flow, or run it somewhere a person can answer.
+ */
+function describeOutcome(flow: CallableFlow, outcome: InvokeOutcome): CallToolResult {
+  switch (outcome.kind) {
+    case "not_found":
+      /* It was in the tool list a moment ago, so this is an unpublish, not a bad name. */
+      return toolError(`"${flow.name}" is no longer published as an API, so it cannot be called.`);
+    case "invalid_input":
+      return toolError(describeFlowApiProblems(outcome.problems));
+    case "waiting_on_screen":
+      return toolError(
+        `"${flow.name}" stops to ask its caller a question, which a tool call cannot answer. ` +
+          "Run it in Automator instead.",
+      );
+    case "ok": {
+      const { output, runId, status } = outcome.result;
+      return {
+        content: [{ type: "text", text: JSON.stringify(output ?? null) }],
+        ...(structuredOutput(output) ? { structuredContent: output } : {}),
+        _meta: { runId, status },
+      } as CallToolResult;
+    }
+  }
+}
+
 /**
  * An MCP server presenting one owner's callable flows as tools.
  *
@@ -84,18 +121,13 @@ export function createFlowMcpServer({
 
     /* A thrown error carries hostnames, ports and query text. The caller is outside the account,
      * so it hears that the run failed and nothing about where. */
-    let result;
+    let outcome: InvokeOutcome;
     try {
-      result = await source.invoke(ownerId, flow.id, args ?? {});
+      outcome = await source.invoke(ownerId, flow.id, args ?? {});
     } catch {
       return toolError(`Running "${flow.name}" failed. Check the run in Automator for details.`);
     }
-    if (!result.ok) return toolError(result.message);
-    return {
-      content: [{ type: "text", text: JSON.stringify(result.output ?? null) }],
-      ...(structuredOutput(result.output) ? { structuredContent: result.output } : {}),
-      _meta: { runId: result.runId, status: result.status },
-    } as CallToolResult;
+    return describeOutcome(flow, outcome);
   });
 
   return server;

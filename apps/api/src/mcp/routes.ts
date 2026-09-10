@@ -1,15 +1,12 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Elysia } from "elysia";
-import { createRateLimiter } from "../rate-limit";
+import { readBearerApiKey } from "../api-publishing/keys";
+import type { ApiKeyVerifier } from "../api-publishing/verify";
+import { createRateLimiter, defaultRateLimits } from "../rate-limit";
 import type { CallableFlowSource } from "./callable-flows";
 import { createFlowMcpServer } from "./server";
 
 export const mcpPath = "/mcp";
-
-/** How the route turns an `Authorization: Bearer ak_...` header into the owner it belongs to. */
-export interface ApiKeyVerifier {
-  verify(key: string): Promise<{ id: string } | null>;
-}
 
 export interface McpDependencies {
   source: CallableFlowSource;
@@ -49,7 +46,7 @@ function jsonRpcError(
 export function createMcpRoutes({
   source,
   keys,
-  callsPerMinute = 60,
+  callsPerMinute = defaultRateLimits.api,
   now = Date.now,
 }: McpDependencies) {
   const limiter = createRateLimiter(callsPerMinute, now);
@@ -58,9 +55,8 @@ export function createMcpRoutes({
       /* Only API keys reach this endpoint. A Privy token is a browser session and would let a
        * page a user visits drive their flows; a key is issued for a machine on purpose. */
       .resolve({ as: "scoped" }, async ({ headers }) => {
-        const key = headers.authorization?.match(/^Bearer ([^\s]+)$/i)?.[1];
-        const owner = key ? await keys.verify(key) : null;
-        return { owner };
+        const key = readBearerApiKey(headers.authorization);
+        return { owner: key ? await keys.verify(key) : null };
       })
       .post(mcpPath, async ({ request, owner }) => {
         if (!owner) return unauthorized();

@@ -39,8 +39,8 @@ import { createFlowVersionRoutes } from "./flows/versions";
 import { createHookRoutes } from "./hooks/routes";
 import { createPublicRoutes } from "./public/routes";
 import { createMarketplaceRoutes } from "./marketplace/routes";
-import type { CallableFlowSource } from "./mcp/callable-flows";
-import { createMcpRoutes, type ApiKeyVerifier } from "./mcp/routes";
+import { createMcpRoutes } from "./mcp/routes";
+import { createCallableFlowSource } from "./mcp/source";
 import { createRunRoutes } from "./runs/routes";
 import { defaultRateLimits, type RateLimits } from "./rate-limit";
 import { createQuickJsSandbox } from "./sandbox/quickjs";
@@ -79,9 +79,6 @@ export interface AppDependencies {
   flowVersions?: FlowVersionStore;
   triggerIssues?: TriggerIssueReader;
   paymentPolicies?: PaymentPolicyAccess;
-  /* The flows an API key may run as MCP tools, and the keys that name their owner. */
-  callableFlows?: CallableFlowSource;
-  apiKeys?: ApiKeyVerifier;
 }
 
 function sanitize(
@@ -130,8 +127,6 @@ export function createApp({
   flowVersions,
   triggerIssues,
   paymentPolicies,
-  callableFlows,
-  apiKeys,
 }: AppDependencies) {
   const limits = { ...defaultRateLimits, ...rateLimits };
   const startedAt = new WeakMap<Request, number>();
@@ -300,8 +295,20 @@ export function createApp({
         : new Elysia(),
     )
     .use(
-      callableFlows && apiKeys
-        ? createMcpRoutes({ source: callableFlows, keys: apiKeys })
+      /* The same flows the machine routes serve, offered to an assistant as tools. Both are
+       * gated on the same key, so an owner enables one surface and gets both. */
+      apiKeys && flows && runs
+        ? createMcpRoutes({
+            source: createCallableFlowSource({
+              flows,
+              runs,
+              engine: engineFor,
+              chainFactory,
+              dataFactory,
+            }),
+            keys: createApiKeyVerifier(apiKeys),
+            callsPerMinute: limits.api,
+          })
         : new Elysia(),
     );
 }

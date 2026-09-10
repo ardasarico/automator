@@ -2,7 +2,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterEach, describe, expect, test } from "bun:test";
 import { Elysia } from "elysia";
-import type { CallableFlow, CallableFlowSource, InvokeResult } from "./callable-flows";
+import type { InvokeOutcome } from "../api-publishing/invoke";
+import type { CallableFlow, CallableFlowSource } from "./callable-flows";
 import { createMcpRoutes } from "./routes";
 
 const swap: CallableFlow = {
@@ -11,9 +12,9 @@ const swap: CallableFlow = {
   description: "Swaps USDC for ETH on Base",
   inputs: [
     { name: "amount", type: "number", required: true, description: "How much USDC to swap" },
-    { name: "to", type: "address", required: false },
+    { name: "to", type: "address", required: false, description: "" },
   ],
-  outputs: [{ name: "hash", type: "text" }],
+  outputs: ["hash"],
 };
 const digest: CallableFlow = {
   id: "9b0000ff-1111-2222-3333-444444444444",
@@ -24,16 +25,14 @@ const digest: CallableFlow = {
 };
 
 interface Stub extends CallableFlowSource {
-  calls: { ownerId: string; flowId: string; input: Record<string, unknown> }[];
+  calls: { ownerId: string; flowId: string; input: unknown }[];
 }
 
 function stubSource(
   flows: CallableFlow[],
-  result: InvokeResult = {
-    ok: true,
-    runId: "run_1",
-    status: "succeeded",
-    output: { hash: "0xabc" },
+  result: InvokeOutcome = {
+    kind: "ok",
+    result: { runId: "run_1", status: "succeeded", output: { hash: "0xabc" } },
   },
 ): Stub {
   const calls: Stub["calls"] = [];
@@ -144,29 +143,45 @@ describe("MCP tools/call", () => {
     });
   });
 
-  test("reports a refused run as a tool error in the caller's words", async () => {
+  test("reports input the flow refused, listing every field at once", async () => {
     const source = stubSource([swap], {
-      ok: false,
-      reason: "failed",
-      message: "The flow stopped at Send USDC.",
+      kind: "invalid_input",
+      problems: [
+        { input: "amount", message: "amount is required." },
+        { input: "to", message: "to must be an address." },
+      ],
     });
     const client = await connect(serve(source));
-    const result = await client.callTool({ name: "swap_usdc_2fa12c", arguments: { amount: 1 } });
+    const result = await client.callTool({ name: "swap_usdc_2fa12c", arguments: {} });
     expect(result.isError).toBe(true);
-    expect(result.content).toEqual([{ type: "text", text: "The flow stopped at Send USDC." }]);
+    expect(result.content).toEqual([
+      { type: "text", text: "amount is required. to must be an address." },
+    ]);
   });
 
-  test("says a flow waiting on a screen cannot be finished over MCP", async () => {
-    const source = stubSource([swap], {
-      ok: false,
-      reason: "waiting_on_screen",
-      message: "This flow asks its caller a question and cannot run as a tool.",
-    });
+  test("says a flow unpublished since the tool list was read is gone", async () => {
+    const source = stubSource([swap], { kind: "not_found" });
     const client = await connect(serve(source));
     const result = await client.callTool({ name: "swap_usdc_2fa12c", arguments: { amount: 1 } });
     expect(result.isError).toBe(true);
     expect(result.content).toEqual([
-      { type: "text", text: "This flow asks its caller a question and cannot run as a tool." },
+      {
+        type: "text",
+        text: '"Swap USDC" is no longer published as an API, so it cannot be called.',
+      },
+    ]);
+  });
+
+  test("says a flow waiting on a screen cannot be finished over MCP", async () => {
+    const source = stubSource([swap], { kind: "waiting_on_screen", runId: "run_2" });
+    const client = await connect(serve(source));
+    const result = await client.callTool({ name: "swap_usdc_2fa12c", arguments: { amount: 1 } });
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text: '"Swap USDC" stops to ask its caller a question, which a tool call cannot answer. Run it in Automator instead.',
+      },
     ]);
   });
 
@@ -197,10 +212,8 @@ describe("MCP tools/call", () => {
 
   test("leaves an output that is not an object out of structuredContent", async () => {
     const source = stubSource([swap], {
-      ok: true,
-      runId: "run_1",
-      status: "succeeded",
-      output: ["0xabc"],
+      kind: "ok",
+      result: { runId: "run_1", status: "succeeded", output: ["0xabc"] as never },
     });
     const client = await connect(serve(source));
     const result = await client.callTool({ name: "swap_usdc_2fa12c", arguments: { amount: 1 } });

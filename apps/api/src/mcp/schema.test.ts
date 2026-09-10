@@ -6,6 +6,7 @@ const input = (over: Partial<CallableFlowInput> = {}): CallableFlowInput => ({
   name: "amount",
   type: "number",
   required: true,
+  description: "",
   ...over,
 });
 

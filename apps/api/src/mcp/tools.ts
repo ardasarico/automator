@@ -1,4 +1,5 @@
-import type { CallableFlow, CallableFlowInput, CallableFlowInputType } from "./callable-flows";
+import type { FlowApiInputType } from "@automator/contracts";
+import type { CallableFlow, CallableFlowInput } from "./callable-flows";
 
 /*
  * An MCP client shows tool names to a model and to the person reading its output, so a flow's
@@ -49,7 +50,7 @@ export interface McpInputSchema {
 
 /* An address arrives as a string, so the pattern is the only thing stopping a model from
  * sending "my wallet" and the flow discovering it far downstream, mid-transaction. */
-const propertySchemas: Record<CallableFlowInputType, McpPropertySchema> = {
+const propertySchemas: Record<FlowApiInputType, McpPropertySchema> = {
   text: { type: "string" },
   number: { type: "number" },
   boolean: { type: "boolean" },
