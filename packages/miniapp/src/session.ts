@@ -1,5 +1,5 @@
 import type { FlowDocument, FlowRun, FlowRunNodeResult } from "@automator/contracts";
-import { visitorAnswer } from "@automator/contracts";
+import { failureCode, visitorAnswer, visitorFailureMessage } from "@automator/contracts";
 import { runFlow, screenScope, type TemplateScope, type RunOptions } from "@automator/flow-engine";
 import { findEntry } from "./engine";
 
@@ -8,7 +8,14 @@ export type SessionState =
   | { kind: "running"; results: FlowRunNodeResult[] }
   | { kind: "screen"; nodeId: string; scope?: TemplateScope }
   | { kind: "end" }
-  | { kind: "failed"; nodeId: string | null; error: string };
+  | {
+      kind: "failed";
+      nodeId: string | null;
+      /** The node's own words, for the owner. */
+      error: string;
+      /** What a visitor may be shown instead. */
+      message: string;
+    };
 
 export type EngineOptions = Pick<RunOptions, "fetch" | "sleep" | "executors" | "model">;
 
@@ -25,10 +32,15 @@ export function settleRun(run: FlowRun, document?: FlowDocument): SessionState {
   }
   if (run.status === "succeeded") return { kind: "end" };
   const failed = run.nodes.find((result) => result.status === "failed");
+  const error = failed?.error ?? run.error ?? "The flow failed";
+  const nodeType = failed
+    ? document?.nodes.find((node) => node.id === failed.nodeId)?.type
+    : undefined;
   return {
     kind: "failed",
     nodeId: failed?.nodeId ?? null,
-    error: failed?.error ?? run.error ?? "The flow failed",
+    error,
+    message: visitorFailureMessage(failureCode(error), nodeType),
   };
 }
 

@@ -17,6 +17,7 @@ import {
 } from "@automator/db";
 import { createApp } from "../app";
 import type { IdentityProvider } from "../auth/privy";
+import type { ChainFactory } from "../chain/provider";
 
 const input: FlowDocumentInput = {
   version: 1,
@@ -36,7 +37,12 @@ const input: FlowDocumentInput = {
   edges: [{ id: "e1", source: "n1", target: "n2", sourceHandle: "out", targetHandle: "in" }],
 };
 
-function fixture(overrides: Partial<FlowStore> = {}, users?: UserStore, log = false) {
+function fixture(
+  overrides: Partial<FlowStore> = {},
+  users?: UserStore,
+  log = false,
+  chainFactory?: ChainFactory,
+) {
   const records = new Map<string, FlowRecord & { ownerId: string }>();
   let clock = 0;
   const stamp = () => new Date(1_757_200_000_000 + clock++ * 1000).toISOString();
@@ -131,7 +137,14 @@ function fixture(overrides: Partial<FlowStore> = {}, users?: UserStore, log = fa
         : null,
     walletAddress: async () => null,
   };
-  const app = createApp({ database: { check: async () => "up" }, users, flows, identity, log });
+  const app = createApp({
+    database: { check: async () => "up" },
+    users,
+    flows,
+    identity,
+    log,
+    chainFactory,
+  });
   const request = (path: string, method = "GET", token?: string, body?: unknown) =>
     app.handle(
       new Request(`http://localhost${path}`, {
@@ -362,6 +375,111 @@ describe("flow routes", () => {
     test("a flow that is not the caller's is not found rather than checked", async () => {
       const { request, id } = await stored(broken);
       expect((await request(`/flows/${id}`, "PATCH", "bob", { enabled: true })).status).toBe(404);
+    });
+  });
+
+  describe("the signing gate", () => {
+    /* Only what the gate reads: whether the server can sign at all, and whether this wallet lets it. */
+    function signer(canSign: boolean, signing: boolean | "unreachable"): ChainFactory {
+      return {
+        chainIds: [84532],
+        canSign,
+        chain: () => undefined,
+        forUser: async () => {
+          throw new Error("not used");
+        },
+        wallet: async () => {
+          if (signing === "unreachable") throw new Error("Privy is down");
+          return { id: "w1", address: "0x" + "a".repeat(40), delegated: signing, signing };
+        },
+      };
+    }
+
+    async function stored(document: FlowDocumentInput, chainFactory: ChainFactory) {
+      const context = fixture({}, undefined, false, chainFactory);
+      const created = (await (
+        await context.request("/flows", "POST", "alice", document)
+      ).json()) as FlowRecord;
+      return { ...context, id: created.flow.id };
+    }
+
+    const refusal = [
+      {
+        severity: "error",
+        nodeId: "n2",
+        message: "“Pay” needs server signing, which is off for your wallet.",
+      },
+    ];
+
+    test("refuses to publish or activate a paying flow while the wallet's signing is off", async () => {
+      const { request, records, id } = await stored(input, signer(true, false));
+      for (const patch of [{ appPublished: true }, { enabled: true }]) {
+        const refused = await request(`/flows/${id}`, "PATCH", "alice", patch);
+        expect(refused.status).toBe(422);
+        expect(await refused.json()).toEqual({ error: "invalid_flow", problems: refusal });
+      }
+      expect(records.get(id)?.appPublished).toBeFalsy();
+      expect(records.get(id)?.enabled).toBeFalsy();
+    });
+
+    test("lets the same flow through once signing is on", async () => {
+      const { request, records, id } = await stored(input, signer(true, true));
+      expect((await request(`/flows/${id}`, "PATCH", "alice", { appPublished: true })).status).toBe(
+        200,
+      );
+      expect((await request(`/flows/${id}`, "PATCH", "alice", { enabled: true })).status).toBe(200);
+      expect(records.get(id)?.appPublished).toBe(true);
+      expect(records.get(id)?.enabled).toBe(true);
+    });
+
+    test("does not gate a server that cannot sign at all, nor a flow that never signs", async () => {
+      const unsigned = await stored(input, signer(false, false));
+      expect(
+        (await unsigned.request(`/flows/${unsigned.id}`, "PATCH", "alice", { appPublished: true }))
+          .status,
+      ).toBe(200);
+      const reading: FlowDocumentInput = {
+        ...input,
+        nodes: [input.nodes[0]!, { ...input.nodes[1]!, type: "usdc.balance", config: {} }],
+      };
+      const readOnly = await stored(reading, signer(true, "unreachable"));
+      expect(
+        (await readOnly.request(`/flows/${readOnly.id}`, "PATCH", "alice", { appPublished: true }))
+          .status,
+      ).toBe(200);
+    });
+
+    test("unpublishing and deactivating are never refused", async () => {
+      const { request, records, id } = await stored(input, signer(true, false));
+      const live = records.get(id)!;
+      records.set(id, { ...live, enabled: true, appPublished: true });
+      expect(
+        (await request(`/flows/${id}`, "PATCH", "alice", { appPublished: false, enabled: false }))
+          .status,
+      ).toBe(200);
+      expect(records.get(id)?.appPublished).toBe(false);
+      expect(records.get(id)?.enabled).toBe(false);
+    });
+
+    test("a wallet that cannot be checked is a 503, not a pass", async () => {
+      const { request, records, id } = await stored(input, signer(true, "unreachable"));
+      const answer = await request(`/flows/${id}`, "PATCH", "alice", { appPublished: true });
+      expect(answer.status).toBe(503);
+      expect(await answer.json()).toEqual({ error: "unavailable" });
+      expect(records.get(id)?.appPublished).toBeFalsy();
+    });
+
+    test("config problems are reported before signing, so the list stays actionable", async () => {
+      const broken: FlowDocumentInput = {
+        ...input,
+        nodes: [input.nodes[0]!, { ...input.nodes[1]!, config: {} }],
+      };
+      const { request, id } = await stored(broken, signer(true, false));
+      const refused = await request(`/flows/${id}`, "PATCH", "alice", { enabled: true });
+      const body = (await refused.json()) as { problems?: FlowProblem[] };
+      expect(body.problems?.map((problem) => problem.message)).toEqual([
+        "“Pay” needs a recipient address.",
+      ]);
     });
   });
 

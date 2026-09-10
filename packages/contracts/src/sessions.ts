@@ -1,6 +1,8 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { apiErrorResponses } from "./contract";
+import type { FlowNodeType } from "./flows";
 import { worldProofSchema, worldRequestSchema } from "./identity";
+import { isSignerNodeType } from "./signer-nodes";
 
 export const miniAppScreenSchema = Type.Object({
   nodeId: Type.String({ minLength: 1 }),
@@ -43,6 +45,38 @@ export const miniAppFailureCodeSchema = Type.Union([
 export type MiniAppFailureCode = Static<typeof miniAppFailureCodeSchema>;
 
 export const miniAppFailureMessage = "This app hit a problem and could not continue.";
+/** For a signer node the owner has not set up: the one case a visitor can act on by coming back later. */
+export const miniAppFundsFailureMessage =
+  "This app can't send funds right now. Its owner has to finish setting it up first.";
+
+/** How a failed run reads to the runtime, classified from the engine's error text. */
+export function failureCode(error: string | undefined): MiniAppFailureCode {
+  if (!error) return "node_failed";
+  if (error === "The run was cancelled.") return "cancelled";
+  if (/timed out|timeout/i.test(error)) return "timeout";
+  if (
+    /is not configured|is not defined|is not enabled|has no wallet|^No .+ is configured/i.test(
+      error,
+    )
+  )
+    return "unconfigured";
+  return "node_failed";
+}
+
+/**
+ * The sentence a visitor sees for a failed run. Never the node's own error: that can name
+ * URLs, addresses, revert data, secret names or the owner's setup, and the stored run keeps it
+ * for the owner. A signer node that is not set up gets the funds sentence; anything else the
+ * generic one.
+ */
+export function visitorFailureMessage(
+  code: MiniAppFailureCode,
+  nodeType: FlowNodeType | undefined,
+): string {
+  return code === "unconfigured" && nodeType !== undefined && isSignerNodeType(nodeType)
+    ? miniAppFundsFailureMessage
+    : miniAppFailureMessage;
+}
 
 export const miniAppSessionSchema = Type.Object({
   sessionId: Type.String({ minLength: 1 }),

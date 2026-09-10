@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import type { FlowDocument } from "@automator/contracts";
+import type { FlowDocument, FlowProblem } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, useEffect } from "react";
@@ -16,8 +16,12 @@ mock.module("../auth/access-token", () => ({
 
 let gates: Array<{ resolve(): void; reject(error: Error): void }> = [];
 let savedNames: string[] = [];
+/* Mirrors the real class, `problems` included, since later suites catch this one too. */
 class FlowRequestError extends Error {
-  constructor(public readonly code: string) {
+  constructor(
+    public readonly code: string,
+    public readonly problems: readonly FlowProblem[] = [],
+  ) {
     super(code);
   }
 }

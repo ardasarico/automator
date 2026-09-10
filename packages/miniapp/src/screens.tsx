@@ -289,12 +289,19 @@ export function WorkingView({ steps }: { steps: WorkingStep[] }) {
   );
 }
 
+/*
+ * The in-browser mini-app's failure: the builder's screen preview and the `?preview` popup, both
+ * the owner's own canvas. The visitor sentence leads, so the preview shows what a visitor would
+ * read; the node's own error follows, since only the owner ever gets here.
+ */
 export function FailedView({
   label,
+  message,
   error,
   onRestart,
 }: {
   label: string | undefined;
+  message: string;
   error: string;
   onRestart: () => void;
 }) {
@@ -307,7 +314,8 @@ export function FailedView({
       }
     >
       <h1 className="text-panel text-balance">Something went wrong</h1>
-      <p className="text-body text-pretty text-muted-foreground">
+      <p className="text-body text-pretty text-muted-foreground">{message}</p>
+      <p className="text-caption text-pretty text-muted-foreground" data-owner-detail>
         {label ? `${label} failed: ${error}` : error}
       </p>
     </ScreenFrame>

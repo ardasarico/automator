@@ -590,6 +590,40 @@ describe("mini-app sessions", () => {
     );
   });
 
+  test("tells the visitor the app cannot send funds when a payout is not set up to sign", async () => {
+    const paying: FlowDocument = {
+      ...document,
+      nodes: document.nodes.map((node) =>
+        node.id === "d"
+          ? {
+              ...node,
+              type: "usdc.payout" as const,
+              label: "Send USDC",
+              config: { to: "0x" + "2".repeat(40), amount: "1" },
+            }
+          : node,
+      ),
+    };
+    const { post, created } = fixture({ flow: paying });
+    const session = await start(post);
+    const response = await post(`/public/flows/flow-1/sessions/${session.sessionId}/answer`, {
+      token: session.token,
+      nodeId: "form",
+      port: "submitted",
+      data: { email: "ada@example.com" },
+    });
+    const failed = (await response.json()) as MiniAppSession;
+    expect(failed.status).toBe("failed");
+    expect(failed.code).toBe("unconfigured");
+    expect(failed.error).toBe(
+      "This app can't send funds right now. Its owner has to finish setting it up first.",
+    );
+    expect(JSON.stringify(failed)).not.toMatch(/No chain|signer|Privy|is not configured/i);
+    expect(created[1]!.run.nodes.find((n) => n.nodeId === "d")?.error).toBe(
+      "No chain is configured for this run",
+    );
+  });
+
   test("adds the owner's visitor message from the trigger config", async () => {
     const flow: FlowDocument = {
       ...document,

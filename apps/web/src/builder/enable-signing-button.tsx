@@ -9,7 +9,8 @@ import { fetchWallet } from "./wallet-client";
 
 const signerId = process.env.NEXT_PUBLIC_PRIVY_SIGNER_ID;
 
-export function EnableSigningButton() {
+/** `onVerified` fires whenever the API confirms the configured signer on this wallet. */
+export function EnableSigningButton({ onVerified }: { onVerified?: () => void } = {}) {
   const { user } = usePrivy();
   const wallet = user?.linkedAccounts.find(
     (account) =>
@@ -25,6 +26,7 @@ export function EnableSigningButton() {
       address={wallet.address}
       signerId={signerId}
       delegated={delegated}
+      onVerified={onVerified}
     />
   );
 }
@@ -33,10 +35,12 @@ function WalletSigningButton({
   address,
   signerId,
   delegated,
+  onVerified,
 }: {
   address: string;
   signerId: string;
   delegated: boolean;
+  onVerified?: () => void;
 }) {
   const { addSigners } = useSigners();
   const { getAccessToken } = usePrivy();
@@ -44,6 +48,10 @@ function WalletSigningButton({
   const [state, setState] = useState<"idle" | "pending" | "done" | "failed">("idle");
   const mounted = useRef(false);
   const pending = useRef(false);
+  const notify = useRef(onVerified);
+  useEffect(() => {
+    notify.current = onVerified;
+  }, [onVerified]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -60,10 +68,12 @@ function WalletSigningButton({
         const token = await getAccessToken();
         if (!active) return;
         const current = await fetchWallet(token, defaultChainId, controller.signal);
-        if (active && request === generation)
-          setVerified(
-            current.address.toLowerCase() === address.toLowerCase() && current.signing === true,
-          );
+        if (active && request === generation) {
+          const granted =
+            current.address.toLowerCase() === address.toLowerCase() && current.signing === true;
+          setVerified(granted);
+          if (granted) notify.current?.();
+        }
       } catch {
         if (active && request === generation) setVerified(false);
       }

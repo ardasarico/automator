@@ -1,6 +1,6 @@
 "use client";
 
-import { chains, defaultChainId, isChainId } from "@automator/contracts";
+import { chains, defaultChainId, isChainId, isSignerNodeType } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import {
   Dialog,
@@ -18,11 +18,14 @@ import { Switch } from "@automator/ui/switch";
 import { Textarea } from "@automator/ui/textarea";
 import { RiCheckLine, RiFileCopyLine } from "@remixicon/react";
 import { useEffect, useState, type FormEvent } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { FlowRequestError, setFlowEnabledRequest } from "../flows/client";
 import { EnableSigningButton } from "./enable-signing-button";
 import { useFlowActivation } from "./flow-activation";
 import { useBuilderStore } from "./store-provider";
+import { getCatalogEntry } from "./catalog";
 import { useFlowProblems } from "./use-flow-problems";
+import { needsSigning, useWalletSigning } from "./use-wallet-signing";
 import type { FlowProblem } from "./validation";
 import { TriggerIssues } from "./trigger-issues";
 import { WalletFunds } from "./wallet-funds";
@@ -84,12 +87,23 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
     ),
   );
   const hasUnattended = hasWebhook || hasSchedule || hasEvent || hasWatch;
+  const signerLabels = useBuilderStore(
+    useShallow((state) =>
+      state.nodes
+        .filter((node) => isSignerNodeType(node.data.type))
+        .map((node) => node.data.label || getCatalogEntry(node.data.type).label),
+    ),
+  );
   const dirty = useBuilderStore((state) => state.dirty);
   const problems = useFlowProblems();
   const activation = useFlowActivation();
   const [name, setName] = useState(meta.name);
   const [description, setDescription] = useState(meta.description);
   const [chainId, setChainId] = useState(meta.chainId ?? defaultChainId);
+  // A live paying flow fails every run at its first signer node until the owner's wallet lets
+  // the server sign; the switch waits for that, and the API refuses it too.
+  const signing = useWalletSigning(signerLabels.length > 0 && !activation.enabled, chainId);
+  const signingOff = signerLabels.length > 0 && signing.status === "disabled";
   const [toggling, setToggling] = useState(false);
   const [activationError, setActivationError] = useState<string | null>(null);
   const [blockers, setBlockers] = useState<FlowProblem[] | null>(null);
@@ -118,9 +132,14 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
     } catch (caught) {
       const code = caught instanceof FlowRequestError ? caught.code : "unavailable";
       // The API refuses to run a flow it can see is broken. It checked the saved flow, so name
-      // the errors the canvas found rather than repeating a code the reader cannot act on.
+      // the problems it sent, or failing that the errors the canvas found, rather than
+      // repeating a code the reader cannot act on.
       if (enabled && code === "invalid_flow")
-        setBlockers(problems.filter((problem) => problem.severity === "error"));
+        setBlockers(
+          caught instanceof FlowRequestError && caught.problems.length > 0
+            ? [...caught.problems]
+            : problems.filter((problem) => problem.severity === "error"),
+        );
       else
         setActivationError(
           activationFailures[code] ?? "The change could not be saved. Please try again.",
@@ -199,10 +218,16 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
               <Switch
                 id="flow-active"
                 checked={activation.enabled}
-                disabled={toggling}
+                disabled={toggling || (!activation.enabled && signingOff)}
                 onCheckedChange={(checked) => void toggle(checked)}
               />
             </Field>
+            {!activation.enabled && signingOff && (
+              <p role="status" data-signing="off" className="text-caption text-warning-foreground">
+                {needsSigning(signerLabels)} server signing, which is off for your wallet. Enable it
+                under Server signing below, then turn the flow on.
+              </p>
+            )}
             {activationError && (
               <p role="alert" className="text-caption text-destructive-text">
                 {activationError}
@@ -277,7 +302,7 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
             <WalletFunds chainId={chainId} />
             <Field>
               <FieldLabel>Server signing</FieldLabel>
-              <EnableSigningButton />
+              <EnableSigningButton onVerified={signing.refresh} />
             </Field>
           </DialogPanel>
           <DialogFooter>

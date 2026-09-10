@@ -6,7 +6,8 @@ import {
   isIdentityScreenType,
   isScreenNodeType,
   miniAppAnswerSchema,
-  miniAppFailureMessage,
+  failureCode,
+  visitorFailureMessage,
   parseNodeConfig,
   parseScreenConfig,
   screenPorts,
@@ -17,7 +18,6 @@ import {
   type FlowDocument,
   type FlowNode,
   type FlowRun,
-  type MiniAppFailureCode,
   type MiniAppAnswer,
   type MiniAppSession,
   type MiniAppStep,
@@ -83,18 +83,7 @@ function screenConfig(node: FlowNode & { type: ScreenNodeType }, scope: ScreenSc
   });
 }
 
-export function failureCode(error: string | undefined): MiniAppFailureCode {
-  if (!error) return "node_failed";
-  if (error === "The run was cancelled.") return "cancelled";
-  if (/timed out|timeout/i.test(error)) return "timeout";
-  if (
-    /is not configured|is not defined|is not enabled|has no wallet|^No .+ is configured/i.test(
-      error,
-    )
-  )
-    return "unconfigured";
-  return "node_failed";
-}
+export { failureCode };
 
 function visitorHelp(document: FlowDocument): string {
   const entry = document.nodes.find((node) => node.type === "trigger.miniapp-open");
@@ -155,12 +144,13 @@ function toSession(
   if (run.status === "succeeded") return { sessionId, status: "end", steps };
   const failed = run.nodes.find((result) => result.status === "failed");
   const help = visitorHelp(document);
+  const code = failureCode(failed?.error ?? run.error);
   return {
     sessionId,
     status: "failed",
     steps,
-    error: miniAppFailureMessage,
-    code: failureCode(failed?.error ?? run.error),
+    error: visitorFailureMessage(code, failed ? byId.get(failed.nodeId)?.type : undefined),
+    code,
     ...(help ? { help } : {}),
   };
 }

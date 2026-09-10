@@ -185,7 +185,11 @@ export function createApp({
       { response: healthContract.response },
     )
     .use(users ? createAuthRoutes({ users, identity }) : new Elysia())
-    .use(flows ? createFlowRoutes({ flows, identity, versions: flowVersions, log }) : new Elysia())
+    .use(
+      flows
+        ? createFlowRoutes({ flows, identity, versions: flowVersions, chainFactory, log })
+        : new Elysia(),
+    )
     .use(
       flows && flowVersions
         ? createFlowVersionRoutes({ flows, versions: flowVersions, identity, log })

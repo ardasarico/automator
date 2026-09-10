@@ -3,6 +3,8 @@ import {
   deleteFlowContract,
   findActivationBlockers,
   findFlowDocumentProblem,
+  findSignerNodes,
+  findSigningBlockers,
   getFlowContract,
   isFlowDocumentInput,
   isFlowPatch,
@@ -15,6 +17,7 @@ import { FlowOwnerMissingError, type FlowStore, type FlowVersionStore } from "@a
 import { Elysia } from "elysia";
 import { createAuthGuard } from "../auth/guard";
 import type { IdentityProvider } from "../auth/privy";
+import type { ChainFactory } from "../chain/provider";
 import { isStoredDocumentValid } from "./stored";
 
 /** Matches `maxItems` on the refusal contract; a long list is a wall of text anyway. */
@@ -24,10 +27,18 @@ export interface FlowDependencies {
   flows: FlowStore;
   identity: IdentityProvider | undefined;
   versions?: FlowVersionStore;
+  /** Whether the server can sign, and whether the owner's wallet lets it; absent means never gate. */
+  chainFactory?: Pick<ChainFactory, "canSign" | "wallet">;
   log?: boolean;
 }
 
-export function createFlowRoutes({ flows, identity, versions, log = false }: FlowDependencies) {
+export function createFlowRoutes({
+  flows,
+  identity,
+  versions,
+  chainFactory,
+  log = false,
+}: FlowDependencies) {
   return new Elysia({ name: "flows" })
     .use(createAuthGuard(identity))
     .get(listFlowsContract.path, async ({ claims }) => ({ flows: await flows.list(claims.id) }), {
@@ -86,11 +97,32 @@ export function createFlowRoutes({ flows, identity, versions, log = false }: Flo
         // document is checked, not the client's, so a direct API call cannot skip this. Only
         // errors block — a fork blanks every secret, and those warnings are a normal live state.
         // Deactivating is never refused: a live flow must always be switchable off.
-        if (body.enabled === true) {
+        if (body.enabled === true || body.appPublished === true) {
           const stored = await flows.find(claims.id, params.id);
           if (!stored) return status(404, { error: "not_found" });
-          const problems = findActivationBlockers(stored.flow).slice(0, activationProblemLimit);
-          if (problems.length > 0) return status(422, { error: "invalid_flow", problems });
+          const problems = body.enabled === true ? findActivationBlockers(stored.flow) : [];
+          // A flow that moves funds is worth nothing live, or to a visitor, while the owner's
+          // wallet does not let the server sign: every such run fails at the first signer node
+          // with a message only the owner can act on. Checked only when the server can sign at
+          // all; without a signer configured the run-time error is the whole story anyway.
+          if (
+            problems.length === 0 &&
+            chainFactory?.canSign &&
+            findSignerNodes(stored.flow).length
+          ) {
+            let wallet: Awaited<ReturnType<ChainFactory["wallet"]>>;
+            try {
+              wallet = await chainFactory.wallet(claims.id);
+            } catch {
+              return status(503, { error: "unavailable" });
+            }
+            if (wallet?.signing !== true) problems.push(...findSigningBlockers(stored.flow));
+          }
+          if (problems.length > 0)
+            return status(422, {
+              error: "invalid_flow",
+              problems: problems.slice(0, activationProblemLimit),
+            });
         }
         let record = null;
         if (body.enabled !== undefined)

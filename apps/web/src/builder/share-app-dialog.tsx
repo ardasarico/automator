@@ -12,10 +12,15 @@ import {
 } from "@automator/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
+import { defaultChainId, isSignerNodeType, type FlowProblem } from "@automator/contracts";
 import { RiExternalLinkLine } from "@remixicon/react";
 import { useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { getCatalogEntry } from "./catalog";
+import { EnableSigningButton } from "./enable-signing-button";
 import { useFlowActivation } from "./flow-activation";
 import { useBuilderStore } from "./store-provider";
+import { needsSigning, useWalletSigning } from "./use-wallet-signing";
 import { useAccessToken } from "../auth/access-token";
 import { FlowRequestError, setFlowAppPublishedRequest } from "../flows/client";
 import { miniAppUrl } from "../lib/runtime-url";
@@ -24,6 +29,7 @@ import { CopyLinkButton } from "../marketplace/copy-link-button";
 const failureMessages: Record<string, string> = {
   unauthorized: "Your session expired. Reload the page and try again.",
   not_found: "This flow no longer exists, so it cannot be shared.",
+  invalid_flow: "The saved flow has problems, so it was not published. Check its problems list.",
 };
 
 export function ShareAppDialog({ onClose, unsaved }: { onClose: () => void; unsaved: boolean }) {
@@ -33,8 +39,21 @@ export function ShareAppDialog({ onClose, unsaved }: { onClose: () => void; unsa
   const hasEntryScreen = useBuilderStore((state) =>
     state.nodes.some((node) => node.data.type === "trigger.miniapp-open"),
   );
+  const chainId = useBuilderStore((state) => state.meta.chainId ?? defaultChainId);
+  const signerLabels = useBuilderStore(
+    useShallow((state) =>
+      state.nodes
+        .filter((node) => isSignerNodeType(node.data.type))
+        .map((node) => node.data.label || getCatalogEntry(node.data.type).label),
+    ),
+  );
+  // Every run of a paying app fails at its first signer node until the owner's wallet lets the
+  // server sign, so publishing waits for that; the API refuses it too, this just says so first.
+  const signing = useWalletSigning(signerLabels.length > 0 && !activation.appPublished, chainId);
+  const signingOff = signerLabels.length > 0 && signing.status === "disabled";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<readonly FlowProblem[]>([]);
   const pending = useRef(false);
   const url = miniAppUrl(flowId);
 
@@ -43,12 +62,15 @@ export function ShareAppDialog({ onClose, unsaved }: { onClose: () => void; unsa
     pending.current = true;
     setBusy(true);
     setError(null);
+    setProblems([]);
     try {
       const record = await setFlowAppPublishedRequest(flowId, await getAccessToken(), published);
       activation.setAppPublished(record.appPublished ?? published);
     } catch (cause) {
       const code = cause instanceof FlowRequestError ? cause.code : "unavailable";
-      setError(failureMessages[code] ?? "The change could not be saved. Please try again.");
+      if (cause instanceof FlowRequestError && cause.problems.length > 0)
+        setProblems(cause.problems);
+      else setError(failureMessages[code] ?? "The change could not be saved. Please try again.");
     } finally {
       pending.current = false;
       setBusy(false);
@@ -98,10 +120,31 @@ export function ShareAppDialog({ onClose, unsaved }: { onClose: () => void; unsa
               </FieldDescription>
             </Field>
           )}
+          {signingOff && (
+            <div role="status" data-signing="off" className="flex flex-col gap-2">
+              <p className="text-caption text-warning-foreground">
+                {needsSigning(signerLabels)} server signing, which is off for your wallet. Enable it
+                to publish this app.
+              </p>
+              <EnableSigningButton onVerified={signing.refresh} />
+            </div>
+          )}
           {error && (
             <p role="alert" className="text-caption text-destructive-text">
               {error}
             </p>
+          )}
+          {problems.length > 0 && (
+            <div role="alert" className="flex flex-col gap-1">
+              <p className="text-caption text-destructive-text">
+                The saved flow has problems, so it was not published. Fix them and try again.
+              </p>
+              <ul className="text-caption text-muted-foreground list-disc pl-4">
+                {problems.map((problem, index) => (
+                  <li key={`${problem.nodeId ?? "flow"}-${index}`}>{problem.message}</li>
+                ))}
+              </ul>
+            </div>
           )}
         </DialogPanel>
         <DialogFooter>
@@ -128,7 +171,11 @@ export function ShareAppDialog({ onClose, unsaved }: { onClose: () => void; unsa
               <Button variant="outline" disabled={busy} onClick={onClose}>
                 Cancel
               </Button>
-              <Button loading={busy} onClick={() => void change(true)}>
+              <Button
+                loading={busy}
+                disabled={signingOff || (signerLabels.length > 0 && signing.status === "checking")}
+                onClick={() => void change(true)}
+              >
                 Publish app
               </Button>
             </>

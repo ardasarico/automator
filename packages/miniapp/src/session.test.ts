@@ -56,11 +56,38 @@ describe("settleRun", () => {
       settleRun(
         baseRun({ status: "failed", nodes: [{ nodeId: "d", status: "failed", error: "Boom" }] }),
       ),
-    ).toEqual({ kind: "failed", nodeId: "d", error: "Boom" });
+    ).toEqual({
+      kind: "failed",
+      nodeId: "d",
+      error: "Boom",
+      message: "This app hit a problem and could not continue.",
+    });
     expect(settleRun(baseRun({ status: "failed", error: "Bad graph" }))).toEqual({
       kind: "failed",
       nodeId: null,
       error: "Bad graph",
+      message: "This app hit a problem and could not continue.",
+    });
+  });
+
+  test("keeps the node's error for the owner and adds a visitor-safe sentence for funds", () => {
+    const paying: FlowDocument = {
+      ...document,
+      nodes: document.nodes.map((entry) =>
+        entry.id === "d" ? { ...entry, type: "usdc.payout" as const, label: "Send USDC" } : entry,
+      ),
+    };
+    const error =
+      "Server signing is not enabled for this wallet; enable the configured app signer from the builder";
+    const settled = settleRun(
+      baseRun({ status: "failed", nodes: [{ nodeId: "d", status: "failed", error }] }),
+      paying,
+    );
+    expect(settled).toEqual({
+      kind: "failed",
+      nodeId: "d",
+      error,
+      message: "This app can't send funds right now. Its owner has to finish setting it up first.",
     });
   });
 });

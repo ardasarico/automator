@@ -2,11 +2,19 @@ import { type TObject } from "@sinclair/typebox";
 import { isTriggerNodeType } from "./flow-categories";
 import { findFlowConfigProblems, type FlowConfigTable } from "./flow-config-problems";
 import { flowNodeConfigSchemas, samplePayloadProblem } from "./flow-node-configs";
-import { findFlowDocumentProblem, type FlowDocument, type FlowNodeType } from "./flows";
+import {
+  findFlowDocumentProblem,
+  type FlowDocument,
+  type FlowNode,
+  type FlowNodeType,
+} from "./flows";
 import { intervalProblem } from "./interval";
 import { parseNodeConfig, secretFields } from "./node-config";
 import { screenConfigSchemas } from "./screens";
+import { isSignerNodeType } from "./signer-nodes";
 import type { FlowProblem } from "./flow-problems";
+
+export { isSignerNodeType, signerNodeTypes, type SignerNodeType } from "./signer-nodes";
 
 export interface FlowProblemOptions {
   /** Data tables to resolve table and column references against; unchecked when absent. */
@@ -365,6 +373,27 @@ export function findFlowProblems(
       message: `${problem.path}: ${problem.message}`,
     });
   return problems;
+}
+
+/** The nodes a run can only pass with the owner's server signing on, in document order. */
+export function findSignerNodes(document: Pick<FlowDocument, "nodes">): FlowNode[] {
+  return document.nodes.filter((node) => isSignerNodeType(node.type));
+}
+
+/**
+ * The problems to report when the owner's wallet has server signing off, one per signer node,
+ * in the activation shape. Document-only: whether signing is on is per-user state the caller
+ * checks (the API against Privy, the builder against `GET /wallet`) before asking for these.
+ */
+export function findSigningBlockers(
+  document: Pick<FlowDocument, "nodes">,
+  options: Pick<FlowProblemOptions, "fallbackLabel"> = {},
+): FlowProblem[] {
+  return findSignerNodes(document).map((node) => ({
+    severity: "error",
+    nodeId: node.id,
+    message: `“${node.label || options.fallbackLabel?.(node.type) || node.type}” needs server signing, which is off for your wallet.`,
+  }));
 }
 
 export function countErrors(problems: readonly FlowProblem[]): number {

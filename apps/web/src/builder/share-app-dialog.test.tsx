@@ -13,6 +13,31 @@ mock.module("../auth/access-token", () => ({
   e2eSession: false,
   useAccessToken: () => getAccessToken,
 }));
+let walletSigning: boolean | undefined = true;
+mock.module("./wallet-client", () => ({
+  WalletRequestError: class WalletRequestError extends Error {},
+  fetchWallet: async () => ({
+    address: "0x" + "a".repeat(40),
+    chainId: 84532,
+    chainName: "Base Sepolia",
+    nativeBalance: "1",
+    nativeSymbol: "ETH",
+    ...(walletSigning === undefined ? {} : { signing: walletSigning }),
+  }),
+}));
+mock.module("./enable-signing-button", () => ({
+  EnableSigningButton: ({ onVerified }: { onVerified?: () => void }) => (
+    <button
+      type="button"
+      onClick={() => {
+        walletSigning = true;
+        onVerified?.();
+      }}
+    >
+      Enable server signing
+    </button>
+  ),
+}));
 
 const { createRoot } = await import("react-dom/client");
 const { FlowActivationProvider } = await import("./flow-activation");
@@ -30,6 +55,24 @@ const document_: FlowDocument = {
   edges: [],
 };
 
+/* A claim that pays out: the node the signing warning has to name. */
+const paying: FlowDocument = {
+  ...document_,
+  nodes: [
+    ...document_.nodes,
+    {
+      id: "n2",
+      type: "usdc.payout",
+      position: { x: 300, y: 0 },
+      label: "Send USDC",
+      config: { to: "0x" + "2".repeat(40), amount: "1" },
+    },
+  ],
+  edges: [
+    { id: "e1", source: "n1", target: "n2", sourceHandle: "visitor", targetHandle: "recipient" },
+  ],
+};
+
 const originalFetch = globalThis.fetch;
 let bodies: unknown[];
 let container: HTMLDivElement;
@@ -37,6 +80,7 @@ let root: Root;
 
 beforeEach(() => {
   bodies = [];
+  walletSigning = true;
   globalThis.fetch = (async (_url: string | URL, init?: RequestInit) => {
     const body: unknown = init?.body ? JSON.parse(String(init.body)) : null;
     bodies.push(body);
@@ -61,10 +105,10 @@ afterEach(async () => {
 
 afterAll(() => GlobalRegistrator.unregister());
 
-async function mount(appPublished: boolean) {
+async function mount(appPublished: boolean, document = document_) {
   await act(async () => {
     root.render(
-      <BuilderStoreProvider document={document_}>
+      <BuilderStoreProvider document={document}>
         <FlowActivationProvider enabled={false} appPublished={appPublished} webhookToken={null}>
           <ShareAppDialog unsaved={false} onClose={() => {}} />
         </FlowActivationProvider>
@@ -102,5 +146,63 @@ test("unpublishes an already shared app", async () => {
   await act(async () => button("Unpublish").click());
 
   expect(bodies).toEqual([{ appPublished: false }]);
+  expect(window.document.querySelector("#app-link")).toBeNull();
+});
+
+test("holds publishing while a paying node's server signing is off, then lets it through", async () => {
+  walletSigning = false;
+  await mount(false, paying);
+
+  const warning = window.document.querySelector('[role="status"][data-signing]');
+  expect(warning?.textContent).toContain("Send USDC needs server signing");
+  expect(button("Publish app").disabled).toBe(true);
+  expect(bodies).toEqual([]);
+
+  await act(async () => button("Enable server signing").click());
+
+  expect(window.document.querySelector('[role="status"][data-signing]')).toBeNull();
+  expect(button("Publish app").disabled).toBe(false);
+  await act(async () => button("Publish app").click());
+  expect(bodies).toEqual([{ appPublished: true }]);
+});
+
+test("a server that cannot sign, or a flow that never signs, gets no warning", async () => {
+  walletSigning = undefined;
+  await mount(false, paying);
+  expect(window.document.querySelector("[data-signing]")).toBeNull();
+  expect(button("Publish app").disabled).toBe(false);
+
+  walletSigning = false;
+  await act(async () => root.unmount());
+  root = createRoot(container);
+  await mount(false);
+  expect(window.document.querySelector("[data-signing]")).toBeNull();
+  expect(button("Publish app").disabled).toBe(false);
+});
+
+test("shows the problems the API refused with instead of a generic error", async () => {
+  await mount(false, paying);
+  globalThis.fetch = (async () =>
+    Response.json(
+      {
+        error: "invalid_flow",
+        problems: [
+          {
+            severity: "error",
+            nodeId: "n2",
+            message: "“Send USDC” needs server signing, which is off for your wallet.",
+          },
+        ],
+      },
+      { status: 422 },
+    )) as unknown as typeof fetch;
+
+  await act(async () => button("Publish app").click());
+
+  const alert = window.document.querySelector('[role="alert"]');
+  expect(alert?.textContent).toContain("was not published");
+  expect(alert?.textContent).toContain(
+    "“Send USDC” needs server signing, which is off for your wallet.",
+  );
   expect(window.document.querySelector("#app-link")).toBeNull();
 });

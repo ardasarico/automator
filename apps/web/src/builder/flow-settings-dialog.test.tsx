@@ -40,6 +40,18 @@ const preamble = `
   mock.module("./trigger-issues", () => ({ TriggerIssues: () => null }));
   mock.module("./wallet-funds", () => ({ WalletFunds: () => null }));
   mock.module("./enable-signing-button", () => ({ EnableSigningButton: () => null }));
+  // Signing is on unless a test says otherwise before the dialog mounts.
+  mock.module("./wallet-client", () => ({
+    WalletRequestError: class WalletRequestError extends Error {},
+    fetchWallet: async () => ({
+      address: "0x" + "a".repeat(40),
+      chainId: 84532,
+      chainName: "Base Sepolia",
+      nativeBalance: "1",
+      nativeSymbol: "ETH",
+      signing: globalThis.__signing ?? true,
+    }),
+  }));
 
   const broken = {
     version: 1,
@@ -189,6 +201,46 @@ test("a refusal the canvas cannot explain says so instead of showing an empty li
     // Never a bare refusal over nothing, and never silently swallowed.
     assert.equal(alerts().length, 1);
     assert.equal(isActive(), false);
+    console.log("ok");
+    process.exit(0);
+  `);
+  expect(result.stderr).toBe("");
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout.trim()).toBe("ok");
+});
+
+test("a paying flow cannot be turned on while server signing is off", async () => {
+  const result = await run(`globalThis.__signing = false;${preamble}
+    const status = window.document.querySelector('[role="status"][data-signing]');
+    assert.match(status?.textContent ?? "", /Pay the crew needs server signing/);
+    assert.equal(activeSwitch().disabled, true);
+    await toggle();
+    assert.equal(isActive(), false);
+    console.log("ok");
+    process.exit(0);
+  `);
+  expect(result.stderr).toBe("");
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout.trim()).toBe("ok");
+});
+
+test("the activation refusal shows the API's own problems when it names them", async () => {
+  const result = await run(`${preamble}
+    await remountHealthy();
+    answer = {
+      status: 422,
+      body: {
+        error: "invalid_flow",
+        problems: [
+          { severity: "error", nodeId: "n2", message: "“Pay the crew” needs server signing, which is off for your wallet." },
+        ],
+      },
+    };
+    await toggle();
+    assert.equal(isActive(), false);
+    const [message] = alerts();
+    assert.match(message, /was not turned on/);
+    assert.match(message, /“Pay the crew” needs server signing, which is off for your wallet/);
     console.log("ok");
     process.exit(0);
   `);

@@ -173,6 +173,7 @@ export function MiniApp({
       ) : session.kind === "failed" ? (
         <FailedView
           label={document.nodes.find((node) => node.id === session.nodeId)?.label}
+          message={session.message}
           error={session.error}
           onRestart={restart}
         />

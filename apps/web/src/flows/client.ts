@@ -2,14 +2,20 @@ import {
   deleteFlowContract,
   parseResponse,
   patchFlowContract,
+  refusedActivationProblems,
   updateFlowContract,
   type FlowDocumentInput,
   type FlowPatch,
+  type FlowProblem,
   type FlowRecord,
 } from "@automator/contracts";
 
 export class FlowRequestError extends Error {
-  constructor(public readonly code: string) {
+  constructor(
+    public readonly code: string,
+    /** The problems a refused activation or publication named; empty for every other failure. */
+    public readonly problems: readonly FlowProblem[] = [],
+  ) {
     super(code);
     this.name = "FlowRequestError";
   }
@@ -59,7 +65,8 @@ async function patchFlowRequest(
   });
   const data: unknown = await response.json();
   const result = parseResponse(patchFlowContract, response.status, data);
-  if (result.status !== 200) throw new FlowRequestError(result.data.error);
+  if (result.status !== 200)
+    throw new FlowRequestError(result.data.error, refusedActivationProblems(result.data));
   return result.data;
 }
 
