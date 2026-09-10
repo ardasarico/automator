@@ -6,8 +6,8 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiContractRightLine, RiRobot2Line, RiSmartphoneLine } from "@remixicon/react";
 import type { RemixiconComponentType } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
-import { AiPanel } from "./ai-panel";
-import { useAiStore } from "./ai-store-provider";
+import { useChatStore } from "./ai/chat-store-provider";
+import { AiPanel } from "./ai/panel";
 import styles from "./flow-builder.module.css";
 import { usePanelEscape, useResponsivePanels } from "./responsive-panels";
 import { ScreenPreview } from "./screen-preview";
@@ -34,7 +34,7 @@ export function RightPanels() {
     } else setActive(null);
   };
   usePanelEscape(compact && panel === "right", closePanel);
-  const focusRequests = useAiStore((state) => state.focusRequests);
+  const focusRequests = useChatStore((state) => state.focusRequests);
   useEffect(() => {
     if (compact && focusRequests > 0) setPanel("right");
   }, [compact, focusRequests, setPanel]);

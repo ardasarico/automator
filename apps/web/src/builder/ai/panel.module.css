@@ -1,0 +1,343 @@
+.panel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* What the turn is about, above everything the turn says. */
+.strip {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.chip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 2px;
+}
+
+.chipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quickActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.note {
+  flex: none;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.thread {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.empty {
+  margin: auto 0;
+  padding: 0 8px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.suggestion {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: start;
+  text-wrap: pretty;
+  cursor: pointer;
+  transition: border-color 150ms;
+}
+.suggestion:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+@media (hover: hover) {
+  .suggestion:hover {
+    border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .suggestion {
+    transition: none;
+  }
+}
+
+.userTurn {
+  align-self: flex-end;
+  max-width: 88%;
+  padding: 6px 10px;
+  border-radius: var(--radius-lg);
+  background: var(--accent);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistantTurn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.error {
+  color: var(--destructive-text);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The tool calls of one turn: what the agent did, in the order it did it. */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.stepLabel {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stepDetail {
+  min-width: 0;
+  color: var(--destructive-text);
+  overflow-wrap: anywhere;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.proposalState {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.changeKind {
+  flex-shrink: 0;
+  width: 56px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.change[data-kind="added"] .changeKind {
+  color: var(--chart-2);
+}
+.change[data-kind="removed"] .changeKind {
+  color: var(--destructive-text);
+  text-decoration: line-through;
+}
+.change[data-kind="changed"] .changeKind {
+  color: var(--chart-5);
+}
+
+.changeLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changeType {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* A failed check is the one thing in this card that must not be read past. */
+.preview [data-failed] {
+  color: var(--destructive-text);
+  font-weight: 500;
+}
+
+/* The wait: what is happening, how long it has taken, and the way out of it. */
+.waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.elapsed {
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.composer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.prompt {
+  min-height: 0;
+  max-height: 176px;
+  resize: none;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* Streamdown's output, mapped onto the workspace tokens so it reads like the rest of the panel. */
+.markdown {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.markdown :is(p, ul, ol) {
+  margin-block: 0 8px;
+}
+.markdown :is(ul, ol) {
+  padding-inline-start: 20px;
+}
+.markdown ul {
+  list-style: disc;
+}
+.markdown ol {
+  list-style: decimal;
+}
+.markdown :is(h1, h2, h3, h4) {
+  margin-block: 12px 4px;
+  font-weight: 500;
+}
+.markdown > :last-child {
+  margin-block-end: 0;
+}
+.markdown a {
+  color: var(--link);
+  text-decoration: underline;
+}
+.markdown code {
+  padding: 1px 4px;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  line-height: var(--text-code--line-height);
+}
+.markdown pre {
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+  overflow-x: auto;
+}
+.markdown pre code {
+  padding: 0;
+  background: none;
+}

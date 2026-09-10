@@ -70,7 +70,7 @@ describe("sendAiMessage", () => {
       { type: "done" },
     ]);
     expect(calledUrl).toBe("/api/flows/flow-1/ai/messages");
-    expect((calledInit?.headers as Record<string, string>).Authorization).toBe("Bearer token-1");
+    expect((calledInit!.headers as Record<string, string>).Authorization).toBe("Bearer token-1");
   });
 
   test("delivers a multi-byte character split mid-byte-sequence across chunks", async () => {

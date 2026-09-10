@@ -5,7 +5,7 @@ import "@xyflow/react/dist/style.css";
 import type { FlowDocument, FlowRun } from "@automator/contracts";
 import { ReactFlowProvider } from "@xyflow/react";
 import { DataTablesProvider } from "../data/tables-context";
-import { AiStoreProvider } from "./ai-store-provider";
+import { ChatStoreProvider } from "./ai/chat-store-provider";
 import { BuilderDialogsProvider } from "./builder-dialogs";
 import { CanvasHeader } from "./canvas-header";
 import { FlowActivationProvider } from "./flow-activation";
@@ -49,7 +49,7 @@ export function FlowBuilder({
         <RunStoreProvider initialRun={initialRun} initialDocument={initialRunDocument}>
           <SaveFlowProvider>
             <LeaveGuardProvider>
-              <AiStoreProvider focusOnMount={focusAi}>
+              <ChatStoreProvider focusOnMount={focusAi}>
                 <ReactFlowProvider>
                   <ResponsivePanelsProvider>
                     {/* Every table picker and the canvas problem badges read the same list. */}
@@ -69,7 +69,7 @@ export function FlowBuilder({
                     </DataTablesProvider>
                   </ResponsivePanelsProvider>
                 </ReactFlowProvider>
-              </AiStoreProvider>
+              </ChatStoreProvider>
             </LeaveGuardProvider>
           </SaveFlowProvider>
         </RunStoreProvider>
