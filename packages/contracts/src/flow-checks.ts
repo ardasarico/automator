@@ -10,7 +10,8 @@ import {
 } from "./flows";
 import { intervalProblem } from "./interval";
 import { parseNodeConfig, secretFields } from "./node-config";
-import { screenConfigSchemas } from "./screens";
+import { isApiFlow } from "./api-publishing";
+import { isScreenNodeType, screenConfigSchemas } from "./screens";
 import { isSignerNodeType } from "./signer-nodes";
 import type { FlowProblem } from "./flow-problems";
 
@@ -172,6 +173,13 @@ const fieldLabels: Record<string, string> = {
   "data.delete-record.recordId": "record id",
 };
 
+/* The node types whose settings declare named rows: what a caller sends, what a run answers. */
+const declarationRows: Partial<Record<FlowNodeType, { key: "inputs" | "outputs"; what: string }>> =
+  {
+    "trigger.api": { key: "inputs", what: "input" },
+    "logic.return": { key: "outputs", what: "output" },
+  };
+
 /* So a message reads as a sentence whatever the field ends up being called. */
 function article(name: string): string {
   return /^[aeiou]/i.test(name) ? "an" : "a";
@@ -256,6 +264,9 @@ export function findFlowProblems(
     });
   }
 
+  /* A machine caller has nobody to answer a screen, so an API flow's screens are dead ends. */
+  const apiFlow = isApiFlow(document);
+
   const reachable = new Set(starting.map((node) => node.id));
   const stack = [...reachable];
   while (stack.length > 0) {
@@ -277,6 +288,22 @@ export function findFlowProblems(
         message: `“${label}” is not connected to a trigger, so it never runs.`,
       });
     }
+    if (apiFlow && isScreenNodeType(node.type)) {
+      problems.push({
+        severity: "warning",
+        nodeId: node.id,
+        message: `“${label}” is a screen, and an API call cannot answer one, so the run stops there.`,
+      });
+    }
+    if (
+      node.type === "trigger.api" &&
+      !document.nodes.some((entry) => entry.type === "logic.return")
+    )
+      problems.push({
+        severity: "warning",
+        nodeId: node.id,
+        message: `“${label}” has no Return node after it, so callers get an empty answer.`,
+      });
     const schema = configSchemas[node.type];
     if (!schema) continue;
     try {
@@ -338,6 +365,27 @@ export function findFlowProblems(
           nodeId: node.id,
           message: `“${label}” has a sample payload that is not valid JSON, so Simulate sends an empty one.`,
         });
+      /* Both editors keep a row while it is being filled in; a saved one that names nothing
+       * cannot be sent or answered, so it is a fault rather than a to-do. */
+      const declaration = declarationRows[node.type];
+      if (declaration) {
+        const rows = config[declaration.key];
+        const named = Array.isArray(rows) ? rows : [];
+        if (named.length === 0 && declaration.key === "outputs")
+          problems.push({
+            severity: "warning",
+            nodeId: node.id,
+            message: `“${label}” has no outputs yet.`,
+          });
+        for (const [index, row] of named.entries()) {
+          if (!isBlank((row as { name?: unknown } | null)?.name)) continue;
+          problems.push({
+            severity: "error",
+            nodeId: node.id,
+            message: `“${label}” has ${article(declaration.what)} ${declaration.what} row ${index + 1} with no name.`,
+          });
+        }
+      }
       if (node.type === "screen.form") {
         const fields = (config.fields as { id?: string }[] | undefined) ?? [];
         if (!fields.some((field) => field.id))

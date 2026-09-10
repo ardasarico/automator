@@ -4,6 +4,7 @@ import type { IdentityActions } from "@automator/miniapp";
 import { afterAll, beforeAll, beforeEach, expect, mock, test } from "bun:test";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { privyModule } from "../../../test-privy";
 
 let authenticated = false;
 let isGuest = false;
@@ -14,22 +15,23 @@ const loginCalls: unknown[] = [];
 let callbacks: { onComplete(): void; onError(code: string): void };
 let actions: IdentityActions;
 
-mock.module("@privy-io/react-auth", () => ({
-  PrivyProvider: ({ children }: { children: ReactNode }) => children,
-  usePrivy: () => ({
-    authenticated,
-    user: authenticated ? { isGuest } : null,
-    getAccessToken: async () => {
-      tokenReads++;
-      if (tokenError) throw new Error("SDK token refresh failed");
-      return token;
+mock.module("@privy-io/react-auth", () =>
+  privyModule({
+    usePrivy: () => ({
+      authenticated,
+      user: authenticated ? { isGuest } : null,
+      getAccessToken: async () => {
+        tokenReads++;
+        if (tokenError) throw new Error("SDK token refresh failed");
+        return token;
+      },
+    }),
+    useLogin: (next: typeof callbacks) => {
+      callbacks = next;
+      return { login: (options: unknown) => loginCalls.push(options) };
     },
   }),
-  useLogin: (next: typeof callbacks) => {
-    callbacks = next;
-    return { login: (options: unknown) => loginCalls.push(options) };
-  },
-}));
+);
 mock.module("@automator/ui/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));

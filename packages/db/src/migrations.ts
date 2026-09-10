@@ -281,6 +281,28 @@ export const migrations: Migration[] = [
     CREATE INDEX IF NOT EXISTS automator_node_presets_owner
       ON automator_node_presets (owner_id, created_at DESC, id DESC)`,
   },
+  {
+    name: "0017_api_keys",
+    sql: `CREATE TABLE IF NOT EXISTS automator_api_keys (
+      id TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL REFERENCES automator_users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL CHECK (char_length(btrim(name)) BETWEEN 1 AND 60),
+      key_hash TEXT NOT NULL UNIQUE,
+      prefix TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_used_at TIMESTAMPTZ,
+      revoked_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS automator_api_keys_owner
+      ON automator_api_keys (owner_id, created_at DESC, id DESC)`,
+  },
+  /* 0018 belongs to the visitor-payment work; this is the next free number. */
+  {
+    name: "0019_run_source_api",
+    sql: `ALTER TABLE automator_runs DROP CONSTRAINT IF EXISTS automator_runs_source_check;
+    ALTER TABLE automator_runs ADD CONSTRAINT automator_runs_source_check
+      CHECK (source IN ('manual', 'webhook', 'schedule', 'miniapp', 'event', 'watch', 'api'))`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (

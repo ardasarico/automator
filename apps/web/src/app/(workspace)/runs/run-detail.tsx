@@ -217,6 +217,24 @@ export function RunDetail({ record }: { record: FlowRunRecord }) {
         </div>
       </Section>
 
+      {run.output && (
+        /* What the run answered its caller with. Only an API flow reaches a Return node. */
+        <Section title="Answer" id="run-answer">
+          <div className={styles.card}>
+            <dl className={styles.variables}>
+              {Object.entries(run.output).map(([key, value]) => (
+                <div key={key} className="contents">
+                  <dt>{key}</dt>
+                  <dd>
+                    <Json value={value} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </Section>
+      )}
+
       <Section title="Steps" id="run-steps">
         {run.nodes.length === 0 ? (
           <p className={`${styles.card} ${styles.muted}`}>No node ran.</p>

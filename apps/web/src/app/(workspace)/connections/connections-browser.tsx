@@ -1,15 +1,25 @@
 "use client";
 
-import { isSecretName, secretTemplate, type SecretSummary } from "@automator/contracts";
+import {
+  isSecretName,
+  secretTemplate,
+  type ApiKeySummary,
+  type SecretSummary,
+} from "@automator/contracts";
 import { Badge } from "@automator/ui/badge";
 import { Button } from "@automator/ui/button";
 import { Field, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
-import { RiDeleteBinLine, RiKey2Line } from "@remixicon/react";
+import { RiCheckLine, RiDeleteBinLine, RiKey2Line, RiTerminalBoxLine } from "@remixicon/react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useAccessToken } from "../../../auth/access-token";
 import { describeSecretError, useSecrets } from "../../../builder/secrets-store";
+import {
+  createApiKey,
+  describeApiKeyError,
+  revokeApiKey,
+} from "../../../connections/api-keys-client";
 import { detectChannels } from "../../../components/connected-apps";
 import styles from "./connections.module.css";
 
@@ -170,12 +180,171 @@ function SecretRow({ secret }: { secret: SecretSummary }) {
   );
 }
 
+/* A key is readable exactly once. Until it is dismissed it stays on screen, above its own list. */
+function NewApiKey({ value, onDone }: { value: string; onDone: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className={styles.issued} role="status">
+      <p className="text-caption">
+        Copy this key now. It is not shown again — if you lose it, revoke it and make another.
+      </p>
+      <div className={styles.issuedRow}>
+        <code className={styles.issuedKey}>{value}</code>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-live="polite"
+          onClick={() => {
+            void navigator.clipboard
+              .writeText(value)
+              .then(() => setCopied(true))
+              .catch(() => setCopied(false));
+          }}
+        >
+          {copied ? <RiCheckLine aria-hidden="true" /> : null}
+          {copied ? "Key copied" : "Copy key"}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onDone}>
+          Done
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ApiKeyForm({ onIssued }: { onIssued: (key: string) => void }) {
+  const router = useRouter();
+  const getAccessToken = useAccessToken();
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = name.trim();
+    if (trimmed === "") {
+      setError("Give the key a name, such as the machine that will use it.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await createApiKey(await getAccessToken(), trimmed);
+      setName("");
+      onIssued(created.key);
+      router.refresh();
+    } catch (caught) {
+      setError(describeApiKeyError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className={styles.form} onSubmit={submit}>
+      <Field className={styles.field}>
+        <FieldLabel htmlFor="api-key-name">Name</FieldLabel>
+        <Input
+          id="api-key-name"
+          size="sm"
+          autoCapitalize="none"
+          spellCheck={false}
+          placeholder="CI server"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+        />
+      </Field>
+      <Button type="submit" size="sm" disabled={busy}>
+        Create key
+      </Button>
+      {error && (
+        <p role="alert" className={`${styles.formError} text-caption text-destructive-text`}>
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+function ApiKeyRow({ apiKey }: { apiKey: ApiKeySummary }) {
+  const router = useRouter();
+  const getAccessToken = useAccessToken();
+  const [error, setError] = useState<string | null>(null);
+
+  async function revoke() {
+    setError(null);
+    try {
+      await revokeApiKey(await getAccessToken(), apiKey.id);
+      router.refresh();
+    } catch (caught) {
+      setError(describeApiKeyError(caught));
+    }
+  }
+
+  return (
+    <>
+      <div className={styles.row}>
+        <RiTerminalBoxLine aria-hidden="true" />
+        <span className={styles.keyName}>{apiKey.name}</span>
+        <span className={styles.name}>{apiKey.prefix}…</span>
+        <span className={styles.when}>
+          {apiKey.lastUsedAt
+            ? `Last used ${dateFormat.format(new Date(apiKey.lastUsedAt))}`
+            : "Never used"}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`Revoke API key ${apiKey.name}`}
+          onClick={() => void revoke()}
+        >
+          <RiDeleteBinLine aria-hidden="true" />
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className={`${styles.empty} text-destructive-text`}>
+          {error}
+        </p>
+      )}
+    </>
+  );
+}
+
+function ApiKeys({ apiKeys }: { apiKeys: readonly ApiKeySummary[] | null }) {
+  const [issued, setIssued] = useState<string | null>(null);
+  return (
+    <>
+      <ApiKeyForm onIssued={setIssued} />
+      {issued && <NewApiKey value={issued} onDone={() => setIssued(null)} />}
+      {apiKeys === null ? (
+        <Unavailable>API keys could not load. The API is unavailable right now.</Unavailable>
+      ) : apiKeys.length === 0 ? (
+        <p className={styles.empty}>
+          No API keys yet. Create one to call a flow you have published as an API.
+        </p>
+      ) : (
+        <div className={styles.list}>
+          {apiKeys.map((apiKey) => (
+            <ApiKeyRow key={apiKey.id} apiKey={apiKey} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 /**
- * What the account has connected: the secrets its flows read, and the apps those secrets reach.
- * The list comes from the server so a secret's value never has to travel; saving and deleting go
- * through the same store the builder's Variables panel uses, so both stay in step.
+ * What the account has connected: the secrets its flows read, the apps those secrets reach, and
+ * the keys machines call it with. Both lists come from the server so no value has to travel;
+ * saving and deleting secrets go through the same store the builder's Variables panel uses.
  */
-export function ConnectionsBrowser({ secrets }: { secrets: readonly SecretSummary[] | null }) {
+export function ConnectionsBrowser({
+  secrets,
+  apiKeys,
+}: {
+  secrets: readonly SecretSummary[] | null;
+  apiKeys: readonly ApiKeySummary[] | null;
+}) {
   const channels = secrets === null ? [] : detectChannels(secrets.map((secret) => secret.name));
   return (
     <>
@@ -201,6 +370,12 @@ export function ConnectionsBrowser({ secrets }: { secrets: readonly SecretSummar
             ))}
           </div>
         )}
+      </Section>
+      <Section
+        title="API keys"
+        description="A key lets a machine call the flows you have published as an API, and nothing else on your account. It is shown once, when you create it."
+      >
+        <ApiKeys apiKeys={apiKeys} />
       </Section>
       <Section
         title="Connected apps"

@@ -59,8 +59,8 @@ describe("flow document schema", () => {
     expect(Value.Check(flowDocumentSchema, withHandles)).toBe(true);
   });
 
-  test("lists 44 node types with no duplicates", () => {
-    expect(flowNodeTypes).toHaveLength(44);
+  test("lists 46 node types with no duplicates", () => {
+    expect(flowNodeTypes).toHaveLength(46);
     expect(new Set(flowNodeTypes).size).toBe(flowNodeTypes.length);
   });
 

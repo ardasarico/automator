@@ -13,7 +13,7 @@ import { executionConfiguration } from "./polling-fence";
 
 export class FlowOwnerMissingError extends Error {}
 
-type FlowRow = {
+export type FlowRow = {
   id: string;
   name: string;
   description: string;
@@ -26,12 +26,18 @@ type FlowRow = {
   pollingRevision: string;
 };
 
-const ownerColumns = `id, name, description, document, enabled,
+/*
+ * Every column a `FlowRecord` is built from, and the one mapping that builds it. Shared with the
+ * listing store's fork, so a flow row reads back the same whichever store returned it: a column
+ * added here reaches every producer at once, which is how `app_published` came to be missing
+ * from a fork.
+ */
+export const ownerColumns = `id, name, description, document, enabled,
   app_published AS "appPublished", webhook_token AS "webhookToken",
   polling_revision AS "pollingRevision",
   created_at AS "createdAt", updated_at AS "updatedAt"`;
 
-function toRecord(row: FlowRow): FlowRecord {
+export function toRecord(row: FlowRow): FlowRecord {
   const record: FlowRecord = {
     flow: {
       version: row.document.version,
@@ -255,6 +261,14 @@ export function createFlowStore(sql: SQL | undefined) {
             pollingRevision: rows[0].pollingRevision,
           }
         : null;
+    },
+    /** An owner's active flows, in full, so a caller can read what each one declares. */
+    async listEnabledForOwner(ownerId: string): Promise<FlowRecord[]> {
+      const db = connection();
+      const rows = await db<FlowRow[]>`
+        SELECT ${db.unsafe(ownerColumns)} FROM automator_flows
+        WHERE owner_id = ${ownerId} AND enabled ORDER BY updated_at DESC, id`;
+      return rows.map(toRecord);
     },
     async listEnabled(): Promise<OwnedFlow[]> {
       const db = connection();

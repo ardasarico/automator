@@ -16,7 +16,7 @@ const { SettingsDialog } = await import("./settings-dialog");
 const usage: AccountUsage = {
   flows: 4,
   activeFlows: 2,
-  runsLast30Days: { manual: 1, webhook: 2, schedule: 3, miniapp: 4, event: 5, watch: 6 },
+  runsLast30Days: { manual: 1, webhook: 2, schedule: 3, miniapp: 4, event: 5, watch: 6, api: 7 },
   secrets: 1,
   listings: 0,
   since: "2026-08-09T00:00:00.000Z",
@@ -107,5 +107,5 @@ test("usage can recover in place and includes watch runs in its total", async ()
   const runRow = Array.from(document.querySelectorAll("dt")).find(
     (element) => element.textContent === "Runs in the last 30 days",
   )?.parentElement?.parentElement;
-  expect(runRow?.lastElementChild?.textContent).toBe("21");
+  expect(runRow?.lastElementChild?.textContent).toBe("28");
 });

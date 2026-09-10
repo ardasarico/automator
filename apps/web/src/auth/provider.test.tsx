@@ -2,9 +2,10 @@
 import type { AuthUser, SessionResponse } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, beforeAll, beforeEach, expect, mock, test } from "bun:test";
-import { act, StrictMode, useEffect, type ReactNode } from "react";
+import { act, StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { secretsStore } from "../builder/secrets-store";
+import { privyModule } from "./test-privy";
 
 GlobalRegistrator.register();
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -41,35 +42,36 @@ const savedUser: AuthUser = {
   username: "test_user",
   walletAddress: linkedWallet.address,
 };
-mock.module("@privy-io/react-auth", () => ({
-  PrivyProvider: ({ children }: { children: ReactNode }) => children,
-  usePrivy: () => ({
-    ready,
-    authenticated,
-    user: authenticated ? privyUser() : null,
-    getAccessToken: async () => tokenAnswer(),
-    logout: async () => {
-      logoutCalls++;
-      events.push("privy-logout");
-    },
+mock.module("@privy-io/react-auth", () =>
+  privyModule({
+    usePrivy: () => ({
+      ready,
+      authenticated,
+      user: authenticated ? privyUser() : null,
+      getAccessToken: async () => tokenAnswer(),
+      logout: async () => {
+        logoutCalls++;
+        events.push("privy-logout");
+      },
+    }),
+    // Deliberately return fresh function references on each render, like an SDK context update.
+    useUser: () => ({
+      refreshUser: async () => {
+        refreshCalls++;
+        if (refreshCalls > 5) return new Promise(() => {});
+        return privyUser();
+      },
+    }),
+    useCreateWallet: () => ({
+      createWallet: async () => {
+        walletCalls++;
+        hasWallet = true;
+        return linkedWallet;
+      },
+    }),
+    useSigners: () => ({ addSigners: async () => {} }),
   }),
-  // Deliberately return fresh function references on each render, like an SDK context update.
-  useUser: () => ({
-    refreshUser: async () => {
-      refreshCalls++;
-      if (refreshCalls > 5) return new Promise(() => {});
-      return privyUser();
-    },
-  }),
-  useCreateWallet: () => ({
-    createWallet: async () => {
-      walletCalls++;
-      hasWallet = true;
-      return linkedWallet;
-    },
-  }),
-  useSigners: () => ({ addSigners: async () => {} }),
-}));
+);
 mock.module("next/navigation", () => navigationModule);
 mock.module("@automator/ui/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "dark" }),

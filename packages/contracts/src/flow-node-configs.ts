@@ -1,4 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { apiNodeConfigSchemas } from "./api-publishing";
 import { conditionOperators } from "./condition-operators";
 import { dataNodeConfigSchemas } from "./data-node-configs";
 import { defaultInterval, intervalFormats } from "./interval";
@@ -8,14 +9,9 @@ import { forEachConfigSchema, runCodeConfigSchema } from "./loop-configs";
 import { emailConfigSchema, telegramMessageConfigSchema } from "./notify-configs";
 import { onchainConfigSchemas, onchainEventTriggerConfigSchema } from "./onchain-configs";
 import { watchConfigSchemas } from "./watch-configs";
+import { samplePayloadField } from "./sample-payload";
 
-function samplePayloadField(sample: unknown) {
-  return Type.String({
-    default: JSON.stringify(sample, null, 2),
-    description: "Payload Simulate hands to this trigger",
-    contentMediaType: "application/json",
-  });
-}
+export { parseSamplePayload, samplePayloadProblem } from "./sample-payload";
 
 export const manualTriggerConfigSchema = Type.Object({
   samplePayload: samplePayloadField({}),
@@ -51,27 +47,6 @@ export const miniappOpenTriggerConfigSchema = Type.Object({
   samplePayload: samplePayloadField({}),
 });
 export type MiniappOpenTriggerConfig = Static<typeof miniappOpenTriggerConfigSchema>;
-
-export function parseSamplePayload(config: unknown): unknown {
-  if (typeof config !== "object" || config === null) return {};
-  const text = (config as { samplePayload?: unknown }).samplePayload;
-  if (typeof text !== "string" || text.trim() === "") return {};
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return {};
-  }
-}
-
-export function samplePayloadProblem(text: string): string | null {
-  if (text.trim() === "") return null;
-  try {
-    JSON.parse(text);
-    return null;
-  } catch {
-    return "Invalid JSON";
-  }
-}
 
 export {
   conditionOperators,
@@ -237,4 +212,5 @@ export const flowNodeConfigSchemas = {
   ...watchConfigSchemas,
   ...graphConfigSchemas,
   ...dataNodeConfigSchemas,
+  ...apiNodeConfigSchemas,
 } as const;

@@ -5,10 +5,11 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { CommandMenu } from "./command-menu";
 import { FlowSettingsDialog } from "./flow-settings-dialog";
 import { ShareAppDialog } from "./share-app-dialog";
+import { UseAsApiDialog } from "./use-as-api-dialog";
 import { useBuilderStore } from "./store-provider";
 import { PublishDialog } from "../marketplace/publish-dialog";
 
-export type BuilderDialogId = "settings" | "share-app" | "listing" | "commands";
+export type BuilderDialogId = "settings" | "share-app" | "use-api" | "listing" | "commands";
 
 export interface BuilderDialogs {
   /** Which dialog is showing, so a control can render its own open state. */
@@ -60,6 +61,7 @@ export function BuilderDialogsProvider({ children }: { children: ReactNode }) {
       <CommandMenu />
       {current === "settings" && <FlowSettingsDialog onClose={close} />}
       {current === "share-app" && <ShareAppDialog onClose={close} unsaved={dirty} />}
+      {current === "use-api" && <UseAsApiDialog onClose={close} unsaved={dirty} />}
       {current === "listing" && (
         <PublishDialog
           onClose={close}

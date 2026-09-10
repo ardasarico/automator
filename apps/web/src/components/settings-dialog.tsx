@@ -159,7 +159,7 @@ function Usage({ open }: { open: boolean }) {
         </UsageRow>
         <UsageRow
           term="Runs in the last 30 days"
-          detail={`${runs.manual} Simulate · ${runs.webhook} webhook · ${runs.schedule} schedule · ${runs.miniapp} mini-app · ${runs.event} onchain event · ${runs.watch} watch`}
+          detail={`${runs.manual} Simulate · ${runs.webhook} webhook · ${runs.schedule} schedule · ${runs.miniapp} mini-app · ${runs.event} onchain event · ${runs.watch} watch · ${runs.api} API`}
         >
           {totalRuns(usage)}
         </UsageRow>

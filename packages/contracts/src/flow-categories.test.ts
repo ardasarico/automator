@@ -15,6 +15,7 @@ describe("flowNodeCategory", () => {
       "trigger.price",
       "trigger.balance",
       "trigger.webhook",
+      "trigger.api",
       "trigger.miniapp-open",
       "trigger.manual",
       "world.verification-completed",

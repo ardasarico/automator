@@ -66,6 +66,7 @@ export const reservedListingSlugs: ReadonlySet<string> = new Set([
   "approval-request",
   "audience-gate",
   "event-check-in",
+  "price-quote-api",
   "scheduled-reminder",
   "selfie-gated-claim",
   "support-triage",

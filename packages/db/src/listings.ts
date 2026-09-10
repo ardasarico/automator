@@ -11,6 +11,7 @@ import {
   type MarketplaceListingDetail,
 } from "@automator/contracts";
 import type { SQL } from "bun";
+import { ownerColumns, toRecord, type FlowRow } from "./flows";
 import { recordFlowVersion } from "./flow-versions";
 
 type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
@@ -29,17 +30,6 @@ type ListingRow = {
   updatedAt: Date;
 };
 type ListingDetailRow = ListingRow;
-type FlowRow = {
-  id: string;
-  name: string;
-  description: string;
-  document: Snapshot;
-  createdAt: Date;
-  updatedAt: Date;
-  enabled: boolean;
-  webhookToken: string;
-};
-
 function toListing(row: ListingRow): MarketplaceListing {
   return {
     slug: row.slug,
@@ -187,35 +177,18 @@ export function createListingStore(sql: SQL | undefined) {
         if (!listing) return null;
         /* Tables belong to the publisher; a fork starts with no table selected. */
         const document = clearDataTableReferences(listing.document);
+        /* The flow store's own columns and mapping, so a fork reads back exactly as the flow
+         * it just created does. */
         const rows = await tx<FlowRow[]>`
           INSERT INTO automator_flows (id, owner_id, name, description, document)
           VALUES (${crypto.randomUUID()}, ${ownerId}, ${listing.name}, ${listing.description},
             ${document}::jsonb)
-          RETURNING id, name, description, document, enabled, webhook_token AS "webhookToken",
-            created_at AS "createdAt", updated_at AS "updatedAt"`;
-        const flow = rows[0];
-        if (!flow) throw new Error("Fork creation failed");
-        await recordFlowVersion(tx, ownerId, flow.id, {
-          ...flow.document,
-          name: flow.name,
-          description: flow.description,
-        });
+          RETURNING ${tx.unsafe(ownerColumns)}`;
+        if (!rows[0]) throw new Error("Fork creation failed");
+        const record = toRecord(rows[0]);
+        await recordFlowVersion(tx, ownerId, record.flow.id, record.flow);
         await tx`UPDATE automator_listings SET fork_count = fork_count + 1 WHERE slug = ${slug}`;
-        return {
-          flow: {
-            version: flow.document.version,
-            id: flow.id,
-            name: flow.name,
-            description: flow.description,
-            ...(flow.document.chainId === undefined ? {} : { chainId: flow.document.chainId }),
-            nodes: flow.document.nodes,
-            edges: flow.document.edges,
-          },
-          createdAt: flow.createdAt.toISOString(),
-          updatedAt: flow.updatedAt.toISOString(),
-          enabled: flow.enabled,
-          webhookToken: flow.webhookToken,
-        };
+        return record;
       });
     },
   };

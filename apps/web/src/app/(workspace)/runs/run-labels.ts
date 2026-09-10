@@ -25,6 +25,7 @@ export const runSourceLabels: Record<FlowRunSource, string> = {
   miniapp: "Mini-app",
   event: "Onchain event",
   watch: "Watch",
+  api: "API call",
 };
 
 export function formatDuration(startedAt: string, finishedAt: string): string {

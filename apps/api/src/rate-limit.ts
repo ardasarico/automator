@@ -5,6 +5,7 @@ export interface RateLimits {
   secrets: number;
   sessions: number;
   webhooks: number;
+  api: number;
 }
 
 export const defaultRateLimits: RateLimits = {
@@ -14,6 +15,7 @@ export const defaultRateLimits: RateLimits = {
   secrets: 30,
   sessions: 60,
   webhooks: 60,
+  api: 60,
 };
 
 const windowMs = 60_000;

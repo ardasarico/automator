@@ -28,6 +28,7 @@ const model: LanguageModel = async (request) => ({
 });
 const payloads: Record<string, unknown> = {
   "usdc-payout": { to: "0x2222222222222222222222222222222222222222", amount: "1.5" },
+  "price-quote-api": { pool: "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640" },
 };
 /** Stands in for The Graph gateway; anything else a fresh fork reaches is a wiring mistake. */
 const poolAnswer = { data: { pool: { token0Price: "4012.5", totalValueLockedUSD: "250000000" } } };

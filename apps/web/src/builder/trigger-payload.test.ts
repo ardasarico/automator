@@ -4,6 +4,7 @@ import {
   findSimulationTrigger,
   simulationTriggerPayload,
   startingTriggers,
+  triggerSamplePayload,
 } from "./trigger-payload";
 
 function node(id: string, type: FlowNode["type"], config: Record<string, unknown> = {}): FlowNode {
@@ -89,4 +90,42 @@ describe("simulationTriggerPayload", () => {
       simulationTriggerPayload([node("t", "trigger.manual", { samplePayload: "{nope" })], []),
     ).toEqual({});
   });
+});
+
+describe("an API trigger", () => {
+  test("sends a payload built from the inputs it declares when none was written", () => {
+    expect(
+      triggerSamplePayload({
+        type: "trigger.api",
+        config: {
+          inputs: [
+            { name: "amount", type: "number", description: "", required: true },
+            { name: "to", type: "address", description: "", required: false },
+          ],
+        },
+      }),
+    ).toEqual({ amount: 1, to: "0x0000000000000000000000000000000000000000" });
+  });
+
+  test("prefers a payload the author wrote over the one its inputs imply", () => {
+    expect(
+      triggerSamplePayload({
+        type: "trigger.api",
+        config: {
+          inputs: [{ name: "amount", type: "number", description: "", required: true }],
+          samplePayload: '{"amount":42}',
+        },
+      }),
+    ).toEqual({ amount: 42 });
+  });
+
+  test("declares nothing, so it sends nothing", () => {
+    expect(triggerSamplePayload({ type: "trigger.api", config: {} })).toEqual({});
+  });
+});
+
+test("a sample payload that is not an object is sent as written", () => {
+  expect(
+    triggerSamplePayload({ type: "trigger.api", config: { samplePayload: "null" } }),
+  ).toBeNull();
 });
