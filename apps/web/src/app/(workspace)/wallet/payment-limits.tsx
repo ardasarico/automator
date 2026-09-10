@@ -212,11 +212,11 @@ function AccountPaymentLimits() {
                 </span>
               </div>
               {draft.limits.length === 0 && (
-                <p className={styles.noLimits} role="row">
+                <div className={styles.noLimits} role="row">
                   <span role="cell">
                     No limits yet. Add one per chain and asset you want to cap.
                   </span>
-                </p>
+                </div>
               )}
               {draft.limits.map((limit, index) => {
                 const unit = assetLabel(limit.asset);

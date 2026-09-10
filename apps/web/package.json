@@ -16,7 +16,6 @@
     "@automator/contracts": "workspace:*",
     "@automator/miniapp": "workspace:*",
     "@automator/ui": "workspace:*",
-    "@paper-design/shaders-react": "0.0.80",
     "@privy-io/react-auth": "3.40.0",
     "@remixicon/react": "4.9.0",
     "@xyflow/react": "12.11.6",

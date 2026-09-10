@@ -1,6 +1,7 @@
 "use client";
 import { isOnboarded } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
+import { DitherAvatar } from "@automator/ui/dither-avatar";
 import { Field, FieldDescription, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
 import { Spinner } from "@automator/ui/spinner";
@@ -76,8 +77,12 @@ export function OnboardingForm() {
   return (
     <>
       <div className={styles.intro}>
+        {/* The same mark the account menu draws for this account, so the person meets it first. */}
+        <span className={styles.mark} aria-hidden="true">
+          {user && <DitherAvatar name={user.id} hue={192} size={40} animate={false} />}
+        </span>
         <h1>Make it yours</h1>
-        <p>Choose how you’ll appear in Automator.</p>
+        <p>Choose how you’ll appear in Automator.{user && " This mark is already yours."}</p>
       </div>
       {sessionError ? (
         <div className={styles.stack}>
