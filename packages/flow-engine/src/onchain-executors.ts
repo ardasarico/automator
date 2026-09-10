@@ -4,7 +4,6 @@ import {
   signTransactionConfigSchema,
   transferTokenConfigSchema,
   usdcBalanceConfigSchema,
-  usdcPaymentConfigSchema,
   usdcTransferConfigSchema,
   writeContractConfigSchema,
 } from "@automator/contracts";
@@ -41,7 +40,12 @@ function address(value: unknown, what: string): Address {
   return text;
 }
 
-function amount(value: unknown, decimals: number, what: string): bigint {
+/**
+ * A configured amount in whole tokens as the token's base units. Rejects anything that is not a
+ * plain decimal, and refuses to round: a transfer must move exactly what was asked for. Shared
+ * with the API, which recomputes a visitor payment's units the same way before verifying it.
+ */
+export function parseTokenAmount(value: unknown, decimals: number, what: string): bigint {
   if (typeof value === "number" && Math.abs(value) > Number.MAX_SAFE_INTEGER)
     throw new NodeExecutionError(
       `${what} must be a decimal string when it exceeds the safe integer range`,
@@ -57,6 +61,8 @@ function amount(value: unknown, decimals: number, what: string): bigint {
     throw new NodeExecutionError(`${what} has more than ${decimals} decimal places`);
   return parseUnits(text, decimals);
 }
+
+const amount = parseTokenAmount;
 
 async function guarded<T>(work: () => Promise<T>): Promise<T> {
   try {
@@ -270,20 +276,6 @@ export const onchainExecutors: ExecutorRegistry = {
         }),
       );
       return { signed };
-    },
-  },
-
-  "usdc.payment": {
-    kind: "step",
-    async run(context) {
-      const chain = requireChain(context);
-      const config = context.config(usdcPaymentConfigSchema);
-      const to = address(config.to, "Recipient");
-      return {
-        receipt: await guarded(() =>
-          erc20Transfer(chain, requireUsdc(chain), to, config.amount, context),
-        ),
-      };
     },
   },
 

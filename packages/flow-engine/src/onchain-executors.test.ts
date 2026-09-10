@@ -471,10 +471,10 @@ describe("onchain executors", () => {
     ]);
   });
 
-  test("usdc payment, payout and balance use the configured USDC contract", async () => {
+  test("usdc payout and balance use the configured USDC contract", async () => {
     const { chain, calls } = stubChain({ mode: "live" });
-    const payment = await run("usdc.payment", { to: other, amount: "2" }, chain, {});
-    expect(payment).toMatchObject({ receipt: { token: usdc, amount: "2", hash } });
+    const payout = await run("usdc.payout", { to: other, amount: "2" }, chain, {});
+    expect(payout).toMatchObject({ receipt: { token: usdc, amount: "2", hash } });
     expect(await run("usdc.balance", {}, chain)).toEqual({
       balance: { address: user, raw: "12500000", formatted: "12.5" },
     });
@@ -505,10 +505,10 @@ describe("onchain executors", () => {
     await expect(
       run("privy.sign-transaction", { to: other, data: "nothex" }, chain),
     ).rejects.toThrow("Calldata must be hex");
-    await expect(run("usdc.payment", { to: "nope", amount: "1" }, chain)).rejects.toThrow(
+    await expect(run("usdc.payout", { to: "nope", amount: "1" }, chain)).rejects.toThrow(
       "Recipient is not a valid address",
     );
-    await expect(run("usdc.payment", { to: other, amount: "1,5" }, chain)).rejects.toThrow(
+    await expect(run("usdc.payout", { to: other, amount: "1,5" }, chain)).rejects.toThrow(
       "Amount must be a decimal amount",
     );
   });

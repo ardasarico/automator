@@ -481,6 +481,39 @@ const fixtures: Record<FlowExample["id"], () => Fixture> = {
     ],
     edges: [edge("call", "input", "pool", "params"), edge("pool", "data", "answer", "value")],
   }),
+  "paid-report": () => ({
+    nodes: [
+      node("open", "trigger.miniapp-open", 0, 0, "Mini-app opened"),
+      node("pay", "usdc.payment", 1, 0, "Pay for the report", {
+        title: "One market report",
+        description: "Pay 1 USDC and we will write it for you right now.",
+        amount: "1",
+        // Blank collects into the wallet of whoever forks this flow.
+        to: "",
+      }),
+      node("write", "ai.generate-text", 2, 0, "Write the report", {
+        prompt:
+          "Write a short, friendly two-sentence market report for a reader who just paid {{input.prompt.amount}} USDC for it.",
+      }),
+      node("done", "screen.page", 3, 0, "Your report", {
+        title: "Your report",
+        body: "{{input.data.text}}",
+        button: "Done",
+      }),
+      node("no", "screen.page", 2, 1, "No payment, no report", {
+        title: "Nothing was charged",
+        body: "You can come back and pay whenever you want the report.",
+        button: "Close",
+      }),
+    ],
+    edges: [
+      edge("open", "visitor", "pay", "amount"),
+      edge("pay", "paid", "write", "prompt"),
+      edge("pay", "declined", "no", "data"),
+      edge("write", "text", "done", "data"),
+    ],
+  }),
+
   "selfie-gated-claim": () => ({
     nodes: [
       node("open", "trigger.miniapp-open", 0, 0, "Mini-app opened"),

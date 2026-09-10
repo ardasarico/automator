@@ -49,7 +49,7 @@ export const flowNodePorts: Record<FlowNodeType, FlowNodePorts> = {
   "privy.wallet": ports(["visitor"], ["wallet"]),
   "privy.login": ports(["visitor"], ["user"]),
   "privy.sign-transaction": ports(["wallet", "transaction"], ["signed"]),
-  "usdc.payment": ports(["amount", "payer"], ["receipt"]),
+  "usdc.payment": ports(["amount"], ["paid", "declined"]),
   "usdc.payout": ports(["recipient", "amount"], ["receipt"]),
   "usdc.balance": ports(["wallet"], ["balance"]),
   "graph.query-subgraph": ports(["params"], ["data"]),

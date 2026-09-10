@@ -8,6 +8,7 @@ import {
   sampleWorldSelfieRejection,
   sampleWorldVerification,
   screenPorts,
+  type MiniAppPayment,
   type PrivyLoginConfig,
   type WorldIdVerifyConfig,
   type WorldSelfieCheckConfig,
@@ -25,8 +26,24 @@ export type IdentityAnswer = {
   worldProof?: WorldProof;
 };
 
+/** The paying visitor's wallet on the flow's chain, as the payment screen shows it. */
+export interface PaymentWallet {
+  address: string;
+  /** The USDC balance in whole tokens, as a decimal string. */
+  balance: string;
+}
+
+/** What a host has to be able to do for a visitor to pay a `usdc.payment` screen from their wallet. */
+export interface PaymentActions {
+  /** The signed-in visitor's wallet, or null while nobody is signed in: never prompts. */
+  wallet(payment: MiniAppPayment): Promise<PaymentWallet | null>;
+  /** Signs the visitor in if needed, sends the transfer, and answers with a token to verify it. */
+  pay(payment: MiniAppPayment): Promise<{ txHash: string; privyToken: string }>;
+}
+
 export interface IdentityActions {
   privyLogin?(config: PrivyLoginConfig): Promise<{ privyToken: string }>;
+  usdcPayment?: PaymentActions;
   worldVerify?(
     config: WorldIdVerifyConfig,
     request: WorldRequest,
@@ -70,7 +87,7 @@ function describeFailure(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function useIdentityAction<T extends IdentityAnswer>(
+export function useScreenAction<T>(
   run: (() => Promise<T>) | undefined,
   onDone: (answer: T) => void,
   fallback: string,
@@ -114,7 +131,13 @@ const methodLabels: Record<string, string> = {
   passkey: "Passkey",
 };
 
-function ProviderNote({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+export function ProviderNote({
+  icon,
+  children,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <p className="flex items-center gap-2 text-caption text-muted-foreground">
       <span aria-hidden="true" className="flex size-5 items-center justify-center">
@@ -125,7 +148,7 @@ function ProviderNote({ icon, children }: { icon: React.ReactNode; children: Rea
   );
 }
 
-function ErrorNote({ error }: { error: string | null }) {
+export function ErrorNote({ error }: { error: string | null }) {
   return (
     <p role="alert" className="text-caption text-destructive-text empty:hidden">
       {error}
@@ -144,7 +167,7 @@ export function PrivyLoginScreen({
   const ports = screenPorts("privy.login");
   const actions = useIdentityActions();
   const login = actions?.privyLogin;
-  const { busy, error, start } = useIdentityAction(
+  const { busy, error, start } = useScreenAction(
     login ? () => login(config) : undefined,
     (answer) => onContinue(ports.primary, undefined, answer),
     "Sign-in did not complete. Try again.",
@@ -196,7 +219,7 @@ export function WorldIdVerifyScreen({
   const actions = useIdentityActions();
   const verify = actions?.worldVerify;
   const request = node.world;
-  const { busy, error, start } = useIdentityAction(
+  const { busy, error, start } = useScreenAction(
     verify && request ? () => verify(config, request) : undefined,
     (answer) => onContinue(ports.primary, undefined, answer),
     "Verification did not complete. Try again.",
@@ -263,7 +286,7 @@ export function WorldSelfieCheckScreen({
   const actions = useIdentityActions();
   const check = actions?.worldSelfieCheck;
   const request = node.world;
-  const { busy, error, start } = useIdentityAction(
+  const { busy, error, start } = useScreenAction(
     check && request ? () => check(config, request) : undefined,
     (answer) => onContinue(ports.primary, undefined, answer),
     "The selfie check did not complete. Try again.",

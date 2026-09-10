@@ -296,7 +296,32 @@ export const migrations: Migration[] = [
     CREATE INDEX IF NOT EXISTS automator_api_keys_owner
       ON automator_api_keys (owner_id, created_at DESC, id DESC)`,
   },
-  /* 0018 belongs to the visitor-payment work; this is the next free number. */
+  {
+    /*
+     * One row per USDC transfer a visitor made to answer a `usdc.payment` screen. The row is
+     * written in the same transaction that claims the screen, so a transfer can answer exactly one
+     * screen: (chain_id, tx_hash) is the spend. `run_id` names the run the screen paused in.
+     */
+    name: "0018_payments",
+    sql: `CREATE TABLE IF NOT EXISTS automator_payments (
+      id TEXT PRIMARY KEY,
+      flow_id TEXT NOT NULL REFERENCES automator_flows(id) ON DELETE CASCADE,
+      session_id TEXT NOT NULL,
+      run_id TEXT,
+      chain_id INTEGER NOT NULL,
+      tx_hash TEXT NOT NULL CHECK (tx_hash ~ '^0x[0-9a-f]{64}$'),
+      from_address TEXT NOT NULL,
+      to_address TEXT NOT NULL,
+      amount_units NUMERIC(78, 0) NOT NULL CHECK (amount_units > 0),
+      verified_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (chain_id, tx_hash)
+    );
+    CREATE INDEX IF NOT EXISTS automator_payments_session
+      ON automator_payments (session_id);
+    CREATE INDEX IF NOT EXISTS automator_payments_flow
+      ON automator_payments (flow_id, created_at DESC)`,
+  },
   {
     name: "0019_run_source_api",
     sql: `ALTER TABLE automator_runs DROP CONSTRAINT IF EXISTS automator_runs_source_check;

@@ -123,8 +123,12 @@ describe("node catalog", () => {
       "Screens",
       "World",
       "Privy",
+      "USDC",
     ]);
-    expect(visitor.flatMap((s) => s.entries).map((e) => e.type)).toContain("privy.wallet");
+    const found = visitor.flatMap((s) => s.entries).map((e) => e.type);
+    expect(found).toContain("privy.wallet");
+    /* Collecting a payment is a visitor screen, so looking for one finds it. */
+    expect(found).toContain("usdc.payment");
     expect(searchCatalog("")).toEqual([]);
     expect(searchCatalog("nothing matches this")).toEqual([]);
   });

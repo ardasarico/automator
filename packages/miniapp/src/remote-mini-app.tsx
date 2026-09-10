@@ -46,6 +46,7 @@ function toNode(screen: MiniAppScreen): ScreenNode {
     config: screen.config,
     position: { x: 0, y: 0 },
     ...(screen.world ? { world: screen.world } : {}),
+    ...(screen.payment ? { payment: screen.payment } : {}),
   };
 }
 
@@ -59,15 +60,22 @@ export function describeUnavailable(cause: unknown): string {
 
 export const signInRefusedNotice = "Your sign-in could not be verified. Try again.";
 
+/*
+ * A payment the API would not take is not the end of the session: the visitor is still on the
+ * screen and can pay again, so each of these keeps the screen and says what to do about it.
+ */
+const retryableNotices: Record<string, string> = {
+  unauthorized: signInRefusedNotice,
+  payment_pending: "That payment has not landed on the network yet. Try again in a moment.",
+  payment_used: "That payment has already been used. Pay again to continue.",
+  payment_rejected: "That payment did not match what this app asked for. Try again.",
+};
+
 export function stateAfterFailure(cause: unknown, previous: SessionState | undefined): State {
   const code = cause instanceof Error ? cause.message : "";
-  if (code === "unauthorized" && previous)
-    return {
-      kind: "session",
-      session: previous.session,
-      token: previous.token,
-      notice: signInRefusedNotice,
-    };
+  const notice = retryableNotices[code];
+  if (notice && previous)
+    return { kind: "session", session: previous.session, token: previous.token, notice };
   return { kind: "unavailable", message: describeUnavailable(cause) };
 }
 

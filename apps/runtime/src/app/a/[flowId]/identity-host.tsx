@@ -1,15 +1,20 @@
 "use client";
 
 import type {
+  MiniAppPayment,
   PrivyLoginConfig,
   WorldIdVerifyConfig,
   WorldProof,
   WorldRequest,
   WorldSelfieCheckConfig,
 } from "@automator/contracts";
-import { IdentityActionsProvider, type IdentityActions } from "@automator/miniapp";
+import {
+  IdentityActionsProvider,
+  type IdentityActions,
+  type PaymentActions,
+} from "@automator/miniapp";
 import { useTheme } from "@automator/ui/theme-provider";
-import { PrivyProvider, useLogin, usePrivy } from "@privy-io/react-auth";
+import { PrivyProvider, useLogin, usePrivy, useWallets } from "@privy-io/react-auth";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -24,6 +29,15 @@ import {
   worldAsk,
   type WorldAsk,
 } from "./identity";
+import {
+  defaultPaymentChain,
+  describePaymentError,
+  payingWallet,
+  paymentChain,
+  paymentChains,
+  readUsdcBalance,
+  transferRequest,
+} from "./payment";
 
 const IDKitRequestWidget = dynamic(
   () => import("@worldcoin/idkit").then((module) => module.IDKitRequestWidget),
@@ -31,6 +45,9 @@ const IDKitRequestWidget = dynamic(
 );
 
 type PrivyLogin = NonNullable<IdentityActions["privyLogin"]>;
+type SignIn = (
+  loginMethods?: ReturnType<typeof privyLoginMethods>,
+) => Promise<{ privyToken: string }>;
 
 type PendingWorld = {
   idKit: ReturnType<typeof toIdKitRequest>;
@@ -38,7 +55,15 @@ type PendingWorld = {
   reject(error: Error): void;
 };
 
-function IdentityBridge({ privyLogin, children }: { privyLogin: PrivyLogin; children: ReactNode }) {
+function IdentityBridge({
+  privyLogin,
+  usdcPayment,
+  children,
+}: {
+  privyLogin: PrivyLogin;
+  usdcPayment?: PaymentActions;
+  children: ReactNode;
+}) {
   const [inWorldApp, setInWorldApp] = useState(false);
   const [pending, setPending] = useState<PendingWorld | null>(null);
   const settled = useRef(false);
@@ -83,8 +108,14 @@ function IdentityBridge({ privyLogin, children }: { privyLogin: PrivyLogin; chil
   );
 
   const actions = useMemo<IdentityActions>(
-    () => ({ privyLogin, worldVerify, worldSelfieCheck, inWorldApp }),
-    [privyLogin, worldVerify, worldSelfieCheck, inWorldApp],
+    () => ({
+      privyLogin,
+      worldVerify,
+      worldSelfieCheck,
+      inWorldApp,
+      ...(usdcPayment ? { usdcPayment } : {}),
+    }),
+    [privyLogin, worldVerify, worldSelfieCheck, inWorldApp, usdcPayment],
   );
 
   const finish = (outcome: { proof: WorldProof } | { error: Error }) => {
@@ -161,20 +192,60 @@ function WithPrivy({ children }: { children: ReactNode }) {
       waiting?.reject(new Error(describePrivyError(String(code))));
     },
   });
-  const privyLogin = useCallback<PrivyLogin>(
-    (config: PrivyLoginConfig) => {
+  const signIn = useCallback<SignIn>(
+    (loginMethods) => {
       // Privy's login() is a no-op for a signed-in visitor and emits no callback.
       if (authenticated && user && !user.isGuest) return getLoginAnswer();
       return new Promise<{ privyToken: string }>((resolve, reject) => {
         pending.current?.reject(new Error(describePrivyError("exited_auth_flow")));
         pending.current = { resolve, reject };
-        const loginMethods = privyLoginMethods(config);
         login(loginMethods ? { loginMethods } : {});
       });
     },
     [authenticated, getLoginAnswer, login, user],
   );
-  return <IdentityBridge privyLogin={privyLogin}>{children}</IdentityBridge>;
+  const privyLogin = useCallback<PrivyLogin>(
+    (config: PrivyLoginConfig) => signIn(privyLoginMethods(config)),
+    [signIn],
+  );
+
+  const { wallets } = useWallets();
+  const usdcPayment = useMemo<PaymentActions>(
+    () => ({
+      async wallet(payment: MiniAppPayment) {
+        // Never prompts: a visitor who has not signed in simply has no wallet to show yet.
+        const found = authenticated ? payingWallet(wallets) : null;
+        if (!found) return null;
+        const balance = await readUsdcBalance(payment, found.address).catch(() => "0");
+        return { address: found.address, balance };
+      },
+      async pay(payment: MiniAppPayment) {
+        const { privyToken } = await signIn();
+        const found = payingWallet(wallets);
+        if (!found) throw new Error("This sign-in has no wallet to pay from.");
+        try {
+          // The payment is verified on the chain the screen names, so the wallet has to be there.
+          await found.switchChain(paymentChain(payment).id);
+          const provider = await found.getEthereumProvider();
+          const hash = await provider.request({
+            method: "eth_sendTransaction",
+            params: [transferRequest(payment, found.address)],
+          });
+          if (typeof hash !== "string") throw new Error("The wallet did not answer with a hash.");
+          return { txHash: hash, privyToken };
+        } catch (cause) {
+          throw new Error(describePaymentError(cause));
+        }
+      },
+    }),
+    [authenticated, signIn, wallets],
+  );
+
+  return (
+    <IdentityBridge privyLogin={privyLogin} usdcPayment={usdcPayment}>
+      {children}
+    </IdentityBridge>
+  );
 }
 
 const noPrivy: PrivyLogin = () =>
@@ -195,6 +266,10 @@ export function IdentityHost({ children }: { children: ReactNode }) {
         },
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
         sessions: { cookieWriteBehavior: "never" },
+        // A visitor can only be asked to switch to a chain the provider knows about, and a
+        // `usdc.payment` screen may name any chain in the registry.
+        defaultChain: defaultPaymentChain,
+        supportedChains: paymentChains,
       }}
     >
       <WithPrivy>{children}</WithPrivy>

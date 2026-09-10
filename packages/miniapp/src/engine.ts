@@ -2,13 +2,18 @@ import {
   isScreenNodeType,
   type FlowDocument,
   type FlowNode,
+  type MiniAppPayment,
   type ScreenNodeType,
   type WorldRequest,
 } from "@automator/contracts";
 
 export type MiniAppDocument = Pick<FlowDocument, "nodes" | "edges">;
 
-export type ScreenNode = FlowNode & { type: ScreenNodeType; world?: WorldRequest };
+export type ScreenNode = FlowNode & {
+  type: ScreenNodeType;
+  world?: WorldRequest;
+  payment?: MiniAppPayment;
+};
 
 export function isScreenNode(node: FlowNode): node is ScreenNode {
   return isScreenNodeType(node.type);

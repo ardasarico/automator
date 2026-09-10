@@ -48,7 +48,12 @@ export {
   type NodePresetStore,
 } from "./node-presets";
 export { type SecretStore } from "./secrets";
-export { type MiniAppSessionRow, type SessionStore } from "./sessions";
+export {
+  type MiniAppSessionRow,
+  type PaymentClaim,
+  type SessionStore,
+  type VisitorPaymentRow,
+} from "./sessions";
 export { UsernameTakenError, type UserStore } from "./users";
 export { flowVersionLimit, type FlowVersionInput, type FlowVersionStore } from "./flow-versions";
 export {

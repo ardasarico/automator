@@ -56,7 +56,17 @@ export const nodeFixtures: Partial<Record<FlowNodeType, Record<string, unknown>>
   "usdc.balance": {
     balance: { address: walletAddress, raw: balanceRaw, formatted: balanceFormatted },
   },
-  "usdc.payment": { receipt: transferReceipt },
+  /* A payment the visitor made from their own wallet, verified before the run resumed. */
+  "usdc.payment": {
+    paid: {
+      paid: true,
+      txHash: transactionHash,
+      from: recipientAddress,
+      to: walletAddress,
+      amount: balanceFormatted,
+      chainId: 84532,
+    },
+  },
   "usdc.payout": { receipt: transferReceipt },
   "onchain.transfer-token": { receipt: transferReceipt },
   "onchain.write-contract": { receipt: writeReceipt },

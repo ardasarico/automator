@@ -64,6 +64,14 @@ describe("stateAfterFailure", () => {
     });
   });
 
+  test.each([
+    ["payment_pending", "That payment has not landed on the network yet. Try again in a moment."],
+    ["payment_used", "That payment has already been used. Pay again to continue."],
+    ["payment_rejected", "That payment did not match what this app asked for. Try again."],
+  ])("a %s answer keeps the payment screen answerable", (code, notice) => {
+    expect(stateAfterFailure(new Error(code), previous)).toEqual({ ...previous, notice });
+  });
+
   test("anything else, or a rejection without a session to return to, is unavailable", () => {
     expect(stateAfterFailure(new Error("rate_limited"), previous)).toEqual({
       kind: "unavailable",

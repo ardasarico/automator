@@ -32,6 +32,7 @@ export function privyModule(overrides: Record<string, unknown> = {}) {
     useLoginWithSiwe: unstubbed("useLoginWithSiwe"),
     useModalStatus: unstubbed("useModalStatus"),
     useSigners: unstubbed("useSigners"),
+    useWallets: unstubbed("useWallets"),
     ...overrides,
   };
 }

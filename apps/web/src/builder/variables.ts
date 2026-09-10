@@ -50,6 +50,17 @@ const outputShapes: Partial<Record<FlowNode["type"], Record<string, OutputField[
     ],
   },
   "usdc.payment": {
+    paid: [
+      { path: "amount", label: "Amount paid", kind: "number" },
+      { path: "from", label: "Payer wallet", kind: "text" },
+      { path: "to", label: "Recipient", kind: "text" },
+      { path: "txHash", label: "Transaction hash", kind: "text" },
+      { path: "paid", label: "Paid", kind: "boolean" },
+      { path: "", label: "Payment details", kind: "object" },
+    ],
+    declined: [{ path: "paid", label: "Paid", kind: "boolean" }],
+  },
+  "usdc.payout": {
     receipt: [
       { path: "amount", label: "Amount sent", kind: "number" },
       { path: "to", label: "Recipient", kind: "text" },
@@ -142,8 +153,6 @@ const outputShapes: Partial<Record<FlowNode["type"], Record<string, OutputField[
     ],
   },
 };
-/* A payout is the same ERC-20 transfer a payment is, down to the receipt it hands on. */
-outputShapes["usdc.payout"] = outputShapes["usdc.payment"];
 
 /** The named leaves of a shape, without the whole object the flow rarely wants. */
 function leaves(fields: readonly OutputField[]): OutputField[] {

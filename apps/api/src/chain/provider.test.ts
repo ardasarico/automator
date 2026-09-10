@@ -6,6 +6,7 @@ import { createChainFactory, resolveChain, resolveChainSettings } from "./provid
 
 const user = "0x1111111111111111111111111111111111111111" as Address;
 const abi = parseAbi(["function balanceOf(address owner) view returns (uint256)"]);
+const decimalsAbi = parseAbi(["function decimals() view returns (uint8)"]);
 const baseUsdc = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const worldUsdc = "0x66145f38cBAC35Ca6F1Dfb4914dF98F1614aeA88";
 
@@ -335,5 +336,70 @@ describe("chain provider", () => {
     expect(walletChecks).toBe(1);
     expect(admitted).toHaveLength(6);
     expect(rpcCalls).toEqual([]);
+  });
+});
+
+describe("a chain's payment collection", () => {
+  test("reads the payment token's decimals once and keeps the answer", async () => {
+    const { transport, calls } = fakeTransport({
+      eth_chainId: () => "0x14a34",
+      eth_call: () =>
+        encodeFunctionResult({ abi: decimalsAbi, functionName: "decimals", result: 6 }),
+    });
+    const chain = createChainFactory(
+      [{ chainId: 84532, rpcUrl: "https://rpc.example", usdcAddress: baseUsdc as Address }],
+      identity(null),
+      undefined,
+      () => transport,
+    ).chain(84532)!;
+    expect(await chain.usdcDecimals()).toBe(6);
+    expect(await chain.usdcDecimals()).toBe(6);
+    expect(calls.filter((call) => call.method === "eth_call")).toHaveLength(1);
+  });
+
+  test("has no decimals to read on a chain with no payment token", async () => {
+    const chain = createChainFactory(
+      [{ chainId: 84532, rpcUrl: "https://rpc.example" }],
+      identity(null),
+      undefined,
+      () => fakeTransport({ eth_chainId: () => "0x14a34" }).transport,
+    ).chain(84532)!;
+    expect(await chain.usdcDecimals()).toBeNull();
+  });
+
+  test("carries a reader that turns a transaction hash into the transfers it made", async () => {
+    const chain = createChainFactory(
+      [{ chainId: 84532, rpcUrl: "https://rpc.example", usdcAddress: baseUsdc as Address }],
+      identity(null),
+      undefined,
+      () =>
+        fakeTransport({
+          eth_chainId: () => "0x14a34",
+          eth_getTransactionReceipt: () => ({
+            status: "0x1",
+            blockNumber: "0x1",
+            transactionHash: `0x${"a".repeat(64)}`,
+            logs: [
+              {
+                address: baseUsdc,
+                topics: [
+                  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                  `0x${"0".repeat(24)}${user.slice(2)}`,
+                  `0x${"0".repeat(24)}${user.slice(2)}`,
+                ],
+                data: `0x${(1_000_000).toString(16).padStart(64, "0")}`,
+                blockNumber: "0x1",
+                logIndex: "0x0",
+                transactionHash: `0x${"a".repeat(64)}`,
+              },
+            ],
+          }),
+        }).transport,
+    ).chain(84532)!;
+    const receipt = await chain.payments.waitForReceipt(`0x${"a".repeat(64)}`, 1000);
+    expect(receipt).toEqual({
+      status: "success",
+      transfers: [{ token: baseUsdc as Address, from: user, to: user, value: BigInt(1_000_000) }],
+    });
   });
 });

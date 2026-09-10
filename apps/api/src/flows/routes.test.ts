@@ -27,7 +27,7 @@ const input: FlowDocumentInput = {
     { id: "n1", type: "trigger.miniapp-open", position: { x: 0, y: 0 }, label: "Open", config: {} },
     {
       id: "n2",
-      type: "usdc.payment",
+      type: "usdc.payout",
       position: { x: 300, y: 0 },
       label: "Pay",
       /* Configured, so this fixture is a flow the activation gate lets through. */
@@ -212,7 +212,7 @@ describe("flow routes", () => {
           outline: {
             nodes: [
               { id: "n1", type: "trigger.miniapp-open", x: 0, y: 0 },
-              { id: "n2", type: "usdc.payment", x: 300, y: 0 },
+              { id: "n2", type: "usdc.payout", x: 300, y: 0 },
             ],
             edges: [{ source: "n1", target: "n2" }],
           },
@@ -295,10 +295,10 @@ describe("flow routes", () => {
   });
 
   describe("the activation gate", () => {
-    /* A payment with no recipient: an error the builder shows and a run would fail on. */
+    /* A payout with no recipient: an error the builder shows and a run would fail on. */
     const broken: FlowDocumentInput = {
       ...input,
-      nodes: [input.nodes[0]!, { ...input.nodes[1]!, config: {} }],
+      nodes: [input.nodes[0]!, { ...input.nodes[1]!, config: { to: "", amount: "10" } }],
     };
     /* A Discord post with no webhook: a blank secret, which is a warning, not a fault. */
     const warned: FlowDocumentInput = {
@@ -476,7 +476,7 @@ describe("flow routes", () => {
     test("config problems are reported before signing, so the list stays actionable", async () => {
       const broken: FlowDocumentInput = {
         ...input,
-        nodes: [input.nodes[0]!, { ...input.nodes[1]!, config: {} }],
+        nodes: [input.nodes[0]!, { ...input.nodes[1]!, config: { to: "", amount: "10" } }],
       };
       const { request, id } = await stored(broken, signer(true, false));
       const refused = await request(`/flows/${id}`, "PATCH", "alice", { enabled: true });

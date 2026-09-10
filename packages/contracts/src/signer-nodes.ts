@@ -10,7 +10,6 @@ export const signerNodeTypes = [
   "onchain.transfer-token",
   "onchain.sign-message",
   "privy.sign-transaction",
-  "usdc.payment",
   "usdc.payout",
 ] as const satisfies readonly FlowNodeType[];
 export type SignerNodeType = (typeof signerNodeTypes)[number];

@@ -302,9 +302,13 @@ const blankedConfigs: Record<FlowNode["type"], [Record<string, unknown>, string[
     { to: "", value: "", data: "" },
     ["error: “n” needs a recipient address."],
   ],
+  /* A blank recipient collects into the owner's own wallet, so only the amount is required. */
   "usdc.payment": [
     { to: "", amount: "" },
-    ["error: “n” needs a recipient address.", "error: “n” needs an amount."],
+    [
+      "error: “n” needs an amount.",
+      "warning: “n” has nothing on Declined, so a visitor who does not pay ends the flow.",
+    ],
   ],
   "usdc.payout": [
     { to: "", amount: "" },
@@ -540,7 +544,7 @@ describe("values the executor could not parse", () => {
       }),
     ).toEqual([]);
     expect(
-      messagesOf("usdc.payment", {
+      messagesOf("usdc.payout", {
         to: "0xAbC1111111111111111111111111111111111111",
         amount: "12.50",
       }),
