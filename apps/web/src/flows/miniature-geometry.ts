@@ -41,7 +41,7 @@ export const tileView: MiniatureView = {
   minNodeHeight: 11,
 };
 
-export type MiniatureBox = {
+type MiniatureBox = {
   id: string;
   type: FlowOutline["nodes"][number]["type"];
   x: number;
@@ -49,7 +49,7 @@ export type MiniatureBox = {
   width: number;
   height: number;
 };
-export type MiniatureWire = { id: string; d: string };
+type MiniatureWire = { id: string; d: string };
 export type MiniatureGeometry = { boxes: MiniatureBox[]; wires: MiniatureWire[] };
 
 /**

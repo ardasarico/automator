@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-export type HotkeyScope = "global" | "canvas" | "dialog";
+type HotkeyScope = "global" | "canvas" | "dialog";
 
 const scopePriority: Record<HotkeyScope, number> = { global: 0, canvas: 1, dialog: 2 };
 

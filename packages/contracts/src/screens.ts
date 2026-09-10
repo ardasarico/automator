@@ -26,17 +26,22 @@ export function isScreenNodeType(type: string): type is ScreenNodeType {
   return (screenNodeTypes as readonly string[]).includes(type);
 }
 
-const text = (fallback = "", description?: string) =>
-  Type.String(
-    description === undefined ? { default: fallback } : { default: fallback, description },
-  );
+const text = (fallback = "", description?: string, hints: Record<string, unknown> = {}) =>
+  Type.String({
+    default: fallback,
+    ...(description === undefined ? {} : { description }),
+    ...hints,
+  });
 
 const titleText = () => text("", "Blank shows the node label.");
+
+/* Button labels and Simulate answers rarely change, so the editor folds them under Advanced. */
+const advanced = { advanced: true };
 
 export const screenPageConfigSchema = Type.Object({
   title: titleText(),
   body: text("", "Paragraphs are kept."),
-  button: text("Continue", "Continues on the Next port."),
+  button: text("Continue", "Continues on the Next port.", advanced),
 });
 export type ScreenPageConfig = Static<typeof screenPageConfigSchema>;
 
@@ -63,7 +68,7 @@ export const screenFormConfigSchema = Type.Object({
     default: [],
     description: "Submitted values travel on the Submitted port, keyed by field id.",
   }),
-  submit: text("Submit"),
+  submit: text("Submit", undefined, advanced),
 });
 export type ScreenFormConfig = Static<typeof screenFormConfigSchema>;
 
@@ -96,10 +101,11 @@ export function findScreenFormAnswerProblem(
 export const screenConfirmationConfigSchema = Type.Object({
   title: titleText(),
   message: text(),
-  confirm: text("Confirm", "Continues on the Confirmed port."),
-  cancel: text("Cancel", "Continues on the Cancelled port."),
+  confirm: text("Confirm", "Continues on the Confirmed port.", advanced),
+  cancel: text("Cancel", "Continues on the Cancelled port.", advanced),
   simulate: Type.Union([Type.Literal("confirmed"), Type.Literal("cancelled")], {
     default: "confirmed",
+    advanced: true,
     description: "Which answer Simulate takes.",
   }),
 });
@@ -109,7 +115,7 @@ export const screenQrCodeConfigSchema = Type.Object({
   title: titleText(),
   value: text("", "The text to encode; blank shows a placeholder instead of a code."),
   caption: text(),
-  button: text("Continue"),
+  button: text("Continue", undefined, advanced),
 });
 export type ScreenQrCodeConfig = Static<typeof screenQrCodeConfigSchema>;
 

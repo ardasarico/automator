@@ -8,10 +8,12 @@ export {
   Help,
   JsonField,
   ObjectFields,
+  quietHelpClass,
   StringField,
   StringListField,
   toLocalInput,
 } from "./fields";
+export { isVisible, sectionFields, type FieldSection } from "./layout";
 export { humanizeOption, MultiSelectField } from "./multi-select-field";
 export {
   fieldLabel,
@@ -19,14 +21,18 @@ export {
   insertTemplate,
   isRecord,
   itemTitle,
+  singleTemplate,
   singular,
   textFieldShape,
 } from "./schema";
 export type {
   FieldContext,
+  FieldProblem,
+  FieldProblems,
   FieldProps,
   PreviewTemplate,
   Property,
+  ShowWhen,
   TemplatePreview,
   TextFieldShape,
   TextSelection,
@@ -34,4 +40,5 @@ export type {
   VariableOption,
 } from "./schema";
 export { TemplatePreviews } from "./template-preview";
+export { ValueField } from "./value-field";
 export { VariablePicker } from "./variable-picker";

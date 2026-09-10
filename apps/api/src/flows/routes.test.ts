@@ -330,7 +330,12 @@ describe("flow routes", () => {
       const body = (await refused.json()) as { error: string; problems?: FlowProblem[] };
       expect(body.error).toBe("invalid_flow");
       expect(body.problems).toEqual([
-        { severity: "error", nodeId: "n2", message: "“Pay” needs a recipient address." },
+        {
+          severity: "error",
+          nodeId: "n2",
+          path: "config.to",
+          message: "“Pay” needs a recipient address.",
+        },
       ]);
       // The refusal has to leave the flow off, not merely report on the way past.
       expect(records.get(id)?.enabled).toBeFalsy();

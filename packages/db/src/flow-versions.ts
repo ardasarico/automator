@@ -8,7 +8,7 @@ import type { SQL } from "bun";
 
 export const flowVersionLimit = 50;
 
-type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
+type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges" | "groups">;
 
 type VersionRow = {
   id: string;
@@ -22,7 +22,7 @@ type VersionRow = {
 
 export type FlowVersionInput = Pick<
   FlowDocumentInput,
-  "version" | "chainId" | "name" | "description" | "nodes" | "edges"
+  "version" | "chainId" | "name" | "description" | "nodes" | "edges" | "groups"
 >;
 
 function toRecord(row: VersionRow): FlowVersionRecord {
@@ -39,6 +39,7 @@ function toRecord(row: VersionRow): FlowVersionRecord {
       ...(row.document.chainId === undefined ? {} : { chainId: row.document.chainId }),
       nodes: row.document.nodes,
       edges: row.document.edges,
+      ...(row.document.groups === undefined ? {} : { groups: row.document.groups }),
     },
     createdAt: row.createdAt.toISOString(),
   };
@@ -58,6 +59,7 @@ export async function recordFlowVersion(
     ...(input.chainId === undefined ? {} : { chainId: input.chainId }),
     nodes: input.nodes,
     edges: input.edges,
+    ...(input.groups === undefined ? {} : { groups: input.groups }),
   };
   const rows = await tx<VersionRow[]>`
     INSERT INTO automator_flow_versions (id, flow_id, owner_id, number, name, description, document)

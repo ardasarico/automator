@@ -12,8 +12,8 @@ import type { CallableFlow, CallableFlowSource } from "./callable-flows";
 import { mcpInputSchema, mcpToolDefinition, mcpToolName, type McpToolDefinition } from "./tools";
 
 /* The name a client shows beside every tool, and prefixes onto tool names in some clients. */
-export const mcpServerName = "automator";
-export const mcpServerVersion = "0.1.0";
+const mcpServerName = "automator";
+const mcpServerVersion = "0.1.0";
 
 /*
  * An assistant that has just connected sees only tool names and one-line descriptions. `list_flows`

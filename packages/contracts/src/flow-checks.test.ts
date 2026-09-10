@@ -27,7 +27,12 @@ describe("findFlowProblems", () => {
     expect(
       findFlowProblems({ nodes, edges: [{ id: "e", source: "start", target: "pay" }] }),
     ).toEqual([
-      { severity: "error", nodeId: "pay", message: "“Send the bounty” needs a recipient address." },
+      {
+        severity: "error",
+        nodeId: "pay",
+        path: "config.to",
+        message: "“Send the bounty” needs a recipient address.",
+      },
     ]);
   });
 
@@ -64,6 +69,7 @@ describe("the payment screen's recipient", () => {
       {
         severity: "error",
         nodeId: "pay",
+        path: "config.to",
         message: "“pay” needs its recipient address to be a 0x address.",
       },
     ]);
@@ -81,7 +87,12 @@ describe("the payment screen's recipient", () => {
 
   test("needs an amount to collect", () => {
     expect(findFlowProblems(wired({ to: "", amount: "" }))).toEqual([
-      { severity: "error", nodeId: "pay", message: "“pay” needs an amount." },
+      {
+        severity: "error",
+        nodeId: "pay",
+        path: "config.amount",
+        message: "“pay” needs an amount.",
+      },
     ]);
   });
 });
@@ -102,7 +113,12 @@ describe("findActivationBlockers", () => {
     const all = findFlowProblems(document);
     expect(all.map((problem) => problem.severity)).toEqual(["warning", "error"]);
     expect(findActivationBlockers(document)).toEqual([
-      { severity: "error", nodeId: "pay", message: "“pay” needs a recipient address." },
+      {
+        severity: "error",
+        nodeId: "pay",
+        path: "config.to",
+        message: "“pay” needs a recipient address.",
+      },
     ]);
     expect(countErrors(all)).toBe(1);
   });
@@ -238,6 +254,7 @@ describe("API flows", () => {
     expect(problems).toContainEqual({
       severity: "error",
       nodeId: "call",
+      path: "config.inputs.0.name",
       message: "“call” has an input row 1 with no name.",
     });
   });
@@ -271,6 +288,7 @@ describe("API flows", () => {
     expect(problems).toContainEqual({
       severity: "error",
       nodeId: "out",
+      path: "config.outputs.0.name",
       message: "“out” has an output row 1 with no name.",
     });
   });

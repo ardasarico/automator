@@ -14,7 +14,7 @@ import type { SQL } from "bun";
 import { ownerColumns, toRecord, type FlowRow } from "./flows";
 import { recordFlowVersion } from "./flow-versions";
 
-type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges">;
+type Snapshot = Pick<FlowDocument, "version" | "chainId" | "nodes" | "edges" | "groups">;
 /* The document travels with every row: a list sends only the outline drawn from it. */
 type ListingRow = {
   id: string;
@@ -55,6 +55,7 @@ function toDetail(row: ListingDetailRow): MarketplaceListingDetail {
       ...(row.document.chainId === undefined ? {} : { chainId: row.document.chainId }),
       nodes: row.document.nodes,
       edges: row.document.edges,
+      ...(row.document.groups === undefined ? {} : { groups: row.document.groups }),
     },
   };
 }
@@ -118,6 +119,7 @@ export function createListingStore(sql: SQL | undefined) {
         ...(flow.chainId === undefined ? {} : { chainId: flow.chainId }),
         nodes: flow.nodes,
         edges: flow.edges,
+        ...(flow.groups === undefined ? {} : { groups: flow.groups }),
       };
       const nodeTypes = listingNodeTypes(flow);
       const updated = await db<ListingRow[]>`

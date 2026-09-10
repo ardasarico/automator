@@ -31,7 +31,16 @@ export function VariablePicker({
 }) {
   return (
     <Menu>
-      <MenuTrigger render={<Button variant="ghost" size="icon-xs" aria-label="Insert variable" />}>
+      <MenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Insert variable"
+            title="Insert a value from an earlier step"
+          />
+        }
+      >
         <RiBracesLine aria-hidden="true" />
       </MenuTrigger>
       <MenuPopup align="end" className="w-64">

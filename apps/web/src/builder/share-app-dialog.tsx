@@ -19,6 +19,7 @@ import { useShallow } from "zustand/react/shallow";
 import { getCatalogEntry } from "./catalog";
 import { EnableSigningButton } from "./enable-signing-button";
 import { useFlowActivation } from "./flow-activation";
+import { selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
 import { needsSigning, useWalletSigning } from "./use-wallet-signing";
 import { useAccessToken } from "../auth/access-token";
@@ -37,12 +38,12 @@ export function ShareAppDialog({ onClose, unsaved }: { onClose: () => void; unsa
   const activation = useFlowActivation();
   const flowId = useBuilderStore((state) => state.meta.id);
   const hasEntryScreen = useBuilderStore((state) =>
-    state.nodes.some((node) => node.data.type === "trigger.miniapp-open"),
+    selectFlowNodes(state).some((node) => node.data.type === "trigger.miniapp-open"),
   );
   const chainId = useBuilderStore((state) => state.meta.chainId ?? defaultChainId);
   const signerLabels = useBuilderStore(
     useShallow((state) =>
-      state.nodes
+      selectFlowNodes(state)
         .filter((node) => isSignerNodeType(node.data.type))
         .map((node) => node.data.label || getCatalogEntry(node.data.type).label),
     ),

@@ -13,7 +13,7 @@ import {
  * this only carries the two writes; the created key is returned to the caller and never stored.
  */
 
-export class ApiKeyRequestError extends Error {
+class ApiKeyRequestError extends Error {
   constructor(readonly code: string) {
     super(code);
     this.name = "ApiKeyRequestError";

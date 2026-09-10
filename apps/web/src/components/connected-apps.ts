@@ -1,11 +1,11 @@
-export type NotificationChannel = {
+type NotificationChannel = {
   id: "discord" | "telegram" | "email";
   label: string;
   keyword: string;
   hint: string;
 };
 
-export const notificationChannels: readonly NotificationChannel[] = [
+const notificationChannels: readonly NotificationChannel[] = [
   {
     id: "discord",
     label: "Discord",

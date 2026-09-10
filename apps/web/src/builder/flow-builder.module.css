@@ -38,14 +38,93 @@
   border-radius: 0;
 }
 
+/* A frame is drawn by `.group`; React Flow's own group styling would put a second box under it. */
+.canvas :global(.react-flow__node-group) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.group {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 1px dashed color-mix(in srgb, var(--muted-foreground) 50%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--muted-foreground) 6%, transparent);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.group:hover {
+  border-color: color-mix(in srgb, var(--muted-foreground) 80%, transparent);
+}
+
+.groupSelected,
+.groupSelected:hover {
+  border-color: var(--node-selected);
+  background: color-mix(in srgb, var(--node-selected) 6%, transparent);
+}
+
+.groupBar {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+}
+
+.groupLabel {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupLabelInput {
+  width: 160px;
+  height: 22px;
+  padding: 0 4px;
+  margin: 0 -4px;
+  border: 1px solid var(--ring);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  outline: none;
+}
+
+.groupResizeLine {
+  border-color: transparent;
+}
+
+.groupResizeHandle {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--node-selected);
+  border-radius: var(--radius-xs);
+  background: var(--background);
+}
+
 .canvas :global(.react-flow__edge.selectable:hover .react-flow__edge-path) {
   stroke: var(--edge-active);
 }
 
 .node {
   display: flex;
-  width: 240px;
+  width: 248px;
   flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--node-border);
   border-radius: var(--radius-lg);
   background: var(--node);
@@ -68,11 +147,46 @@
     0 1px 2px var(--shadow-color);
 }
 
-.nodeHeader {
+/* One colour per category, read by the bar's wash and the icon. */
+.node[data-category="trigger"] {
+  --cat: var(--chart-1);
+}
+.node[data-category="integration"],
+.node[data-category="onchain"] {
+  --cat: var(--chart-2);
+}
+.node[data-category="ai"] {
+  --cat: var(--chart-3);
+}
+.node[data-category="logic"],
+.node[data-category="notify"] {
+  --cat: var(--chart-4);
+}
+.node[data-category="data"],
+.node[data-category="screen"] {
+  --cat: var(--chart-5);
+}
+
+/* The title bar carries the category as a faint wash, so eight kinds of node stay one family. */
+.nodeBar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--cat, var(--muted-foreground)) 12%, var(--node));
+}
+
+/* The card's own 16 px icon; `.nodeIcon` below is the 32 px tile the palette, picker and outline use. */
+.nodeBarIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--cat, var(--muted-foreground));
 }
 
 .nodeIcon {
@@ -85,27 +199,6 @@
   border-radius: var(--radius-md);
   background: var(--muted);
   color: var(--muted-foreground);
-}
-
-.node[data-category="trigger"] .nodeIcon {
-  color: var(--chart-1);
-}
-.node[data-category="integration"] .nodeIcon {
-  color: var(--chart-2);
-}
-.node[data-category="ai"] .nodeIcon {
-  color: var(--chart-3);
-}
-.node[data-category="data"] .nodeIcon,
-.node[data-category="screen"] .nodeIcon {
-  color: var(--chart-5);
-}
-.node[data-category="logic"] .nodeIcon,
-.node[data-category="notify"] .nodeIcon {
-  color: var(--chart-4);
-}
-.node[data-category="onchain"] .nodeIcon {
-  color: var(--chart-2);
 }
 
 .nodeIcon[data-category="trigger"] {
@@ -129,34 +222,192 @@
   color: var(--chart-2);
 }
 
-.nodeText {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.nodeEyebrow {
-  font-size: 11px;
-  line-height: 14px;
-  color: var(--muted-foreground);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
 .nodeLabel {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  line-height: 20px;
+  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Sits exactly where the label was, so the card does not jump into and out of editing. */
+.nodeLabelInput {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  padding: 0 4px;
+  margin: 0 -4px;
+  border: 1px solid var(--ring);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  outline: none;
+}
+
+.nodeBody {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+}
+
+.nodeSummary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Families: a trigger, a screen and a branch take a shape of their own. ---- */
+
+/* Trigger: the whole card carries the tint, a small tag says what it is, nothing enters it. */
+.nodeTrigger {
+  background: color-mix(in srgb, var(--cat) 10%, var(--node));
+  border-color: color-mix(in srgb, var(--cat) 40%, var(--border));
+}
+
+.nodeTriggerHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 2px;
+}
+
+.nodeTriggerTag {
+  flex: 1;
+  min-width: 0;
+  color: var(--cat);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 14px;
+  text-transform: uppercase;
+}
+
+.nodeTriggerBody {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 10px 8px;
+}
+
+/* Screen: the bar as a step's, then what the visitor gets, one line each. */
+.nodeScreenList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 10px;
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+  line-height: 15px;
+}
+
+.nodeScreenList > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.nodeScreenList > span::before {
+  content: "";
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--muted-foreground);
+  opacity: 0.6;
+}
+
+.nodeScreenList span > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nodeScreen .nodePorts {
+  border-top: 1px solid var(--border);
+  padding: 3px 0;
+}
+
+/* Branch: the question in the middle, the answers as tabs the wires leave from. */
+.nodeBranch {
+  flex-direction: row;
+  align-items: stretch;
+  overflow: visible;
+}
+
+.nodeBranchMain {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 10px;
+}
+
+.nodeBranchTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nodeBranchTabs {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 0 6px 4px;
+}
+
+.nodeBranchTab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 18px;
+  margin-right: -1px;
+  padding: 0 12px 0 8px;
+  border: 1px solid var(--node-border);
+  border-right: 0;
+  border-radius: 9px 0 0 9px;
+  background: color-mix(in srgb, var(--muted-foreground) 8%, var(--node));
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  line-height: 14px;
+}
+
+.nodeBranchTab[data-tone="yes"] {
+  color: var(--chart-2);
+}
+
+.nodeBranchTab[data-tone="no"] {
+  color: var(--chart-4);
+}
+
+.nodeBranchTab .handle {
+  right: -6px;
 }
 
 .nodePorts {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  padding-bottom: 8px;
+  padding: 0 0 4px;
 }
 
 .nodePortColumn {
@@ -173,9 +424,9 @@
   position: relative;
   display: flex;
   min-width: 0;
-  height: 24px;
+  height: 20px;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 10px;
 }
 
 .nodePortColumnOutputs .nodePortRow {
@@ -185,8 +436,8 @@
 .nodePortLabel {
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 11px;
+  line-height: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -216,9 +467,46 @@
   box-shadow: 0 4px 12px var(--shadow-color);
 }
 
+/* Floats above a multi-node selection on the zoom panel's chrome. */
+.selectionToolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--popover);
+  box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.toolbarDivider {
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+  background: var(--border);
+}
+
+.toolbarKbd {
+  margin-left: 6px;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Fixed width so the panel does not breathe as the digits change between 25% and 125%. */
+.zoomReadout {
+  width: 48px;
+  padding: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
 .leftPanel {
   display: flex;
-  width: 260px;
+  /* Wide enough for node settings to breathe: at 260 px every label wrapped and each help line
+   * ran to three. The palette shares the panel and gets the room too. */
+  width: 340px;
   flex: none;
   flex-direction: column;
   min-height: 0;
@@ -671,47 +959,6 @@
   font-size: 11px;
   line-height: 14px;
   overflow-wrap: anywhere;
-}
-
-.nodeSettings {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  overflow-y: auto;
-}
-
-.nodeSettingsHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px;
-  border-bottom: 1px solid var(--border);
-}
-
-.nodeSettingsType {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  align-items: baseline;
-  gap: 6px;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-}
-.nodeSettingsCategory {
-  flex: none;
-  color: var(--muted-foreground);
-  text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-}
-
-.nodeSettingsForm {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px;
 }
 
 .headerNote {

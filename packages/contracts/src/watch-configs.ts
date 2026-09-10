@@ -109,6 +109,7 @@ export const priceTriggerConfigSchema = Type.Object({
     default: JSON.stringify(samplePricePayload, null, 2),
     description: "Payload Simulate hands to this trigger",
     contentMediaType: "application/json",
+    advanced: true,
   }),
 });
 export type PriceTriggerConfig = Static<typeof priceTriggerConfigSchema>;
@@ -142,6 +143,7 @@ export const balanceTriggerConfigSchema = Type.Object({
     default: JSON.stringify(sampleBalancePayload, null, 2),
     description: "Payload Simulate hands to this trigger",
     contentMediaType: "application/json",
+    advanced: true,
   }),
 });
 export type BalanceTriggerConfig = Static<typeof balanceTriggerConfigSchema>;

@@ -9,6 +9,7 @@ export const forEachConfigSchema = Type.Object({
     minimum: 1,
     maximum: 100,
     default: 100,
+    advanced: true,
     description: "Stops after this many items; 100 at most.",
   }),
 });

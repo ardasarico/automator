@@ -39,7 +39,7 @@ function toTable(row: TableRow): DataTable {
 }
 
 /** Rejects a column list that is too long or names the same column id twice. */
-export function assertColumns(columns: readonly DataColumn[]): void {
+function assertColumns(columns: readonly DataColumn[]): void {
   if (columns.length > dataTableMaxColumns)
     throw new DataLimitError(`A table can have at most ${dataTableMaxColumns} columns.`);
   const seen = new Set<string>();
@@ -51,7 +51,7 @@ export function assertColumns(columns: readonly DataColumn[]): void {
 }
 
 /** Rejects a type change on a column that already has stored values behind it. */
-export function assertColumnTypesUnchanged(
+function assertColumnTypesUnchanged(
   before: readonly DataColumn[],
   after: readonly DataColumn[],
 ): void {

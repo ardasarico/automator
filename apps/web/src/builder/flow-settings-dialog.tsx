@@ -21,6 +21,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { EnableSigningButton } from "./enable-signing-button";
 import { useFlowActivation } from "./flow-activation";
+import { selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
 import { getCatalogEntry } from "./catalog";
 import { useFlowEnabled } from "./use-flow-enabled";
@@ -64,23 +65,23 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
   const meta = useBuilderStore((state) => state.meta);
   const setMeta = useBuilderStore((state) => state.setMeta);
   const hasWebhook = useBuilderStore((state) =>
-    state.nodes.some((node) => node.data.type === "trigger.webhook"),
+    selectFlowNodes(state).some((node) => node.data.type === "trigger.webhook"),
   );
   const hasSchedule = useBuilderStore((state) =>
-    state.nodes.some((node) => node.data.type === "trigger.schedule"),
+    selectFlowNodes(state).some((node) => node.data.type === "trigger.schedule"),
   );
   const hasEvent = useBuilderStore((state) =>
-    state.nodes.some((node) => node.data.type === "trigger.onchain-event"),
+    selectFlowNodes(state).some((node) => node.data.type === "trigger.onchain-event"),
   );
   const hasWatch = useBuilderStore((state) =>
-    state.nodes.some(
+    selectFlowNodes(state).some(
       (node) => node.data.type === "trigger.price" || node.data.type === "trigger.balance",
     ),
   );
   const hasUnattended = hasWebhook || hasSchedule || hasEvent || hasWatch;
   const signerLabels = useBuilderStore(
     useShallow((state) =>
-      state.nodes
+      selectFlowNodes(state)
         .filter((node) => isSignerNodeType(node.data.type))
         .map((node) => node.data.label || getCatalogEntry(node.data.type).label),
     ),

@@ -1,7 +1,7 @@
 import type { FlowDocument, FlowRun, FlowRunNodeResult } from "@automator/contracts";
 import { createStore, type StoreApi } from "zustand";
 
-export type RunStatus = "idle" | "running" | FlowRun["status"];
+type RunStatus = "idle" | "running" | FlowRun["status"];
 
 export type RunState = {
   status: RunStatus;

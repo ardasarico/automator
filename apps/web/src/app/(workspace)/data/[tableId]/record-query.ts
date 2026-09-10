@@ -6,7 +6,7 @@ import type { ConditionOperator, DataColumn } from "@automator/contracts";
  * knows how they are spelled.
  */
 export type RecordFilter = { column: string; operator: ConditionOperator; value: string };
-export type RecordSort = { column: string; direction: "asc" | "desc" };
+type RecordSort = { column: string; direction: "asc" | "desc" };
 export type RecordQuery = {
   cursor?: string;
   filters: readonly RecordFilter[];
@@ -16,7 +16,7 @@ export type RecordQuery = {
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
-export function first(value: string | string[] | undefined): string | undefined {
+function first(value: string | string[] | undefined): string | undefined {
   const single = Array.isArray(value) ? value[0] : value;
   return single || undefined;
 }

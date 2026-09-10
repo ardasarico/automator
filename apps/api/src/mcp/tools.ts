@@ -35,7 +35,7 @@ export function mcpToolName(flow: { id: string; name: string }): string {
   return `${base}${suffix}`;
 }
 
-export interface McpPropertySchema {
+interface McpPropertySchema {
   type: "string" | "number" | "boolean";
   description?: string;
   pattern?: string;

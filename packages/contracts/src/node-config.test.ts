@@ -63,3 +63,18 @@ describe("secret fields", () => {
     expect(redactSecrets(schema, plain)).toBe(plain);
   });
 });
+
+describe("form hints", () => {
+  test("every showWhen names a sibling field", async () => {
+    const { flowNodeConfigSchemas } = await import("./flow-node-configs");
+    const { screenConfigSchemas } = await import("./screens");
+    const schemas = { ...flowNodeConfigSchemas, ...screenConfigSchemas };
+    for (const [type, schema] of Object.entries(schemas)) {
+      const properties = schema.properties as Record<string, { showWhen?: { field: string } }>;
+      for (const [name, property] of Object.entries(properties)) {
+        if (!property.showWhen) continue;
+        expect(properties, `${type}.${name}`).toHaveProperty(property.showWhen.field);
+      }
+    }
+  });
+});

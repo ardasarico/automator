@@ -65,6 +65,7 @@ describe("findFlowProblems", () => {
       {
         severity: "warning",
         nodeId: "hook",
+        path: "config.samplePayload",
         message:
           "“hook” has a sample payload that is not valid JSON, so Simulate sends an empty one.",
       },
@@ -108,10 +109,16 @@ describe("findFlowProblems", () => {
       ],
     });
     expect(problems).toEqual([
-      { severity: "error", nodeId: "set", message: "“set” needs a variable name." },
+      {
+        severity: "error",
+        nodeId: "set",
+        path: "config.name",
+        message: "“set” needs a variable name.",
+      },
       {
         severity: "warning",
         nodeId: "post",
+        path: "config.webhookUrl",
         message: "“post” needs a Discord webhook URL: set your own.",
       },
     ]);
@@ -131,7 +138,12 @@ describe("findFlowProblems", () => {
       ],
     });
     expect(problems).toEqual([
-      { severity: "error", nodeId: "verify", message: "“verify” needs a World action id." },
+      {
+        severity: "error",
+        nodeId: "verify",
+        path: "config.action",
+        message: "“verify” needs a World action id.",
+      },
       {
         severity: "warning",
         nodeId: "verify",

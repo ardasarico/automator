@@ -6,6 +6,7 @@ import { serializeFlow } from "./document";
 import { RunRequestError, runFlowRequest, runSavedFlowRequest } from "./run-client";
 import { useFlowActivation } from "./flow-activation";
 import { useRunStore } from "./run-store-provider";
+import { selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
 import { findSimulationTrigger, startingTriggers, triggerSamplePayload } from "./trigger-payload";
 import { useAccessToken } from "../auth/access-token";
@@ -37,7 +38,7 @@ export function useSimulationTriggers(): {
   triggers: readonly SimulationTrigger[];
   activeId: string | null;
 } {
-  const nodes = useBuilderStore((state) => state.nodes);
+  const nodes = useBuilderStore(selectFlowNodes);
   const edges = useBuilderStore((state) => state.edges);
   const selectedId = useSelectedNodeId();
   return useMemo(() => {
@@ -59,7 +60,7 @@ export function useFlowRun() {
   const fail = useRunStore((state) => state.fail);
   const reset = useRunStore((state) => state.reset);
   const meta = useBuilderStore((state) => state.meta);
-  const nodes = useBuilderStore((state) => state.nodes);
+  const nodes = useBuilderStore(selectFlowNodes);
   const edges = useBuilderStore((state) => state.edges);
   const dirty = useBuilderStore((state) => state.dirty);
   const selectedId = useSelectedNodeId();

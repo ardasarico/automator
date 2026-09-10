@@ -41,6 +41,7 @@ export type ScheduleTriggerConfig = Static<typeof scheduleTriggerConfigSchema>;
 export const miniappOpenTriggerConfigSchema = Type.Object({
   visitorErrorMessage: Type.String({
     default: "",
+    advanced: true,
     description:
       "Shown to visitors when the app hits a problem, for example how to reach you. The error itself is never shown to them.",
   }),
@@ -58,12 +59,12 @@ export {
 export * from "./data-node-configs";
 
 export const conditionConfigSchema = Type.Object({
-  left: Type.String({ default: "{{input.value}}" }),
+  left: Type.String({ default: "{{input.value}}", title: "Compare" }),
   operator: Type.Union(
     conditionOperators.map((operator) => Type.Literal(operator)),
     { default: "equals" },
   ),
-  right: Type.String({ default: "" }),
+  right: Type.String({ default: "", title: "With" }),
 });
 export type ConditionConfig = Static<typeof conditionConfigSchema>;
 
@@ -88,6 +89,7 @@ export const discordMessageConfigSchema = Type.Object({
   content: Type.String({ default: "", title: "Message", description: "What to post." }),
   username: Type.String({
     default: "",
+    advanced: true,
     title: "Post as",
     description: "Overrides the name Discord shows for the webhook. Optional.",
   }),
@@ -101,6 +103,7 @@ export const generateTextConfigSchema = Type.Object({
   }),
   instructions: Type.String({
     default: "",
+    advanced: true,
     title: "System instructions",
     description: "Standing rules for the model, such as tone, length or format. Optional.",
   }),
@@ -115,6 +118,7 @@ export const classifyConfigSchema = Type.Object({
   }),
   instructions: Type.String({
     default: "",
+    advanced: true,
     title: "System instructions",
     description: "How to decide between the labels, when the names alone are not enough. Optional.",
   }),
@@ -131,6 +135,7 @@ export const extractConfigSchema = Type.Object({
   }),
   instructions: Type.String({
     default: "",
+    advanced: true,
     title: "System instructions",
     description: "Extra guidance on how to read the text. Optional.",
   }),
@@ -155,12 +160,18 @@ export const agentConfigSchema = Type.Object({
     default: "{{input.prompt}}",
     description: "What to do on this run. Reference earlier steps with {{…}} templates.",
   }),
+  /* `group` and `showWhen` are form hints like `secret`: the tool settings sit under one heading,
+   * and each one only shows while its tool is switched on. */
   tools: Type.Array(Type.Union(agentTools.map((tool) => Type.Literal(tool))), {
     default: [],
+    group: "Tools",
+    title: "Available to the agent",
     description: "The only actions this agent may take. It cannot use anything left unchecked.",
   }),
   allowedHosts: Type.Array(Type.String(), {
     default: [],
+    group: "Tools",
+    showWhen: { field: "tools", includes: "http_get" },
     title: "Allowed hosts",
     description:
       "Hostnames the HTTP tool may reach, such as api.example.com. Blank blocks every request.",
@@ -168,11 +179,15 @@ export const agentConfigSchema = Type.Object({
   discordWebhookUrl: Type.String({
     default: "",
     secret: true,
+    group: "Tools",
+    showWhen: { field: "tools", includes: "discord_message" },
     title: "Discord webhook",
     description: "Where the Discord tool posts.",
   }),
   subgraph: Type.String({
     default: "",
+    group: "Tools",
+    showWhen: { field: "tools", includes: "query_subgraph" },
     title: "Subgraph",
     description:
       "The only subgraph the query tool may read: a Subgraph ID, a deployment ID or a full query URL.",
@@ -181,6 +196,7 @@ export const agentConfigSchema = Type.Object({
     minimum: 1,
     maximum: 20,
     default: 5,
+    advanced: true,
     title: "Step limit",
     description: "How many tool calls the agent may make before the run stops it.",
   }),

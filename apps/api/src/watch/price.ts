@@ -8,7 +8,7 @@ import type { ChainReader } from "@automator/flow-engine";
 import { isAddress, type Address } from "viem";
 import { WatchConfigError, formatDecimal, validateDecimals, type Reading } from "./threshold";
 
-export const aggregatorAbi = [
+const aggregatorAbi = [
   {
     type: "function",
     name: "decimals",

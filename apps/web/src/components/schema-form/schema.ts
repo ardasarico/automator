@@ -22,7 +22,16 @@ export type Property = {
    * only the ones that column's type supports. `ObjectFields` puts that column on the context.
    */
   operatorFor?: string;
+  /** Folds the field under a collapsed "Advanced" section; see `sectionFields` in `layout.ts`. */
+  advanced?: boolean;
+  /** Puts the field under a named section; sections keep the order they first appear in. */
+  group?: string;
+  /** Renders the field only while a sibling holds the named value. */
+  showWhen?: ShowWhen;
 };
+
+/** A field's visibility rule: the sibling `field` equals `equals`, or is a list holding `includes`. */
+export type ShowWhen = { field: string; equals?: unknown; includes?: string };
 
 /** What a field needs from its siblings: the table its object refers to, and the column it picked. */
 export type FieldContext = {
@@ -61,9 +70,16 @@ export type FieldProps = {
   value: unknown;
   onChange(value: unknown): void;
   variables?: VariableOption[];
-  preview?: PreviewTemplate;
   context?: FieldContext;
+  /** Where the value lives in the document, such as `config.fields.0.id`; keys `problems`. */
+  path?: string;
+  /** Problems by path, shown under the field that owns each one. */
+  problems?: FieldProblems;
 };
+
+/** What the flow checks found wrong with one setting. */
+export type FieldProblem = { severity: "error" | "warning"; message: string };
+export type FieldProblems = Readonly<Record<string, FieldProblem>>;
 
 /** How much room a string field needs, and whether it holds code rather than prose. */
 export type TextFieldShape = "line" | "multiline" | "code";
@@ -106,6 +122,12 @@ export type TextSelection = { start: number; end: number };
 /** One `{{…}}` template, the unit a pick swaps rather than splits. */
 const placeholder = /\{\{[^{}]*\}\}/g;
 const onlyPlaceholder = /^\{\{[^{}]*\}\}$/;
+
+/** The template a field holds when it holds exactly one and nothing else, trimmed; else null. */
+export function singleTemplate(text: string): string | null {
+  const trimmed = text.trim();
+  return onlyPlaceholder.test(trimmed) ? trimmed : null;
+}
 
 /**
  * Where a picked variable lands in the text a field already holds. Appending was never right: the

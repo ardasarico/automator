@@ -10,6 +10,8 @@ import { Textarea } from "@automator/ui/textarea";
 import { RiAddLine, RiArrowDownLine, RiArrowUpLine, RiDeleteBinLine } from "@remixicon/react";
 import { useEffect, useRef, useState } from "react";
 import { ColumnRefField, OperatorField, TableRefField } from "./data-ref-fields";
+import styles from "./fields.module.css";
+import { isVisible, sectionFields } from "./layout";
 import { MultiSelectField } from "./multi-select-field";
 import {
   fieldLabel,
@@ -20,28 +22,59 @@ import {
   singular,
   textFieldShape,
   type FieldContext,
+  type FieldProblems,
   type FieldProps,
-  type PreviewTemplate,
   type Property,
   type TextSelection,
   type VariableOption,
 } from "./schema";
-import { TemplatePreviews } from "./template-preview";
+import { ValueField } from "./value-field";
 import { VariablePicker } from "./variable-picker";
 
+/** Put on a form to show each field's description only while that field is hovered or focused. */
+export const quietHelpClass: string = styles.quietHelp!;
+
+/**
+ * A field's description. The class lets a form hide it until the field is hovered or focused
+ * (`.quietHelp` in the stylesheet); on its own it always shows.
+ */
 export function Help({ text }: { text: string | undefined }) {
-  return text ? <FieldDescription>{text}</FieldDescription> : null;
+  return text ? <FieldDescription className="schema-help">{text}</FieldDescription> : null;
 }
 
-export function ConfigField({
+export function ConfigField(props: FieldProps) {
+  const problem = props.path !== undefined ? props.problems?.[props.path] : undefined;
+  /* A JSON field reports its own syntax problem as the reader types, so the flow check's copy of
+   * it would only say the same thing twice. */
+  const ownsProblem = props.property.contentMediaType === "application/json";
+  /* The wrapper is there whether or not a problem is, so a problem appearing does not remount the
+   * control under the reader's caret. Not Base UI's FieldError: that reads validity from a Field
+   * root, and this comes from the flow checks, not the control. */
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-1">
+      <ConfigControl {...props} />
+      {problem && !ownsProblem && (
+        <p
+          role={problem.severity === "error" ? "alert" : "status"}
+          className={`text-xs ${problem.severity === "error" ? "text-destructive-text" : "text-warning-foreground"}`}
+        >
+          {problem.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ConfigControl({
   id,
   name,
   property,
   value,
   onChange,
   variables = [],
-  preview,
   context,
+  path,
+  problems,
 }: FieldProps) {
   const label = fieldLabel(name, property);
   const options = property.anyOf
@@ -144,8 +177,11 @@ export function ConfigField({
     );
   }
   if (property.type === "string") {
+    /* A one-line setting with values to pick from gets the list; prose and code stay text. */
+    const Component =
+      variables.length > 0 && textFieldShape(name, property) === "line" ? ValueField : StringField;
     return (
-      <StringField
+      <Component
         id={id}
         name={name}
         label={label}
@@ -153,7 +189,6 @@ export function ConfigField({
         value={value}
         onChange={onChange}
         variables={variables}
-        preview={preview}
       />
     );
   }
@@ -192,8 +227,9 @@ export function ConfigField({
         value={value}
         onChange={onChange}
         variables={variables}
-        preview={preview}
         context={context}
+        path={path}
+        problems={problems}
       />
     );
   }
@@ -206,8 +242,9 @@ export function ConfigField({
           value={value}
           onChange={(patch) => onChange({ ...(isRecord(value) ? value : {}), ...patch })}
           variables={variables}
-          preview={preview}
           context={context}
+          path={path}
+          problems={problems}
         />
       </Group>
     );
@@ -228,8 +265,7 @@ export function StringField({
   value,
   onChange,
   variables = [],
-  preview,
-}: FieldProps & { label: string }) {
+}: Omit<FieldProps, "path" | "problems"> & { label: string }) {
   const text = typeof value === "string" ? value : "";
   const shape = textFieldShape(name, property);
   const control = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
@@ -295,7 +331,6 @@ export function StringField({
           className={shape === "code" ? "min-h-32 font-mono text-xs sm:text-xs" : undefined}
         />
       )}
-      <TemplatePreviews text={text} preview={preview} />
       <Help
         text={
           property.secret
@@ -313,7 +348,7 @@ export function JsonField({
   property,
   value,
   onChange,
-}: Omit<FieldProps, "name"> & { label: string }) {
+}: Omit<FieldProps, "name" | "path" | "problems"> & { label: string }) {
   const text = typeof value === "string" ? value : "";
   const problem = samplePayloadProblem(text);
   return (
@@ -365,7 +400,7 @@ export function DateTimeField({
   property,
   value,
   onChange,
-}: Omit<FieldProps, "name"> & { label: string }) {
+}: Omit<FieldProps, "name" | "path" | "problems"> & { label: string }) {
   return (
     <Field>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
@@ -387,7 +422,7 @@ export function StringListField({
   property,
   value,
   onChange,
-}: Omit<FieldProps, "name"> & { label: string }) {
+}: Omit<FieldProps, "name" | "path" | "problems"> & { label: string }) {
   const text = Array.isArray(value) ? value.filter((v) => typeof v === "string").join(", ") : "";
   const [draft, setDraft] = useState({ stored: text, text });
   return (
@@ -444,16 +479,24 @@ export function ObjectFields({
   value,
   onChange,
   variables,
-  preview,
   context,
+  path,
+  problems,
+  sectioned = false,
 }: {
   id: string;
   properties: Record<string, Property>;
   value: unknown;
   onChange(patch: Record<string, unknown>): void;
   variables?: VariableOption[];
-  preview?: PreviewTemplate;
   context?: FieldContext;
+  path?: string;
+  problems?: FieldProblems;
+  /**
+   * Lays the fields out by their schema hints: named groups under a caption and `advanced` ones
+   * behind a folded summary. Off, every field follows the last in schema order.
+   */
+  sectioned?: boolean;
 }) {
   const record = isRecord(value) ? value : {};
   /* An object that declares a table reference is the scope its column pickers read, and one that
@@ -470,25 +513,57 @@ export function ObjectFields({
     tableId === undefined && columnId === undefined
       ? context
       : { tableId: tableId ?? context?.tableId, columnId: columnId ?? context?.columnId };
+  const shown = (names: readonly string[]) =>
+    names.filter((name) => isVisible(properties[name]!, record));
+  const render = (name: string) => (
+    <ConfigField
+      key={name}
+      id={`${id}-${name}`}
+      name={name}
+      property={properties[name]!}
+      value={record[name]}
+      onChange={(next) => onChange({ [name]: next })}
+      variables={variables}
+      context={scope}
+      path={path === undefined ? undefined : `${path}.${name}`}
+      problems={problems}
+    />
+  );
+
+  if (!sectioned) return <>{shown(Object.keys(properties)).map(render)}</>;
   return (
     <>
-      {Object.entries(properties).map(([name, property]) => (
-        <ConfigField
-          key={name}
-          id={`${id}-${name}`}
-          name={name}
-          property={property}
-          value={record[name]}
-          onChange={(next) => onChange({ [name]: next })}
-          variables={variables}
-          preview={preview}
-          context={scope}
-        />
-      ))}
+      {sectionFields(properties).map((section) => {
+        const names = shown(section.names);
+        if (names.length === 0) return null;
+        if (section.kind === "main") return names.map(render);
+        if (section.kind === "group")
+          return (
+            <section key={section.label} className={styles.section}>
+              <h3 className={styles.sectionTitle}>{section.label}</h3>
+              {names.map(render)}
+            </section>
+          );
+        return (
+          <details key="advanced" className={styles.advanced}>
+            <summary className={styles.summary}>
+              Advanced
+              <span className={styles.summaryCount}>
+                {names.length === 1 ? "1 setting" : `${names.length} settings`}
+              </span>
+            </summary>
+            <div className={styles.sectionBody}>{names.map(render)}</div>
+          </details>
+        );
+      })}
     </>
   );
 }
 
+/**
+ * A list of objects, one row each. The row's controls sit at its end and show while it is hovered
+ * or holds focus, so a list of ten filters reads as ten lines rather than ten boxed toolbars.
+ */
 export function ArrayField({
   id,
   label,
@@ -496,8 +571,9 @@ export function ArrayField({
   value,
   onChange,
   variables,
-  preview,
   context,
+  path,
+  problems,
 }: Omit<FieldProps, "name"> & { label: string }) {
   const items = Array.isArray(value) ? value : [];
   const itemSchema = property.items as TSchema;
@@ -512,19 +588,23 @@ export function ArrayField({
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={styles.list}>
       <div>
         <span className="text-label">{label}</span>
         {property.description && (
-          <p className="text-xs text-muted-foreground">{property.description}</p>
+          <p className="schema-help text-xs text-muted-foreground">{property.description}</p>
         )}
       </div>
       {items.map((item, index) => (
-        <Group
+        <div
           key={index}
-          label={itemTitle(item, index, noun)}
-          actions={
-            <>
+          role="group"
+          aria-label={itemTitle(item, index, noun)}
+          className={styles.row}
+        >
+          <div className={styles.rowHead}>
+            <span className={styles.rowTitle}>{itemTitle(item, index, noun)}</span>
+            <div className={styles.rowActions}>
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -551,22 +631,24 @@ export function ArrayField({
               >
                 <RiDeleteBinLine aria-hidden="true" />
               </Button>
-            </>
-          }
-        >
-          <ObjectFields
-            id={`${id}-${index}`}
-            properties={property.items!.properties!}
-            value={item}
-            onChange={(patch) => replace(index, { ...(isRecord(item) ? item : {}), ...patch })}
-            variables={variables}
-            preview={preview}
-            context={context}
-          />
-        </Group>
+            </div>
+          </div>
+          <div className={styles.rowFields}>
+            <ObjectFields
+              id={`${id}-${index}`}
+              properties={property.items!.properties!}
+              value={item}
+              onChange={(patch) => replace(index, { ...(isRecord(item) ? item : {}), ...patch })}
+              variables={variables}
+              context={context}
+              path={path === undefined ? undefined : `${path}.${index}`}
+              problems={problems}
+            />
+          </div>
+        </div>
       ))}
       <Button
-        variant="outline"
+        variant="ghost"
         size="sm"
         className="self-start"
         onClick={() => onChange([...items, Value.Create(itemSchema)])}

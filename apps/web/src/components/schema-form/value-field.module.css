@@ -1,0 +1,81 @@
+/* A picked value reads as a token with a handle, not as text in a box: where it comes from, what
+ * it is, and an explicit "Change" so the reader knows the control opens. */
+.trigger {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px 3px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--secondary);
+  color: var(--foreground);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  text-align: start;
+  cursor: pointer;
+}
+
+.trigger:hover {
+  background: var(--accent);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -1px;
+}
+
+.trigger[data-disabled] {
+  pointer-events: none;
+  opacity: 0.64;
+}
+
+.source {
+  flex: none;
+  max-width: 40%;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.value {
+  min-width: 0;
+  flex: 1;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.raw {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+  font-weight: 400;
+}
+
+.change {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.change svg {
+  width: 14px;
+  height: 14px;
+}
+
+.trigger:hover .change {
+  color: var(--foreground);
+}

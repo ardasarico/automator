@@ -31,7 +31,6 @@ import {
   RiNotification3Line,
   RiPenNibLine,
   RiPlayLine,
-  RiPlugLine,
   RiPriceTag3Line,
   RiQrCodeLine,
   RiQuillPenLine,
@@ -109,17 +108,6 @@ export const categoryLabels: Record<FlowNodeCategory, string> = {
   screen: "Screen",
   notify: "Notification",
   integration: "Integration",
-};
-
-export const categoryIcons: Record<FlowNodeCategory, RemixiconComponentType> = {
-  trigger: RiFlashlightLine,
-  logic: RiGitBranchLine,
-  data: RiDatabase2Line,
-  onchain: RiCoinLine,
-  ai: RiRobot2Line,
-  screen: RiLayoutLine,
-  notify: RiNotification3Line,
-  integration: RiPlugLine,
 };
 
 export type CatalogGroupDefinition = {
