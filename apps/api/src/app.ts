@@ -39,6 +39,8 @@ import { createFlowVersionRoutes } from "./flows/versions";
 import { createHookRoutes } from "./hooks/routes";
 import { createPublicRoutes } from "./public/routes";
 import { createMarketplaceRoutes } from "./marketplace/routes";
+import { createMcpRoutes } from "./mcp/routes";
+import { createCallableFlowSource } from "./mcp/source";
 import { createRunRoutes } from "./runs/routes";
 import { defaultRateLimits, type RateLimits } from "./rate-limit";
 import { createQuickJsSandbox } from "./sandbox/quickjs";
@@ -290,6 +292,23 @@ export function createApp({
     .use(
       listings && flows && users
         ? createMarketplaceRoutes({ listings, flows, users, identity, log })
+        : new Elysia(),
+    )
+    .use(
+      /* The same flows the machine routes serve, offered to an assistant as tools. Both are
+       * gated on the same key, so an owner enables one surface and gets both. */
+      apiKeys && flows && runs
+        ? createMcpRoutes({
+            source: createCallableFlowSource({
+              flows,
+              runs,
+              engine: engineFor,
+              chainFactory,
+              dataFactory,
+            }),
+            keys: createApiKeyVerifier(apiKeys),
+            callsPerMinute: limits.api,
+          })
         : new Elysia(),
     );
 }

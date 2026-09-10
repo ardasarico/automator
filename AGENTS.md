@@ -13,6 +13,7 @@ Bun workspaces with Turborepo; run everything from the repository root.
 - `bun install`, then `bun run dev` starts web (3000), API (3001), runtime (3002), and UI Lab (3003). Use `--filter=@automator/web` for one app; auth and health need the API running separately. UI Lab needs no env file or backend.
 - Verification: `bun run lint`, `bun run typecheck`, `bun run test`, `bun run build`, `bun run format:check` (`bun run format` fixes).
 - Single test file: `bun test apps/api/src/auth/privy.test.ts` from the root, or `bun test <pattern>` inside the package. Any test file runs from the root, e.g. `bun test apps/web/src/auth/provider.test.tsx`.
+- `packages/db`'s integration tests are the only ones that reach Postgres and skip themselves without a database, so run them before anything that changes the schema: `TEST_DATABASE_URL="postgres://localhost:5432/automator_test" bun test packages/db`.
 - Env files: copy each app's `.env.example` to `apps/api/.env`, `apps/web/.env.local`, and `apps/runtime/.env.local`. Only the API gets `DATABASE_URL` and `PRIVY_APP_SECRET`.
 
 ## Architecture
