@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { AiStreamEvent } from "@automator/contracts";
+import { aiStoppedDetail, type AiStreamEvent } from "@automator/contracts";
 import {
   LanguageModelError,
   scriptedModel,
@@ -26,6 +26,7 @@ async function run(
     current?: Parameters<typeof runCanvasAgent>[0]["current"];
     /** A model of its own, for the turns a script cannot express — a streamed answer. */
     model?: LanguageModel;
+    signal?: AbortSignal;
   } = {},
 ) {
   const { model, requests } = scriptedModel(turns);
@@ -34,6 +35,7 @@ async function run(
     model: options.model ?? model,
     text: options.text ?? "Post hi to Discord when I run it",
     current: options.current,
+    ...(options.signal ? { signal: options.signal } : {}),
     history: [],
     emit: (event) => events.push(event),
     verificationBudget: 2000,
@@ -368,5 +370,39 @@ describe("canvas agent", () => {
     expect(proposal!.verification.warnings[0]).toMatch(
       /^The automatic checks did not finish in time/,
     );
+  });
+
+  test("a stop reaches the model and ends the turn with the shared wording", async () => {
+    const controller = new AbortController();
+    let given: AbortSignal | undefined;
+    const model: LanguageModel = (request) =>
+      new Promise((_resolve, reject) => {
+        given = request.signal;
+        request.signal?.addEventListener("abort", () =>
+          reject(new DOMException("Aborted", "AbortError")),
+        );
+        controller.abort();
+      });
+    const { parts, events } = await run([], { model, signal: controller.signal });
+
+    expect(given).toBe(controller.signal);
+    const stopped: AiStreamEvent = {
+      type: "error",
+      error: "unavailable",
+      detail: aiStoppedDetail,
+    };
+    expect(parts).toEqual([stopped]);
+    expect(events.at(-1)).toEqual(stopped);
+  });
+
+  test("a stop is not reported as a model failure", async () => {
+    const controller = new AbortController();
+    const model: LanguageModel = async () => {
+      controller.abort();
+      throw new LanguageModelError("upstream", "OpenRouter answered 500");
+    };
+    const { parts } = await run([], { model, signal: controller.signal });
+
+    expect(parts).toEqual([{ type: "error", error: "unavailable", detail: aiStoppedDetail }]);
   });
 });

@@ -57,6 +57,12 @@ export type AiVerification = Static<typeof aiVerificationSchema>;
 
 export const aiErrorDetailMaxLength = 300;
 
+/**
+ * The detail a turn the reader stopped is stored and rendered with. Shared so a stopped turn
+ * reads the same live and after a reload, whether the API wrote it or the panel did.
+ */
+export const aiStoppedDetail = "Stopped before the model answered.";
+
 export const aiErrorSchema = Type.Object({
   error: apiErrorCodeSchema,
   detail: Type.Optional(Type.String({ maxLength: aiErrorDetailMaxLength })),
@@ -232,6 +238,8 @@ export const sendAiMessageRequestSchema = Type.Object({
   text: Type.String({ minLength: 1, maxLength: aiMessageTextMaxLength }),
   /* The canvas when it has unsaved changes; absent, the API reads the saved flow. */
   document: Type.Optional(flowDocumentInputSchema),
+  /* Start a new flow: ignore the saved document, and answer with a replacement. */
+  replace: Type.Optional(Type.Boolean()),
   context: Type.Optional(aiContextSchema),
 });
 export type SendAiMessageRequest = Static<typeof sendAiMessageRequestSchema>;

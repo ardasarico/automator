@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  aiStoppedDetail,
   aiStreamEventSchema,
   Value,
   type AiMessage,
@@ -17,11 +18,25 @@ const identity: IdentityProvider = {
   walletAddress: async () => null,
 };
 
+const savedNode = {
+  id: "saved",
+  type: "trigger.manual" as const,
+  position: { x: 0, y: 0 },
+  label: "Run",
+  config: {},
+};
+
 const flowRecord: FlowRecord = {
   flow: { version: 1, id: "f1", name: "Ping", description: "", nodes: [], edges: [] },
   createdAt: "2026-09-11T00:00:00.000Z",
   updatedAt: "2026-09-11T00:00:00.000Z",
   enabled: false,
+};
+
+/* The same flow with a node already on it, for the two ways a turn can treat what is saved. */
+const builtRecord: FlowRecord = {
+  ...flowRecord,
+  flow: { ...flowRecord.flow, nodes: [savedNode] },
 };
 
 function memoryMessages(): AiMessageStore & { rows: Map<string, AiMessage[]> } {
@@ -57,16 +72,29 @@ function memoryMessages(): AiMessageStore & { rows: Map<string, AiMessage[]> } {
   };
 }
 
-const flows = {
+const flowsHolding = (record: FlowRecord) => ({
   find: async (ownerId: string, id: string) =>
-    ownerId === "did:privy:alice" && id === "f1" ? flowRecord : null,
-};
+    ownerId === "did:privy:alice" && id === "f1" ? record : null,
+});
 
-function fixture(model: LanguageModel | undefined, options: { callsPerMinute?: number } = {}) {
+const flows = flowsHolding(flowRecord);
+
+function fixture(
+  model: LanguageModel | undefined,
+  options: { callsPerMinute?: number; saved?: FlowRecord } = {},
+) {
   const messages = memoryMessages();
   let n = 0;
+  const { saved, ...rest } = options;
   const app = new Elysia().use(
-    createAiRoutes({ identity, model, flows, messages, newId: () => `id${(n += 1)}`, ...options }),
+    createAiRoutes({
+      identity,
+      model,
+      flows: saved ? flowsHolding(saved) : flows,
+      messages,
+      newId: () => `id${(n += 1)}`,
+      ...rest,
+    }),
   );
   const call = (
     method: string,
@@ -199,13 +227,61 @@ describe("ai routes", () => {
 
   test("a model failure mid-stream becomes an error event and a stored error part", async () => {
     const model: LanguageModel = async () => {
-      throw new (await import("@automator/flow-engine")).LanguageModelError("upstream", "boom");
+      throw new (await import("@automator/flow-engine")).LanguageModelError(
+        "timeout",
+        "The model did not answer in time",
+      );
     };
     const { call, messages } = fixture(model);
     const events = await readEvents(await call("POST", "/flows/f1/ai/messages", { text: "hi" }));
-    expect(events.at(-2)).toEqual({ type: "error", error: "unavailable" });
+    /* The code says what to do; the detail says what happened, and both reach the reader. */
+    const failure: AiStreamEvent = {
+      type: "error",
+      error: "unavailable",
+      detail: "The model did not answer in time",
+    };
+    expect(events.at(-2)).toEqual(failure);
     expect(events.at(-1)).toEqual({ type: "done" });
-    expect(messages.rows.get("f1")![1]!.parts).toEqual([{ type: "error", error: "unavailable" }]);
+    expect(messages.rows.get("f1")![1]!.parts).toEqual([failure]);
+  });
+
+  test("an explicit new flow ignores what is saved and answers with a replacement", async () => {
+    const { model, requests } = scriptedModel(turns);
+    const { call, messages } = fixture(model, { saved: builtRecord });
+    const events = await readEvents(
+      await call("POST", "/flows/f1/ai/messages", { text: "Start again", replace: true }),
+    );
+
+    /* The saved node reaches neither the prompt nor the proposal. */
+    expect(JSON.stringify(requests)).not.toContain("saved");
+    const proposal = events.find((event) => event.type === "proposal")!;
+    expect(proposal).toMatchObject({ replaces: true });
+    expect(messages.rows.get("f1")![1]!.parts.at(-1)).toMatchObject({
+      type: "proposal",
+      replaces: true,
+    });
+  });
+
+  test("without `replace` and without a document the saved flow is what gets edited", async () => {
+    const { model, requests } = scriptedModel([
+      {
+        content: "Renaming it.",
+        toolCalls: [{ id: "c1", name: "set_flow", arguments: { name: "Pong" } }],
+      },
+      { content: "Done.", toolCalls: [] },
+    ]);
+    const { call, messages } = fixture(model, { saved: builtRecord });
+    const events = await readEvents(
+      await call("POST", "/flows/f1/ai/messages", { text: "Rename it" }),
+    );
+
+    expect(JSON.stringify(requests)).toContain("saved");
+    const proposal = events.find((event) => event.type === "proposal")!;
+    expect(proposal).toMatchObject({ replaces: false });
+    expect(proposal.type === "proposal" && proposal.document.nodes.map((node) => node.id)).toEqual([
+      "saved",
+    ]);
+    expect(messages.rows.get("f1")![1]!.parts.at(-1)).toMatchObject({ replaces: false });
   });
 
   test("a client disconnect mid-stream ends the stream without an unhandled rejection", async () => {
@@ -236,7 +312,11 @@ describe("ai routes", () => {
       expect(events.at(-1)).toEqual({ type: "done" });
       const stored = messages.rows.get("f1")!;
       expect(stored).toHaveLength(2);
-      expect(stored[1]!.parts.at(-1)).toMatchObject({ type: "error" });
+      expect(stored[1]!.parts.at(-1)).toEqual({
+        type: "error",
+        error: "unavailable",
+        detail: aiStoppedDetail,
+      });
     } finally {
       process.off("unhandledRejection", onRejection);
     }

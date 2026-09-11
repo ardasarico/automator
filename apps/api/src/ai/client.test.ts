@@ -391,6 +391,46 @@ describe("OpenRouter client", () => {
     );
     await expect(model({ messages: [] })).rejects.toMatchObject({ kind: "invalid_response" });
   });
+
+  test("the caller's signal aborts the provider fetch, not just the promise", async () => {
+    const controller = new AbortController();
+    let aborted = false;
+    const model = createOpenRouterModel({
+      apiKey: "sk-test",
+      model: "openai/gpt-4o-mini",
+      fetcher: (async (_url: unknown, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal!.addEventListener("abort", () => {
+            aborted = true;
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+          controller.abort();
+        })) as unknown as typeof fetch,
+    })!;
+
+    await expect(
+      model({ messages: [{ role: "user", content: "hi" }], signal: controller.signal }),
+    ).rejects.toBeInstanceOf(LanguageModelError);
+    expect(aborted).toBe(true);
+  });
+
+  test("without a signal the per-call budget is still what ends the fetch", async () => {
+    let given: AbortSignal | undefined;
+    const model = createOpenRouterModel({
+      apiKey: "sk-test",
+      model: "openai/gpt-4o-mini",
+      timeoutMs: 50,
+      fetcher: (async (_url: unknown, init: RequestInit) => {
+        given = init.signal!;
+        return Response.json({ choices: [{ message: { content: "ok" } }] });
+      }) as unknown as typeof fetch,
+    })!;
+
+    await model({ messages: [{ role: "user", content: "hi" }] });
+    expect(given?.aborted).toBe(false);
+    await Bun.sleep(80);
+    expect(given?.aborted).toBe(true);
+  });
 });
 
 describe("OpenAI client", () => {
@@ -621,5 +661,26 @@ describe("withFallbackModel", () => {
     );
     await expect(model(request)).rejects.toBeInstanceOf(TypeError);
     expect(fallbackCalls).toBe(0);
+  });
+
+  test("both wrappers hand the caller's signal down to whichever model answers", async () => {
+    const controller = new AbortController();
+    const seen: (AbortSignal | undefined)[] = [];
+    const model = withRequestDeadline(
+      withFallbackModel(
+        async (asked) => {
+          seen.push(asked.signal);
+          throw new LanguageModelError("upstream", "primary broke");
+        },
+        async (asked) => {
+          seen.push(asked.signal);
+          return { content: "fallback", toolCalls: [] };
+        },
+      ),
+      Date.now() + 1000,
+    );
+    await model({ ...request, signal: controller.signal, onText: () => {} });
+
+    expect(seen).toEqual([controller.signal, controller.signal]);
   });
 });

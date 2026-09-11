@@ -1,4 +1,5 @@
 import {
+  aiErrorDetail,
   clearAiMessagesContract,
   listAiMessagesContract,
   redactFlowSecrets,
@@ -79,6 +80,8 @@ export function createAiRoutes({
         const { id: _id, ...saved } = record.flow;
         // The builder already blanks secret fields; doing it here too keeps them off the model.
         const current = redactFlowSecrets(body.document ?? saved);
+        /* The panel says so when it is in new-flow mode; the saved flow is then never read. */
+        const startingOver = body.replace === true || current.nodes.length === 0;
         const context: AiContext | undefined = body.context && {
           ...body.context,
           ...(body.context.run ? { run: redactRunOutputs(body.context.run) } : {}),
@@ -110,8 +113,9 @@ export function createAiRoutes({
               parts = await runCanvasAgent({
                 model,
                 text: body.text,
-                // An empty canvas is a new flow; the model gets no document to edit.
-                current: current.nodes.length === 0 ? undefined : current,
+                // An empty canvas is a new flow, and so is an explicit request for one: either
+                // way the model gets no document to edit, and answers with a replacement.
+                current: startingOver ? undefined : current,
                 context,
                 history,
                 tables,
@@ -125,7 +129,14 @@ export function createAiRoutes({
               // user, so every path below closes the stream and persists something.
               if (log)
                 console.warn("AI turn failed", error instanceof Error ? error.message : error);
-              const part: AiPart = { type: "error", error: "unavailable" };
+              /* The code says what to do next; the detail says what actually went wrong, which
+               * is the difference between "try again" and knowing the model ran out of time. */
+              const detail = aiErrorDetail(error instanceof Error ? error.message : String(error));
+              const part: AiPart = {
+                type: "error",
+                error: "unavailable",
+                ...(detail ? { detail } : {}),
+              };
               emit(part);
               parts = [part];
             }

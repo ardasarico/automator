@@ -425,7 +425,11 @@ function createChatCompletionsModel({
             ...headers,
           },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
+          // Stop has to reach the provider, not just the promise the caller is waiting on, so
+          // the caller's signal and the per-call budget both end this fetch.
+          signal: request.signal
+            ? AbortSignal.any([request.signal, AbortSignal.timeout(timeoutMs)])
+            : AbortSignal.timeout(timeoutMs),
         });
       } catch (error) {
         const timedOut = error instanceof Error && error.name === "TimeoutError";

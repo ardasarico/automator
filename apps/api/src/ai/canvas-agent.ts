@@ -1,6 +1,7 @@
 import {
   aiErrorDetail,
   aiFlowTestSchema,
+  aiStoppedDetail,
   Value,
   type AiContext,
   type AiMessage,
@@ -236,6 +237,7 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
         messages,
         tools: canvasTools,
         temperature: 0.2,
+        signal: input.signal,
         onText: (delta) => {
           if (!live || !delta) return;
           if (!streamed) {
@@ -382,6 +384,15 @@ export async function runCanvasAgent(input: CanvasAgentInput): Promise<AiPart[]>
     parts.push({ type: "proposal", document, verification, replaces, state: "pending" });
     return parts;
   } catch (error) {
+    /* Stopping is not a failure to explain: whatever the abort broke, the turn says only that.
+     * Checked before the rethrow, so the route never reports a stopped turn as unavailable. */
+    if (input.signal?.aborted) {
+      flushText();
+      const stopped: AiPart = { type: "error", error: "unavailable", detail: aiStoppedDetail };
+      emit(stopped);
+      parts.push(stopped);
+      return parts;
+    }
     if (error instanceof LanguageModelError) throw error;
     flushText();
     const detail = aiErrorDetail(error instanceof Error ? error.message : String(error));
