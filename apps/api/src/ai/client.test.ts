@@ -485,6 +485,52 @@ describe("OpenAI client", () => {
     expect(answer.content).toBe("abc");
   });
 
+  test("sends reasoning_effort none only when the request carries tools", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const model = createOpenAiModel({
+      apiKey: "sk-openai",
+      model: "gpt-5.6-luna",
+      fetcher: (async (_url: string | URL | Request, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return Response.json({ choices: [{ message: { content: "ok" } }] });
+      }) as unknown as typeof fetch,
+    })!;
+    await model({
+      messages: [{ role: "user", content: "hi" }],
+      tools: [{ name: "http_get", description: "d", parameters: { type: "object" } }],
+    });
+    await model({ messages: [{ role: "user", content: "hi" }] });
+    expect(bodies[0]!.reasoning_effort).toBe("none");
+    expect(bodies[1]).not.toHaveProperty("reasoning_effort");
+  });
+
+  test("keeps reasoning_effort none on the retry that drops temperature", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const model = createOpenAiModel({
+      apiKey: "sk-openai",
+      model: "gpt-5.6-luna",
+      fetcher: (async (_url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        bodies.push(body);
+        return body.temperature === undefined
+          ? Response.json({ choices: [{ message: { content: "ok" } }] })
+          : Response.json(
+              { error: { message: "Unsupported value: 'temperature' ... Only the default" } },
+              { status: 400 },
+            );
+      }) as unknown as typeof fetch,
+    })!;
+    await model({
+      messages: [{ role: "user", content: "hi" }],
+      tools: [{ name: "http_get", description: "d", parameters: { type: "object" } }],
+      temperature: 0,
+    });
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]!.reasoning_effort).toBe("none");
+    expect(bodies[1]!.reasoning_effort).toBe("none");
+    expect(bodies[1]).not.toHaveProperty("temperature");
+  });
+
   test("names OpenAI in upstream failures", async () => {
     const model = createOpenAiModel({
       apiKey: "sk-openai",

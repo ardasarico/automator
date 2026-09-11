@@ -398,6 +398,15 @@ function createChatCompletionsModel({
               },
             })),
             tool_choice: "auto",
+            /*
+             * OpenAI's chat-completions endpoint refuses function tools together with reasoning:
+             * "Function tools with reasoning_effort are not supported ... To use function tools,
+             * use /v1/responses or set reasoning_effort to 'none'." We stay on /v1/chat/completions
+             * (OpenRouter speaks that dialect too) and take the documented way out instead of
+             * switching endpoints. OpenRouter never sees this key — its own models are not gpt-5
+             * reasoning models and do not reject tool calls this way.
+             */
+            ...(provider === "OpenAI" ? { reasoning_effort: "none" } : {}),
           }
         : {}),
       ...(request.responseFormat
