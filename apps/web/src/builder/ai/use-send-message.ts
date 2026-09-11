@@ -20,7 +20,6 @@ import { isFlowNode, serializeFlow } from "../document";
 import { selectSelectedNodes, type BuilderState } from "../store";
 import { useBuilderStoreApi } from "../store-provider";
 import { proposalOf } from "./apply-event";
-import { restoreFlowGroups } from "./groups";
 import type { ChatContext } from "./chat-store";
 import { useChatStoreApi } from "./chat-store-provider";
 import { useReducedMotion } from "./reduced-motion";
@@ -71,16 +70,16 @@ function errorCode(error: unknown): ApiErrorCode {
 }
 
 /**
- * A draft from an edit refers to the canvas's own nodes, so the two things the model never saw —
- * the secrets and the group frames — are put back before it is drawn or applied. A replacement
- * inherits nothing: its ids are its own.
+ * A draft from an edit refers to the canvas's own nodes, so the secrets the model never saw are
+ * put back before it is drawn or applied; the frames it never saw are carried over by the store,
+ * which is what `keepGroups` asks of it. A replacement inherits neither: its ids are its own.
  */
 function bridged(
   document: FlowDocumentInput,
   current: FlowDocument,
   replaces: boolean,
 ): FlowDocumentInput {
-  return replaces ? document : restoreFlowGroups(restoreFlowSecrets(document, current), current);
+  return replaces ? document : restoreFlowSecrets(document, current);
 }
 
 export function useSendMessage(): SendMessage {
@@ -129,9 +128,13 @@ export function useSendMessage(): SendMessage {
       const onEvent = (event: AiStreamEvent) => {
         chatApi.getState().receive(event);
         if (event.type === "tool.result" && event.document)
-          builderApi.getState().setPreview(bridged(event.document, current, replacing));
+          builderApi
+            .getState()
+            .setPreview(bridged(event.document, current, replacing), { keepGroups: !replacing });
         else if (event.type === "proposal")
-          builderApi.getState().setPreview(bridged(event.document, current, event.replaces));
+          builderApi.getState().setPreview(bridged(event.document, current, event.replaces), {
+            keepGroups: !event.replaces,
+          });
         else if (event.type === "done") chatApi.getState().end();
       };
       try {
@@ -171,7 +174,9 @@ export function useSendMessage(): SendMessage {
       const builder = builderApi.getState();
       const current = serializeFlow(builder.meta, builder.nodes, builder.edges);
       if (state === "applied")
-        builder.applyDocument(bridged(proposal.document, current, proposal.replaces));
+        builder.applyDocument(bridged(proposal.document, current, proposal.replaces), {
+          keepGroups: !proposal.replaces,
+        });
       builder.setPreview(null);
       chat.setProposalState(messageId, state);
       if (state === "applied")

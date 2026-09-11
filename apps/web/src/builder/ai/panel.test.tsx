@@ -579,9 +579,11 @@ describe("AiPanel", () => {
     expect(frame).not.toBeNull();
     await ask("Say hello instead");
 
-    /* The draft the model sent has no frames; the preview and the canvas both get them back. */
+    /* The draft the model sent has no frames; the store carries them onto the preview and, on
+     * Apply, onto the canvas, re-adopting the nodes the edit kept. */
     const preview = builder.getState().preview!;
-    expect(preview.document.groups?.map((group) => group.id)).toEqual([frame!]);
+    expect(preview.document.groups).toBeUndefined();
+    expect(preview.nodes.map((node) => node.id)).toContain(frame!);
     expect(preview.nodes.find((node) => node.id === "d")!.parentId).toBe(frame!);
 
     await act(async () => buttonNamed("Apply changes")!.click());

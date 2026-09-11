@@ -1189,6 +1189,31 @@ describe("applyDocument with frames", () => {
     ).toMatchObject({ id: a, position: { x: 700, y: 500 }, parentId: group });
   });
 
+  test("keepGroups draws the frame on the preview too, refitted, leaving the canvas alone", () => {
+    const { store, a, b, group, proposal } = framed();
+    const flow = () =>
+      serializeFlow(store.getState().meta, store.getState().nodes, store.getState().edges);
+    const before = flow();
+    store.getState().setPreview(proposal, { keepGroups: true });
+    const preview = store.getState().preview!;
+    expect(preview.nodes.map((node) => node.id)).toEqual([group, a, b]);
+    expect(preview.nodes[0]).toMatchObject({
+      type: "group",
+      position: { x: 680, y: 440 },
+      width: 300,
+      height: 160,
+    });
+    expect(preview.nodes[1]).toMatchObject({ parentId: group, position: { x: 20, y: 60 } });
+    // The dropped node is drawn faded, freed from the frame, where it sits on the canvas.
+    expect(preview.nodes[2]).toMatchObject({ id: b, position: { x: 400, y: 160 } });
+    expect(preview.nodes[2]!.parentId).toBeUndefined();
+    expect(preview.kinds.nodes.get(b)).toBe("removed");
+    // Only the preview holds the edit: the canvas keeps its nodes, frame and memberships.
+    expect(flow()).toEqual(before);
+    store.getState().setPreview(null);
+    expect(flow()).toEqual(before);
+  });
+
   test("a frame with no surviving node goes, and without keepGroups every frame goes", () => {
     const { store, a, group, proposal } = framed();
     store.getState().applyDocument({ ...proposal, nodes: [] }, { keepGroups: true });

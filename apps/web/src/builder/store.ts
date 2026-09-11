@@ -99,8 +99,12 @@ export type BuilderState = {
   removeNode(id: string): void;
   clearSelection(): void;
   setMeta(patch: Partial<Omit<FlowMeta, "id">>): void;
-  /** Draws a draft over the canvas, or clears it with `null`; the document stays as it is. */
-  setPreview(document: FlowDocumentInput | null): void;
+  /**
+   * Draws a draft over the canvas, or clears it with `null`; the document stays as it is.
+   * `keepGroups` carries the frames over the way `applyDocument` does, so a drawn AI edit and
+   * the applied one hold the same frames.
+   */
+  setPreview(document: FlowDocumentInput | null, options?: { keepGroups?: boolean }): void;
   /** Selection and measurement on the drawn draft; nothing else may touch it. */
   onPreviewNodesChange(changes: NodeChange<BuilderNode>[]): void;
   hydrate(document: FlowDocument): void;
@@ -282,6 +286,22 @@ function carryGroups(before: readonly BuilderNode[], after: readonly BuilderNode
     return adopt(measured ? { ...node, measured } : node, group, byId);
   });
   return fitGroups([...kept.map((group) => ({ ...group, selected: false })), ...members]);
+}
+
+/**
+ * The nodes a document becomes on the canvas: one that says nothing about frames (`groups`
+ * absent) drops them, unless `keepGroups` asks for the ones whose nodes survive to be carried
+ * over. Drawing a draft and applying it read this the same way.
+ */
+function nodesOf(
+  before: readonly BuilderNode[],
+  hydrated: BuilderNode[],
+  input: FlowDocumentInput,
+  options: { keepGroups?: boolean },
+): BuilderNode[] {
+  return options.keepGroups && input.groups === undefined
+    ? carryGroups(before, hydrated)
+    : hydrated;
 }
 
 /** Removing a frame frees the nodes in it unless they were picked for removal themselves. */
@@ -818,7 +838,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
       }));
     },
 
-    setPreview(document) {
+    setPreview(document, options = {}) {
       if (!document) {
         if (get().preview) set({ preview: null });
         return;
@@ -828,8 +848,9 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
         const kinds = previewKinds(current, document);
         // The draft keeps the flow's id so nothing downstream sees a different flow.
         const draft = hydrateFlow({ ...document, id: state.meta.id });
+        const draftNodes = nodesOf(state.nodes, draft.nodes, document, options);
         const byId = new Map(state.nodes.map((node) => [node.id, node]));
-        const drawn = new Set(draft.nodes.map((node) => node.id));
+        const drawn = new Set(draftNodes.map((node) => node.id));
         // What the draft drops is drawn too, faded, so a proposal's deletions are visible. A
         // removed node is freed from its frame first: the frame may be gone from the draft.
         const removedNodes = state.nodes.flatMap((node) =>
@@ -850,7 +871,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
           edges: deselect(state.edges),
           preview: {
             document,
-            nodes: [...draft.nodes, ...removedNodes],
+            nodes: [...draftNodes, ...removedNodes],
             edges: [...draft.edges, ...removedEdges],
             kinds,
           },
@@ -883,10 +904,7 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
     applyDocument(input, options = {}) {
       set((state) => {
         const hydrated = hydrateFlow({ ...input, id: state.meta.id });
-        const nodes =
-          options.keepGroups && input.groups === undefined
-            ? carryGroups(state.nodes, hydrated.nodes)
-            : hydrated.nodes;
+        const nodes = nodesOf(state.nodes, hydrated.nodes, input, options);
         return { ...remember(state), ...hydrated, nodes, dragging: false, dirty: true };
       });
     },
