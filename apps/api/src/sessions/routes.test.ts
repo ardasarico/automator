@@ -1256,6 +1256,29 @@ describe("collecting a USDC payment from the visitor", () => {
     expect(rows.get(session.sessionId)?.nodeId).toBe("done");
   });
 
+  test("a verified transfer whose screen has moved on says the payment was lost, not malformed", async () => {
+    const { post, spent, rows } = payingFixture();
+    const { session, token } = await reachPayment(post);
+    /* The session advances under the visitor (another tab answered) between the handler reading
+     * the row and the claim: the first read sees the payment screen, the claim sees it gone. */
+    const read = rows.get.bind(rows);
+    let reads = 0;
+    rows.get = (id) => {
+      const row = read(id);
+      return row && id === session.sessionId && ++reads > 1 ? { ...row, nodeId: "done" } : row;
+    };
+    const response = await post(`/public/flows/flow-3/sessions/${session.sessionId}/answer`, {
+      token,
+      nodeId: "pay",
+      port: "paid",
+      data: { txHash: paidHash },
+      privyToken: "ada-jwt",
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "payment_claim_lost" });
+    expect(spent.size).toBe(0);
+  });
+
   test("refuses the same transfer a second time, on this session or another", async () => {
     const { post, spent } = payingFixture();
     const { session, token } = await reachPayment(post);

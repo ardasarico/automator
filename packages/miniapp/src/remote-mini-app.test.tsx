@@ -68,6 +68,10 @@ describe("stateAfterFailure", () => {
     ["payment_pending", "That payment has not landed on the network yet. Try again in a moment."],
     ["payment_used", "That payment has already been used. Pay again to continue."],
     ["payment_rejected", "That payment did not match what this app asked for. Try again."],
+    [
+      "payment_claim_lost",
+      "Your payment went through, but this app lost track of it. Keep the transaction hash and contact the app's owner.",
+    ],
   ])("a %s answer keeps the payment screen answerable", (code, notice) => {
     expect(stateAfterFailure(new Error(code), previous)).toEqual({ ...previous, notice });
   });

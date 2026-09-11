@@ -5,6 +5,7 @@ import {
   findScreenFormAnswerProblem,
   isIdentityScreenType,
   isScreenNodeType,
+  isTxHash,
   miniAppAnswerSchema,
   failureCode,
   visitorFailureMessage,
@@ -384,14 +385,13 @@ type PaymentOutcome =
       error:
         | "invalid_request"
         | "unauthorized"
+        | "payment_claim_lost"
         | "payment_pending"
         | "payment_rejected"
         | "payment_used";
     }
   /** The app itself cannot take money; the node fails and the visitor gets the payment sentence. */
   | { failure: { nodeId: string; error: string } };
-
-const transactionHash = /^0x[0-9a-fA-F]{64}$/;
 
 /**
  * Turns a visitor's claim that they paid into a verified payment, or into a refusal they can act
@@ -416,8 +416,7 @@ async function collectPayment(
 ): Promise<PaymentOutcome> {
   const { node, config, body, row } = answer;
   const hash = body.data?.txHash;
-  if (!hash || !transactionHash.test(hash) || !isHex(hash))
-    return { status: 400, error: "invalid_request" };
+  if (!isTxHash(hash) || !isHex(hash)) return { status: 400, error: "invalid_request" };
   if (!body.privyToken) return { status: 400, error: "invalid_request" };
   if (!deps.identity?.visitor)
     return {
@@ -462,7 +461,9 @@ async function collectPayment(
   };
   const claim = await deps.sessions.claimWithPayment(row, record);
   if (claim === "spent") return { status: 409, error: "payment_used" };
-  if (claim === "lost") return { status: 409, error: "invalid_request" };
+  // The transfer is real but the screen it answers is gone: the visitor must hear that money
+  // moved, not that their request was malformed.
+  if (claim === "lost") return { status: 409, error: "payment_claim_lost" };
 
   const collected: UsdcPaymentCollected = {
     paid: true,
