@@ -13,6 +13,15 @@ export function storePendingPrompt(text: string): void {
   }
 }
 
+/** Drops a prompt that never reached a canvas, so the next flow does not inherit it. */
+export function clearPendingPrompt(): void {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* Nothing was stored either way. */
+  }
+}
+
 export function takePendingPrompt(): string | null {
   try {
     const text = sessionStorage.getItem(key);

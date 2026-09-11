@@ -68,6 +68,9 @@ describe.skipIf(!url)("ai messages store", () => {
 
       const applied = await messages.setProposalState(flow.flow.id, "m2", "applied");
       expect(applied?.parts[1]).toMatchObject({ type: "proposal", state: "applied" });
+      /* Only a pending proposal can be decided: a second decision leaves the first standing. */
+      const again = await messages.setProposalState(flow.flow.id, "m2", "discarded");
+      expect(again?.parts[1]).toMatchObject({ type: "proposal", state: "applied" });
       expect(await messages.setProposalState(flow.flow.id, "nope", "applied")).toBeNull();
 
       await messages.append(flow.flow.id, {
@@ -87,6 +90,9 @@ describe.skipIf(!url)("ai messages store", () => {
       const afterStale = await messages.list(flow.flow.id);
       expect(afterStale[1]!.parts[1]).toMatchObject({ state: "applied" });
       expect(afterStale[2]!.parts[0]).toMatchObject({ state: "stale" });
+      /* A superseded proposal is not pending either, so deciding it changes nothing. */
+      const stale = await messages.setProposalState(flow.flow.id, "m3", "applied");
+      expect(stale?.parts[0]).toMatchObject({ state: "stale" });
 
       expect(await messages.clear(flow.flow.id)).toBe(true);
       expect(await messages.list(flow.flow.id)).toEqual([]);

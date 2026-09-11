@@ -4,6 +4,7 @@ import type { SQL } from "bun";
 export interface AiMessageStore {
   list(flowId: string): Promise<AiMessage[]>;
   append(flowId: string, message: Omit<AiMessage, "createdAt">): Promise<AiMessage>;
+  /** Decides a proposal still waiting; one already settled or stale comes back unchanged. */
   setProposalState(
     flowId: string,
     messageId: string,
@@ -70,7 +71,7 @@ export function createAiMessageStore(sql: SQL | undefined): AiMessageStore {
       const rows = await db<Row[]>`
         UPDATE automator_flow_ai_messages SET parts = (
           SELECT COALESCE(jsonb_agg(
-            CASE WHEN p->>'type' = 'proposal'
+            CASE WHEN p->>'type' = 'proposal' AND p->>'state' = 'pending'
               THEN p || jsonb_build_object('state', ${state}::text)
               ELSE p END
             ORDER BY ord), '[]'::jsonb)

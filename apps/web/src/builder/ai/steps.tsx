@@ -124,8 +124,10 @@ export function Steps({
         </Button>
       )}
       <ul id={id} className={styles.steps} hidden={!open}>
-        {steps.map((step) => (
-          <Step key={step.id} step={step} />
+        {/* Keyed by position, not by `step.id`: that id is the model's, and a provider that
+            repeats one would collapse two rows into one. */}
+        {steps.map((step, index) => (
+          <Step key={`${id}:${index}`} step={step} />
         ))}
       </ul>
     </div>

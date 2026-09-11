@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createFlowAction } from "../flows/actions";
 import { HeroBackdrop } from "./hero-backdrop";
-import { storePendingPrompt } from "./pending-prompt";
+import { clearPendingPrompt, storePendingPrompt } from "./pending-prompt";
 import styles from "./home.module.css";
 
 function Send() {
@@ -36,7 +36,9 @@ export function HomePrompt() {
     const prompt = String(form.get("prompt") ?? "").trim();
     if (prompt === "") return;
     storePendingPrompt(prompt);
-    await createFlowAction({ ai: true });
+    /* A create that failed never redirects, so the prompt would be waiting for whichever flow
+     * the reader opened next and be sent there instead. */
+    if ((await createFlowAction({ ai: true }))?.error) clearPendingPrompt();
   }
 
   return (

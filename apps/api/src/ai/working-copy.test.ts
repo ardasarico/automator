@@ -91,6 +91,21 @@ describe("working copy", () => {
     expect(copy.toDraft().nodes[0]!.label).toBe("Post");
   });
 
+  test("an update with neither a label nor a config is refused and changes nothing", () => {
+    const copy = new WorkingCopy({
+      version: 1,
+      name: "Ping",
+      description: "",
+      nodes: [
+        { id: "t", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Run", config: {} },
+      ],
+      edges: [],
+    });
+    expect(() => copy.updateNode({ id: "t" })).toThrow(/needs a label or a config/);
+    expect(copy.changed).toBe(false);
+    expect(copy.toDraft().nodes[0]!.label).toBe("Run");
+  });
+
   test("starts from the current document and tracks change", () => {
     const copy = new WorkingCopy({
       version: 1,

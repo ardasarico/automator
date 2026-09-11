@@ -134,6 +134,10 @@ export class WorkingCopy {
       args.config === undefined
         ? undefined
         : this.clean(node.type, { ...node.config, ...record(args.config) });
+    // Nothing to update is a mistake, not an edit: counting it would offer the canvas a draft
+    // identical to what is already on it.
+    if (label === undefined && config === undefined)
+      throw new ToolCallError("update_node needs a label or a config");
     if (label !== undefined) node.label = label || node.type;
     if (config !== undefined) node.config = config;
     this.mutations += 1;

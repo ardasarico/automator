@@ -32,7 +32,10 @@ function blocksOf(message: AiMessage): Block[] {
     }
     blocks.push({ key: `${message.id}:${index}`, index, part });
   }
-  return blocks;
+  /* Suggestions are an offer to continue, so they belong under everything the turn produced —
+   * wherever the agent happened to call the tool. */
+  const isSuggestion = (block: Block) => "part" in block && block.part.type === "suggestions";
+  return [...blocks.filter((block) => !isSuggestion(block)), ...blocks.filter(isSuggestion)];
 }
 
 /** Where the text the model is still writing sits, so the earlier paragraphs stop animating. */

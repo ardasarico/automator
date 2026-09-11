@@ -99,6 +99,13 @@ describe("HomePrompt", () => {
     expect(fetchCalls).toBe(0);
   });
 
+  test("a create that failed drops the prompt instead of leaving it for the next flow", async () => {
+    createFlow.mockResolvedValue({ error: "Automator is unavailable right now." });
+    await draft("Post my balance to Discord");
+
+    expect(window.sessionStorage.getItem("automator.pending-prompt")).toBeNull();
+  });
+
   test("focuses the textarea when arriving with ?draft", async () => {
     setUrl("http://localhost/?draft=1");
     await mount();
