@@ -1,145 +1,75 @@
 /*
- * The Data section: a rail of tables beside the records of the one that is open. The rail is the
- * section's own navigation, so collapsing it moves the list into a menu rather than removing it.
+ * The Data section: the index's schema-led cards, the title-bar table switcher, and the record
+ * grid. There is no navigation rail — the section's table list is the index at `/data` and the
+ * switcher on the title bar, so the workspace sidebar is the only rail on the page.
  */
-.split {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-}
-.main {
-  min-width: 0;
-  flex: 1;
-}
-/* Too narrow for both: the open record takes the pane and the grid waits behind Back. */
-@media (max-width: 1000px) {
-  .split:has(> aside) .main {
-    display: none;
-  }
+
+/*
+ * The record search. The open table's name is the page's identity, so the box gives up width
+ * before the heading is allowed to truncate.
+ */
+.searchBox {
+  composes: search from "../flows/flows.module.css";
+  flex-shrink: 4;
 }
 
-.rail {
-  display: flex;
-  width: 200px;
-  flex: none;
-  flex-direction: column;
-  min-height: 0;
-  border-inline-end: 1px solid var(--border);
-  background: var(--card);
-}
-.railCollapsed {
-  width: 44px;
-}
-/* The head shares the page's title-bar line, so the band label and the h1 sit together. */
-.railHead {
-  display: flex;
-  height: 48px;
-  flex: none;
-  align-items: center;
-  gap: 8px;
-  padding-inline: 12px 6px;
-}
-.railCollapsed .railHead {
-  justify-content: center;
-  padding-inline: 4px;
-}
-.railLabel {
-  flex: 1;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-  color: var(--muted-foreground);
-}
-.railStrip {
-  display: flex;
-  flex-direction: column;
+/* The open table's name, and every other table behind it. */
+.switcher {
+  display: inline-flex;
+  max-width: 100%;
   align-items: center;
   gap: 4px;
-  padding-top: 4px;
-}
-.railList {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  overflow-y: auto;
-  padding-inline: 8px;
-}
-.railRow {
-  display: flex;
-  height: 30px;
-  align-items: center;
-  gap: 8px;
-  padding-inline: 8px;
+  cursor: pointer;
+  /* No negative start margin: it would come off the heading's own width, and the name would
+   * then truncate six pixels early even with the whole title bar free. */
+  padding-inline: 6px;
   border-radius: var(--radius-sm);
-  color: var(--muted-foreground);
+  color: inherit;
+  font: inherit;
 }
-.railRow > svg {
+.switcher:hover,
+.switcher[data-popup-open] {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+.switcher:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.switcherName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.switcherCaret {
   width: 16px;
   height: 16px;
   flex: none;
-  opacity: 0.7;
+  color: var(--muted-foreground);
 }
-.railRow[aria-current="page"] {
-  background: var(--accent);
-  color: var(--foreground);
+.switcherItem {
+  gap: 8px;
 }
-.railRow:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
+.switcherItem .switcherMark {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0;
 }
-@media (hover: hover) {
-  .railRow:hover {
-    color: var(--foreground);
-  }
+.switcherItem[data-checked] .switcherMark {
+  opacity: 1;
 }
-.railName {
+.switcherItemName {
   min-width: 0;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-label);
-  line-height: var(--text-label--line-height);
 }
-.railCount {
+.switcherItemCount {
   flex: none;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
-}
-.railFoot {
-  flex: none;
-  padding: 8px;
-}
-.railNew {
-  display: flex;
-  width: 100%;
-  height: 30px;
-  align-items: center;
-  gap: 8px;
-  padding-inline: 8px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  color: var(--muted-foreground);
-  font-size: var(--text-label);
-  line-height: var(--text-label--line-height);
-}
-.railNew > svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
-}
-.railNew:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
-}
-@media (hover: hover) {
-  .railNew:hover {
-    background: var(--accent);
-    color: var(--foreground);
-  }
 }
 
 /*
@@ -149,13 +79,15 @@
 .tableGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* Each card is as tall as what it holds: a table with two columns should not be padded out
+   * to the height of one with eight. */
+  align-items: start;
   gap: 16px;
 }
 .tableCard {
   position: relative;
   display: flex;
   min-width: 0;
-  height: 100%;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -265,97 +197,175 @@
 }
 
 /*
- * The record grid. The header stays put while the rows scroll, so a wide table can be read
- * without losing which column is which.
+ * The record grid. It takes the workspace table grammar and sets itself tighter than a list of
+ * flows or runs, because a row here is one record's values and not a summary of anything.
+ *
+ * Every column carries a width — the one this viewer dragged, or the default for its type — so
+ * `table-layout: fixed` can hold them and long values truncate inside their column instead of
+ * pushing the table sideways. The trailing column takes the slack, which keeps a dragged width
+ * exactly as wide as it was dragged.
  */
-.gridWrap {
-  max-width: 100%;
-  overflow-x: auto;
+/*
+ * The records fill the pane, and the grid inside them is what scrolls — on both axes. The page
+ * frame's content region would scroll the footer and the table description sideways with the
+ * table, and a header sticky against it cannot hold when the grid is the thing that moves.
+ */
+.records {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 16px;
 }
-.grid {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: start;
+.gridWrap {
+  composes: tableWrap from "../../../components/workspace-table.module.css";
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  /* The pane's own edge, so a row that continues past it does not look like it ended. */
+  scrollbar-gutter: stable;
+}
+/* What the table holds, above the grid rather than beside its name in the title bar. */
+.tableNote {
+  max-width: 65ch;
+  flex: none;
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+  text-wrap: pretty;
 }
-.grid th,
-.grid td {
-  text-align: start;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
+.grid {
+  composes: table from "../../../components/workspace-table.module.css";
+  --row-padding-block: 8px;
+  --gutter-width: 52px;
+  table-layout: fixed;
+}
+/* Sticky against the grid pane, which is what scrolls, so the offsets are the pane's own. */
+.grid thead th {
+  top: 0;
+}
+@media (max-width: 720px) {
+  .grid thead th {
+    position: sticky;
+  }
+  .grid th,
+  .grid td {
+    padding-inline: 10px;
+  }
+}
+.rows {
+  composes: hoverRows from "../../../components/workspace-table.module.css";
+}
+/* A value cannot leave its column, and a heading's words line up with the values under them. */
+.grid td,
+.grid tbody th {
+  overflow: hidden;
+  padding-inline: 12px;
 }
 .grid thead th {
+  padding-block: 6px;
+}
+.grid thead th.columnCell {
+  padding-inline: 12px;
+}
+
+/*
+ * The row number and the record's own name stay put while the rest of the grid scrolls
+ * sideways: the two things that say which row you are reading. A sticky cell has to paint its
+ * own ground, so the row states repaint it rather than tint it.
+ */
+.sticky {
   position: sticky;
-  top: 0;
+  left: 0;
   z-index: 1;
-  padding: 0;
-  background: var(--background);
-  font-weight: 400;
+  background: var(--muted);
 }
-.grid tbody th {
-  font-weight: 400;
+.firstCell {
+  left: var(--gutter-width);
+  box-shadow: 1px 0 var(--border);
 }
-/* The row number, and the width the expand control needs: neither takes room from the data. */
+.rows tr:hover .sticky,
+.rows tr:focus-within .sticky {
+  background: color-mix(in srgb, var(--foreground) 3%, var(--muted));
+}
+.rows tr[aria-current] .sticky,
+.rows tr[data-selected] .sticky {
+  background: var(--accent);
+}
+.rows tr[data-selected] td,
+.rows tr[data-selected] th {
+  background: var(--accent);
+}
+/* The heading's own cells sit above both sticky axes. */
+.grid thead th.sticky {
+  z-index: 3;
+}
+
+/* The gutter: the row's number, and the checkbox that takes its place when the row is wanted. */
 .gutter {
-  width: 1px;
-  padding-inline: 12px 8px !important;
+  width: var(--gutter-width);
+  padding-inline: 0 8px !important;
   color: var(--muted-foreground);
   font-variant-numeric: tabular-nums;
 }
-.rowEnd {
-  width: 1px;
-  padding-inline-start: 8px !important;
-}
-.firstCell {
-  min-width: 160px;
-}
-.columnHead {
+.gutterCell {
+  position: relative;
   display: flex;
-  width: 100%;
-  height: 32px;
+  height: 1lh;
   align-items: center;
-  gap: 6px;
-  padding-inline: 12px;
-  cursor: pointer;
-  color: var(--muted-foreground);
-  white-space: nowrap;
 }
-.columnHead > svg {
-  width: 14px;
-  height: 14px;
-  flex: none;
-  opacity: 0.7;
+.rowNumber {
+  transition: opacity 100ms;
 }
-.columnHead:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
+.rowCheck {
+  position: absolute;
+  inset-inline-start: -1px;
+  opacity: 0;
+  transition: opacity 100ms;
 }
-@media (hover: hover) {
-  .columnHead:hover {
-    color: var(--foreground);
+.rows tr:hover .rowNumber,
+.rows tr:focus-within .rowNumber,
+.rows tr[data-selected] .rowNumber {
+  opacity: 0;
+}
+.rows tr:hover .rowCheck,
+.rows tr:focus-within .rowCheck,
+.rows tr[data-selected] .rowCheck {
+  opacity: 1;
+}
+@media (hover: none) {
+  .rowNumber {
+    display: none;
+  }
+  .rowCheck {
+    opacity: 1;
   }
 }
-.columnName {
-  overflow: hidden;
-  text-overflow: ellipsis;
+@media (prefers-reduced-motion: reduce) {
+  .rowNumber,
+  .rowCheck {
+    transition: none;
+  }
 }
-.columnHead > svg.columnChevron {
-  opacity: 0;
-  transition: opacity 150ms;
+
+/* The name cell holds the control that opens the whole record, so it is reachable while the
+ * grid is scrolled sideways. */
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
-.columnHead:hover > svg.columnChevron,
-.columnHead:focus-visible > svg.columnChevron {
-  opacity: 0.7;
+.nameValue {
+  min-width: 0;
+  flex: 1;
 }
-/* The expand control is quiet until the row is wanted, so the grid reads as data, not as buttons. */
 .expand {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
+  flex: none;
   border-radius: var(--radius-sm);
   color: var(--muted-foreground);
   opacity: 0;
@@ -365,9 +375,13 @@
   width: 14px;
   height: 14px;
 }
-.grid tbody tr:hover .expand,
+.rows tr:hover .expand,
 .expand:focus-visible {
   opacity: 1;
+}
+.expand:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
 }
 .expand:focus-visible {
   outline: 2px solid var(--ring);
@@ -378,12 +392,93 @@
     opacity: 1;
   }
 }
-.newRow {
-  border-bottom: 0 !important;
-  padding-inline: 4px !important;
+
+.columnName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The handle between two headings. It is a real control: a separator the keyboard can move. */
+.resizer {
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-end: -3px;
+  width: 7px;
+  cursor: col-resize;
+  border-radius: 2px;
+  touch-action: none;
+}
+.resizer::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 3px;
+  width: 1px;
+  background: var(--foreground);
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.resizer:hover::after,
+.resizer:focus-visible::after,
+.resizing .resizer::after {
+  opacity: 0.4;
+}
+.resizer:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 0;
+}
+/* While a width is being dragged the whole grid keeps the resize cursor. */
+.resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
-/* A filter, shown as what it says rather than as an icon with a count. */
+/* The column the table does not have yet. The heading takes the grid's leftover width. */
+.addColumn {
+  width: auto;
+  min-width: 40px;
+  padding-inline: 4px !important;
+}
+.addColumnButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  color: var(--muted-foreground);
+}
+.addColumnButton > svg {
+  width: 16px;
+  height: 16px;
+}
+.addColumnButton:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+}
+.addColumnButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.newRow td {
+  border-bottom: 0;
+  padding-inline: 0 !important;
+}
+
+/* A value as the grid shows it: never wider than the column it sits in. */
+.cellText {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * What is in effect, shown as what it says rather than as an icon with a count: the filters, the
+ * order, and the columns this viewer has put away.
+ */
 .chips {
   display: flex;
   width: 100%;
@@ -398,40 +493,88 @@
   height: 24px;
   padding-inline: 8px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-full);
   background: var(--card);
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
+  white-space: nowrap;
+}
+.chipButton {
+  cursor: pointer;
+}
+.chipButton:hover {
+  border-color: color-mix(in oklab, var(--border), var(--foreground) 20%);
+}
+.chipButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 .chipClear {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  margin-inline-end: -4px;
   cursor: pointer;
+  border-radius: var(--radius-full);
   color: var(--muted-foreground);
 }
 .chipClear > svg {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
+}
+.chipClear:hover {
+  color: var(--foreground);
 }
 .chipClear:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }
-@media (hover: hover) {
-  .chipClear:hover {
-    color: var(--foreground);
-  }
-}
-.note {
-  margin-inline-start: auto;
+.hint {
   font-size: var(--text-caption);
   line-height: var(--text-caption--line-height);
   color: var(--muted-foreground);
 }
-@media (prefers-reduced-motion: reduce) {
-  .expand,
-  .columnHead > svg.columnChevron {
-    transition: none;
-  }
+
+/*
+ * While rows are selected the toolbar says so and carries what can be done to them: the filters
+ * are still in effect and still in the URL, so nothing is lost by standing in front of them.
+ */
+.selection {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+}
+.selectionCount {
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  font-variant-numeric: tabular-nums;
+}
+.selectionSpacer {
+  flex: 1;
+}
+
+/*
+ * Where the grid ends: how much of the table is on screen, and the way to the rest. It stays in
+ * view while the rows scroll, so the count is never something you have to scroll to read.
+ */
+.footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-block: 2px;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+  color: var(--muted-foreground);
+}
+.footerCount {
+  font-variant-numeric: tabular-nums;
+}
+.footerPages {
+  display: flex;
+  margin-inline-start: auto;
+  align-items: center;
+  gap: 8px;
 }

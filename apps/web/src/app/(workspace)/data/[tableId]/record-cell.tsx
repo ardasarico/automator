@@ -122,10 +122,10 @@ export function RecordCell({
 
   if (!editing) {
     return (
-      <span className="flex items-center gap-2">
+      <span className="flex w-full items-center gap-2">
         <button
           type="button"
-          className="min-w-0 cursor-text rounded-sm px-1 py-0.5 text-start hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+          className="min-w-0 flex-1 cursor-text rounded-sm px-1 py-0.5 text-start hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
           aria-label={`Edit ${cellLabel}`}
           onClick={() => {
             setDraft(toDraft(column, stored));

@@ -14,7 +14,7 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
 import { Textarea } from "@automator/ui/textarea";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useAccessToken } from "../../../auth/access-token";
 import {
   createDataTableRequest,
@@ -81,32 +81,63 @@ function toColumn(column: DataColumn, id: string): DataColumn {
   };
 }
 
+const columnsFieldId = "data-table-columns";
+
 /**
  * Creates a table, or edits the name, description and columns of `table`. The dialog stays open
  * while a request is in flight so a stray Escape cannot lose what was typed.
+ *
+ * `withNewColumn` and `focusColumn` are how the grid opens this: its trailing “+” asks for a
+ * blank column, and a heading's Rename asks for that column, so either arrives with the right
+ * field already focused instead of leaving the reader to find it in the list.
  */
 export function TableDialog({
   table,
+  withNewColumn = false,
+  focusColumn,
   onClose,
   onSaved,
 }: {
   table?: DataTable;
+  withNewColumn?: boolean;
+  focusColumn?: string;
   onClose(): void;
   onSaved(saved: DataTable): void;
 }) {
   const getAccessToken = useAccessToken();
   const [name, setName] = useState(table?.name ?? "");
   const [description, setDescription] = useState(table?.description ?? "");
-  const [columns, setColumns] = useState<ColumnRow[]>(() =>
-    table ? toColumnRows(table.columns) : [newColumnRow()],
-  );
+  const [columns, setColumns] = useState<ColumnRow[]>(() => {
+    if (!table) return [newColumnRow()];
+    const rows = toColumnRows(table.columns);
+    return withNewColumn ? [...rows, newColumnRow()] : rows;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pending = useRef(false);
+  /* The list as it was when the dialog opened: what the focused field is counted against. */
+  const columnsAtOpen = useRef(columns);
   // Only the columns that existed when the table already had records are type-locked.
   const [locked] = useState(
     () => new Set(table && table.recordCount > 0 ? table.columns.map((column) => column.id) : []),
   );
+
+  /*
+   * The field the dialog was opened on. The popup takes focus itself when it opens, so this has
+   * to wait for the frame after that; missing it costs a focus, not the edit.
+   */
+  useEffect(() => {
+    const index = withNewColumn
+      ? columnsAtOpen.current.length - 1
+      : focusColumn
+        ? columnsAtOpen.current.findIndex((column) => column.id === focusColumn)
+        : -1;
+    if (index < 0) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`${columnsFieldId}-${index}-name`)?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [withNewColumn, focusColumn]);
 
   const descriptionTooLong = description.length > descriptionLimit;
   const problems = problemsIn(name, columns);
@@ -144,10 +175,14 @@ export function TableDialog({
     >
       <DialogPopup className="max-w-lg" aria-busy={busy} closeProps={{ disabled: busy }}>
         <DialogHeader>
-          <DialogTitle>{table ? "Edit columns" : "New table"}</DialogTitle>
+          <DialogTitle>
+            {table ? (withNewColumn ? "Add a column" : "Edit columns") : "New table"}
+          </DialogTitle>
           <DialogDescription>
             {table
-              ? "Rename the table or change its columns. Removing a column hides its values; adding it back shows them again."
+              ? withNewColumn
+                ? "A new column is waiting at the end of the list. Name it and pick what it holds."
+                : "Rename the table or change its columns. Removing a column hides its values; adding it back shows them again."
               : "A table stores records your flows can read and write. Give it a name and the columns a record has."}
           </DialogDescription>
         </DialogHeader>
@@ -185,7 +220,7 @@ export function TableDialog({
               </FieldDescription>
             </Field>
             <ColumnEditor
-              id="data-table-columns"
+              id={columnsFieldId}
               columns={columns}
               locked={locked}
               disabled={busy}

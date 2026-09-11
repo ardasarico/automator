@@ -18,6 +18,7 @@ mock.module("next/navigation", () => navigationModule);
 
 const { createRoot } = await import("react-dom/client");
 const { RecordBrowser } = await import("./record-browser");
+const { forgetColumnPreferences } = await import("./column-preferences");
 
 const wallet = `0x${"ab".repeat(20)}`;
 
@@ -43,6 +44,12 @@ const record: DataRecord = {
   updatedAt: "2026-09-08T10:00:00.000Z",
 };
 
+/* The switcher's list: one other table is enough to show the section's navigation is in it. */
+const tables: readonly DataTable[] = [
+  table,
+  { ...table, id: "tbl-2", name: "Applicants", recordCount: 12 },
+];
+
 const originalFetch = globalThis.fetch;
 let calls: Array<{ url: string; method: string; body?: unknown }>;
 let answer: () => Response | Promise<Response>;
@@ -50,6 +57,8 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  localStorage.clear();
+  forgetColumnPreferences();
   calls = [];
   answer = () => Response.json({ id: record.id });
   globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
@@ -76,9 +85,22 @@ afterAll(() => GlobalRegistrator.unregister());
 async function mount(records: readonly DataRecord[] | null, query: RecordQuery = { filters: [] }) {
   await act(async () => {
     root.render(
-      <RecordBrowser table={table} records={records} query={query} retryHref="/data/tbl-1" />,
+      <RecordBrowser
+        table={table}
+        tables={tables}
+        records={records}
+        query={query}
+        retryHref="/data/tbl-1"
+      />,
     );
   });
+}
+
+/** A control by its accessible name. The checkbox primitive is a span with role, not a button. */
+function control(label: string) {
+  const match = document.querySelector<HTMLElement>(`[aria-label="${label}"]`);
+  if (!match) throw new Error(`Missing control: ${label}`);
+  return match;
 }
 
 function button(label: string) {
@@ -154,7 +176,8 @@ test("a records outage keeps the table's actions and offers a retry", async () =
   await mount(null);
   expect(container.textContent).toContain("Records could not load");
   expect(document.querySelector("form")?.getAttribute("action")).toBe("/data/tbl-1");
-  expect(button("Edit columns")).toBeDefined();
+  expect(button("Table actions")).toBeDefined();
+  expect(button("Signups — switch table")).toBeDefined();
 });
 
 test("every row can be opened in the panel, carrying the query it was found under", async () => {
@@ -176,6 +199,7 @@ test("a narrowed list that hit the cap says so instead of implying it is the who
     root.render(
       <RecordBrowser
         table={table}
+        tables={tables}
         records={[record]}
         query={{ filters: [], search: "a" }}
         truncated
@@ -183,7 +207,7 @@ test("a narrowed list that hit the cap says so instead of implying it is the who
       />,
     );
   });
-  expect(container.textContent).toContain("Showing the first 100 matches");
+  expect(container.textContent).toContain("The first 100 matches");
 });
 
 test("a narrowed list that matches nothing offers to clear the filters, not to add a record", async () => {
@@ -200,4 +224,108 @@ test("deleting the table reads as destructive in its menu, like deleting a flow"
   );
   if (!item) throw new Error("Missing menu item: Delete table");
   expect(item.getAttribute("data-variant")).toBe("destructive");
+});
+
+/** Opens a menu by the label of its trigger and answers with the items it holds. */
+async function openMenu(label: string) {
+  await act(async () => button(label).click());
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+}
+
+async function clickItem(label: string, text: string) {
+  const item = (await openMenu(label)).find((node) => node.textContent?.trim() === text);
+  if (!item) throw new Error(`Missing menu item: ${text}`);
+  await act(async () => item.click());
+}
+
+test("the title bar switches tables, so the section needs no rail of its own", async () => {
+  await mount([record]);
+  const items = await openMenu("Signups — switch table");
+  expect(items.map((node) => node.textContent)).toEqual([
+    expect.stringContaining("Signups"),
+    expect.stringContaining("Applicants"),
+    expect.stringContaining("New table"),
+  ]);
+  const applicants = items.find((node) => node.textContent?.includes("Applicants"));
+  expect(
+    applicants?.querySelector("a")?.getAttribute("href") ?? applicants?.getAttribute("href"),
+  ).toBe("/data/tbl-2");
+});
+
+test("selecting rows says how many and offers to delete them", async () => {
+  await mount([record]);
+  expect(container.textContent).not.toContain("record selected");
+
+  await act(async () => control("Select record 1").click());
+  expect(container.textContent).toContain("1 record selected");
+
+  await act(async () => button("Delete").click());
+  expect(document.body.textContent).toContain("Delete this record?");
+
+  await act(async () => button("Delete record").click());
+  expect(calls).toEqual([{ url: "/api/data/tables/tbl-1/records/rec-1", method: "DELETE" }]);
+});
+
+test("clearing the selection puts the toolbar back", async () => {
+  await mount([record]);
+  await act(async () => control("Select record 1").click());
+  await act(async () => button("Clear").click());
+  expect(container.textContent).not.toContain("record selected");
+});
+
+test("a column hidden from its header leaves a chip that brings it back", async () => {
+  await mount([record]);
+  expect(document.querySelectorAll("thead th").length).toBe(table.columns.length + 2);
+
+  await clickItem("Note column options", "Hide column");
+  expect(document.querySelectorAll("thead th").length).toBe(table.columns.length + 1);
+  expect(container.textContent).toContain("Note hidden");
+
+  await act(async () => button("Note hidden").click());
+  expect(document.querySelectorAll("thead th").length).toBe(table.columns.length + 2);
+});
+
+test("a hidden column is this viewer's own preference, not a change to the table", async () => {
+  await mount([record]);
+  await clickItem("Note column options", "Hide column");
+  expect(JSON.parse(localStorage.getItem("automator:data-columns:tbl-1")!)).toEqual({
+    hidden: ["note"],
+    widths: {},
+  });
+  // Hiding a column asks the API for nothing: the table itself is untouched.
+  expect(calls).toEqual([]);
+});
+
+test("the order a column offers is named after what the column holds", async () => {
+  await mount([record]);
+  expect(
+    (await openMenu("Invited column options")).map((node) => node.textContent?.trim()),
+  ).toEqual([
+    "Unchecked first",
+    "Checked first",
+    "Filter by this column…",
+    "Rename column…",
+    "Hide column",
+    "Delete column…",
+  ]);
+});
+
+test("a column's width is a handle the keyboard can move, stored for this viewer only", async () => {
+  await mount([record]);
+  const handle = control("Email column width");
+  expect(handle.getAttribute("aria-valuenow")).toBe("220");
+
+  await act(async () =>
+    handle.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })),
+  );
+  expect(control("Email column width").getAttribute("aria-valuenow")).toBe("236");
+  expect(JSON.parse(localStorage.getItem("automator:data-columns:tbl-1")!).widths).toEqual({
+    email: 236,
+  });
+  expect(calls).toEqual([]);
+});
+
+test("the last column has no handle: there is nothing on its right to push against", async () => {
+  await mount([record]);
+  expect(document.querySelector('[aria-label="Note column width"]')).toBeNull();
 });

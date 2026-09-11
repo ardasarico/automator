@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { DataApiError, getDataTable, listDataRecords } from "../../../../data/server";
+import { loadTables } from "../load-tables";
 import { RecordBrowser } from "./record-browser";
 import { isNarrowed, parseRecordQuery, recordsHref, type SearchParams } from "./record-query";
 
@@ -22,7 +23,7 @@ export async function RecordsView({
   tableId: string;
   searchParams: Promise<SearchParams>;
 }) {
-  const table = await loadTable(tableId);
+  const [table, tables] = await Promise.all([loadTable(tableId), loadTables()]);
   if (!table) notFound();
   const query = parseRecordQuery(await searchParams, table.columns);
   const narrowed = isNarrowed(query);
@@ -46,6 +47,7 @@ export async function RecordsView({
   return (
     <RecordBrowser
       table={table}
+      tables={tables}
       records={page === null ? null : page.records}
       query={query}
       truncated={page?.truncated}

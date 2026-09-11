@@ -131,6 +131,8 @@ test("the empty data section creates its first table through the dialog", async 
 
   await expect(page).toHaveURL(/\/data\/[^/?]+$/);
   await expect(page.getByRole("heading", { name: "No records yet" })).toBeVisible();
+  // The title bar carries the open table and the way to every other one: the section has no rail.
+  await expect(page.getByRole("button", { name: `${name} — switch table` })).toBeVisible();
   await page.goto("/data");
   await page.getByRole("searchbox", { name: "Search tables" }).fill(name);
   const card = page.getByRole("article").filter({ hasText: name });
@@ -139,35 +141,31 @@ test("the empty data section creates its first table through the dialog", async 
   await expect(card).toContainText("Email");
   await expect(card).toContainText("Signed up");
   await expect(card).toContainText("2 columns");
-  // The rail carries the same table, so moving between tables never needs the gallery.
-  await expect(page.getByRole("navigation", { name: "Tables" })).toContainText(name);
 });
 
-/* The rail is rendered by data/layout.tsx, which a push between the layout's own children does
- * not re-run, so a created table used to reach the pane and not the rail until a reload. */
-test("a created table reaches the rail without a reload", async ({ page }) => {
+/* The switcher's list comes from the page, so a table created in it has to arrive on the
+ * navigation the dialog makes — without a reload, and with the new table marked as the open one. */
+test("a table created from the switcher arrives in it without a reload", async ({ page }) => {
   const first = await seedTable(`E2E first ${Date.now()}`, [
     { id: "email", name: "Email", type: "text", required: true },
   ]);
-  await page.goto("/data");
-  const rail = page.getByRole("navigation", { name: "Tables" });
-  await expect(rail).toContainText(first.name);
+  await page.goto(`/data/${first.id}`);
+  const switcher = page.getByRole("button", { name: `${first.name} — switch table` });
+  await switcher.click();
+  await page.getByRole("menuitem", { name: "New table", exact: true }).click();
 
-  // The rail's own New table button, which the layout renders ahead of the gallery's.
-  await page.getByRole("button", { name: "New table", exact: true }).first().click();
   const dialog = page.getByRole("dialog", { name: "New table" });
   const name = `E2E second ${Date.now()}`;
   await dialog.locator("#data-table-name").fill(name);
   await dialog.getByRole("group").nth(0).getByLabel("Name", { exact: true }).fill("Title");
   await dialog.getByRole("button", { name: "Create table", exact: true }).click();
 
-  await expect(page).toHaveURL(/\/data\/[^/?]+$/);
-  // No goto here: the rail has to carry the new table on the navigation the dialog made.
-  await expect(rail).toContainText(name);
-  await expect(rail.getByRole("link", { name: new RegExp(name) })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  // No goto here: the new table is the open one, and the switcher still lists the first.
+  await expect(page.getByRole("button", { name: `${name} — switch table` })).toBeVisible();
+  await page.getByRole("button", { name: `${name} — switch table` }).click();
+  const items = page.getByRole("menuitem");
+  await expect(items.filter({ hasText: first.name })).toBeVisible();
+  await expect(items.filter({ hasText: name })).toHaveAttribute("aria-current", "page");
 });
 
 test("a record is added, edited and deleted from the record panel", async ({ page }) => {
@@ -224,6 +222,54 @@ test("a record is added, edited and deleted from the record panel", async ({ pag
   await expect(removing).not.toBeVisible();
   await expect(page.getByRole("heading", { name: "No records yet" })).toBeVisible();
   expect(await readRecords(table.id)).toHaveLength(0);
+});
+
+test("rows are selected in the gutter and deleted together", async ({ page }) => {
+  const table = await seedTable(`E2E bulk ${Date.now()}`, [
+    { id: "label", name: "Label", type: "text", required: true },
+  ]);
+  for (const label of ["Keep", "Drop one", "Drop two"]) await seedRecord(table.id, { label });
+
+  await page.goto(`/data/${table.id}`);
+  await expect(recordRows(page)).toHaveCount(3);
+
+  // The gutter's checkbox takes the row number's place, so selection costs the grid no width.
+  await page.getByRole("checkbox", { name: "Select record 1", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Select record 2", exact: true }).click();
+  await expect(page.getByText("2 records selected")).toBeVisible();
+
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete 2 records?" });
+  await dialog.getByRole("button", { name: "Delete 2 records", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+
+  await expect(recordRows(page)).toHaveCount(1);
+  const left = await readRecords(table.id);
+  expect(left.map((record) => record.values.label)).toEqual(["Keep"]);
+});
+
+test("a column is hidden from its own heading and brought back from the toolbar", async ({
+  page,
+}) => {
+  const table = await seedTable(`E2E columns ${Date.now()}`, [
+    { id: "label", name: "Label", type: "text", required: true },
+    { id: "note", name: "Note", type: "text", required: false },
+  ]);
+  await seedRecord(table.id, { label: "One", note: "Second column" });
+
+  await page.goto(`/data/${table.id}`);
+  await expect(page.getByRole("columnheader", { name: "Note", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Note column options", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Hide column", exact: true }).click();
+  await expect(page.getByRole("columnheader", { name: "Note", exact: true })).toHaveCount(0);
+
+  // Hiding is this viewer's own view of the table, so the table itself still has the column.
+  const stored = await fetch(`${apiUrl}/data/tables/${table.id}`, { headers });
+  expect(((await stored.json()) as DataTable).columns).toHaveLength(2);
+
+  await page.getByRole("button", { name: "Note hidden", exact: true }).click();
+  await expect(page.getByRole("columnheader", { name: "Note", exact: true })).toBeVisible();
 });
 
 test("a full page of records links to the rest", async ({ page }) => {

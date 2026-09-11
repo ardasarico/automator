@@ -1,5 +1,8 @@
 import type { DataColumn, DataRecord, DataTable } from "@automator/contracts";
+import { Badge } from "@automator/ui/badge";
+import { RiCheckLine } from "@remixicon/react";
 import type { ReactNode } from "react";
+import styles from "../data.module.css";
 import { LocalTime } from "../../runs/local-time";
 
 function shortAddress(address: string): string {
@@ -10,9 +13,18 @@ function blank(value: unknown): boolean {
   return value === undefined || value === null || value === "";
 }
 
-/** One value as the grid shows it: readable, and never wider than the column it sits in. */
+/**
+ * One value as the grid shows it: readable, and never wider than the column it sits in. A single
+ * select is shown as the one option it is rather than as a line of text, so a column of choices
+ * can be scanned down rather than read across.
+ */
 export function RecordValue({ column, value }: { column: DataColumn; value: unknown }): ReactNode {
-  if (column.type === "checkbox") return value === true ? "Yes" : "No";
+  if (column.type === "checkbox")
+    return value === true ? (
+      <RiCheckLine aria-label="Yes" className="size-4" />
+    ) : (
+      <span className="text-muted-foreground">No</span>
+    );
   if (blank(value)) return <span className="text-muted-foreground">—</span>;
   if (column.type === "datetime" && typeof value === "string")
     return Number.isNaN(Date.parse(value)) ? value : <LocalTime value={value} zone={false} />;
@@ -23,9 +35,15 @@ export function RecordValue({ column, value }: { column: DataColumn; value: unkn
       </code>
     );
   if (column.type === "number") return <span className="tabular-nums">{String(value)}</span>;
+  if (column.type === "select" && typeof value === "string")
+    return (
+      <Badge variant="secondary" className="max-w-full" title={value}>
+        <span className={styles.cellText}>{value}</span>
+      </Badge>
+    );
   const text = typeof value === "string" ? value : JSON.stringify(value);
   return (
-    <span className="block max-w-[40ch] truncate" title={text}>
+    <span className={styles.cellText} title={text}>
       {text}
     </span>
   );
