@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  aiStoppedDetail,
   apiErrorCodeSchema,
   redactFlowSecrets,
   redactRunOutputs,
@@ -19,13 +20,14 @@ import { isFlowNode, serializeFlow } from "../document";
 import { selectSelectedNodes, type BuilderState } from "../store";
 import { useBuilderStoreApi } from "../store-provider";
 import { proposalOf } from "./apply-event";
+import { restoreFlowGroups } from "./groups";
 import type { ChatContext } from "./chat-store";
 import { useChatStoreApi } from "./chat-store-provider";
 import { useReducedMotion } from "./reduced-motion";
 import { AiRequestError, clearAiMessages, sendAiMessage, setAiProposalState } from "./transport";
 
-/** What the panel records when the wait was ended from here rather than by the API. */
-export const stoppedByUser = "Stopped before the model answered.";
+/** What a stopped turn reads, whether the panel ended the wait or the API did. */
+export const stoppedByUser = aiStoppedDetail;
 
 /*
  * The turn in flight, shared by every copy of this hook on the page. A page holds one builder and
@@ -69,15 +71,16 @@ function errorCode(error: unknown): ApiErrorCode {
 }
 
 /**
- * A draft from an edit refers to the canvas's own nodes, so the secrets the model never saw are
- * put back before it is drawn or applied. A replacement inherits nothing: its ids are its own.
+ * A draft from an edit refers to the canvas's own nodes, so the two things the model never saw —
+ * the secrets and the group frames — are put back before it is drawn or applied. A replacement
+ * inherits nothing: its ids are its own.
  */
 function bridged(
   document: FlowDocumentInput,
   current: FlowDocument,
   replaces: boolean,
 ): FlowDocumentInput {
-  return replaces ? document : restoreFlowSecrets(document, current);
+  return replaces ? document : restoreFlowGroups(restoreFlowSecrets(document, current), current);
 }
 
 export function useSendMessage(): SendMessage {
@@ -118,6 +121,8 @@ export function useSendMessage(): SendMessage {
         ...(context ? { context } : {}),
         createdAt: new Date().toISOString(),
       });
+      /* What the API will answer with: a replacement, or an edit of what the canvas holds. The
+       * stream's `tool.result` carries no `replaces` of its own, so its preview reads this. */
       const replacing = chat.mode === "new" || current.nodes.length === 0;
       const controller = new AbortController();
       inFlight.controller = controller;
@@ -135,8 +140,9 @@ export function useSendMessage(): SendMessage {
           current.id,
           {
             text: message,
-            // A new flow starts from nothing; only an edit sends the canvas, with secrets blanked.
-            ...(replacing ? {} : { document: redactFlowSecrets(document) }),
+            // A new flow starts from nothing: it sends no canvas, and says so, or the API would
+            // read the saved flow and edit that instead. An edit sends the canvas, secrets blanked.
+            ...(replacing ? { replace: true } : { document: redactFlowSecrets(document) }),
             ...(context ? { context } : {}),
           },
           onEvent,

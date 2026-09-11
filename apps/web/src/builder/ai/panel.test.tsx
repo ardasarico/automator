@@ -5,6 +5,7 @@ import type {
   FlowDocument,
   FlowDocumentInput,
 } from "@automator/contracts";
+import { aiStoppedDetail } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, StrictMode, useEffect, type ReactNode } from "react";
@@ -148,6 +149,83 @@ const stored: AiMessage[] = [
           ],
           warnings: [],
         },
+        replaces: true,
+        state: "pending",
+      },
+    ],
+    createdAt: "2026-09-11T00:00:01.000Z",
+  },
+];
+
+/* The same two nodes the canvas holds, with one label changed: an edit, not a replacement. */
+const editDraft: FlowDocumentInput = {
+  version: 1,
+  name: "Ping",
+  description: "",
+  nodes: [
+    { id: "t", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Run", config: {} },
+    {
+      id: "d",
+      type: "notify.discord",
+      position: { x: 300, y: 0 },
+      label: "Post",
+      config: { webhookUrl: "", content: "hello", username: "" },
+    },
+  ],
+  edges: [],
+};
+
+const editing: AiStreamEvent[] = [
+  { type: "message", id: "m4" },
+  {
+    type: "proposal",
+    document: editDraft,
+    verification: { checks: [], warnings: [] },
+    replaces: false,
+  },
+  { type: "done" },
+];
+
+/* A turn that was stopped, as it comes back from the API on the next page load. */
+const stoppedTurn: AiMessage[] = [
+  {
+    id: "u2",
+    role: "user",
+    parts: [{ type: "text", text: "Draft something slow" }],
+    createdAt: "2026-09-11T00:00:00.000Z",
+  },
+  {
+    id: "m5",
+    role: "assistant",
+    parts: [{ type: "error", error: "unavailable", detail: aiStoppedDetail }],
+    createdAt: "2026-09-11T00:00:01.000Z",
+  },
+];
+
+/* Two calls the model gave the same id: its ids are its own, and a repeat must still draw twice. */
+const repeatedIds: AiMessage[] = [
+  {
+    id: "m7",
+    role: "assistant",
+    parts: [
+      { type: "tool", id: "c1", name: "add_node", args: { label: "Run" }, ok: true, detail: "" },
+      { type: "tool", id: "c1", name: "add_node", args: { label: "Post" }, ok: true, detail: "" },
+    ],
+    createdAt: "2026-09-11T00:00:01.000Z",
+  },
+];
+
+/* Suggestions called before the proposal, which is where the agent often puts them. */
+const suggestionsFirst: AiMessage[] = [
+  {
+    id: "m6",
+    role: "assistant",
+    parts: [
+      { type: "suggestions", items: ["Post the result to Discord"] },
+      {
+        type: "proposal",
+        document: draft,
+        verification: { checks: [], warnings: [] },
         replaces: true,
         state: "pending",
       },
@@ -484,7 +562,66 @@ describe("AiPanel", () => {
 
     await act(async () => chat.getState().setMode("new"));
     await ask("Start again from scratch");
-    expect(posts()[1]!.body).not.toHaveProperty("document");
+    const started = posts()[1]!.body as { replace?: boolean };
+    expect(started).not.toHaveProperty("document");
+    /* Without this the API would fall back to the saved flow and edit that instead. */
+    expect(started.replace).toBe(true);
+    expect((posts()[0]!.body as { replace?: boolean }).replace).toBeUndefined();
+  });
+
+  test("applying an edit keeps the canvas's group frames", async () => {
+    script = editing;
+    await mount({ document: builtFlow });
+    let frame: string | null = null;
+    await act(async () => {
+      frame = builder.getState().groupNodes(["t", "d"]);
+    });
+    expect(frame).not.toBeNull();
+    await ask("Say hello instead");
+
+    /* The draft the model sent has no frames; the preview and the canvas both get them back. */
+    const preview = builder.getState().preview!;
+    expect(preview.document.groups?.map((group) => group.id)).toEqual([frame!]);
+    expect(preview.nodes.find((node) => node.id === "d")!.parentId).toBe(frame!);
+
+    await act(async () => buttonNamed("Apply changes")!.click());
+    expect(probe().nodes).toContain(frame!);
+    expect(builder.getState().nodes.find((node) => node.id === "d")!.parentId).toBe(frame!);
+  });
+
+  test("two calls sharing one id are two rows, keyed by where they sit", async () => {
+    history = repeatedIds;
+    const complaints: unknown[][] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => complaints.push(args);
+    try {
+      await mount();
+    } finally {
+      console.error = original;
+    }
+
+    expect(container.querySelectorAll("ul[id] li")).toHaveLength(2);
+    expect(JSON.stringify(complaints)).not.toContain("same key");
+  });
+
+  test("a stopped turn reads the same after a reload as it did live", async () => {
+    history = stoppedTurn;
+    await mount();
+
+    const alert = container.querySelector('[role="alert"]')!;
+    expect(alert.textContent).toBe(aiStoppedDetail);
+    expect(alert.textContent).not.toContain("AI could not complete");
+  });
+
+  test("suggestions are shown under the turn wherever the agent offered them", async () => {
+    history = suggestionsFirst;
+    await mount();
+
+    const text = container.querySelector('[role="log"]')!.textContent!;
+    expect(text).toContain("Post the result to Discord");
+    expect(text.indexOf("Post the result to Discord")).toBeGreaterThan(
+      text.indexOf("Apply changes"),
+    );
   });
 
   test("the first message is sent from a pending Home prompt", async () => {
