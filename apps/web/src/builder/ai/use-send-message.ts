@@ -21,12 +21,17 @@ import { useBuilderStoreApi } from "../store-provider";
 import { proposalOf } from "./apply-event";
 import type { ChatContext } from "./chat-store";
 import { useChatStoreApi } from "./chat-store-provider";
+import { useReducedMotion } from "./reduced-motion";
 import { AiRequestError, clearAiMessages, sendAiMessage, setAiProposalState } from "./transport";
 
 /** What the panel records when the wait was ended from here rather than by the API. */
 export const stoppedByUser = "Stopped before the model answered.";
 
-/* One turn at a time per builder, so Stop in the panel reaches a turn the run panel started. */
+/*
+ * The turn in flight, shared by every copy of this hook on the page. A page holds one builder and
+ * runs one turn at a time, and Stop in the panel has to reach a turn the run panel started through
+ * its own copy, which a ref inside the hook could not do.
+ */
 const inFlight: { controller: AbortController | null } = { controller: null };
 
 /* Ids for the messages the panel adds before the API has named them. */
@@ -78,6 +83,7 @@ function bridged(
 export function useSendMessage(): SendMessage {
   const getAccessToken = useAccessToken();
   const { fitView } = useReactFlow();
+  const reducedMotion = useReducedMotion();
   const builderApi = useBuilderStoreApi();
   const chatApi = useChatStoreApi();
 
@@ -104,7 +110,6 @@ export function useSendMessage(): SendMessage {
       const context = contextOf(chat.context, selectionOf(builder, chat.context));
       /* One draft at a time: asking again puts the canvas back before the next one is drawn. */
       builder.setPreview(null);
-      chat.setDraftPrompt(null);
       localMessages += 1;
       chat.begin({
         id: `local-user-${localMessages}`,
@@ -165,10 +170,10 @@ export function useSendMessage(): SendMessage {
       chat.setProposalState(messageId, state);
       if (state === "applied")
         // Nodes are new to React Flow on this render; fit once they have been measured.
-        setTimeout(() => void fitView({ padding: 0.2, duration: 300 }), 80);
+        setTimeout(() => void fitView({ padding: 0.2, duration: reducedMotion ? 0 : 300 }), 80);
       await record(current.id, messageId, state);
     },
-    [builderApi, chatApi, fitView, record],
+    [builderApi, chatApi, fitView, record, reducedMotion],
   );
 
   const startOver = useCallback(async () => {

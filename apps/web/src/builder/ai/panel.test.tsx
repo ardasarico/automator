@@ -7,10 +7,11 @@ import type {
 } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
-import { act, useEffect } from "react";
+import { act, StrictMode, useEffect, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { StoreApi } from "zustand";
 import type { BuilderState } from "../store";
+import type { ChatState } from "./chat-store";
 
 GlobalRegistrator.register();
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -22,7 +23,7 @@ mock.module("../../auth/access-token", () => ({
 
 const { ReactFlowProvider } = await import("@xyflow/react");
 const { AiPanel } = await import("./panel");
-const { ChatStoreProvider } = await import("./chat-store-provider");
+const { ChatStoreProvider, useChatStoreApi } = await import("./chat-store-provider");
 const { BuilderStoreProvider, useBuilderStore, useBuilderStoreApi } =
   await import("../store-provider");
 const { findFlowProblems } = await import("../validation");
@@ -49,7 +50,7 @@ const builtFlow: FlowDocument = {
       type: "notify.discord",
       position: { x: 300, y: 0 },
       label: "Post",
-      config: { webhookUrl: "", content: "", username: "" },
+      config: { webhookUrl: "https://discord.com/api/webhooks/1/abc", content: "hi", username: "" },
     },
   ],
   edges: [],
@@ -92,6 +93,20 @@ const asking: AiStreamEvent[] = [
     type: "question",
     text: "Which chain should this run on?",
     options: ["Base Sepolia", "World Chain Sepolia"],
+  },
+  { type: "done" },
+];
+
+const spoken: AiStreamEvent[] = [
+  { type: "message", id: "m3" },
+  { type: "tool.call", id: "s1", name: "suggest_next", args: { items: ["Add a step"] } },
+  { type: "tool.result", id: "s1", ok: true, detail: "Suggested." },
+  { type: "tool.call", id: "s2", name: "ask_user", args: { text: "Which chain?" } },
+  {
+    type: "tool.result",
+    id: "s2",
+    ok: false,
+    detail: "A question was already asked this turn.",
   },
   { type: "done" },
 ];
@@ -148,10 +163,15 @@ let script: AiStreamEvent[] = drafting;
 let history: AiMessage[] = [];
 /* Left open so the panel's waiting state, and the way out of it, can be inspected mid-turn. */
 let holdOpen = false;
+/* A failure the POST answers with instead of a stream, for the pre-stream error paths. */
+let postFailure: { status: number; body: unknown } | null = null;
+/* Counted down, so a retry can succeed where the first listing failed. */
+let listFailures = 0;
 const originalFetch = globalThis.fetch;
 let container: HTMLDivElement;
 let root: Root;
 let builder: StoreApi<BuilderState>;
+let chat: StoreApi<ChatState>;
 
 const posts = () => calls.filter((call) => call.method === "POST");
 
@@ -187,6 +207,7 @@ beforeAll(() => {
       url: String(url),
       body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
     });
+    if (method === "POST" && postFailure) return json(postFailure.body, postFailure.status);
     if (method === "POST")
       return new Response(sseBody(script, init?.signal), {
         status: 200,
@@ -194,6 +215,10 @@ beforeAll(() => {
       });
     if (method === "PATCH") return json({ message: patched });
     if (method === "DELETE") return json({ cleared: true });
+    if (listFailures > 0) {
+      listFailures -= 1;
+      return json({ error: "unavailable" }, 503);
+    }
     return json({ messages: history });
   }) as unknown as typeof fetch;
 });
@@ -202,6 +227,8 @@ beforeEach(() => {
   script = drafting;
   history = [];
   holdOpen = false;
+  postFailure = null;
+  listFailures = 0;
   window.sessionStorage.clear();
 });
 afterEach(async () => {
@@ -215,9 +242,11 @@ afterAll(async () => {
 
 function Probe() {
   const api = useBuilderStoreApi();
+  const chatApi = useChatStoreApi();
   useEffect(() => {
     builder = api;
-  }, [api]);
+    chat = chatApi;
+  }, [api, chatApi]);
   const nodes = useBuilderStore((state) => state.nodes);
   const preview = useBuilderStore((state) => state.preview);
   return (
@@ -229,21 +258,23 @@ function Probe() {
 
 const probe = () => JSON.parse(container.querySelector('[data-testid="probe"]')!.textContent!);
 
-async function mount({ document = emptyFlow, focusOnMount = false } = {}) {
+async function mount({ document = emptyFlow, focusOnMount = false, strict = false } = {}) {
   container = window.document.createElement("div");
   window.document.body.append(container);
   root = createRoot(container);
+  const tree = (
+    <BuilderStoreProvider document={document}>
+      <ChatStoreProvider focusOnMount={focusOnMount}>
+        <ReactFlowProvider>
+          <AiPanel />
+          <Probe />
+        </ReactFlowProvider>
+      </ChatStoreProvider>
+    </BuilderStoreProvider>
+  );
+  const wrap = (children: ReactNode) => (strict ? <StrictMode>{children}</StrictMode> : children);
   await act(async () => {
-    root.render(
-      <BuilderStoreProvider document={document}>
-        <ChatStoreProvider focusOnMount={focusOnMount}>
-          <ReactFlowProvider>
-            <AiPanel />
-            <Probe />
-          </ReactFlowProvider>
-        </ChatStoreProvider>
-      </BuilderStoreProvider>,
-    );
+    root.render(wrap(tree));
   });
 }
 
@@ -394,6 +425,66 @@ describe("AiPanel", () => {
     await act(async () => press({}));
     expect(posts()).toHaveLength(1);
     expect((posts()[0]!.body as { text: string }).text).toBe("A draft still being written");
+  });
+
+  test("the stored conversation loads under Strict Mode", async () => {
+    history = stored;
+    await mount({ strict: true });
+
+    const log = container.querySelector('[role="log"]')!;
+    expect(log.textContent).toContain("Adding a trigger to start from.");
+    expect(buttonNamed("Apply changes")).toBeDefined();
+  });
+
+  test("a conversation that failed to load comes back on Try again", async () => {
+    listFailures = 1;
+    history = stored;
+    await mount();
+
+    expect(container.textContent).toContain("AI could not complete this request right now.");
+    await act(async () => buttonNamed("Try again")!.click());
+    expect(container.querySelector('[role="log"]')!.textContent).toContain(
+      "Adding a trigger to start from.",
+    );
+  });
+
+  test("a tool that speaks for itself is listed only when it was refused", async () => {
+    script = spoken;
+    await mount();
+    await ask("Watch a balance");
+
+    const list = container.querySelector("ul[id]")!;
+    expect(list.textContent).toContain("Ask the user");
+    expect(list.textContent).toContain("A question was already asked this turn.");
+    expect(container.textContent).not.toContain("Suggest next steps");
+  });
+
+  test("a failure names the code's recovery step and the API's own detail", async () => {
+    postFailure = {
+      status: 401,
+      body: { error: "unauthorized", detail: "The session token was rejected." },
+    };
+    await mount();
+    await ask("Start a flow");
+
+    const alert = container.querySelector('[role="alert"]')!;
+    expect(alert.textContent).toContain("Your session expired.");
+    expect(alert.textContent).toContain("The session token was rejected.");
+  });
+
+  test("an edit sends the canvas with secrets blanked and a new flow sends none", async () => {
+    await mount({ document: builtFlow });
+    await ask("Change the message");
+
+    const edit = posts()[0]!.body as {
+      document?: { nodes: { config: Record<string, unknown> }[] };
+    };
+    expect(edit.document?.nodes[1]?.config.webhookUrl).toBe("");
+    expect(JSON.stringify(edit)).not.toContain("discord.com/api/webhooks");
+
+    await act(async () => chat.getState().setMode("new"));
+    await ask("Start again from scratch");
+    expect(posts()[1]!.body).not.toHaveProperty("document");
   });
 
   test("the first message is sent from a pending Home prompt", async () => {

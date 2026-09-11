@@ -10,7 +10,7 @@ import { useAccessToken } from "../../auth/access-token";
 import { takePendingPrompt } from "../../home/pending-prompt";
 import { isFlowNode } from "../document";
 import { useBuilderStore } from "../store-provider";
-import { useChatStore } from "./chat-store-provider";
+import { useChatStore, useChatStoreApi } from "./chat-store-provider";
 import { ContextStrip } from "./context-strip";
 import { Composer } from "./composer";
 import { Message } from "./message";
@@ -82,33 +82,36 @@ export function AiPanel() {
   const phase = useChatStore((state) => state.phase);
   const focusRequests = useChatStore((state) => state.focusRequests);
   const load = useChatStore((state) => state.load);
+  const loaded = useChatStore((state) => state.loaded);
+  const chatApi = useChatStoreApi();
   const { send, stop, apply, discard, startOver } = useSendMessage();
   const [attempt, setAttempt] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const thread = useRef<HTMLDivElement>(null);
 
-  /* The stored conversation, once per flow. A failure leaves the composer usable. */
+  /*
+   * The stored conversation, once per flow. The guard is the request's own key rather than this
+   * effect's lifetime: Strict Mode mounts, unmounts and mounts again, and an answer that arrives
+   * after that must still land. Another flow, or the retry button, moves the key and wins.
+   */
   const loadedKey = useRef<string | null>(null);
   useEffect(() => {
     const key = `${flowId}:${attempt}`;
     if (loadedKey.current === key) return;
     loadedKey.current = key;
-    let cancelled = false;
     void (async () => {
       try {
         const stored = await listAiMessages(await getAccessToken(), flowId);
-        if (!cancelled) {
-          load(stored);
-          setLoadError(null);
-        }
+        if (loadedKey.current !== key) return;
+        // A turn that started while the list was in flight owns the thread; it is the newer one.
+        if (chatApi.getState().messages.length === 0) load(stored);
+        setLoadError(null);
       } catch (error) {
-        if (!cancelled) setLoadError(describeAiFailure(error));
+        if (loadedKey.current !== key) return;
+        setLoadError(describeAiFailure(error));
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [attempt, flowId, getAccessToken, load]);
+  }, [attempt, chatApi, flowId, getAccessToken, load]);
 
   useEffect(() => {
     const element = thread.current;
@@ -124,12 +127,14 @@ export function AiPanel() {
     latestSend.current = send;
   });
   const handedOver = useRef(false);
+  const settled = loaded || loadError !== null;
   useEffect(() => {
-    if (handedOver.current || focusRequests === 0) return;
+    /* The stored conversation is asked for first, so the handed-over turn is not overwritten. */
+    if (handedOver.current || focusRequests === 0 || !settled) return;
     handedOver.current = true;
     const text = takePendingPrompt();
     if (text !== null) void latestSend.current(text);
-  }, [focusRequests]);
+  }, [focusRequests, settled]);
 
   /* Streaming text is not announced; the end of the turn is, once, in a stable region. */
   const [announcement, setAnnouncement] = useState("");

@@ -8,8 +8,10 @@ import {
   RiCheckLine,
   RiDeleteBinLine,
   RiEditLine,
+  RiLightbulbLine,
   RiLinkM,
   RiLinkUnlinkM,
+  RiQuestionLine,
   RiSettings3Line,
   RiTestTubeLine,
   RiToolsLine,
@@ -26,6 +28,8 @@ const icons: Record<string, RemixiconComponentType> = {
   disconnect: RiLinkUnlinkM,
   set_flow: RiSettings3Line,
   add_test: RiTestTubeLine,
+  ask_user: RiQuestionLine,
+  suggest_next: RiLightbulbLine,
 };
 
 const names: Record<string, string> = {
@@ -36,7 +40,18 @@ const names: Record<string, string> = {
   disconnect: "Disconnect",
   set_flow: "Flow settings",
   add_test: "Add test",
+  ask_user: "Ask the user",
+  suggest_next: "Suggest next steps",
 };
+
+/* These two speak to the reader directly: their content is the question and the suggestion chips,
+   so listing them again as work done is noise. A refused one still has to be accounted for. */
+const spokenTools = new Set(["ask_user", "suggest_next"]);
+
+/** Whether a call belongs in the step list at all. */
+export function isListedStep(step: AiToolPart): boolean {
+  return !spokenTools.has(step.name) || step.ok === false;
+}
 
 function text(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;

@@ -1,30 +1,12 @@
 "use client";
 
 import { code } from "@streamdown/code";
-import { useSyncExternalStore } from "react";
 import { Streamdown } from "streamdown";
 import styles from "./panel.module.css";
+import { useReducedMotion } from "./reduced-motion";
 
 /* One plugin object for every message: Shiki loads its grammars once per page, not per turn. */
 const plugins = { code };
-
-const reduceMotion = "(prefers-reduced-motion: reduce)";
-
-function subscribeToMotion(onChange: () => void): () => void {
-  const query = window.matchMedia?.(reduceMotion);
-  if (!query) return () => {};
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
-
-/** Server-rendered markup animates nothing, so the server snapshot is always "no motion asked for". */
-function useReducedMotion(): boolean {
-  return useSyncExternalStore(
-    subscribeToMotion,
-    () => window.matchMedia?.(reduceMotion).matches ?? false,
-    () => true,
-  );
-}
 
 /**
  * The model's prose. `streaming` mode re-parses the growing text and leaves an incomplete fence

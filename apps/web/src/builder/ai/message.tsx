@@ -6,8 +6,9 @@ import { Button } from "@automator/ui/button";
 import { Markdown } from "./markdown";
 import styles from "./panel.module.css";
 import { ProposalCard } from "./proposal-card";
-import { Steps } from "./steps";
+import { isListedStep, Steps } from "./steps";
 import { AiRequestError, describeAiFailure } from "./transport";
+import { stoppedByUser } from "./use-send-message";
 import { useChatStore } from "./chat-store-provider";
 
 type QuestionPart = Extract<AiPart, { type: "question" }>;
@@ -16,29 +17,38 @@ type ErrorPart = Extract<AiPart, { type: "error" }>;
 
 /** One run of consecutive tool calls, or a single part of any other kind. */
 type Block =
-  | { key: string; steps: AiToolPart[] }
-  | { key: string; part: Exclude<AiPart, AiToolPart> };
+  | { key: string; index: number; steps: AiToolPart[] }
+  | { key: string; index: number; part: Exclude<AiPart, AiToolPart> };
 
 function blocksOf(message: AiMessage): Block[] {
   const blocks: Block[] = [];
   for (const [index, part] of message.parts.entries()) {
     if (part.type === "tool") {
+      if (!isListedStep(part)) continue;
       const last = blocks.at(-1);
       if (last && "steps" in last) last.steps.push(part);
-      else blocks.push({ key: `${message.id}:${index}`, steps: [part] });
+      else blocks.push({ key: `${message.id}:${index}`, index, steps: [part] });
       continue;
     }
-    blocks.push({ key: `${message.id}:${index}`, part });
+    blocks.push({ key: `${message.id}:${index}`, index, part });
   }
   return blocks;
 }
 
+/** Where the text the model is still writing sits, so the earlier paragraphs stop animating. */
+function lastTextIndex(message: AiMessage): number {
+  return message.parts.reduce((last, part, index) => (part.type === "text" ? index : last), -1);
+}
+
 /**
- * The API writes its stream errors for the person reading them, so a detail stands on its own;
- * a failure that never reached the stream carries only a code, and the code's wording covers it.
+ * The code carries the recovery step and the detail says what actually failed, so both are shown:
+ * the wording first, the detail under it. A turn the reader stopped is not a failure to explain
+ * and gets only its own sentence.
  */
 function errorText(part: ErrorPart): string {
-  return part.detail ?? describeAiFailure(new AiRequestError(part.error));
+  if (part.detail === stoppedByUser) return stoppedByUser;
+  const wording = describeAiFailure(new AiRequestError(part.error));
+  return part.detail ? `${wording}\n${part.detail}` : wording;
 }
 
 function Chips({ children }: { children: ReactNode }) {
@@ -114,6 +124,7 @@ export function Message({
       </div>
     );
 
+  const animating = lastTextIndex(message);
   return (
     <div className={styles.assistantTurn}>
       {blocksOf(message).map((block) => {
@@ -122,7 +133,13 @@ export function Message({
         const { part } = block;
         switch (part.type) {
           case "text":
-            return <Markdown key={block.key} text={part.text} isAnimating={streaming} />;
+            return (
+              <Markdown
+                key={block.key}
+                text={part.text}
+                isAnimating={streaming && block.index === animating}
+              />
+            );
           case "question":
             return <Question key={block.key} part={part} onSend={onSend} />;
           case "proposal":
