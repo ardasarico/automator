@@ -12,6 +12,7 @@ import {
   buildXScale,
   buildYScale,
   computeBands,
+  DEFAULT_Y_TICK_COUNT,
   indexAtBand,
   nearestIndex,
   type StackType,
@@ -70,6 +71,7 @@ export type ChartContextValue = {
     seriesCount: number,
   ) => { x: number; width: number };
   y: ScaleLinear<number, number>; // value → px within the plot
+  yTickCount: number; // ticks the y domain is niced for — the grid and axis draw this many
   bands: Record<string, [number, number][]>; // per-series [y0, y1] per row
   max: number;
   min: number; // most-negative value (0 when nothing dips below the baseline)
@@ -181,6 +183,7 @@ export function useChartController({
   stackType,
   dimensions,
   margins,
+  yTickCount = DEFAULT_Y_TICK_COUNT,
   animate = true,
   animationDuration = 900,
   replayToken = 0,
@@ -197,6 +200,7 @@ export function useChartController({
   stackType: StackType;
   dimensions: Dimensions;
   margins: Margins;
+  yTickCount?: number;
   animate?: boolean;
   animationDuration?: number;
   replayToken?: number;
@@ -326,7 +330,10 @@ export function useChartController({
     },
     [xCenter, stacked, bandwidth],
   );
-  const y = useMemo(() => buildYScale(min, max, plotHeight), [min, max, plotHeight]);
+  const y = useMemo(
+    () => buildYScale(min, max, plotHeight, yTickCount),
+    [min, max, plotHeight, yTickCount],
+  );
 
   // Stable so `common` and the value stay stable; re-created only on config.
   const seedOf = useCallback((key: string) => seedOfColor(config[key]?.color ?? "grey"), [config]);
@@ -415,6 +422,7 @@ export function useChartController({
       indexAtX,
       barSlot,
       y,
+      yTickCount,
       bands,
       max,
       min,
@@ -458,6 +466,7 @@ export function useChartController({
       indexAtX,
       barSlot,
       y,
+      yTickCount,
       bands,
       max,
       min,

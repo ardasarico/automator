@@ -20,7 +20,7 @@ export function Grid({
     <g className="stroke-border" strokeDasharray={strokeDasharray}>
       {horizontal &&
         ctx.y
-          .ticks(4)
+          .ticks(ctx.yTickCount)
           .map((t) => <line key={`h-${t}`} x1={0} x2={width} y1={ctx.y(t)} y2={ctx.y(t)} />)}
       {vertical &&
         ctx.data.map((_, i) => (

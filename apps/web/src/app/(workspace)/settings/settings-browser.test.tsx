@@ -100,7 +100,10 @@ test("usage can recover in place and includes watch runs in its total", async ()
   await click("Retry");
   expect(calls).toEqual(["/api/account/usage", "/api/account/usage"]);
   expect(document.querySelector('[role="alert"]')?.textContent).toBeUndefined();
-  expect(document.body.textContent).toContain("6 watch");
+  /* The breakdown names each trigger the way the Runs page does. */
+  expect(document.body.textContent).toContain(
+    "1 Simulate · 2 Webhook · 3 Schedule · 4 Mini-app · 5 Onchain event · 6 Watch · 7 API call",
+  );
   const runRow = Array.from(document.querySelectorAll("dt")).find(
     (element) => element.textContent === "Runs in the last 30 days",
   )?.parentElement?.parentElement;

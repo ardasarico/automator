@@ -33,6 +33,8 @@ export type CartesianChartProps<TData extends Row> = {
   children: ReactNode;
   stackType?: StackType;
   margins?: Partial<Margins>;
+  /** How many value ticks the grid and y axis draw; the y domain is niced to end on one. */
+  yTickCount?: number;
   className?: string;
   animate?: boolean;
   animationDuration?: number;
@@ -78,6 +80,7 @@ export function CartesianRoot<TData extends Row>({
   children,
   stackType = "default",
   margins: marginsProp,
+  yTickCount,
   className,
   animate = true,
   animationDuration = 900,
@@ -105,6 +108,7 @@ export function CartesianRoot<TData extends Row>({
     stackType,
     dimensions: size,
     margins,
+    yTickCount,
     animate,
     animationDuration,
     replayToken,

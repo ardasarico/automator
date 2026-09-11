@@ -86,19 +86,30 @@ export function indexAtBand(px: number, length: number, plotWidth: number) {
   return Math.min(length - 1, Math.floor(t * length));
 }
 
+/** How many value ticks the grid and y axis draw unless a root says otherwise. */
+export const DEFAULT_Y_TICK_COUNT = 4;
+
 /**
  * value → vertical pixel. The domain always includes zero, so charts with only
  * positive values keep a floor at the plot bottom, while diverging data (values
  * below zero) draws below a zero baseline that sits somewhere inside the plot.
+ * The domain is niced for `tickCount`, the same count the grid and axis draw
+ * with, so the outermost gridline is always the domain edge: nicing for d3's
+ * default ten while drawing four left a 122 tallest bar above a 100 top tick.
  */
-export function buildYScale(min: number, max: number, plotHeight: number) {
+export function buildYScale(
+  min: number,
+  max: number,
+  plotHeight: number,
+  tickCount = DEFAULT_Y_TICK_COUNT,
+) {
   const lo = Math.min(0, min);
   const hi = Math.max(0, max);
   // Guard a degenerate (zero-width) domain so `nice()` and the range map stay
   // finite even when every value is exactly zero.
   return scaleLinear()
     .domain([lo, hi === lo ? lo + 1 : hi])
-    .nice()
+    .nice(tickCount)
     .range([plotHeight, 0]);
 }
 

@@ -14,10 +14,11 @@ import { Input } from "@automator/ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@automator/ui/select";
 import { Switch } from "@automator/ui/switch";
 import { Textarea } from "@automator/ui/textarea";
-import { RiCloseLine } from "@remixicon/react";
+import { RiCloseLine, RiShieldLine } from "@remixicon/react";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useAccessToken } from "../../../auth/access-token";
 import { useAuthSession } from "../../../auth/provider";
+import { EmptyState } from "../../../components/empty-state";
 import { requestPaymentPolicy } from "../../../wallet/payment-policy-client";
 import styles from "./wallet.module.css";
 
@@ -199,115 +200,121 @@ function AccountPaymentLimits() {
           }}
           aria-describedby="payment-limits-problem"
         >
-          <div className={styles.limitsWrap}>
-            <div className={styles.limits} role="table" aria-label="Limits per chain and asset">
-              <div className={styles.limitsHead} role="row">
-                <span role="columnheader">Chain</span>
-                <span role="columnheader">Asset</span>
-                <span role="columnheader">Per transfer</span>
-                <span role="columnheader">Per UTC day</span>
-                <span role="columnheader">Reserved today</span>
-                <span role="columnheader">
-                  <span className="sr-only">Remove</span>
-                </span>
-              </div>
-              {draft.limits.length === 0 && (
-                <div className={styles.noLimits} role="row">
-                  <span role="cell">
-                    No limits yet. Add one per chain and asset you want to cap.
+          {/* Column headers over nothing read as a broken grid, so an empty policy shows the
+              page's empty state instead and the table appears with its first row. */}
+          {draft.limits.length === 0 ? (
+            <EmptyState
+              heading="h3"
+              icon={<RiShieldLine />}
+              title="No limits yet"
+              text="Add one per chain and asset you want to cap."
+            />
+          ) : (
+            <div className={styles.limitsWrap}>
+              <div className={styles.limits} role="table" aria-label="Limits per chain and asset">
+                <div className={styles.limitsHead} role="row">
+                  <span role="columnheader">Chain</span>
+                  <span role="columnheader">Asset</span>
+                  <span role="columnheader">Per transfer</span>
+                  <span role="columnheader">Per UTC day</span>
+                  <span role="columnheader">Reserved today</span>
+                  <span role="columnheader">
+                    <span className="sr-only">Remove</span>
                   </span>
                 </div>
-              )}
-              {draft.limits.map((limit, index) => {
-                const unit = assetLabel(limit.asset);
-                const reserved = reservedFor(limit);
-                return (
-                  <div key={index} className={styles.limitRow} role="row">
-                    <div role="cell">
-                      <Select
-                        items={chains.map((chain) => ({ value: chain.id, label: chain.name }))}
-                        value={limit.chainId}
-                        onValueChange={(value) => {
-                          if (value !== null) updateLimit(index, { chainId: value });
-                        }}
-                      >
-                        <SelectTrigger
-                          size="sm"
-                          className="w-full min-w-0"
-                          aria-label={`Chain, limit ${index + 1}`}
+                {draft.limits.map((limit, index) => {
+                  const unit = assetLabel(limit.asset);
+                  const reserved = reservedFor(limit);
+                  return (
+                    <div key={index} className={styles.limitRow} role="row">
+                      <div role="cell">
+                        <Select
+                          items={chains.map((chain) => ({ value: chain.id, label: chain.name }))}
+                          value={limit.chainId}
+                          onValueChange={(value) => {
+                            if (value !== null) updateLimit(index, { chainId: value });
+                          }}
                         >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectPopup>
-                          {chains.map((chain) => (
-                            <SelectItem key={chain.id} value={chain.id}>
-                              {chain.name}
-                            </SelectItem>
-                          ))}
-                        </SelectPopup>
-                      </Select>
-                    </div>
-                    <div role="cell">
-                      <Select
-                        items={[
-                          { value: "native", label: "ETH" },
-                          { value: "usdc", label: "USDC" },
-                        ]}
-                        value={limit.asset}
-                        onValueChange={(value) => {
-                          if (value === "native" || value === "usdc")
-                            updateLimit(index, { asset: value });
-                        }}
-                      >
-                        <SelectTrigger
-                          size="sm"
-                          className="w-full min-w-0"
-                          aria-label={`Asset, limit ${index + 1}`}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectPopup>
-                          <SelectItem value="native">ETH</SelectItem>
-                          <SelectItem value="usdc">USDC</SelectItem>
-                        </SelectPopup>
-                      </Select>
-                    </div>
-                    {(["perTransfer", "perDay"] as const).map((field) => (
-                      <div key={field} role="cell">
-                        <Input
-                          size="sm"
-                          inputMode="decimal"
-                          autoComplete="off"
-                          value={limit[field]}
-                          onChange={(event) => updateLimit(index, { [field]: event.target.value })}
-                          aria-label={`${field === "perTransfer" ? "Per transfer" : "Per UTC day"} (${unit})`}
-                          aria-describedby="payment-limits-problem"
-                        />
+                          <SelectTrigger
+                            size="sm"
+                            className="w-full min-w-0"
+                            aria-label={`Chain, limit ${index + 1}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectPopup>
+                            {chains.map((chain) => (
+                              <SelectItem key={chain.id} value={chain.id}>
+                                {chain.name}
+                              </SelectItem>
+                            ))}
+                          </SelectPopup>
+                        </Select>
                       </div>
-                    ))}
-                    <p role="cell" className={styles.reserved}>
-                      {reserved?.reserved ?? "0"} <span>{unit}</span>
-                    </p>
-                    <div role="cell">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() =>
-                          edit({
-                            ...draft,
-                            limits: draft.limits.filter((_, row) => row !== index),
-                          })
-                        }
-                        aria-label={`Remove limit ${index + 1}`}
-                      >
-                        <RiCloseLine aria-hidden="true" />
-                      </Button>
+                      <div role="cell">
+                        <Select
+                          items={[
+                            { value: "native", label: "ETH" },
+                            { value: "usdc", label: "USDC" },
+                          ]}
+                          value={limit.asset}
+                          onValueChange={(value) => {
+                            if (value === "native" || value === "usdc")
+                              updateLimit(index, { asset: value });
+                          }}
+                        >
+                          <SelectTrigger
+                            size="sm"
+                            className="w-full min-w-0"
+                            aria-label={`Asset, limit ${index + 1}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectPopup>
+                            <SelectItem value="native">ETH</SelectItem>
+                            <SelectItem value="usdc">USDC</SelectItem>
+                          </SelectPopup>
+                        </Select>
+                      </div>
+                      {(["perTransfer", "perDay"] as const).map((field) => (
+                        <div key={field} role="cell">
+                          <Input
+                            size="sm"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            value={limit[field]}
+                            onChange={(event) =>
+                              updateLimit(index, { [field]: event.target.value })
+                            }
+                            aria-label={`${field === "perTransfer" ? "Per transfer" : "Per UTC day"} (${unit})`}
+                            aria-describedby="payment-limits-problem"
+                          />
+                        </div>
+                      ))}
+                      <p role="cell" className={styles.reserved}>
+                        {reserved?.reserved ?? "0"} <span>{unit}</span>
+                      </p>
+                      <div role="cell">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() =>
+                            edit({
+                              ...draft,
+                              limits: draft.limits.filter((_, row) => row !== index),
+                            })
+                          }
+                          aria-label={`Remove limit ${index + 1}`}
+                        >
+                          <RiCloseLine aria-hidden="true" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
           <div className={styles.limitsFoot}>
             <Button
               variant="outline"

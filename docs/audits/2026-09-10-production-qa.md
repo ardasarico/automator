@@ -79,15 +79,15 @@ longest line as a flex item — 665 px inside a 462 px parent.
 **10. Builder History truncated the node count mid-word.** (fixed) "Sep 10, 9:57 PM · 10 no…" in a 310 px
 panel with ~40 px of unused room.
 
-**11. Runs chart: the tallest bar exceeds the top gridline.** The Sep 7 bar reaches ~122 runs while the
+**11. Runs chart: the tallest bar exceeds the top gridline.** (fixed) The Sep 7 bar reaches ~122 runs while the
 highest labelled gridline is 100, with no gridline or label above it. Readable, but the scale reads as if
 the bar overflows.
 
-**12. Wallet payment-limits table shows column headers with no rows.** The Chain / Asset / Per transfer /
+**12. Wallet payment-limits table shows column headers with no rows.** (fixed) The Chain / Asset / Per transfer /
 Per UTC day / Reserved today header row with its per-column rules renders above "No limits yet.", which
 reads as a broken grid rather than an empty state.
 
-**13. Settings usage breakdown mixes capitalisation.** "30 Simulate · 1 webhook · 2 schedule · 41 mini-app
+**13. Settings usage breakdown mixes capitalisation.** (fixed) "30 Simulate · 1 webhook · 2 schedule · 41 mini-app
 · 97 onchain event · 0 watch · 0 API".
 
 ### Withdrawn after investigation

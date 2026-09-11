@@ -3,13 +3,15 @@
 
 import { useChartPart } from "./chart-context";
 
+/**
+ * Value labels down the left edge. The tick count is the root's `yTickCount`, not a prop:
+ * the domain was niced for that count, so any other would end short of the top gridline.
+ */
 export function YAxis({
   tickFormatter,
-  tickCount = 4,
   tickMargin = 8,
 }: {
   tickFormatter?: (value: number) => string;
-  tickCount?: number;
   tickMargin?: number;
 }) {
   const ctx = useChartPart("YAxis");
@@ -17,7 +19,7 @@ export function YAxis({
 
   return (
     <g className="fill-current font-mono text-[10px] text-muted-foreground">
-      {ctx.y.ticks(tickCount).map((t) => (
+      {ctx.y.ticks(ctx.yTickCount).map((t) => (
         <text
           key={t}
           x={-tickMargin}

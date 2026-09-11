@@ -67,11 +67,10 @@ export function RunsChart({ days }: { days: readonly RunStatsDay[] }) {
           }
         />
         {/* Runs are whole numbers, so a tick between two of them would name a count that
-            cannot happen; the scale is what tells a tall bar from a slightly taller one. */}
-        <YAxis
-          tickCount={4}
-          tickFormatter={(value) => (Number.isInteger(value) ? `${value}` : "")}
-        />
+            cannot happen; the scale is what tells a tall bar from a slightly taller one.
+            The root nices the scale for the same four ticks the grid and axis draw, so the
+            top gridline always clears the tallest bar. */}
+        <YAxis tickFormatter={(value) => (Number.isInteger(value) ? `${value}` : "")} />
         <XAxis
           dataKey="date"
           maxTicks={7}

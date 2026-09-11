@@ -9,6 +9,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { AccountRequestError, getAccountUsageRequest } from "../../../account/client";
 import { useAccessToken } from "../../../auth/access-token";
 import { useAuthSession } from "../../../auth/provider";
+import { runSourceLabels } from "../runs/run-labels";
 import styles from "./settings.module.css";
 
 function Section({
@@ -148,7 +149,10 @@ function Usage() {
         </UsageRow>
         <UsageRow
           term="Runs in the last 30 days"
-          detail={`${runs.manual} Simulate · ${runs.webhook} webhook · ${runs.schedule} schedule · ${runs.miniapp} mini-app · ${runs.event} onchain event · ${runs.watch} watch · ${runs.api} API`}
+          /* Each trigger is named the way the Runs page names it. */
+          detail={(["manual", "webhook", "schedule", "miniapp", "event", "watch", "api"] as const)
+            .map((source) => `${runs[source]} ${runSourceLabels[source]}`)
+            .join(" · ")}
         >
           {totalRuns(usage)}
         </UsageRow>

@@ -174,12 +174,6 @@
   align-items: center;
   gap: 8px 12px;
 }
-.noLimits {
-  grid-column: 1 / -1;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-  color: var(--muted-foreground);
-}
 .limitsHead,
 .limitRow {
   display: contents;

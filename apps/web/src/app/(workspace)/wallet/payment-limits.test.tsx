@@ -71,6 +71,27 @@ if (process.env.AUTOMATOR_POLICY_TEST_CHILD !== import.meta.path) {
   });
   afterAll(async () => GlobalRegistrator.unregister());
 
+  test("no limits shows the empty state and no column headers", async () => {
+    await render();
+    await act(async () =>
+      requests[0]!.resolve({ ...fixture(), policy: { ...fixture().policy, limits: [] } }),
+    );
+    expect(container.querySelector('[role="columnheader"]')).toBeNull();
+    expect(container.querySelector('[role="table"]')).toBeNull();
+    expect(container.querySelector("h3")?.textContent).toBe("No limits yet");
+    expect(container.textContent).toContain("Add one per chain and asset you want to cap.");
+    expect(button("Add asset limit").disabled).toBe(false);
+  });
+
+  test("a limit brings the table and its column headers back", async () => {
+    await render();
+    await act(async () => requests[0]!.resolve(fixture()));
+    expect(
+      [...container.querySelectorAll('[role="columnheader"]')].map((cell) => cell.textContent),
+    ).toEqual(["Chain", "Asset", "Per transfer", "Per UTC day", "Reserved today", "Remove"]);
+    expect(container.textContent).not.toContain("No limits yet");
+  });
+
   test("account changes cancel and discard the previous account response", async () => {
     await render();
     identity = "user-b";
