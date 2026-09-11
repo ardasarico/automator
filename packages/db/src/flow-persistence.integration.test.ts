@@ -162,4 +162,63 @@ describe.skipIf(!url)("flow persistence", () => {
       await sql.close({ timeout: 5 });
     }
   });
+
+  test("lists the owner's flows whose data nodes point at a table, in one query", async () => {
+    const sql = new SQL(url!, { max: 2, connectionTimeout: 5 });
+    const ownerId = `did:privy:audit-usage-${crypto.randomUUID()}`;
+    const otherId = `did:privy:audit-usage-other-${crypto.randomUUID()}`;
+    type Node = FlowDocumentInput["nodes"][number];
+    const dataNode = (type: "data.create-record" | "data.find-records", tableId: string): Node => ({
+      id: "save",
+      type,
+      label: "Save",
+      position: { x: 1, y: 0 },
+      config: { tableId },
+    });
+    const withNodes = (name: string, nodes: Node[]): FlowDocumentInput => ({
+      ...input,
+      name,
+      nodes,
+    });
+    try {
+      await migrate(sql);
+      const users = createUserStore(sql);
+      await users.sync(ownerId, null);
+      await users.sync(otherId, null);
+      const flows = createFlowStore(sql);
+      const creating = await flows.create(
+        ownerId,
+        withNodes("Creates", [...input.nodes, dataNode("data.create-record", "tbl-1")]),
+      );
+      const listing = await flows.create(
+        ownerId,
+        withNodes("Lists", [dataNode("data.find-records", "tbl-1")]),
+      );
+      await flows.create(
+        ownerId,
+        withNodes("Other table", [dataNode("data.find-records", "tbl-2")]),
+      );
+      await flows.create(ownerId, withNodes("No data node", input.nodes));
+      /* A non-data node carrying the same key must not count as usage. */
+      await flows.create(
+        ownerId,
+        withNodes("Lookalike", [{ ...input.nodes[0]!, config: { tableId: "tbl-1" } }]),
+      );
+      await flows.create(
+        otherId,
+        withNodes("Someone else's", [dataNode("data.find-records", "tbl-1")]),
+      );
+
+      const used = await flows.listUsingTable(ownerId, "tbl-1");
+      expect(used.map((flow) => flow.name).sort()).toEqual(["Creates", "Lists"]);
+      expect(used.map((flow) => flow.id).sort()).toEqual(
+        [creating.flow.id, listing.flow.id].sort(),
+      );
+      expect(await flows.listUsingTable(ownerId, "tbl-3")).toEqual([]);
+      expect(await flows.listUsingTable(otherId, "tbl-2")).toEqual([]);
+    } finally {
+      await sql`DELETE FROM automator_users WHERE id IN (${ownerId}, ${otherId})`;
+      await sql.close({ timeout: 5 });
+    }
+  });
 });

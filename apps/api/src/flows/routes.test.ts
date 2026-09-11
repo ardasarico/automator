@@ -132,6 +132,16 @@ function fixture(
           pollingRevision: "0",
         })),
     isCurrentPoll: async () => true,
+    listUsingTable: async (ownerId, tableId) =>
+      [...records.values()]
+        .filter(
+          (record) =>
+            record.ownerId === ownerId &&
+            record.flow.nodes.some(
+              (node) => node.type.startsWith("data.") && node.config.tableId === tableId,
+            ),
+        )
+        .map((record) => ({ id: record.flow.id, name: record.flow.name })),
     ...overrides,
   };
   const identity: IdentityProvider = {
