@@ -8,6 +8,9 @@ dist/
 *.tsbuildinfo
 next-env.d.ts
 
+# macOS writes these into every directory it opens.
+.DS_Store
+
 # Local agent context and harness state
 AGENTS.override.md
 CLAUDE.local.md
