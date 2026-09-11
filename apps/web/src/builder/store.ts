@@ -86,7 +86,12 @@ export type BuilderState = {
   clearSelection(): void;
   setMeta(patch: Partial<Omit<FlowMeta, "id">>): void;
   hydrate(document: FlowDocument): void;
-  applyDocument(input: FlowDocumentInput): void;
+  /**
+   * Replaces the document. A document that says nothing about frames (`groups` absent) drops
+   * them, unless `keepGroups` asks for the frames whose nodes survive to be carried over and
+   * refitted, which is what an AI edit wants: the model never sees frames.
+   */
+  applyDocument(input: FlowDocumentInput, options?: { keepGroups?: boolean }): void;
   markSaved(document?: FlowDocument): boolean;
 };
 
@@ -231,6 +236,34 @@ function fitGroups(nodes: readonly BuilderNode[]): BuilderNode[] {
         },
       };
     });
+}
+
+/**
+ * Carries the frames of one node list over to another that has none: a frame survives when at
+ * least one of its nodes is still there, its survivors go back in, and it is refitted around
+ * wherever they are now.
+ */
+function carryGroups(before: readonly BuilderNode[], after: readonly BuilderNode[]): BuilderNode[] {
+  const parentOf = new Map(
+    before.flatMap((node) => (isFlowNode(node) && node.parentId ? [[node.id, node.parentId]] : [])),
+  );
+  const kept = before.filter(
+    (node): node is GroupBuilderNode =>
+      isGroupNode(node) &&
+      after.some((item) => isFlowNode(item) && parentOf.get(item.id) === node.id),
+  );
+  if (kept.length === 0) return [...after];
+  const byId = new Map<string, BuilderNode>(kept.map((group) => [group.id, group]));
+  // The new nodes are unmeasured until they mount; a survivor keeps its size so the fit holds.
+  const measuredOf = new Map(before.map((node) => [node.id, node.measured]));
+  const members = after.map((node) => {
+    if (!isFlowNode(node)) return node;
+    const group = byId.get(parentOf.get(node.id) ?? "");
+    if (!group || !isGroupNode(group)) return node;
+    const measured = measuredOf.get(node.id);
+    return adopt(measured ? { ...node, measured } : node, group, byId);
+  });
+  return fitGroups([...kept.map((group) => ({ ...group, selected: false })), ...members]);
 }
 
 /** Removing a frame frees the nodes in it unless they were picked for removal themselves. */
@@ -739,13 +772,15 @@ export function createBuilderStore(document: FlowDocument): StoreApi<BuilderStat
       });
     },
 
-    applyDocument(input) {
-      set((state) => ({
-        ...remember(state),
-        ...hydrateFlow({ ...input, id: state.meta.id }),
-        dragging: false,
-        dirty: true,
-      }));
+    applyDocument(input, options = {}) {
+      set((state) => {
+        const hydrated = hydrateFlow({ ...input, id: state.meta.id });
+        const nodes =
+          options.keepGroups && input.groups === undefined
+            ? carryGroups(state.nodes, hydrated.nodes)
+            : hydrated.nodes;
+        return { ...remember(state), ...hydrated, nodes, dragging: false, dirty: true };
+      });
     },
 
     markSaved(document) {

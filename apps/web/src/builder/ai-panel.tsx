@@ -315,7 +315,10 @@ export function AiPanel() {
   }
 
   function applyProposal(turn: AiTurn, proposal: AiProposal) {
-    applyDocument(proposalDocument(proposal, serializeFlow(meta, nodes, edges)));
+    // The model never sees frames, so the ones whose nodes survive are carried over.
+    applyDocument(proposalDocument(proposal, serializeFlow(meta, nodes, edges)), {
+      keepGroups: true,
+    });
     apply(turn.id);
     // Nodes are new to React Flow on this render; fit once they have been measured.
     setTimeout(() => void fitView({ padding: 0.2, duration: 300 }), 80);
