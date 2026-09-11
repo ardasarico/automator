@@ -106,7 +106,9 @@ heading _component_ was considered and dropped — see the outcome below.)
 
 ## Outcome
 
-Built on 2026-09-11, left uncommitted.
+Built on 2026-09-11 and shipped the same day: `7d14cbc` carries the shared table grammar and
+`7906c47` the redesign itself. Railway deployed `web` alone — no other service's watch paths were
+touched.
 
 **Deviations, and why:**
 
