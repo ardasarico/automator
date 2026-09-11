@@ -67,12 +67,18 @@ export function formatElapsed(seconds: number): string {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-/** One request to the API: builds the path, attaches the bearer token when present, parses the body. */
+/**
+ * One request to the API: builds the path, attaches the bearer token when present, parses the
+ * body. `keepalive` lets a short, fire-and-forget write survive a navigation that would otherwise
+ * abort it — only worth the (browser-enforced, ~64KB) body limit for requests small enough to
+ * never approach it, so callers opt in per request rather than it being the default.
+ */
 async function request<C extends EndpointContract>(
   contract: C,
   token: string | null,
   params?: ContractParams<C>,
   body?: unknown,
+  keepalive?: boolean,
 ): Promise<unknown> {
   const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -81,6 +87,7 @@ async function request<C extends EndpointContract>(
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(20_000),
+    ...(keepalive ? { keepalive: true } : {}),
   });
   await throwIfNotOk(response);
   const data: unknown = await response.json().catch(() => ({}));
@@ -105,6 +112,9 @@ export async function setAiProposalState(
     token,
     { id: flowId, messageId },
     { state },
+    // Applying/discarding a proposal often precedes a reload (fitView, navigation away from the
+    // flow); keepalive lets this small write finish instead of being aborted with the page.
+    true,
   )) as { message: AiMessage };
   return data.message;
 }

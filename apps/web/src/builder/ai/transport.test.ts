@@ -4,7 +4,7 @@ import { afterAll, afterEach, describe, expect, test } from "bun:test";
 
 GlobalRegistrator.register();
 
-const { AiRequestError, sendAiMessage } = await import("./transport");
+const { AiRequestError, sendAiMessage, setAiProposalState } = await import("./transport");
 
 const originalFetch = globalThis.fetch;
 
@@ -109,5 +109,27 @@ describe("sendAiMessage", () => {
     expect(caught).toBeInstanceOf(AiRequestError);
     expect((caught as InstanceType<typeof AiRequestError>).code).toBe("rate_limited");
     expect(events).toHaveLength(0);
+  });
+});
+
+describe("setAiProposalState", () => {
+  test("sends the PATCH with keepalive so a reload right after Apply cannot abort it", async () => {
+    let calledInit: RequestInit | undefined;
+    globalThis.fetch = (async (_url: string | URL, init?: RequestInit) => {
+      calledInit = init;
+      return Response.json({
+        message: {
+          id: "m1",
+          role: "assistant",
+          parts: [],
+          createdAt: new Date().toISOString(),
+        },
+      });
+    }) as unknown as typeof fetch;
+
+    await setAiProposalState("token-1", "flow-1", "m1", "applied");
+
+    expect(calledInit?.method).toBe("PATCH");
+    expect(calledInit?.keepalive).toBe(true);
   });
 });
