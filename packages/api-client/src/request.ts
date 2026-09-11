@@ -68,13 +68,30 @@ export async function request<C extends EndpointContract>(
       : AbortSignal.timeout(timeoutMs),
   };
 
+  const endpoint = `${contract.method} ${contract.path}`;
   let response: Response;
-  let payload: unknown;
   try {
     response = await fetcher(url, init);
+  } catch (error) {
+    // A DNS failure, a refused connection, the timeout or the caller's abort: nothing answered.
+    throw new ApiRequestError(`Could not reach ${endpoint}: ${describeCause(error)}`, error);
+  }
+  let payload: unknown;
+  try {
     payload = await response.json();
   } catch (error) {
-    throw new ApiRequestError(`${contract.method} ${contract.path} did not answer`, error);
+    // Something answered, but not the API: a proxy's HTML page, or an empty body.
+    throw new ApiRequestError(`${endpoint} answered ${response.status} without a JSON body`, error);
   }
   return parseResponse(contract, response.status, payload);
+}
+
+/** The failure in the words the runtime gave, so a log line says which of the causes it was. */
+function describeCause(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.name === "TimeoutError") return "the request timed out";
+    if (error.name === "AbortError") return "the request was aborted";
+    return error.message || error.name;
+  }
+  return String(error);
 }

@@ -113,6 +113,42 @@ if (process.env.AUTOMATOR_POLICY_TEST_CHILD !== import.meta.path) {
     expect(container.querySelector("form")).not.toBeNull();
   });
 
+  test("unsaved changes warn before the page is left, and the warning goes once saved", async () => {
+    const listeners = new Set<EventListenerOrEventListenerObject>();
+    const addEventListener = window.addEventListener.bind(window);
+    const removeEventListener = window.removeEventListener.bind(window);
+    window.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject) => {
+      if (type === "beforeunload") listeners.add(listener);
+      addEventListener(type, listener);
+    }) as typeof window.addEventListener;
+    window.removeEventListener = ((type: string, listener: EventListenerOrEventListenerObject) => {
+      if (type === "beforeunload") listeners.delete(listener);
+      removeEventListener(type, listener);
+    }) as typeof window.removeEventListener;
+    try {
+      await render();
+      await act(async () => requests[0]!.resolve(fixture()));
+      expect(listeners.size).toBe(0);
+      await act(async () =>
+        (container.querySelector('[role="switch"]') as HTMLButtonElement).click(),
+      );
+      expect(listeners.size).toBe(1);
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      await act(async () =>
+        container
+          .querySelector("form")!
+          .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+      );
+      await act(async () => requests[1]!.resolve(fixture(true)));
+      expect(listeners.size).toBe(0);
+    } finally {
+      window.addEventListener = addEventListener;
+      window.removeEventListener = removeEventListener;
+    }
+  });
+
   test("editing during save preserves newer changes and stays unsaved", async () => {
     await render();
     await act(async () => requests[0]!.resolve(fixture()));

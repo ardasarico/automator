@@ -1,5 +1,29 @@
+import { runStatsWindowDays } from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
-import { decodeRunCursor, encodeRunCursor, RunCursorError } from "./runs";
+import {
+  decodeRunCursor,
+  encodeRunCursor,
+  RunCursorError,
+  runStatsMaxDays,
+  statsWindowDays,
+} from "./runs";
+
+describe("stats window", () => {
+  test("clamps a whole number of days to the scanned range", () => {
+    expect(statsWindowDays(1)).toBe(1);
+    expect(statsWindowDays(14.9)).toBe(14);
+    expect(statsWindowDays(0)).toBe(1);
+    expect(statsWindowDays(-3)).toBe(1);
+    expect(statsWindowDays(500)).toBe(runStatsMaxDays);
+  });
+
+  test.each([Number.NaN, Number.POSITIVE_INFINITY, "14", undefined, null])(
+    "falls back to the standard window for %p rather than a NaN interval",
+    (value) => {
+      expect(statsWindowDays(value)).toBe(runStatsWindowDays);
+    },
+  );
+});
 
 describe("run cursors", () => {
   test("round-trips the ordered column's value and the tie-breaking id", () => {

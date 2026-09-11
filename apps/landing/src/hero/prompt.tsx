@@ -12,10 +12,15 @@ import { appUrl } from "../app-url";
  */
 export function HeroPrompt() {
   const [text, setText] = useState("");
+  // An empty sentence has nothing to draft; the app is never opened with a blank prompt.
+  const empty = text.trim() === "";
   return (
     <form
       action={appUrl}
       method="get"
+      onSubmit={(event) => {
+        if (empty) event.preventDefault();
+      }}
       className="mt-6 flex w-full max-w-[720px] flex-col rounded-lg border border-input bg-[color-mix(in_srgb,var(--background)_82%,transparent)] p-1.5 shadow-[0_8px_32px_color-mix(in_srgb,var(--foreground)_10%,transparent)] backdrop-blur-md transition-colors focus-within:border-ring"
     >
       <textarea
@@ -25,7 +30,7 @@ export function HeroPrompt() {
         onKeyDown={(event) => {
           if (event.key !== "Enter" || event.shiftKey) return;
           event.preventDefault();
-          event.currentTarget.form?.requestSubmit();
+          if (!empty) event.currentTarget.form?.requestSubmit();
         }}
         placeholder="Swap 100 USDC for ETH every Monday…"
         maxLength={1000}
@@ -38,6 +43,7 @@ export function HeroPrompt() {
           type="submit"
           size="icon-xl"
           aria-label="Draft the flow"
+          disabled={empty}
           className="flex-none rounded-full"
         >
           <RiArrowUpLine aria-hidden="true" />

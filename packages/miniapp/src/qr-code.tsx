@@ -1,18 +1,16 @@
 import { create } from "qrcode";
 import type React from "react";
 
-export function QrCode({
-  value,
-  label,
-}: {
-  value: string;
-  label: string;
-}): React.ReactElement | null {
+export function QrCode({ value, label }: { value: string; label: string }): React.ReactElement {
   let matrix: { size: number; data: Uint8Array };
   try {
     matrix = create(value, { errorCorrectionLevel: "M" }).modules;
   } catch {
-    return null;
+    return (
+      <p className="flex size-full items-center justify-center rounded-lg border border-dashed p-4 text-caption text-center text-pretty text-muted-foreground">
+        This value is too long for a QR code.
+      </p>
+    );
   }
   const { size, data } = matrix;
   const quiet = 2;

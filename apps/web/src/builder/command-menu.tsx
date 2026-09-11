@@ -19,15 +19,34 @@ import styles from "./flow-builder.module.css";
 import { useFlowActivation } from "./flow-activation";
 import { useNodePresets } from "./presets-context";
 import { useSaveFlowController } from "./save-button";
+import { selectCanRedo, selectCanUndo } from "./store";
 import { useBuilderStore } from "./store-provider";
 import { useFlowRun } from "./use-flow-run";
 import { useHotkey } from "../lib/hotkeys";
+import { useShortcut } from "../lib/shortcuts";
 
-type Command = { id: string; label: string; hint?: string; run(): void };
+type Command = {
+  id: string;
+  label: string;
+  hint?: string;
+  /** Listed so its shortcut can be found, but held until what it acts on is there. */
+  disabled?: boolean;
+  run(): void;
+};
 type Section = { key: string; label: string; commands: Command[] };
 
 function matches(text: string, needle: string): boolean {
   return text.toLowerCase().includes(needle);
+}
+
+/** The index of the next command that can run, `steps` away from `from` and wrapping around. */
+function nextRunnable(commands: readonly Command[], from: number, step: 1 | -1): number {
+  const count = commands.length;
+  for (let offset = 1; offset <= count; offset += 1) {
+    const index = (from + step * offset + count) % count;
+    if (!commands[index]?.disabled) return index;
+  }
+  return Math.max(0, Math.min(from, count - 1));
 }
 
 /**
@@ -45,10 +64,36 @@ export function CommandMenu() {
   const { save } = useSaveFlowController();
   const undo = useBuilderStore((state) => state.undo);
   const redo = useBuilderStore((state) => state.redo);
+  const canUndo = useBuilderStore(selectCanUndo);
+  const canRedo = useBuilderStore(selectCanRedo);
+  const duplicateNodes = useBuilderStore((state) => state.duplicateNodes);
+  const selectAll = useBuilderStore((state) => state.selectAll);
+  const groupNodes = useBuilderStore((state) => state.groupNodes);
+  const ungroup = useBuilderStore((state) => state.ungroup);
+  // The same selection rules as the canvas hotkeys, so the menu and the keys agree.
+  const selectedIds = useBuilderStore((state) =>
+    state.nodes
+      .filter((node) => node.selected)
+      .map((node) => node.id)
+      .join(","),
+  );
+  const selectedGroupId = useBuilderStore(
+    (state) => state.nodes.find((node) => node.selected && node.type === "group")?.id ?? null,
+  );
   const { liveMode } = useFlowActivation();
   const addAtCenter = useAddNodeAtCenter();
   const insertAtCenter = useInsertNodeAtCenter();
   const { presets } = useNodePresets();
+  const keys = {
+    run: useShortcut("mod+enter"),
+    save: useShortcut("mod+s"),
+    undo: useShortcut("mod+z"),
+    redo: useShortcut("mod+shift+z"),
+    duplicate: useShortcut("mod+d"),
+    group: useShortcut("mod+g"),
+    ungroup: useShortcut("mod+shift+g"),
+    selectAll: useShortcut("mod+a"),
+  };
 
   useHotkey(
     "mod+k",
@@ -68,16 +113,39 @@ export function CommandMenu() {
       dialogs.close();
       action();
     };
+    const ids = selectedIds === "" ? [] : selectedIds.split(",");
     const flowCommands: Command[] = [
       {
         id: "run",
         label: liveMode ? "Run live" : "Run flow",
-        hint: "⌘⏎",
+        hint: keys.run,
         run: close(() => void run()),
       },
-      { id: "save", label: "Save flow", hint: "⌘S", run: close(() => void save()) },
-      { id: "undo", label: "Undo", hint: "⌘Z", run: close(undo) },
-      { id: "redo", label: "Redo", hint: "⇧⌘Z", run: close(redo) },
+      { id: "save", label: "Save flow", hint: keys.save, run: close(() => void save()) },
+      { id: "undo", label: "Undo", hint: keys.undo, disabled: !canUndo, run: close(undo) },
+      { id: "redo", label: "Redo", hint: keys.redo, disabled: !canRedo, run: close(redo) },
+      {
+        id: "duplicate",
+        label: "Duplicate",
+        hint: keys.duplicate,
+        disabled: ids.length === 0,
+        run: close(() => void duplicateNodes(ids)),
+      },
+      {
+        id: "group",
+        label: "Group",
+        hint: keys.group,
+        disabled: ids.length === 0,
+        run: close(() => void groupNodes(ids)),
+      },
+      {
+        id: "ungroup",
+        label: "Ungroup",
+        hint: keys.ungroup,
+        disabled: selectedGroupId === null,
+        run: close(() => selectedGroupId && ungroup(selectedGroupId)),
+      },
+      { id: "select-all", label: "Select all", hint: keys.selectAll, run: close(selectAll) },
       {
         id: "fit",
         label: "Fit the flow in view",
@@ -134,9 +202,21 @@ export function CommandMenu() {
     return sections;
   }, [
     addAtCenter,
+    canRedo,
+    canUndo,
     dialogs,
+    duplicateNodes,
     fitView,
+    groupNodes,
     insertAtCenter,
+    keys.duplicate,
+    keys.group,
+    keys.redo,
+    keys.run,
+    keys.save,
+    keys.selectAll,
+    keys.undo,
+    keys.ungroup,
     liveMode,
     needle,
     presets,
@@ -144,12 +224,18 @@ export function CommandMenu() {
     redo,
     run,
     save,
+    selectAll,
+    selectedGroupId,
+    selectedIds,
     undo,
+    ungroup,
   ]);
 
   /* The keyboard walks one flat list across the sections, the way the node picker does. */
   const commands = useMemo(() => sections.flatMap((section) => section.commands), [sections]);
-  const current = commands[Math.min(active, commands.length - 1)];
+  // A held command is listed but never highlighted: the ring steps over it in both directions.
+  const highlighted = commands.length === 0 ? 0 : nextRunnable(commands, active - 1, 1);
+  const current = commands[highlighted];
 
   useEffect(() => {
     list.current?.querySelector("[data-active]")?.scrollIntoView({ block: "nearest" });
@@ -181,13 +267,11 @@ export function CommandMenu() {
               onKeyDown={(event) => {
                 if (event.key === "ArrowDown") {
                   event.preventDefault();
-                  setActive((index) => (commands.length === 0 ? 0 : (index + 1) % commands.length));
+                  setActive(nextRunnable(commands, highlighted, 1));
                 } else if (event.key === "ArrowUp") {
                   event.preventDefault();
-                  setActive((index) =>
-                    commands.length === 0 ? 0 : (index - 1 + commands.length) % commands.length,
-                  );
-                } else if (event.key === "Enter" && current) {
+                  setActive(nextRunnable(commands, highlighted, -1));
+                } else if (event.key === "Enter" && current && !current.disabled) {
                   event.preventDefault();
                   current.run();
                 }
@@ -208,15 +292,19 @@ export function CommandMenu() {
                   <button
                     key={command.id}
                     type="button"
-                    className={styles.paletteItem}
+                    className={`${styles.paletteItem} disabled:opacity-50`}
+                    data-command={command.label}
                     data-active={command.id === current?.id || undefined}
+                    disabled={command.disabled}
                     onMouseEnter={() => setActive(commands.indexOf(command))}
                     onClick={command.run}
                   >
                     <span className={styles.paletteItemText}>
                       <span className={styles.paletteItemLabel}>{command.label}</span>
                       {command.hint && (
-                        <span className={styles.paletteItemDescription}>{command.hint}</span>
+                        <span className={styles.paletteItemDescription} data-hint="">
+                          {command.hint}
+                        </span>
                       )}
                     </span>
                   </button>

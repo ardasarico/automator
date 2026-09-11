@@ -1,10 +1,13 @@
 import { ThemeProvider } from "@automator/ui/theme-provider";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { runtimeDescription, runtimeImage, runtimeTitle } from "./meta";
 
 export const metadata: Metadata = {
-  title: "Automator Apps",
+  metadataBase: new URL("https://run.automator.ardasari.co"),
+  title: runtimeTitle,
+  description: runtimeDescription,
   manifest: "/meta/site.webmanifest",
   icons: {
     icon: [
@@ -18,6 +21,21 @@ export const metadata: Metadata = {
       type: "image/png",
     },
   },
+  openGraph: {
+    type: "website",
+    siteName: "Automator",
+    title: runtimeTitle,
+    description: runtimeDescription,
+    images: [runtimeImage],
+  },
+};
+
+/* The page's `--background` in each scheme, so the browser chrome does not band against it. */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbfcfc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0e0f" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

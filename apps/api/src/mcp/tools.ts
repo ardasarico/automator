@@ -1,4 +1,4 @@
-import type { FlowApiInputType } from "@automator/contracts";
+import { addressPattern, type FlowApiInputType } from "@automator/contracts";
 import type { CallableFlow, CallableFlowInput } from "./callable-flows";
 
 /*
@@ -54,7 +54,7 @@ const propertySchemas: Record<FlowApiInputType, McpPropertySchema> = {
   text: { type: "string" },
   number: { type: "number" },
   boolean: { type: "boolean" },
-  address: { type: "string", pattern: "^0x[0-9a-fA-F]{40}$" },
+  address: { type: "string", pattern: addressPattern },
 };
 
 /** The JSON Schema an MCP client validates a tool call against, from a flow's declared inputs. */

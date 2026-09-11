@@ -22,6 +22,7 @@ class ApiKeyRequestError extends Error {
 
 const messages: Record<string, string> = {
   unauthorized: "Sign in again to manage API keys.",
+  invalid_name: "Give the key a name of up to 60 characters.",
   invalid_request: "Give the key a name of up to 60 characters.",
   conflict: "You already hold the maximum number of keys. Revoke one first.",
   not_found: "That key has already been revoked.",

@@ -73,19 +73,8 @@ function failureFor(error: unknown, scope: "table" | "record"): Failure {
 }
 
 /** The owner's flows whose documents still point a `data.*` node at this table. */
-async function flowsUsing(
-  flows: FlowStore,
-  ownerId: string,
-  tableId: string,
-): Promise<DataTableUsage[]> {
-  const used: DataTableUsage[] = [];
-  for (const summary of await flows.list(ownerId)) {
-    const record = await flows.find(ownerId, summary.id);
-    const nodes = record?.flow.nodes ?? [];
-    if (nodes.some((node) => node.type.startsWith("data.") && node.config.tableId === tableId))
-      used.push({ id: summary.id, name: summary.name });
-  }
-  return used;
+function flowsUsing(flows: FlowStore, ownerId: string, tableId: string): Promise<DataTableUsage[]> {
+  return flows.listUsingTable(ownerId, tableId);
 }
 
 export function createDataRoutes({

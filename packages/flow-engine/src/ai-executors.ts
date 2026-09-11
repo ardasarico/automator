@@ -7,6 +7,7 @@ import { runAgent } from "./agent";
 import { NodeExecutionError, type ExecutionContext, type ExecutorRegistry } from "./executor";
 import { matchesJsonSchema, type JsonSchema } from "./json-schema";
 import { parseJsonAnswer, type ChatMessage, type LanguageModel } from "./language-model";
+import { valueText } from "./template";
 
 export function requireModel(context: ExecutionContext): LanguageModel {
   if (!context.model)
@@ -23,11 +24,7 @@ export function chat(instructions: string, user: string): ChatMessage[] {
   return messages;
 }
 
-function asText(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value === undefined || value === null) return "";
-  return JSON.stringify(value);
-}
+const asText = valueText;
 
 export const aiExecutors: ExecutorRegistry = {
   "ai.generate-text": {

@@ -2,6 +2,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import { Check } from "@sinclair/typebox/value";
 import type { ConditionOperator } from "./condition-operators";
 import { apiErrorResponses } from "./contract";
+import { isHexAddress } from "./hex";
 
 export const dataColumnTypes = [
   "text",
@@ -20,7 +21,6 @@ export const dataColumnTypeSchema = Type.Unsafe<DataColumnType>(
 
 export const dataTableMaxColumns = 50;
 export const dataTextMaxLength = 10000;
-export const addressPattern = /^0x[0-9a-fA-F]{40}$/;
 
 export const dataColumnSchema = Type.Object({
   id: Type.String({ minLength: 1, pattern: "^[a-z0-9][a-z0-9_-]{0,63}$" }),
@@ -154,9 +154,7 @@ function checkValue(column: DataColumn, value: unknown): string | null {
         ? null
         : `"${column.name}" must be one of its options.`;
     case "address":
-      return typeof value === "string" && addressPattern.test(value)
-        ? null
-        : `"${column.name}" must be a wallet address.`;
+      return isHexAddress(value) ? null : `"${column.name}" must be a wallet address.`;
   }
 }
 

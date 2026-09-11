@@ -21,6 +21,16 @@ describe("auth API client", () => {
     expect(sent?.cache).toBe("no-store");
   });
 
+  test("an unreachable API is unavailable to the page but keeps its cause for the log", async () => {
+    const refused = new TypeError("Connection refused");
+    const error = await requestAuth("http://api", "token", meContract, undefined, async () => {
+      throw refused;
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(AuthApiError);
+    expect(error).toMatchObject({ status: 503, code: "unavailable" });
+    expect((error as Error).cause).toMatchObject({ name: "ApiRequestError", cause: refused });
+  });
+
   test("missing authentication never calls the API", async () => {
     await expect(
       requestAuth("http://api", undefined, meContract, undefined, async () => {

@@ -69,6 +69,8 @@ const retryableNotices: Record<string, string> = {
   payment_pending: "That payment has not landed on the network yet. Try again in a moment.",
   payment_used: "That payment has already been used. Pay again to continue.",
   payment_rejected: "That payment did not match what this app asked for. Try again.",
+  payment_claim_lost:
+    "Your payment went through, but this app lost track of it. Keep the transaction hash and contact the app's owner.",
 };
 
 export function stateAfterFailure(cause: unknown, previous: SessionState | undefined): State {
@@ -156,8 +158,12 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
   }, [client, settle]);
 
   useEffect(() => {
-    if (interacted.current && state.kind === "session" && state.session.status === "screen")
-      titleRef.current?.focus();
+    if (!interacted.current) return;
+    const landed =
+      state.kind === "unavailable" ||
+      (state.kind === "session" &&
+        (state.session.status === "screen" || state.session.status === "failed"));
+    if (landed) titleRef.current?.focus();
   }, [state]);
 
   const act = (port: string, answered?: Record<string, unknown>, identity?: IdentityAnswer) => {
@@ -210,7 +216,7 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
   if (state.kind === "loading")
     body = <WorkingView steps={loaded.client === client ? steps : []} />;
   else if (state.kind === "unavailable")
-    body = <VisitorFailedView message={state.message} onRetry={restart} />;
+    body = <VisitorFailedView message={state.message} onRetry={restart} titleRef={titleRef} />;
   else if (state.session.status === "screen" && state.session.screen)
     body = (
       <>
@@ -234,6 +240,7 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
         help={state.session.help}
         code={state.session.code ?? "node_failed"}
         onRetry={restart}
+        titleRef={titleRef}
       />
     );
   else body = <EndView onRestart={restart} />;

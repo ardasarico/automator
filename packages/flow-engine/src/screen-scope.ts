@@ -1,4 +1,5 @@
 import type { FlowDocument, FlowRun } from "@automator/contracts";
+import { defaultInputHandle } from "./engine";
 import type { TemplateScope } from "./template";
 
 export function screenScope(
@@ -14,7 +15,7 @@ export function screenScope(
     if (source?.status !== "succeeded") continue;
     const outputs = source.outputs ?? {};
     const keys = Object.keys(outputs);
-    const target = edge.targetHandle ?? "input";
+    const target = edge.targetHandle ?? defaultInputHandle;
     if (edge.sourceHandle === undefined) {
       if (keys.length) input[target] = keys.length === 1 ? outputs[keys[0]!] : outputs;
     } else if (Object.hasOwn(outputs, edge.sourceHandle)) {

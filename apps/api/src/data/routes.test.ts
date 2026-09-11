@@ -246,6 +246,16 @@ function fixture(options: { callsPerMinute?: number; flows?: readonly FlowDocume
         ownerId === "did:privy:alice" ? documents.find((f) => f.id === id) : undefined;
       return document ? asRecord(document) : null;
     },
+    listUsingTable: async (ownerId: string, tableId: string) =>
+      ownerId === "did:privy:alice"
+        ? documents
+            .filter((document) =>
+              document.nodes.some(
+                (node) => node.type.startsWith("data.") && node.config.tableId === tableId,
+              ),
+            )
+            .map((document) => ({ id: document.id, name: document.name }))
+        : [],
     create: async () => {
       throw new Error("Storage must not be called");
     },

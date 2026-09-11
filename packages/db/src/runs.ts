@@ -2,6 +2,7 @@ import {
   runListDefaultLimit,
   runListMaxLimit,
   runSortDefaults,
+  runStatsWindowDays,
   type FlowDocument,
   type FlowRun,
   type FlowRunRecord,
@@ -57,6 +58,18 @@ type RunRow = {
   result: FlowRun;
   source: FlowRunSource;
 };
+
+/** The longest window the stats query will scan. */
+export const runStatsMaxDays = 90;
+
+/**
+ * The window a stats query covers: a whole number of days between one and the maximum. Anything
+ * that is not a finite number falls back to the standard window rather than to a NaN interval.
+ */
+export function statsWindowDays(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return runStatsWindowDays;
+  return Math.min(Math.max(Math.trunc(value), 1), runStatsMaxDays);
+}
 
 function toRecord(row: RunRow): FlowRunRecord {
   return {
@@ -178,7 +191,7 @@ export function createRunStore(sql: SQL | undefined) {
      */
     async stats(ownerId: string, options: { flowId?: string; days: number }): Promise<RunStats> {
       const db = connection();
-      const days = Math.min(Math.max(Math.trunc(options.days), 1), 90);
+      const days = statsWindowDays(options.days);
       const rows = await db<{ day: Date; status: FlowRunStatus; count: number }[]>`
         SELECT date_trunc('day', r.started_at AT TIME ZONE 'UTC') AS day,
           r.status, count(*)::int AS count

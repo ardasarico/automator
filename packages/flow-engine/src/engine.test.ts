@@ -772,11 +772,11 @@ describe("runFlow secrets", () => {
     expect(run.nodes[1]).toMatchObject({ status: "failed", error: 'Secret "hook" is not defined' });
   });
 
-  test("leaves the placeholder literal without a resolver", async () => {
+  test("leaves the placeholder literal without a resolver, and the node says so", async () => {
     const run = await runFlow(hook, { now: fixedNow, sleep: noSleep, fetch: okDiscord });
     expect(run.nodes[1]).toMatchObject({
       status: "failed",
-      error: "Discord message needs a Discord webhook URL",
+      error: "Discord webhook URL references a secret that is not available here",
     });
   });
 });

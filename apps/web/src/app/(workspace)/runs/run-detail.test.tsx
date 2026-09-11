@@ -178,6 +178,40 @@ test("a skipped node says which of the two reasons kept it from running", () => 
   expect(skipped()).not.toContain("No incoming edge fired");
 });
 
+test("an explorer link names its hash, says it opens a new tab and carries the full hash", () => {
+  const second = `0x${"cd".repeat(32)}`;
+  const two: FlowRunRecord = {
+    ...record,
+    run: {
+      ...record.run,
+      nodes: [
+        {
+          nodeId: "p",
+          status: "succeeded",
+          outputs: { receipt: { approval: { hash }, transfer: { hash: second } } },
+        },
+      ],
+    },
+  };
+  const page = renderToString(<RunDetail record={two} />);
+  const links = page.match(/<a [^>]*target="_blank"[^>]*>.*?<\/a>/g) ?? [];
+  expect(links).toHaveLength(2);
+  expect(links[0]).toContain(`title="${hash}"`);
+  expect(links[0]).toContain("View on Base Sepolia");
+  expect(links[0]).toContain("0xababab…ababab");
+  expect(links[0]).toContain("(opens in a new tab)");
+  expect(links[1]).toContain("0xcdcdcd…cdcdcd");
+  /* Two links to two transactions must not read the same to a screen reader. */
+  expect(links[0]!.replace(/href="[^"]*"/, "")).not.toBe(links[1]!.replace(/href="[^"]*"/, ""));
+});
+
+test("every JSON block has its own copy control", () => {
+  const blocks = html.match(/<pre>/g)?.length ?? 0;
+  const copies = html.match(/aria-label="Copy JSON"/g)?.length ?? 0;
+  expect(blocks).toBeGreaterThan(0);
+  expect(copies).toBe(blocks);
+});
+
 test("final variables are listed as key and value rows", () => {
   const variables = html.slice(html.indexOf('id="run-variables"'));
   expect(variables).toContain("<dt>paid</dt>");

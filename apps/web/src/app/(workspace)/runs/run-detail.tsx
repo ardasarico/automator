@@ -26,6 +26,8 @@ import {
   simulatedAnswer,
   transactionHashes,
 } from "../../../builder/run-selectors";
+import { CopyButton } from "../../../components/copy-button";
+import { shortHash } from "../wallet/wallet-transactions";
 import { LocalTime } from "./local-time";
 import { nodeStatusLabels, runDuration, runSourceLabels, runStatusLabels } from "./run-labels";
 import { runTriggerNode } from "./run-trigger";
@@ -43,10 +45,13 @@ function factsFor(node: FlowNode | null): NodeFacts {
   return { label: node.label || entry.label, type: entry.label, icon: entry.icon };
 }
 
+/* The copy control puts the same pretty-printed text on the clipboard that the block shows. */
 function Json({ value }: { value: unknown }) {
+  const text = JSON.stringify(value, null, 2) ?? "undefined";
   return (
     <div className={styles.json}>
-      <pre>{JSON.stringify(value, null, 2) ?? "undefined"}</pre>
+      <pre>{text}</pre>
+      <CopyButton iconOnly variant="ghost" text={text} what="JSON" className={styles.jsonCopy} />
     </div>
   );
 }
@@ -70,10 +75,13 @@ function ExplorerLinks({ output, chainId }: { output: unknown; chainId: number }
       {hashes.map((hash) => {
         const url = explorerTransactionUrl(chainId, hash);
         if (!url) return null;
+        /* One node can send several transactions; the hash keeps their links apart. */
         return (
-          <a key={hash} href={url} target="_blank" rel="noreferrer">
+          <a key={hash} href={url} target="_blank" rel="noreferrer" title={hash}>
             {`View on ${chainName(chainId)}`}
+            <code>{shortHash(hash)}</code>
             <RiExternalLinkLine aria-hidden="true" />
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         );
       })}

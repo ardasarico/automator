@@ -20,6 +20,7 @@ import type {
   DataTarget,
 } from "./data";
 import { NodeExecutionError, type ExecutionContext, type ExecutorRegistry } from "./executor";
+import { valueText } from "./template";
 
 function requireData(context: ExecutionContext): DataProvider {
   if (!context.data) throw new NodeExecutionError("No data store is configured for this run");
@@ -27,12 +28,7 @@ function requireData(context: ExecutionContext): DataProvider {
 }
 
 /** Template resolution can turn any config string into another JSON value; every field reads as text. */
-function text(value: unknown): string {
-  if (value === undefined || value === null) return "";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return JSON.stringify(value);
-}
+const text = valueText;
 
 async function requireTable(provider: DataProvider, tableId: unknown): Promise<DataTable> {
   const id = text(tableId).trim();

@@ -1,4 +1,4 @@
-import type { AccountUsage, FlowRunSource } from "@automator/contracts";
+import { flowRunSources, type AccountUsage, type FlowRunSource } from "@automator/contracts";
 import type { SQL } from "bun";
 
 const windowMs = 30 * 24 * 60 * 60 * 1000;
@@ -23,15 +23,9 @@ export function createAccountStore(sql: SQL | undefined) {
         SELECT source, count(*)::int AS count FROM automator_runs
         WHERE owner_id = ${ownerId} AND started_at >= ${since.toISOString()}::timestamptz
         GROUP BY source`;
-      const runsLast30Days = {
-        manual: 0,
-        webhook: 0,
-        schedule: 0,
-        miniapp: 0,
-        event: 0,
-        watch: 0,
-        api: 0,
-      };
+      const runsLast30Days = Object.fromEntries(
+        flowRunSources.map((source) => [source, 0]),
+      ) as Record<FlowRunSource, number>;
       for (const row of runs) runsLast30Days[row.source] = row.count;
       return {
         flows: totals?.flows ?? 0,

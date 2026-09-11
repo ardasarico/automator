@@ -88,5 +88,5 @@ test("copies a snippet to the clipboard", async () => {
    * command; what matters here is that Copy hands over exactly what the block displays. */
   expect(written).toHaveLength(1);
   expect(written[0]).toBe(snippet("claude-code") ?? "");
-  expect(button.getAttribute("aria-label")).toBe("Command copied");
+  expect(button.getAttribute("aria-label")).toBe("Copied command");
 });

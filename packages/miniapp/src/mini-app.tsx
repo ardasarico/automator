@@ -123,7 +123,8 @@ export function MiniApp({
   // Only after the visitor acted: a preview that re-renders while its author edits must not
   // pull focus away from the canvas.
   useEffect(() => {
-    if (interacted.current && session.kind === "screen") titleRef.current?.focus();
+    if (interacted.current && (session.kind === "screen" || session.kind === "failed"))
+      titleRef.current?.focus();
   }, [session]);
 
   const screen = currentScreen(document, session);
@@ -176,6 +177,7 @@ export function MiniApp({
           message={session.message}
           error={session.error}
           onRestart={restart}
+          titleRef={titleRef}
         />
       ) : session.kind === "no-entry" ? (
         <NoEntryView />

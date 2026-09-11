@@ -1,15 +1,24 @@
 /// <reference types="bun" />
 import type { ApiKeySummary, SecretSummary } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
-import { afterAll, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, expect, mock, test } from "bun:test";
+import { act } from "react";
+import type { Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { navigationModule } from "../../../auth/test-navigation";
 
 // Base UI reads whether a DOM exists when it is first imported; registering first keeps the
 // portals working whatever order the files in this directory run in.
 GlobalRegistrator.register();
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 mock.module("next/navigation", () => navigationModule);
+mock.module("../../../auth/access-token", () => ({
+  e2eSession: false,
+  useAccessToken: () => async () => "privy-token",
+}));
 
+const { createRoot } = await import("react-dom/client");
+const { secretsStore } = await import("../../../builder/secrets-store");
 const { ConnectionsBrowser } = await import("./connections-browser");
 
 afterAll(() => GlobalRegistrator.unregister());
@@ -85,4 +94,113 @@ test("keys that could not be read are not reported as none", () => {
   const html = renderToString(<ConnectionsBrowser secrets={[]} apiKeys={null} />);
   expect(html).toContain("API keys could not load");
   expect(html).not.toContain("No API keys yet");
+});
+
+test("section ids carry no spaces, so a heading with two words still labels its section", () => {
+  const html = renderToString(<ConnectionsBrowser secrets={[]} apiKeys={[]} />);
+  expect(html).toContain('aria-labelledby="connections-api-keys"');
+  expect(html).toContain('id="connections-api-keys"');
+  expect(html).toContain('aria-labelledby="connections-connected-apps"');
+  expect(html).not.toContain("connections-API keys");
+});
+
+test("the secret name field does not offer autofill, the same as its value", () => {
+  const html = renderToString(<ConnectionsBrowser secrets={[]} apiKeys={[]} />);
+  expect(html).toMatch(/<input[^>]*autocomplete="off"[^>]*placeholder="discord_webhook"/i);
+});
+
+test("dates are machine-readable stamps rendered in UTC on the server", () => {
+  const html = renderToString(<ConnectionsBrowser secrets={[discord]} apiKeys={[ciKey]} />);
+  expect(html).toContain('<time dateTime="2026-09-08T10:00:00.000Z">Sep 8, 2026</time>');
+  expect(html).toContain('<time dateTime="2026-09-10T09:00:00.000Z">Sep 10, 2026</time>');
+});
+
+/* Deleting and revoking ask first: the browser tests below click through the confirmation. */
+const originalFetch = globalThis.fetch;
+let calls: Array<{ url: string; method: string | undefined }>;
+let container: HTMLDivElement;
+let root: Root;
+
+beforeEach(() => {
+  calls = [];
+  /* The store only writes for a signed-in account, the way the auth provider sets it up. */
+  secretsStore.getState().setAccount("did:privy:test");
+  globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), method: init?.method });
+    return String(url).includes("/secrets/")
+      ? Response.json({ name: "discord_webhook" })
+      : Response.json({ id: "key-1" });
+  }) as typeof fetch;
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+});
+
+afterEach(async () => {
+  await act(async () => root.unmount());
+  container.remove();
+  globalThis.fetch = originalFetch;
+});
+
+async function mount(secrets: SecretSummary[], apiKeys: ApiKeySummary[]) {
+  await act(async () => {
+    root.render(<ConnectionsBrowser secrets={secrets} apiKeys={apiKeys} />);
+  });
+}
+
+function button(label: string) {
+  const match = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
+    (node) => node.textContent?.trim() === label || node.getAttribute("aria-label") === label,
+  );
+  if (!match) throw new Error(`Missing button: ${label}`);
+  return match;
+}
+
+const dialogTitle = () => document.querySelector("[data-slot=dialog-title]")?.textContent;
+
+test("deleting a secret asks first and cancelling keeps it", async () => {
+  await mount([discord], []);
+  await act(async () => button("Delete secret discord_webhook").click());
+  expect(dialogTitle()).toBe("Delete “discord_webhook”?");
+  expect(document.body.textContent).toContain("Flows that read it will fail");
+  await act(async () => button("Cancel").click());
+  expect(calls).toEqual([]);
+  expect(dialogTitle()).toBeUndefined();
+});
+
+test("confirming deletes the secret", async () => {
+  await mount([discord], []);
+  await act(async () => button("Delete secret discord_webhook").click());
+  await act(async () => button("Delete secret").click());
+  expect(calls).toEqual([{ url: "/api/secrets/discord_webhook", method: "DELETE" }]);
+  expect(dialogTitle()).toBeUndefined();
+});
+
+test("revoking a key asks first and cancelling keeps it", async () => {
+  await mount([], [ciKey]);
+  await act(async () => button("Revoke API key CI").click());
+  expect(dialogTitle()).toBe("Revoke “CI”?");
+  expect(document.body.textContent).toContain("stops working immediately");
+  await act(async () => button("Cancel").click());
+  expect(calls).toEqual([]);
+});
+
+test("confirming revokes the key", async () => {
+  await mount([], [ciKey]);
+  await act(async () => button("Revoke API key CI").click());
+  await act(async () => button("Revoke key").click());
+  expect(calls).toEqual([{ url: "/api/api-keys/key-1", method: "DELETE" }]);
+  expect(dialogTitle()).toBeUndefined();
+});
+
+test("a failed delete keeps the dialog open with its reason", async () => {
+  globalThis.fetch = (async () =>
+    Response.json({ error: "unavailable" }, { status: 503 })) as unknown as typeof fetch;
+  await mount([discord], []);
+  await act(async () => button("Delete secret discord_webhook").click());
+  await act(async () => button("Delete secret").click());
+  expect(dialogTitle()).toBe("Delete “discord_webhook”?");
+  expect(document.querySelector("[role=alert]")?.textContent).toBe(
+    "Secrets are unavailable right now. Try again shortly.",
+  );
 });

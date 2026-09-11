@@ -209,6 +209,15 @@ if (process.env[childFlag] !== import.meta.path) {
     expect(container.textContent).toContain("This mark is already yours");
   });
 
+  test("puts the cursor in the name field as soon as the form appears", async () => {
+    await render(fresh);
+    expect(document.activeElement?.id).toBe("profile-name");
+    // Moving on to the username must not pull focus back when the session is refreshed.
+    input("profile-username").focus();
+    await render(fresh);
+    expect(document.activeElement?.id).toBe("profile-username");
+  });
+
   test("refuses a name made only of spaces without a request", async () => {
     await render(fresh);
     await type("profile-name", "   ");

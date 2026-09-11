@@ -19,7 +19,11 @@ export function lookupPath(scope: TemplateScope, path: string): unknown {
   return current;
 }
 
-function stringify(value: unknown): string {
+/**
+ * A resolved value as the text a node sends or shows: strings as they are, nothing for a missing
+ * value, and JSON for anything structured. The one reading every executor shares.
+ */
+export function valueText(value: unknown): string {
   if (value === undefined || value === null) return "";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
@@ -29,7 +33,7 @@ function stringify(value: unknown): string {
 export function resolveTemplate(text: string, scope: TemplateScope): unknown {
   const whole = wholePlaceholder.exec(text);
   if (whole) return lookupPath(scope, whole[1]!) ?? "";
-  return text.replace(placeholder, (_match, path: string) => stringify(lookupPath(scope, path)));
+  return text.replace(placeholder, (_match, path: string) => valueText(lookupPath(scope, path)));
 }
 
 export function resolveTemplates<T>(value: T, scope: TemplateScope): T {

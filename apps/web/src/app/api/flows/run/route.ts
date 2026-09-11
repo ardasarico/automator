@@ -14,8 +14,9 @@ export async function POST(req: Request) {
   } catch {
     return authErrorResponse(req, new AuthApiError(400, "invalid_request"));
   }
+  // The same answer the API gives a document it cannot run, so the builder reads one code.
   if (!Value.Check(flowRunRequestSchema, body))
-    return authErrorResponse(req, new AuthApiError(400, "invalid_request"));
+    return authErrorResponse(req, new AuthApiError(422, "invalid_flow"));
   try {
     const result = await request(process.env.API_URL, runFlowContract, {
       token,

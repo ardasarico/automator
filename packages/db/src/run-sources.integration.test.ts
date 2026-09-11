@@ -1,4 +1,4 @@
-import { flowRunSourceSchema, type FlowDocument, type FlowRunSource } from "@automator/contracts";
+import { flowRunSources, type FlowDocument, type FlowRunSource } from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
 import { SQL } from "bun";
 import { createFlowStore } from "./flows";
@@ -9,7 +9,7 @@ import { createUserStore } from "./users";
 const url = process.env.TEST_DATABASE_URL;
 
 /* The contract's own list, so a source added to it has to be storable before the suite passes. */
-const sources = flowRunSourceSchema.anyOf.map((literal) => literal.const as FlowRunSource);
+const sources: FlowRunSource[] = [...flowRunSources];
 
 describe.skipIf(!url)("run sources", () => {
   test("every source the contract names can be stored", async () => {

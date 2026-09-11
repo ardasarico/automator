@@ -14,39 +14,14 @@ import {
 import { Field, FieldDescription, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
 import { Switch } from "@automator/ui/switch";
-import { RiCheckLine, RiFileCopyLine } from "@remixicon/react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { CopyButton } from "../components/copy-button";
 import { apiCurlSnippet, apiInvokeUrl } from "./api-snippets";
 import { McpSection } from "./mcp-section";
 import { selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
 import { useFlowEnabled } from "./use-flow-enabled";
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      aria-live="polite"
-      onClick={() => {
-        void navigator.clipboard
-          .writeText(text)
-          .then(() => setCopied(true))
-          .catch(() => setCopied(false));
-      }}
-    >
-      {copied ? <RiCheckLine aria-hidden="true" /> : <RiFileCopyLine aria-hidden="true" />}
-      {copied ? "Copied" : label}
-    </Button>
-  );
-}
 
 /**
  * How to call this one flow over HTTP: where it lives, what it takes, and whether it is on. The
@@ -150,7 +125,11 @@ function ApiHttpSection({ unsaved }: { unsaved: boolean }) {
           page to fetch the saved flow, then check its problems list.
         </p>
       )}
-      <CopyButton text={apiCurlSnippet(url, schema.inputs)} label="Copy example" />
+      <CopyButton
+        text={apiCurlSnippet(url, schema.inputs)}
+        what="example request"
+        copyLabel="Copy example"
+      />
     </div>
   );
 }

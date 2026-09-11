@@ -8,9 +8,17 @@ import {
 } from "@automator/contracts";
 import { Badge } from "@automator/ui/badge";
 import { Button } from "@automator/ui/button";
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPopup,
+  DialogTitle,
+} from "@automator/ui/dialog";
 import { Field, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
-import { RiCheckLine, RiDeleteBinLine, RiKey2Line, RiTerminalBoxLine } from "@remixicon/react";
+import { RiDeleteBinLine, RiKey2Line, RiTerminalBoxLine } from "@remixicon/react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useAccessToken } from "../../../auth/access-token";
@@ -21,14 +29,9 @@ import {
   revokeApiKey,
 } from "../../../connections/api-keys-client";
 import { detectChannels } from "../../../components/connected-apps";
+import { CopyButton } from "../../../components/copy-button";
+import { LocalDate } from "../../../components/local-date";
 import styles from "./connections.module.css";
-
-const dateFormat = new Intl.DateTimeFormat("en", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  timeZone: "UTC",
-});
 
 function Section({
   title,
@@ -39,16 +42,79 @@ function Section({
   description: ReactNode;
   children: ReactNode;
 }) {
+  const id = `connections-${title.toLowerCase().replace(/\s+/g, "-")}`;
   return (
-    <section className={styles.section} aria-labelledby={`connections-${title.toLowerCase()}`}>
+    <section className={styles.section} aria-labelledby={id}>
       <header className={styles.sectionHead}>
-        <h2 id={`connections-${title.toLowerCase()}`} className={styles.sectionTitle}>
+        <h2 id={id} className={styles.sectionTitle}>
           {title}
         </h2>
         <p className={styles.sectionText}>{description}</p>
       </header>
       <div className={styles.card}>{children}</div>
     </section>
+  );
+}
+
+/**
+ * Asks before something irreversible. The row owns `open`, so the dialog outlives whatever
+ * popup the click came from; a failure stays in the dialog with its reason and the row intact.
+ */
+function ConfirmDialog({
+  title,
+  description,
+  confirmLabel,
+  open,
+  onOpenChange,
+  onConfirm,
+  describeError,
+}: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  open: boolean;
+  onOpenChange(open: boolean): void;
+  onConfirm(): Promise<void>;
+  describeError(caught: unknown): string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm();
+      onOpenChange(false);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
+      <DialogPopup className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        {error && (
+          <p role="alert" className="px-6 text-caption text-destructive-text">
+            {error}
+          </p>
+        )}
+        <DialogFooter>
+          <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" loading={busy} onClick={confirm}>
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogPopup>
+    </Dialog>
   );
 }
 
@@ -110,6 +176,7 @@ function SecretForm() {
         <Input
           id="secret-name"
           size="sm"
+          autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
           placeholder="discord_webhook"
@@ -144,45 +211,43 @@ function SecretRow({ secret }: { secret: SecretSummary }) {
   const router = useRouter();
   const getAccessToken = useAccessToken();
   const remove = useSecrets((state) => state.remove);
-  const [error, setError] = useState<string | null>(null);
-
-  async function del() {
-    setError(null);
-    try {
-      await remove(await getAccessToken(), secret.name);
-      router.refresh();
-    } catch (caught) {
-      setError(describeSecretError(caught));
-    }
-  }
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <>
       <div className={styles.row}>
         <RiKey2Line aria-hidden="true" />
         <span className={styles.name}>{secretTemplate(secret.name)}</span>
-        <span className={styles.when}>Saved {dateFormat.format(new Date(secret.updatedAt))}</span>
+        <span className={styles.when}>
+          Saved <LocalDate value={secret.updatedAt} />
+        </span>
         <Button
           variant="ghost"
           size="icon-xs"
           aria-label={`Delete secret ${secret.name}`}
-          onClick={() => void del()}
+          onClick={() => setConfirming(true)}
         >
           <RiDeleteBinLine aria-hidden="true" />
         </Button>
       </div>
-      {error && (
-        <p role="alert" className={`${styles.empty} text-destructive-text`}>
-          {error}
-        </p>
-      )}
+      <ConfirmDialog
+        title={`Delete “${secret.name}”?`}
+        description="Flows that read it will fail on their next run until you save a secret with the same name. This cannot be undone."
+        confirmLabel="Delete secret"
+        open={confirming}
+        onOpenChange={setConfirming}
+        onConfirm={async () => {
+          await remove(await getAccessToken(), secret.name);
+          router.refresh();
+        }}
+        describeError={describeSecretError}
+      />
     </>
   );
 }
 
 /* A key is readable exactly once. Until it is dismissed it stays on screen, above its own list. */
 function NewApiKey({ value, onDone }: { value: string; onDone: () => void }) {
-  const [copied, setCopied] = useState(false);
   return (
     <div className={styles.issued} role="status">
       <p className="text-caption">
@@ -190,20 +255,7 @@ function NewApiKey({ value, onDone }: { value: string; onDone: () => void }) {
       </p>
       <div className={styles.issuedRow}>
         <code className={styles.issuedKey}>{value}</code>
-        <Button
-          variant="outline"
-          size="sm"
-          aria-live="polite"
-          onClick={() => {
-            void navigator.clipboard
-              .writeText(value)
-              .then(() => setCopied(true))
-              .catch(() => setCopied(false));
-          }}
-        >
-          {copied ? <RiCheckLine aria-hidden="true" /> : null}
-          {copied ? "Key copied" : "Copy key"}
-        </Button>
+        <CopyButton text={value} what="API key" copyLabel="Copy key" copiedLabel="Key copied" />
         <Button variant="ghost" size="sm" onClick={onDone}>
           Done
         </Button>
@@ -269,17 +321,7 @@ function ApiKeyForm({ onIssued }: { onIssued: (key: string) => void }) {
 function ApiKeyRow({ apiKey }: { apiKey: ApiKeySummary }) {
   const router = useRouter();
   const getAccessToken = useAccessToken();
-  const [error, setError] = useState<string | null>(null);
-
-  async function revoke() {
-    setError(null);
-    try {
-      await revokeApiKey(await getAccessToken(), apiKey.id);
-      router.refresh();
-    } catch (caught) {
-      setError(describeApiKeyError(caught));
-    }
-  }
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <>
@@ -288,24 +330,35 @@ function ApiKeyRow({ apiKey }: { apiKey: ApiKeySummary }) {
         <span className={styles.keyName}>{apiKey.name}</span>
         <span className={styles.name}>{apiKey.prefix}…</span>
         <span className={styles.when}>
-          {apiKey.lastUsedAt
-            ? `Last used ${dateFormat.format(new Date(apiKey.lastUsedAt))}`
-            : "Never used"}
+          {apiKey.lastUsedAt ? (
+            <>
+              Last used <LocalDate value={apiKey.lastUsedAt} />
+            </>
+          ) : (
+            "Never used"
+          )}
         </span>
         <Button
           variant="ghost"
           size="icon-xs"
           aria-label={`Revoke API key ${apiKey.name}`}
-          onClick={() => void revoke()}
+          onClick={() => setConfirming(true)}
         >
           <RiDeleteBinLine aria-hidden="true" />
         </Button>
       </div>
-      {error && (
-        <p role="alert" className={`${styles.empty} text-destructive-text`}>
-          {error}
-        </p>
-      )}
+      <ConfirmDialog
+        title={`Revoke “${apiKey.name}”?`}
+        description="The key stops working immediately. Anything still calling your flows with it gets an unauthorized answer. This cannot be undone."
+        confirmLabel="Revoke key"
+        open={confirming}
+        onOpenChange={setConfirming}
+        onConfirm={async () => {
+          await revokeApiKey(await getAccessToken(), apiKey.id);
+          router.refresh();
+        }}
+        describeError={describeApiKeyError}
+      />
     </>
   );
 }

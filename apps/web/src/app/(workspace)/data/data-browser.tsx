@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { EmptyState } from "../../../components/empty-state";
+import { LocalDate } from "../../../components/local-date";
 import { PageFrame } from "../../../components/page-frame";
 import flowStyles from "../flows/flows.module.css";
 import { ColumnTypeIcon, columnTypeLabel } from "./column-types";
@@ -18,13 +19,6 @@ import { TableDialog } from "./table-dialog";
 type TableSort = "updated" | "name";
 
 const sortLabels: Record<TableSort, string> = { updated: "Last edited", name: "Name A–Z" };
-
-const dateFormat = new Intl.DateTimeFormat("en", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  timeZone: "UTC",
-});
 
 /** How many columns a card shows before it stops: enough to recognise a table, not to read it. */
 const shownColumns = 4;
@@ -66,7 +60,7 @@ function TableCard({ table }: { table: DataTable }) {
         <p className={styles.cardMeta}>
           {table.recordCount === 1 ? "1 record" : `${table.recordCount} records`} ·{" "}
           {table.columns.length === 1 ? "1 column" : `${table.columns.length} columns`} ·{" "}
-          <time dateTime={table.updatedAt}>{dateFormat.format(new Date(table.updatedAt))}</time>
+          <LocalDate value={table.updatedAt} />
         </p>
       </div>
     </article>

@@ -47,12 +47,32 @@ describe("compare", () => {
     expect(() => compare(1, "less_than", "abc")).toThrow(ComparisonError);
   });
 
-  test("the refusal names the side and the offending value", () => {
+  test("the refusal names the side and the offending value's shape, never its content", () => {
     expect(() => compare({ formatted: "20" }, "greater_than", "10")).toThrow(
-      /needs a number on the left, but got “\{"formatted":"20"\}”/,
+      /needs a number on the left, but got an object\. Compare one of its fields/,
     );
-    expect(() => compare(1, "less_or_equal", "abc")).toThrow(/on the right, but got “abc”/);
-    expect(() => compare(null, "greater_than", 1)).toThrow(/but got null/);
+    expect(() => compare(1, "less_or_equal", "abc")).toThrow(/on the right, but got a string\./);
+    expect(() => compare(null, "greater_than", 1)).toThrow(/but got null\./);
+    expect(() => compare("", "greater_than", 1)).toThrow(/but got an empty string\./);
+    expect(() => compare("  ", "greater_than", 1)).toThrow(/but got a blank string\./);
+    expect(() => compare(true, "greater_than", 1)).toThrow(/but got a boolean\./);
+    expect(() => compare([1, 2, 3], "greater_than", 1)).toThrow(/but got an array of 3 items\./);
+    expect(() => compare(undefined, "greater_than", 1)).toThrow(/but got nothing\./);
+  });
+
+  test("a resolved secret used as an operand never reaches the persisted message", () => {
+    const secret = "resolved-secret-4eC39HqLyjWDarjtT1zdp7dc";
+    const message = (() => {
+      try {
+        compare(secret, "greater_than", 1);
+        return "";
+      } catch (error) {
+        return (error as Error).message;
+      }
+    })();
+    expect(message).toBe("“greater than” needs a number on the left, but got a string.");
+    expect(message).not.toContain(secret);
+    expect(message).not.toContain("4eC39");
   });
 
   test("lenient operators still answer for values an ordering operator would refuse", () => {

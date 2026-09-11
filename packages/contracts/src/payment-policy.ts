@@ -2,11 +2,12 @@ import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import { chainIdSchema, chains } from "./chains";
 import { apiErrorResponses } from "./contract";
+import { addressPattern } from "./hex";
 
 export const paymentAssetSchema = Type.Union([Type.Literal("native"), Type.Literal("usdc")]);
 export type PaymentAsset = Static<typeof paymentAssetSchema>;
 const amountSchema = Type.String({ maxLength: 100, pattern: "^(0|[1-9][0-9]*)(\\.[0-9]+)?$" });
-const addressSchema = Type.String({ pattern: "^0x[0-9a-fA-F]{40}$" });
+const addressSchema = Type.String({ pattern: addressPattern });
 
 export const paymentLimitSchema = Type.Object(
   {

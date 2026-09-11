@@ -65,7 +65,10 @@ mock.module("@privy-io/react-auth", () =>
 mock.module("@automator/ui/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
+// Module mocks outlive this file in a shared test run, so the rest of the package stays real.
+const miniapp = await import("@automator/miniapp");
 mock.module("@automator/miniapp", () => ({
+  ...miniapp,
   IdentityActionsProvider: (props: { actions: IdentityActions; children: ReactNode }) => {
     actions = props.actions;
     return props.children;
@@ -209,6 +212,20 @@ test("a signed-out visitor's wallet is not read, so opening the screen prompts n
   wallets = [wallet(payer)];
   expect(await renderPayment().wallet(payment)).toBeNull();
   expect(loginCalls).toHaveLength(0);
+});
+
+test("a balance the RPC would not answer is null, not zero, so the screen does not warn", async () => {
+  authenticated = true;
+  wallets = [wallet(payer)];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new TypeError("Connection refused");
+  }) as unknown as typeof fetch;
+  try {
+    expect(await renderPayment().wallet(payment)).toEqual({ address: payer, balance: null });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("a signed-in visitor with no wallet at all cannot pay", async () => {

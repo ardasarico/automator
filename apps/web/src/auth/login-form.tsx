@@ -51,6 +51,10 @@ export function LoginForm() {
   useEffect(() => {
     if (authenticated && user) router.replace(isOnboarded(user) ? signedInPath() : "/onboarding");
   }, [authenticated, user, router]);
+  /* The form is the page's only content, so the cursor starts in whichever field is asked for. */
+  useEffect(() => {
+    emailRef.current?.focus();
+  }, []);
   useEffect(() => {
     if (sent) codeRef.current?.focus();
   }, [sent]);

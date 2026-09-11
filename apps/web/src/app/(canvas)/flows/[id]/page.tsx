@@ -1,22 +1,29 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import { FlowBuilder } from "../../../../builder/flow-builder";
 import { getFlow, getRun } from "../../../../flows/server";
 import { BUILDER_CHECKLIST_COOKIE } from "../../../../lib/preferences";
 import { readPreferenceCookie } from "../../../../lib/preferences.server";
 
-export const metadata: Metadata = { title: "Flow · Automator" };
+/* The title and the page read the same flow in the same pass: cache() keeps that one request. */
+const loadFlow = cache((id: string) => getFlow(id));
 
 type Props = {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ run?: string | string[]; ai?: string | string[] }>;
 };
 
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const record = await loadFlow((await params).id);
+  return { title: record ? `${record.flow.name} · Automator` : "Flow · Automator" };
+}
+
 export default async function FlowPage({ params, searchParams }: Props) {
   const [{ id }, { run: requestedRun, ai }] = await Promise.all([params, searchParams]);
   const runId = Array.isArray(requestedRun) ? requestedRun[0] : requestedRun;
   const [record, run, checklist] = await Promise.all([
-    getFlow(id),
+    loadFlow(id),
     runId ? getRun(runId) : null,
     readPreferenceCookie(BUILDER_CHECKLIST_COOKIE),
   ]);

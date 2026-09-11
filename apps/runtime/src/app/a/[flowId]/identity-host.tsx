@@ -216,7 +216,8 @@ function WithPrivy({ children }: { children: ReactNode }) {
         // Never prompts: a visitor who has not signed in simply has no wallet to show yet.
         const found = authenticated ? payingWallet(wallets) : null;
         if (!found) return null;
-        const balance = await readUsdcBalance(payment, found.address).catch(() => "0");
+        // A read the RPC refused is unknown, not empty: the screen must not warn on it.
+        const balance = await readUsdcBalance(payment, found.address).catch(() => null);
         return { address: found.address, balance };
       },
       async pay(payment: MiniAppPayment) {

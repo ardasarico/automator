@@ -36,13 +36,21 @@ const orderingLabels: Record<OrderingOperator, string> = {
   less_or_equal: "less or equal",
 };
 
-/** Names the offending value in the failure message without pasting a whole payload into it. */
-function describeValue(value: unknown): string {
+/**
+ * Names the offending value's shape, never its content: the message becomes the persisted node
+ * error, and an operand may be a resolved secret or a visitor's data.
+ */
+export function describeValue(value: unknown): string {
   if (value === undefined) return "nothing";
   if (value === null) return "null";
-  if (value === "") return "an empty value";
-  const text = typeof value === "string" ? value : (JSON.stringify(value) ?? String(value));
-  return `“${text.length > 120 ? `${text.slice(0, 119)}…` : text}”`;
+  if (value === "") return "an empty string";
+  if (typeof value === "string") return value.trim() === "" ? "a blank string" : "a string";
+  if (typeof value === "number") return Number.isFinite(value) ? "a number" : "a non-finite number";
+  if (typeof value === "boolean") return "a boolean";
+  if (Array.isArray(value))
+    return value.length === 1 ? "an array of 1 item" : `an array of ${value.length} items`;
+  if (typeof value === "object") return "an object";
+  return `a ${typeof value}`;
 }
 
 function operand(value: unknown, side: "left" | "right", operator: OrderingOperator): number {

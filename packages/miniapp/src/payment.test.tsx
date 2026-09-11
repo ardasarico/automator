@@ -37,9 +37,9 @@ describe("the collect-payment screen", () => {
     expect(html).toContain("Pay to generate it.");
     expect(html).toContain("12.50 USDC");
     expect(html).toContain('data-preview="usdc.payment"');
-    expect(html).toContain("Preview: continues as paid.");
+    expect(html).toContain("Preview: Pay continues as paid, Not now as declined.");
     const declining = renderToStaticMarkup(<MiniApp document={document} startAt="declining" />);
-    expect(declining).toContain("Preview: continues as declined.");
+    expect(declining).toContain("Preview: Pay and Not now both continue as declined.");
   });
 
   test("falls back to the node label when the screen has no title of its own", () => {
@@ -72,9 +72,10 @@ describe("the collect-payment screen", () => {
         }),
       ],
     };
-    expect(renderToStaticMarkup(<MiniApp document={explicit} startAt="pay" />)).toContain(
-      "0x036C…CF7e",
-    );
+    const html = renderToStaticMarkup(<MiniApp document={explicit} startAt="pay" />);
+    expect(html).toContain("0x036C…CF7e");
+    // The full address stays reachable on hover, since the row only shows its ends.
+    expect(html).toContain('title="0x036CbD53842c5426634e7929541eC2318f3dCF7e"');
   });
 
   test("offers both a way to pay and a way to decline", () => {

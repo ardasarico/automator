@@ -39,8 +39,10 @@ export function createSecretRoutes({
     .put(
       putSecretContract.path,
       async ({ claims, params, body, status }) => {
+        // Checked here rather than by the route schema so that a name or value the owner can
+        // fix answers 422 `invalid_secret` instead of the generic 400.
         if (!isSecretName(params.name) || !Value.Check(secretValueInputSchema, body))
-          return status(400, { error: "invalid_request" });
+          return status(422, { error: "invalid_secret" });
         return secrets.put(claims.id, params.name, crypto.encrypt(body.value));
       },
       {
@@ -57,7 +59,7 @@ export function createSecretRoutes({
     .delete(
       deleteSecretContract.path,
       async ({ claims, params, status }) => {
-        if (!isSecretName(params.name)) return status(400, { error: "invalid_request" });
+        if (!isSecretName(params.name)) return status(422, { error: "invalid_secret" });
         const removed = await secrets.remove(claims.id, params.name);
         return removed ? { name: params.name } : status(404, { error: "not_found" });
       },

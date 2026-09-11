@@ -139,7 +139,9 @@ export function RecordBrowser({
               <RiMoreLine aria-hidden="true" />
             </MenuTrigger>
             <MenuPopup align="end">
-              <MenuItem onClick={() => setDeletingTable(true)}>Delete table</MenuItem>
+              <MenuItem variant="destructive" onClick={() => setDeletingTable(true)}>
+                Delete table
+              </MenuItem>
             </MenuPopup>
           </Menu>
           <Button size="sm" render={<Link href={`/data/${encodeURIComponent(table.id)}/new`} />}>

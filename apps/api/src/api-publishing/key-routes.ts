@@ -39,7 +39,9 @@ export function createApiKeyRoutes({
     .post(
       createApiKeyContract.path,
       async ({ claims, body, status }) => {
-        if (!isCreateApiKeyInput(body)) return status(400, { error: "invalid_request" });
+        // Checked here rather than by the route schema so that a name the owner can fix
+        // answers 422 `invalid_name` instead of the generic 400.
+        if (!isCreateApiKeyInput(body)) return status(422, { error: "invalid_name" });
         const key = generateApiKey();
         try {
           const summary = await keys.create(

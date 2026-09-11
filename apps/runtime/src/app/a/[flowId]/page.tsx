@@ -1,6 +1,8 @@
 import { request } from "@automator/api-client/server";
 import { getPublicFlowContract, type PublicFlow } from "@automator/contracts";
 import type { Metadata } from "next";
+import { cache } from "react";
+import { runtimeDescription, runtimeImage, runtimeTitle } from "../../meta";
 import { PreviewMiniApp } from "./preview-mini-app";
 import { PublishedMiniApp } from "./published-mini-app";
 import { NotFoundNotice } from "./shell";
@@ -11,18 +13,33 @@ type Props = {
   searchParams: Promise<{ preview?: string }>;
 };
 
-async function loadPublishedFlow(id: string): Promise<PublicFlow | null> {
+/* The metadata and the page both need the flow in the same pass: cache() keeps that one request. */
+const loadPublishedFlow = cache(async (id: string): Promise<PublicFlow | null> => {
   try {
     const result = await request(process.env.API_URL, getPublicFlowContract, { params: { id } });
     return result.status === 200 ? result.data : null;
   } catch {
     return null;
   }
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const flow = await loadPublishedFlow((await params).flowId);
-  return { title: flow ? `${flow.name} · Automator Apps` : "Automator Apps" };
+  const title = flow ? `${flow.name} · ${runtimeTitle}` : runtimeTitle;
+  const description = flow
+    ? flow.description.trim() || `${flow.name}, a mini-app built with Automator.`
+    : runtimeDescription;
+  return {
+    title,
+    description,
+    openGraph: {
+      type: "website",
+      siteName: "Automator",
+      title,
+      description,
+      images: [runtimeImage],
+    },
+  };
 }
 
 export default async function MiniAppPage({ params, searchParams }: Props) {

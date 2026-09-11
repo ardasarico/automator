@@ -83,6 +83,16 @@ function AccountPaymentLimits() {
   const problem = policy ? paymentPolicyProblem(policy) : null;
   const dirty = policy && state ? JSON.stringify(policy) !== JSON.stringify(state.policy) : false;
 
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
   async function save() {
     if (!policy || problem || savingRef.current || !lifetime.current) return;
     const controller = lifetime.current;
@@ -356,6 +366,8 @@ function AccountPaymentLimits() {
               rows={2}
               value={recipients}
               onChange={(event) => {
+                // The recipients live in their own state; `edit` bumps the revision so a
+                // save in flight knows this change came after it, and clears the notice.
                 edit(draft);
                 setRecipients(event.target.value);
               }}

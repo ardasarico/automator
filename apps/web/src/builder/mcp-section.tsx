@@ -1,11 +1,9 @@
 "use client";
 
-import { Button } from "@automator/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@automator/ui/field";
 import { Input } from "@automator/ui/input";
-import { RiCheckLine, RiFileCopyLine } from "@remixicon/react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { CopyButton } from "../components/copy-button";
 import { publicApiUrl } from "../lib/api-url";
 import {
   apiKeyPlaceholder,
@@ -14,65 +12,24 @@ import {
   mcpServerUrl,
 } from "./mcp-snippets";
 
-function CopyButton({
-  text,
-  copyLabel,
-  copiedLabel,
-}: {
-  text: string;
-  copyLabel: string;
-  copiedLabel: string;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  async function copy() {
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API is unavailable");
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={copied ? copiedLabel : copyLabel}
-      onClick={copy}
-    >
-      {copied ? <RiCheckLine aria-hidden="true" /> : <RiFileCopyLine aria-hidden="true" />}
-    </Button>
-  );
-}
-
 function Snippet({
   name,
   title,
   text,
-  copyLabel,
-  copiedLabel,
+  what,
   wrap,
 }: {
   name: string;
   title: string;
   text: string;
-  copyLabel: string;
-  copiedLabel: string;
+  what: string;
   wrap?: boolean;
 }) {
   return (
     <div data-snippet={name} className="flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
         <h4 className="text-label">{title}</h4>
-        <CopyButton text={text} copyLabel={copyLabel} copiedLabel={copiedLabel} />
+        <CopyButton iconOnly variant="ghost" text={text} what={what} />
       </div>
       <pre
         className={`bg-muted rounded-md p-3 font-mono text-xs ${
@@ -120,7 +77,7 @@ export function McpSection({ apiUrl = publicApiUrl }: { apiUrl?: string }) {
             className="min-w-0 flex-1 font-mono text-xs"
             onFocus={(event) => event.target.select()}
           />
-          <CopyButton text={url} copyLabel="Copy server URL" copiedLabel="Server URL copied" />
+          <CopyButton iconOnly variant="ghost" text={url} what="server URL" />
         </div>
         <FieldDescription>
           Authenticate with an API key from{" "}
@@ -135,16 +92,14 @@ export function McpSection({ apiUrl = publicApiUrl }: { apiUrl?: string }) {
         name="claude-code"
         title="Claude Code"
         text={claudeCodeCommand(url)}
-        copyLabel="Copy command"
-        copiedLabel="Command copied"
+        what="command"
         wrap
       />
       <Snippet
         name="client-config"
         title="Cursor, Claude Desktop and other clients"
         text={mcpClientConfig(url)}
-        copyLabel="Copy configuration"
-        copiedLabel="Configuration copied"
+        what="configuration"
       />
     </section>
   );

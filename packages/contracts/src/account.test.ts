@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Value } from "@sinclair/typebox/value";
 import { accountUsageContract, accountUsageSchema, totalRuns } from "./account";
-import { flowRunSourceSchema } from "./flow-runs";
+import { flowRunSources } from "./flow-runs";
 import { parseResponse } from "./contract";
 
 const usage = {
@@ -23,9 +23,8 @@ describe("account usage contract", () => {
   });
 
   test("groups runs by every run source the history knows", () => {
-    const sources = flowRunSourceSchema.anyOf.map((literal) => literal.const);
     expect(Object.keys(accountUsageSchema.properties.runsLast30Days.properties).sort()).toEqual(
-      [...sources].sort(),
+      [...flowRunSources].sort(),
     );
   });
 

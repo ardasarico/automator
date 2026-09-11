@@ -1,6 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { apiErrorCodeSchema, apiErrorResponses } from "./contract";
 import type { FlowDocument, FlowNode } from "./flows";
+import { isHexAddress } from "./hex";
 import { parseNodeConfig } from "./node-config";
 import { flowRunStatusSchema } from "./run-status";
 import { samplePayloadField } from "./sample-payload";
@@ -175,8 +176,6 @@ export const flowApiRefusalSchema = Type.Object({
 });
 export type FlowApiRefusal = Static<typeof flowApiRefusalSchema>;
 
-const addressValue = /^0x[0-9a-fA-F]{40}$/;
-
 function coerce(input: FlowApiInput, value: unknown): { value: unknown } | { message: string } {
   switch (input.type) {
     case "text":
@@ -195,7 +194,7 @@ function coerce(input: FlowApiInput, value: unknown): { value: unknown } | { mes
       return { message: `${input.name} must be true or false.` };
     }
     case "address":
-      return typeof value === "string" && addressValue.test(value.trim())
+      return typeof value === "string" && isHexAddress(value.trim())
         ? { value: value.trim() }
         : { message: `${input.name} must be a 0x address.` };
   }
@@ -262,6 +261,16 @@ export const flowApiSummarySchema = Type.Object({
 });
 export type FlowApiSummary = Static<typeof flowApiSummarySchema>;
 
+/**
+ * A run that stopped on a screen. The run exists and its id is the only handle a caller has on
+ * it, so the 409 carries it; `runId` stays optional because the shared 409 (a conflict) has none.
+ */
+export const waitingInvocationSchema = Type.Object({
+  error: apiErrorCodeSchema,
+  runId: Type.Optional(Type.String({ minLength: 1 })),
+});
+export type WaitingInvocation = Static<typeof waitingInvocationSchema>;
+
 export const listApiFlowsContract = {
   method: "GET",
   path: "/v1/flows",
@@ -287,6 +296,7 @@ export const invokeApiFlowContract = {
   response: {
     200: flowApiResultSchema,
     ...apiErrorResponses,
+    409: waitingInvocationSchema,
     422: flowApiRefusalSchema,
   },
 } as const;

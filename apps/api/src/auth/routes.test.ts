@@ -202,6 +202,36 @@ describe("authenticated API boundary", () => {
     expect(await response.text()).toBe('{"error":"unavailable"}');
   });
 
+  test.each(["Admin ", " ADMIN", "Admin".normalize("NFD")])(
+    "folds the username before the reserved lookup, so %j is reserved",
+    async (username) => {
+      const { request, records } = fixture();
+      await request("/auth/session", "POST", "alice");
+      const reserved = await request("/auth/profile", "PUT", "alice", {
+        name: "Alice",
+        username,
+      });
+      expect(reserved.status).toBe(409);
+      expect(await reserved.json()).toEqual({ error: "username_reserved" });
+      expect(records.get("did:privy:alice")).toMatchObject({ username: null });
+    },
+  );
+
+  test("an invalid profile is refused before the reserved lookup, whatever the username", async () => {
+    const { request, records } = fixture();
+    await request("/auth/session", "POST", "alice");
+    for (const body of [
+      { name: " ", username: "Admin " },
+      { username: "admin" },
+      { name: "Alice", username: "admin", id: "did:privy:bob" },
+    ]) {
+      const response = await request("/auth/profile", "PUT", "alice", body);
+      expect(response.status).toBe(422);
+      expect(await response.json()).toEqual({ error: "invalid_profile" });
+    }
+    expect(records.get("did:privy:alice")).toMatchObject({ name: null, username: null });
+  });
+
   test.each(["runs", "create", "health", "www", "null", "undefined", "privy", "system"])(
     "reserves the route-colliding username %s",
     async (username) => {

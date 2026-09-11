@@ -12,10 +12,13 @@ const issue: TriggerExecutionIssue = {
   historySaved: false,
   record: null,
 };
+const lookups: string[][] = [];
 function fixture(reader?: (owner: string, flow: string) => Promise<TriggerExecutionIssue[]>) {
   const flows = {
-    find: async (owner: string, id: string) =>
-      owner === "alice" && id === "flow" ? ({} as FlowRecord) : null,
+    find: async (owner: string, id: string) => {
+      lookups.push([owner, id]);
+      return owner === "alice" && id === "flow" ? ({} as FlowRecord) : null;
+    },
   } as FlowStore;
   const app = createApp({
     database: { check: async () => "up" },
@@ -49,10 +52,12 @@ test("issues require an authenticated owner and pass owner scoping to the reader
   expect(await response.json()).toEqual({ issues: [issue] });
   expect(calls).toEqual([["alice", "flow"]]);
 });
-test("an unconfigured reader is unavailable, not an empty issue list", async () => {
+test("an unconfigured reader is unavailable, not an empty issue list, and never reads the store", async () => {
+  lookups.length = 0;
   const response = await fixture()();
   expect(response.status).toBe(503);
   expect(await response.json()).toEqual({ error: "unavailable" });
+  expect(lookups).toEqual([]);
 });
 test("reader failures and malformed retained data are sanitized", async () => {
   const failed = await fixture(async () => {

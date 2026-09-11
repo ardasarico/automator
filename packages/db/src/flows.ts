@@ -37,7 +37,7 @@ export const ownerColumns = `id, name, description, document, enabled,
   polling_revision AS "pollingRevision",
   created_at AS "createdAt", updated_at AS "updatedAt"`;
 
-export function toRecord(row: FlowRow): FlowRecord {
+export function toRecord(row: Omit<FlowRow, "pollingRevision">): FlowRecord {
   const record: FlowRecord = {
     flow: {
       version: row.document.version,
@@ -283,6 +283,24 @@ export function createFlowStore(sql: SQL | undefined) {
         pollingRevision: row.pollingRevision,
       }));
     },
+    /**
+     * The owner's flows whose documents point a `data.*` node at this table, newest first. One
+     * query over the stored nodes, so deleting a table does not read every flow the owner has.
+     */
+    async listUsingTable(
+      ownerId: string,
+      tableId: string,
+    ): Promise<{ id: string; name: string }[]> {
+      const db = connection();
+      return db<{ id: string; name: string }[]>`
+        SELECT f.id, f.name FROM automator_flows f
+        WHERE f.owner_id = ${ownerId}
+          AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements(f.document->'nodes') AS n
+            WHERE n->>'type' LIKE 'data.%' AND n->'config'->>'tableId' = ${tableId}
+          )
+        ORDER BY f.updated_at DESC, f.id`;
+    },
     async isCurrentPoll(id: string, pollingRevision: string): Promise<boolean> {
       const db = connection();
       const rows = await db<{ id: string }[]>`
@@ -303,7 +321,12 @@ export function createFlowStore(sql: SQL | undefined) {
       id: string,
     ): Promise<{ record: FlowRecord; ownerId: string } | null> {
       const db = connection();
-      const rows = await db<(FlowRow & { ownerId: string })[]>`
+      /* Typed as the columns actually selected: a visitor's record carries no owner-only fields. */
+      type PublishedRow = Pick<
+        FlowRow,
+        "id" | "name" | "description" | "document" | "createdAt" | "updatedAt"
+      > & { ownerId: string };
+      const rows = await db<PublishedRow[]>`
         SELECT f.id, f.name, f.description, f.document, f.owner_id AS "ownerId",
           f.created_at AS "createdAt", f.updated_at AS "updatedAt"
         FROM automator_flows f WHERE f.id = ${id} AND f.app_published`;

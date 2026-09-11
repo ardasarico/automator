@@ -22,8 +22,9 @@ export async function PUT(req: Request, { params }: Params) {
   } catch {
     return authErrorResponse(req, new AuthApiError(400, "invalid_request"));
   }
+  // The same answer the API gives, so the store reads one code whichever side refused the secret.
   if (!isSecretName(name) || !Value.Check(secretValueInputSchema, body))
-    return authErrorResponse(req, new AuthApiError(400, "invalid_request"));
+    return authErrorResponse(req, new AuthApiError(422, "invalid_secret"));
   try {
     const result = await request(process.env.API_URL, putSecretContract, {
       token,
@@ -43,7 +44,7 @@ export async function DELETE(req: Request, { params }: Params) {
   const token = bearerToken(req);
   if (!token) return authErrorResponse(req, new AuthApiError(401, "unauthorized"));
   const { name } = await params;
-  if (!isSecretName(name)) return authErrorResponse(req, new AuthApiError(400, "invalid_request"));
+  if (!isSecretName(name)) return authErrorResponse(req, new AuthApiError(422, "invalid_secret"));
   try {
     const result = await request(process.env.API_URL, deleteSecretContract, {
       token,

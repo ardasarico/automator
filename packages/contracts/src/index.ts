@@ -4,6 +4,7 @@ export * from "./auth";
 export * from "./contract";
 export * from "./flows";
 export * from "./health";
+export * from "./hex";
 export * from "./screens";
 export * from "./identity";
 export * from "./node-config";
