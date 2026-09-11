@@ -3,11 +3,11 @@ import { Logo } from "@automator/ui/logo";
 import Link from "next/link";
 import { appUrl } from "./app-url";
 
-/** Anchors to the page's own sections; the labels follow whatever the page ends up carrying. */
-const sections = [
-  { href: "#build", label: "What you build" },
-  { href: "#canvas", label: "The canvas" },
-  { href: "#built-with", label: "Built with" },
+/** Where the project lives outside this page. The X link opens the follow dialog directly. */
+const links = [
+  { href: "https://github.com/ardasarico/automator", label: "GitHub" },
+  { href: "https://x.com/intent/follow?screen_name=ardasarico", label: "X" },
+  { href: "https://ethglobal.com/showcase/automator-z7ono", label: "ETHGlobal" },
 ] as const;
 
 /**
@@ -21,11 +21,13 @@ export function Nav() {
         <Link href="/" aria-label="Automator" className="flex-none">
           <Logo markColor="var(--brand)" className="h-6 w-auto" />
         </Link>
-        <nav aria-label="Sections" className="mx-auto hidden gap-6 sm:flex">
-          {sections.map(({ href, label }) => (
+        <nav aria-label="Links" className="mx-auto hidden gap-6 sm:flex">
+          {links.map(({ href, label }) => (
             <a
               key={href}
               href={href}
+              target="_blank"
+              rel="noreferrer"
               className="text-caption text-muted-foreground transition-colors hover:text-foreground"
             >
               {label}

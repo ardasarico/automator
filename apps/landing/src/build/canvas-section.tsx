@@ -189,7 +189,7 @@ export function CanvasMock() {
   const falseEdge = `M${falseOut.x} ${falseOut.y} C ${mid} ${falseOut.y}, ${mid} ${falseIn.y}, ${falseIn.x} ${falseIn.y}`;
   return (
     <div
-      className="relative mx-auto w-full max-w-[976px] overflow-hidden rounded-xl border border-border shadow-[0_24px_64px_color-mix(in_srgb,var(--foreground)_12%,transparent)]"
+      className="relative mx-auto w-full max-w-[976px] overflow-hidden rounded-xl border border-foreground/12"
       style={{
         aspectRatio: `${stage.width} / ${stage.height}`,
         containerType: "inline-size",
@@ -314,7 +314,7 @@ export function CanvasFeatures() {
 
 export function CanvasSection() {
   return (
-    <section id="canvas" className="mx-auto w-full max-w-5xl px-6 py-24">
+    <section id="canvas" className="mx-auto w-full max-w-5xl px-6 py-24 md:py-32">
       <div className="mx-auto mb-12 max-w-[52ch] text-center">
         <h2 className="text-balance font-semibold text-[clamp(1.5rem,2.6vw,2.125rem)] leading-[1.12] tracking-[-0.02em]">
           A canvas that runs.

@@ -30,7 +30,7 @@ const legs = [
  */
 export function WhatYouBuild() {
   return (
-    <section id="build" className={`${container} py-24`}>
+    <section id="build" className={`${container} py-24 md:py-32`}>
       <h2 className="mx-auto mb-14 max-w-[30ch] text-balance text-center font-semibold text-[clamp(1.5rem,2.6vw,2.125rem)] leading-[1.12] tracking-[-0.02em]">
         One canvas, three ways to ship it.
       </h2>

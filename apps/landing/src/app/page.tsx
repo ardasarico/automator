@@ -1,8 +1,11 @@
 import { CanvasSection } from "../build/canvas-section";
+import { Features } from "../build/features";
+import { Footer } from "../footer/footer";
 import { WhatYouBuild } from "../build/what-you-build";
 import { HeroBackdrop } from "../hero/backdrop";
 import { HeroPrompt } from "../hero/prompt";
 import { Nav } from "../nav";
+import { Statement } from "../statement/statement";
 
 export default function LandingPage() {
   return (
@@ -16,7 +19,10 @@ export default function LandingPage() {
         <HeroPrompt />
       </section>
       <WhatYouBuild />
+      <Features />
+      <Statement />
       <CanvasSection />
+      <Footer />
     </main>
   );
 }
