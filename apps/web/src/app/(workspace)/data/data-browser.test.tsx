@@ -51,7 +51,8 @@ test("each table links to its records and counts its columns and records", () =>
   expect(html).toContain("Everyone who asked for an invite.");
   expect(html).toContain("12 records");
   expect(html).toContain("2 columns");
-  expect(html).toContain("Sep 8, 2026");
+  // The date is the shared LocalDate: UTC on the server, with the exact stamp on the element.
+  expect(html).toContain('<time dateTime="2026-09-08T10:00:00.000Z">Sep 8, 2026</time>');
 });
 
 test("a card leads with the table's own columns and their types", () => {

@@ -1,6 +1,7 @@
 import { RiGitForkLine } from "@remixicon/react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { LocalDate } from "../../../../components/local-date";
 import { PageFrame } from "../../../../components/page-frame";
 import { FlowActionButton } from "../../../../flows/action-button";
 import { createFlowAction, forkFlowAction } from "../../../../flows/actions";
@@ -13,12 +14,6 @@ import { findMarketplaceItem } from "../../../../marketplace/server";
 
 type Props = { params: Promise<{ slug: string }> };
 
-const dateFormat = new Intl.DateTimeFormat("en", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  timeZone: "UTC",
-});
 const forkCountFormat = new Intl.NumberFormat("en");
 
 async function loadListing(slug: string) {
@@ -45,9 +40,7 @@ function ListingByline({ listing }: { listing: MarketplaceItem }) {
           {listing.publishedAt && (
             <>
               <span aria-hidden="true">·</span>
-              <time dateTime={listing.publishedAt}>
-                {dateFormat.format(new Date(listing.publishedAt))}
-              </time>
+              <LocalDate value={listing.publishedAt} />
             </>
           )}
           <span aria-hidden="true">·</span>

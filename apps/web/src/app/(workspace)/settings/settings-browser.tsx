@@ -3,12 +3,14 @@
 import { totalRuns, type AccountUsage } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
 import { ThemeSelect } from "@automator/ui/theme-select";
-import { RiCheckLine, RiFileCopyLine, RiPlugLine } from "@remixicon/react";
+import { RiPlugLine } from "@remixicon/react";
 import Link from "next/link";
 import { type ReactNode, useEffect, useState } from "react";
 import { AccountRequestError, getAccountUsageRequest } from "../../../account/client";
 import { useAccessToken } from "../../../auth/access-token";
 import { useAuthSession } from "../../../auth/provider";
+import { CopyButton } from "../../../components/copy-button";
+import { LocalDate } from "../../../components/local-date";
 import { runSourceLabels } from "../runs/run-labels";
 import styles from "./settings.module.css";
 
@@ -134,10 +136,6 @@ function Usage() {
     );
   }
   const runs = usage.runsLast30Days;
-  const since = new Date(usage.since).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
   return (
     <>
       <dl className={styles.rows}>
@@ -159,41 +157,8 @@ function Usage() {
         <UsageRow term="Secrets">{usage.secrets}</UsageRow>
         <UsageRow term="Published flows">{usage.listings}</UsageRow>
       </dl>
-      <p className={styles.note}>Runs are counted since {since}. There are no usage limits yet.</p>
-    </>
-  );
-}
-
-function CopyWalletButton({ address }: { address: string }) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={async () => {
-          try {
-            if (!navigator.clipboard?.writeText) throw new Error("Clipboard API is unavailable");
-            await navigator.clipboard.writeText(address);
-            setCopied(true);
-          } catch {
-            setCopied(false);
-          }
-        }}
-      >
-        {copied ? <RiCheckLine aria-hidden="true" /> : <RiFileCopyLine aria-hidden="true" />}
-        {copied ? "Copied" : "Copy"}
-        <span className="sr-only"> wallet address</span>
-      </Button>
-      <p className="sr-only" role="status">
-        {copied ? "Wallet address copied" : ""}
+      <p className={styles.note}>
+        Runs are counted since <LocalDate value={usage.since} />. There are no usage limits yet.
       </p>
     </>
   );
@@ -244,7 +209,7 @@ export function SettingsBrowser() {
                 <code dir="ltr" className={styles.address}>
                   {user.walletAddress}
                 </code>
-                <CopyWalletButton address={user.walletAddress} />
+                <CopyButton text={user.walletAddress} what="wallet address" />
               </span>
             </DetailRow>
           )}

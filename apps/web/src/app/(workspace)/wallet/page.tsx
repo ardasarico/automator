@@ -9,7 +9,7 @@ import { EmptyState } from "../../../components/empty-state";
 import { PageFrame } from "../../../components/page-frame";
 import { exactAmount, formatAmount } from "../../../wallet/amounts";
 import { getWallet, listWalletTransactions, type WalletLookup } from "../../../wallet/server";
-import { CopyAddressButton } from "./copy-address-button";
+import { CopyButton } from "../../../components/copy-button";
 import { PaymentLimits } from "./payment-limits";
 import { SigningAction, SigningLine, WalletSigningProvider } from "./wallet-signing";
 import styles from "./wallet.module.css";
@@ -59,7 +59,7 @@ function Identity({ address }: { address: string }) {
       </div>
       <div className={styles.address}>
         <code dir="ltr">{address}</code>
-        <CopyAddressButton address={address} />
+        <CopyButton iconOnly variant="ghost" text={address} what="wallet address" />
       </div>
       {explorers.length > 0 && (
         <ul className={styles.explorers}>

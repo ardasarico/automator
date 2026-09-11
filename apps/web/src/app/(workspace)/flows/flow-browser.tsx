@@ -31,6 +31,7 @@ import {
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { EmptyState } from "../../../components/empty-state";
+import { LocalDate } from "../../../components/local-date";
 import { PageFrame } from "../../../components/page-frame";
 import { FlowActionButton } from "../../../flows/action-button";
 import { createFlowAction } from "../../../flows/actions";
@@ -45,13 +46,6 @@ export type FlowView = "grid" | "table";
 type FlowSort = "updated" | "name";
 
 const sortLabels: Record<FlowSort, string> = { updated: "Last edited", name: "Name A–Z" };
-
-const dateFormat = new Intl.DateTimeFormat("en", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  timeZone: "UTC",
-});
 
 /**
  * What starts the flow, as a sentence. One trigger says its own detail ("Every 1h", "When
@@ -346,9 +340,7 @@ export function FlowBrowser({
                     <LastRun run={flow.lastRun} />
                   </td>
                   <td className={styles.tableEdited}>
-                    <time dateTime={flow.updatedAt}>
-                      {dateFormat.format(new Date(flow.updatedAt))}
-                    </time>
+                    <LocalDate value={flow.updatedAt} />
                   </td>
                   <td className={styles.numeric}>{flow.nodeCount}</td>
                   <td className={styles.tableActions}>

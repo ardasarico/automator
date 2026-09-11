@@ -16,9 +16,9 @@ import { Input } from "@automator/ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "@automator/ui/select";
 import { Switch } from "@automator/ui/switch";
 import { Textarea } from "@automator/ui/textarea";
-import { RiCheckLine, RiFileCopyLine } from "@remixicon/react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { CopyButton } from "../components/copy-button";
 import { EnableSigningButton } from "./enable-signing-button";
 import { useFlowActivation } from "./flow-activation";
 import { selectFlowNodes } from "./store";
@@ -32,34 +32,6 @@ import { WalletFunds } from "./wallet-funds";
 const nameLimit = 120;
 const chainItems = chains.map((chain) => ({ value: String(chain.id), label: chain.name }));
 const descriptionLimit = 1000;
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(timer);
-  }, [copied]);
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="icon-sm"
-      aria-label={copied ? "Copied" : label}
-      aria-live="polite"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-        } catch {
-          setCopied(false);
-        }
-      }}
-    >
-      {copied ? <RiCheckLine aria-hidden="true" /> : <RiFileCopyLine aria-hidden="true" />}
-    </Button>
-  );
-}
 
 export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
   const meta = useBuilderStore((state) => state.meta);
@@ -238,7 +210,7 @@ export function FlowSettingsDialog({ onClose }: { onClose: () => void }) {
                     className="min-w-0 flex-1 font-mono text-xs"
                     onFocus={(event) => event.target.select()}
                   />
-                  <CopyButton text={webhookUrl} label="Copy webhook URL" />
+                  <CopyButton iconOnly text={webhookUrl} what="webhook URL" />
                 </div>
                 <FieldDescription>
                   POST anything here while the flow is active; the request becomes the
