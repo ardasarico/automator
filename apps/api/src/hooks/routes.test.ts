@@ -72,6 +72,29 @@ describe("POST /hooks/:flowId/:token", () => {
     expect(stored.run.variables).toEqual({ seen: "world" });
   });
 
+  test("credentials sent with the call are left out of the persisted payload", async () => {
+    const { call, stores } = fixture();
+    const response = await call("/hooks/flow-1/token-flow-1", {
+      headers: {
+        Authorization: "Bearer caller-secret",
+        Cookie: "session=abc",
+        "content-type": "application/json",
+        "x-demo": "1",
+      },
+      body: JSON.stringify({ hello: "world" }),
+    });
+    expect(response.status).toBe(202);
+    const payload = stores.runRecords[0]!.run.trigger.payload as {
+      headers: Record<string, string>;
+    };
+    expect(Object.keys(payload.headers).map((name) => name.toLowerCase())).not.toContain(
+      "authorization",
+    );
+    expect(Object.keys(payload.headers).map((name) => name.toLowerCase())).not.toContain("cookie");
+    expect(payload.headers).toMatchObject({ "content-type": "application/json", "x-demo": "1" });
+    expect(JSON.stringify(stores.runRecords[0])).not.toContain("caller-secret");
+  });
+
   test("a non-JSON body arrives as text and an empty one as null", async () => {
     const { call, stores } = fixture();
     await call("/hooks/flow-1/token-flow-1", { body: "plain text" });

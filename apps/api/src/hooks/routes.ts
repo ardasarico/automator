@@ -13,11 +13,16 @@ export interface HookDependencies extends RunStores {
   now?: () => number;
 }
 
+/* Credentials a caller sends along must not end up in run history, which the owner can read back. */
+const secretHeaders = new Set(["authorization", "cookie"]);
+
 function webhookPayload(request: Request, body: unknown): WebhookPayload {
   const url = new URL(request.url);
   return {
     method: request.method,
-    headers: Object.fromEntries(request.headers.entries()),
+    headers: Object.fromEntries(
+      [...request.headers.entries()].filter(([name]) => !secretHeaders.has(name.toLowerCase())),
+    ),
     query: Object.fromEntries(url.searchParams.entries()),
     body,
   };
