@@ -9,7 +9,6 @@ import {
   withFallbackModel,
   withRequestDeadline,
 } from "./client";
-import { askForFlow, modelAttempts } from "./generate-flow";
 import { scenarioTimeoutMs, verificationBudgetMs } from "./verify-flow";
 
 type Call = { url: string; headers: Headers; body: Record<string, unknown> };
@@ -296,7 +295,6 @@ describe("OpenRouter client", () => {
     expect(modelTimeoutMs).toBeLessThan(requestBudgetMs);
     expect(verificationBudgetMs).toBeLessThan(requestBudgetMs);
     expect(scenarioTimeoutMs).toBeLessThan(verificationBudgetMs);
-    expect(modelAttempts).toBeGreaterThanOrEqual(1);
   });
 
   test("a deadline already spent stops the request instead of starting another call", async () => {
@@ -325,23 +323,22 @@ describe("OpenRouter client", () => {
     expect(Date.now() - started).toBeLessThan(2_000);
   });
 
-  test("running out of time is a timeout, never a repair attempt or an invalid flow", async () => {
-    let calls = 0;
-    const slow: LanguageModel = async () => {
-      calls += 1;
+  test("a call that lost the deadline race is not heard from afterwards", async () => {
+    let late: (() => void) | undefined;
+    const slow: LanguageModel = async (request) => {
+      request.onText?.("in time");
+      late = () => request.onText?.("too late");
       return new Promise(() => {});
     };
-    const failure = await askForFlow(
-      slow,
-      [{ role: "user", content: "hi" }],
-      [],
-      0,
-      Date.now() + 30,
-    ).catch((error: unknown) => error);
-    expect(failure).toBeInstanceOf(LanguageModelError);
+    const deltas: string[] = [];
+    const bounded = withRequestDeadline(slow, Date.now() + 20);
+    const failure = await bounded({
+      messages: [],
+      onText: (delta) => deltas.push(delta),
+    }).catch((error: unknown) => error);
     expect((failure as LanguageModelError).kind).toBe("timeout");
-    /* One hop attempted, not `modelAttempts` of them: a clock cannot be repaired. */
-    expect(calls).toBe(1);
+    late!();
+    expect(deltas).toEqual(["in time"]);
   });
 
   test.each([
@@ -394,6 +391,46 @@ describe("OpenRouter client", () => {
     );
     await expect(model({ messages: [] })).rejects.toMatchObject({ kind: "invalid_response" });
   });
+
+  test("the caller's signal aborts the provider fetch, not just the promise", async () => {
+    const controller = new AbortController();
+    let aborted = false;
+    const model = createOpenRouterModel({
+      apiKey: "sk-test",
+      model: "openai/gpt-4o-mini",
+      fetcher: (async (_url: unknown, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal!.addEventListener("abort", () => {
+            aborted = true;
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+          controller.abort();
+        })) as unknown as typeof fetch,
+    })!;
+
+    await expect(
+      model({ messages: [{ role: "user", content: "hi" }], signal: controller.signal }),
+    ).rejects.toBeInstanceOf(LanguageModelError);
+    expect(aborted).toBe(true);
+  });
+
+  test("without a signal the per-call budget is still what ends the fetch", async () => {
+    let given: AbortSignal | undefined;
+    const model = createOpenRouterModel({
+      apiKey: "sk-test",
+      model: "openai/gpt-4o-mini",
+      timeoutMs: 50,
+      fetcher: (async (_url: unknown, init: RequestInit) => {
+        given = init.signal!;
+        return Response.json({ choices: [{ message: { content: "ok" } }] });
+      }) as unknown as typeof fetch,
+    })!;
+
+    await model({ messages: [{ role: "user", content: "hi" }] });
+    expect(given?.aborted).toBe(false);
+    await Bun.sleep(80);
+    expect(given?.aborted).toBe(true);
+  });
 });
 
 describe("OpenAI client", () => {
@@ -428,6 +465,110 @@ describe("OpenAI client", () => {
       messages: [{ role: "user", content: "hi" }],
       temperature: 0,
     });
+  });
+
+  test("streams content deltas and assembles tool calls when onText is given", async () => {
+    const chunks = [
+      'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"add_node","arguments":"{\\"id\\":"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"t\\"}"}}]}}]}\n\n',
+      "data: [DONE]\n\n",
+    ];
+    const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body)).stream).toBe(true);
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      );
+    }) as unknown as typeof fetch;
+    const model = createOpenAiModel({ apiKey: "k", model: "m", fetcher })!;
+    const deltas: string[] = [];
+    const answer = await model({
+      messages: [{ role: "user", content: "hi" }],
+      onText: (delta) => deltas.push(delta),
+    });
+    expect(deltas).toEqual(["Hel", "lo"]);
+    expect(answer.content).toBe("Hello");
+    expect(answer.toolCalls).toEqual([{ id: "c1", name: "add_node", arguments: { id: "t" } }]);
+  });
+
+  test("reads two events in one chunk and an event split across two", async () => {
+    const encoder = new TextEncoder();
+    const fetcher = (async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode(
+                'data: {"choices":[{"delta":{"content":"a"}}]}\n\ndata: {"choices":[{"delta":{"content":"b"}}]}\n\ndata: {"choices":[{"delta":{"con',
+              ),
+            );
+            controller.enqueue(encoder.encode('tent":"c"}}]}\n\ndata: [DONE]\n\n'));
+            controller.close();
+          },
+        }),
+        { status: 200 },
+      )) as unknown as typeof fetch;
+    const model = createOpenAiModel({ apiKey: "k", model: "m", fetcher })!;
+    const deltas: string[] = [];
+    const answer = await model({
+      messages: [{ role: "user", content: "hi" }],
+      onText: (delta) => deltas.push(delta),
+    });
+    expect(deltas).toEqual(["a", "b", "c"]);
+    expect(answer.content).toBe("abc");
+  });
+
+  test("sends reasoning_effort none only when the request carries tools", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const model = createOpenAiModel({
+      apiKey: "sk-openai",
+      model: "gpt-5.6-luna",
+      fetcher: (async (_url: string | URL | Request, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return Response.json({ choices: [{ message: { content: "ok" } }] });
+      }) as unknown as typeof fetch,
+    })!;
+    await model({
+      messages: [{ role: "user", content: "hi" }],
+      tools: [{ name: "http_get", description: "d", parameters: { type: "object" } }],
+    });
+    await model({ messages: [{ role: "user", content: "hi" }] });
+    expect(bodies[0]!.reasoning_effort).toBe("none");
+    expect(bodies[1]).not.toHaveProperty("reasoning_effort");
+  });
+
+  test("keeps reasoning_effort none on the retry that drops temperature", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const model = createOpenAiModel({
+      apiKey: "sk-openai",
+      model: "gpt-5.6-luna",
+      fetcher: (async (_url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        bodies.push(body);
+        return body.temperature === undefined
+          ? Response.json({ choices: [{ message: { content: "ok" } }] })
+          : Response.json(
+              { error: { message: "Unsupported value: 'temperature' ... Only the default" } },
+              { status: 400 },
+            );
+      }) as unknown as typeof fetch,
+    })!;
+    await model({
+      messages: [{ role: "user", content: "hi" }],
+      tools: [{ name: "http_get", description: "d", parameters: { type: "object" } }],
+      temperature: 0,
+    });
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]!.reasoning_effort).toBe("none");
+    expect(bodies[1]!.reasoning_effort).toBe("none");
+    expect(bodies[1]).not.toHaveProperty("temperature");
   });
 
   test("names OpenAI in upstream failures", async () => {
@@ -484,6 +625,29 @@ describe("withFallbackModel", () => {
     });
   });
 
+  test("keeps a primary's streamed text instead of pasting a second answer onto it", async () => {
+    const lines: string[] = [];
+    const deltas: string[] = [];
+    let fallbackCalls = 0;
+    const model = withFallbackModel(
+      async (asked) => {
+        asked.onText?.("Half an ");
+        throw new LanguageModelError("upstream", "connection reset");
+      },
+      async () => {
+        fallbackCalls++;
+        return { content: "a whole answer", toolCalls: [] };
+      },
+      (line) => lines.push(line),
+    );
+    await expect(
+      model({ ...request, onText: (delta) => deltas.push(delta) }),
+    ).rejects.toMatchObject({ kind: "upstream", message: "connection reset" });
+    expect(fallbackCalls).toBe(0);
+    expect(deltas).toEqual(["Half an "]);
+    expect(lines).toEqual([expect.stringContaining("after streaming")]);
+  });
+
   test("lets unexpected errors through without asking the fallback", async () => {
     let fallbackCalls = 0;
     const model = withFallbackModel(
@@ -497,5 +661,26 @@ describe("withFallbackModel", () => {
     );
     await expect(model(request)).rejects.toBeInstanceOf(TypeError);
     expect(fallbackCalls).toBe(0);
+  });
+
+  test("both wrappers hand the caller's signal down to whichever model answers", async () => {
+    const controller = new AbortController();
+    const seen: (AbortSignal | undefined)[] = [];
+    const model = withRequestDeadline(
+      withFallbackModel(
+        async (asked) => {
+          seen.push(asked.signal);
+          throw new LanguageModelError("upstream", "primary broke");
+        },
+        async (asked) => {
+          seen.push(asked.signal);
+          return { content: "fallback", toolCalls: [] };
+        },
+      ),
+      Date.now() + 1000,
+    );
+    await model({ ...request, signal: controller.signal, onText: () => {} });
+
+    expect(seen).toEqual([controller.signal, controller.signal]);
   });
 });

@@ -2,6 +2,7 @@ import {
   LanguageModelError,
   type ChatMessage,
   type ChatRequest,
+  type ChatResponse,
   type LanguageModel,
   type ToolCall,
 } from "@automator/flow-engine";
@@ -69,9 +70,25 @@ export function withRequestDeadline(model: LanguageModel, deadlineAt: number): L
     const expiry = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => reject(new LanguageModelError("timeout", outOfTime)), left);
     });
+    /*
+     * The losing call keeps streaming to its own timeout, and the turn it was speaking for has
+     * already moved on — a late delta would be pasted into someone else's text. Once the race
+     * is settled, either way, nothing it says is forwarded.
+     */
+    let settled = false;
+    const heard = request.onText;
+    const bounded: ChatRequest = heard
+      ? {
+          ...request,
+          onText: (delta) => {
+            if (!settled) heard(delta);
+          },
+        }
+      : request;
     try {
-      return await Promise.race([model(request), expiry]);
+      return await Promise.race([model(bounded), expiry]);
     } finally {
+      settled = true;
       clearTimeout(timer);
     }
   };
@@ -142,6 +159,116 @@ function responseFormat(format: ChatRequest["responseFormat"]) {
     type: "json_schema",
     json_schema: { name: format.name, strict: false, schema: format.schema },
   };
+}
+
+interface StreamedCall {
+  id: string;
+  type: string;
+  name: string;
+  arguments: string;
+}
+
+/**
+ * Reads an OpenAI-style streamed completion: `data:` lines separated by blank lines, `[DONE]`
+ * last. Content reaches the caller delta by delta, which is the point; tool calls are assembled
+ * by their `index`, since only the first chunk of a call carries its id and name, and then pass
+ * through the same `fromWire` as a whole answer so an invalid one fails identically. A stream
+ * that ends without `[DONE]` is still an answer: what arrived is what the model said.
+ */
+async function readStreamedAnswer(
+  response: Response,
+  onText: (delta: string) => void,
+): Promise<ChatResponse> {
+  const calls = new Map<number, StreamedCall>();
+  let content = "";
+  let done = false;
+
+  const take = (event: string) => {
+    for (const line of event.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data) continue;
+      if (data === "[DONE]") {
+        done = true;
+        return;
+      }
+      let chunk: unknown;
+      try {
+        chunk = JSON.parse(data);
+      } catch {
+        throw new LanguageModelError("invalid_response", "The model sent an unreadable chunk");
+      }
+      const choice = isRecord(chunk) && Array.isArray(chunk.choices) ? chunk.choices[0] : null;
+      const delta = isRecord(choice) ? choice.delta : null;
+      if (!isRecord(delta)) continue;
+      if (typeof delta.content === "string" && delta.content) {
+        content += delta.content;
+        onText(delta.content);
+      }
+      if (!Array.isArray(delta.tool_calls)) continue;
+      for (const raw of delta.tool_calls) {
+        if (!isRecord(raw)) continue;
+        const index = typeof raw.index === "number" ? raw.index : calls.size;
+        const call = calls.get(index) ?? { id: "", type: "function", name: "", arguments: "" };
+        if (typeof raw.id === "string") call.id = raw.id;
+        if (typeof raw.type === "string") call.type = raw.type;
+        if (isRecord(raw.function)) {
+          // Appended, not assigned: a provider may split either field across chunks.
+          if (typeof raw.function.name === "string") call.name += raw.function.name;
+          if (typeof raw.function.arguments === "string") call.arguments += raw.function.arguments;
+        }
+        calls.set(index, call);
+      }
+    }
+  };
+
+  const reader = response.body?.getReader();
+  if (!reader)
+    throw new LanguageModelError("invalid_response", "The model answered with no content");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (!done) {
+      const chunk = await reader.read();
+      if (chunk.done) {
+        take(buffer + decoder.decode());
+        break;
+      }
+      buffer += decoder.decode(chunk.value, { stream: true }).replace(/\r\n/g, "\n");
+      let end = buffer.indexOf("\n\n");
+      while (end !== -1 && !done) {
+        take(buffer.slice(0, end));
+        buffer = buffer.slice(end + 2);
+        end = buffer.indexOf("\n\n");
+      }
+    }
+  } catch (error) {
+    if (error instanceof LanguageModelError) throw error;
+    /* The per-call budget covers this read, so it expires here rather than at the fetch. */
+    const timedOut =
+      error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw new LanguageModelError(
+      timedOut ? "timeout" : "upstream",
+      timedOut ? "The model did not answer in time" : "The model could not be reached",
+    );
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+
+  const toolCalls = [...calls.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, call]) =>
+      fromWire({
+        id: call.id,
+        type: call.type,
+        function: { name: call.name, arguments: call.arguments },
+      }),
+    );
+  if (new Set(toolCalls.map((call) => call.id)).size !== toolCalls.length)
+    throw new LanguageModelError("invalid_response", "The model sent duplicate tool call ids");
+  if (!content && toolCalls.length === 0)
+    throw new LanguageModelError("invalid_response", "The model answered with no content");
+  return { content: content || null, toolCalls };
 }
 
 function modelSelection(provider: "OpenRouter" | "OpenAI", model: string) {
@@ -215,10 +342,32 @@ export function withFallbackModel(
   log?: (line: string) => void,
 ): LanguageModel {
   return async (request) => {
+    /*
+     * Text already delivered cannot be taken back. The fallback answers for a primary that is
+     * down — one that fails before saying a word — but a primary that breaks mid-stream has
+     * already written part of the turn, and a second whole answer would be pasted onto it.
+     */
+    let spoke = false;
+    const heard = request.onText;
+    const watched: ChatRequest = heard
+      ? {
+          ...request,
+          onText: (delta) => {
+            spoke = true;
+            heard(delta);
+          },
+        }
+      : request;
     try {
-      return await primary(request);
+      return await primary(watched);
     } catch (error) {
       if (!(error instanceof LanguageModelError)) throw error;
+      if (spoke) {
+        log?.(
+          `Primary model failed after streaming (${error.kind}: ${error.message}); keeping its text`,
+        );
+        throw error;
+      }
       log?.(`Primary model failed (${error.kind}: ${error.message}); asking the fallback`);
       return fallback(request);
     }
@@ -249,12 +398,22 @@ function createChatCompletionsModel({
               },
             })),
             tool_choice: "auto",
+            /*
+             * OpenAI's chat-completions endpoint refuses function tools together with reasoning:
+             * "Function tools with reasoning_effort are not supported ... To use function tools,
+             * use /v1/responses or set reasoning_effort to 'none'." We stay on /v1/chat/completions
+             * (OpenRouter speaks that dialect too) and take the documented way out instead of
+             * switching endpoints. OpenRouter never sees this key — its own models are not gpt-5
+             * reasoning models and do not reject tool calls this way.
+             */
+            ...(provider === "OpenAI" ? { reasoning_effort: "none" } : {}),
           }
         : {}),
       ...(request.responseFormat
         ? { response_format: responseFormat(request.responseFormat) }
         : {}),
       ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+      ...(request.onText ? { stream: true } : {}),
     };
     const send = async () => {
       try {
@@ -266,7 +425,11 @@ function createChatCompletionsModel({
             ...headers,
           },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
+          // Stop has to reach the provider, not just the promise the caller is waiting on, so
+          // the caller's signal and the per-call budget both end this fetch.
+          signal: request.signal
+            ? AbortSignal.any([request.signal, AbortSignal.timeout(timeoutMs)])
+            : AbortSignal.timeout(timeoutMs),
         });
       } catch (error) {
         const timedOut = error instanceof Error && error.name === "TimeoutError";
@@ -297,6 +460,8 @@ function createChatCompletionsModel({
         response = await send();
       }
     }
+    /* Only a streamed 200 leaves the whole-body path; a failure is read and mapped as ever. */
+    if (request.onText && response.ok) return readStreamedAnswer(response, request.onText);
     let payload: unknown;
     try {
       payload = await response.json();

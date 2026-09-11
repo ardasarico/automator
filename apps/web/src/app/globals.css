@@ -4,3 +4,7 @@
 @source "..";
 
 @source "../../node_modules/@automator/miniapp/src";
+
+/* Streamdown ships Tailwind utility classes in its build output. */
+@source "../../node_modules/streamdown/dist/*.js";
+@source "../../node_modules/@streamdown/code/dist/*.js";

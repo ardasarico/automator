@@ -1477,3 +1477,26 @@ button.outlineProblem:focus-visible {
 .paletteItem[data-active] {
   background: var(--accent);
 }
+
+/* An AI draft on the canvas: what it adds, changes and drops. */
+.node[data-draft="added"] {
+  border-style: dashed;
+  border-color: var(--chart-2);
+}
+.node[data-draft="changed"] {
+  border-color: var(--chart-5);
+}
+.node[data-draft="removed"] {
+  opacity: 0.45;
+}
+.node[data-draft="removed"] .nodeLabel {
+  text-decoration: line-through;
+}
+.edgeDraftAdded path {
+  stroke: var(--chart-2);
+  stroke-dasharray: 6 4;
+}
+.edgeDraftRemoved path {
+  stroke: var(--destructive-text);
+  opacity: 0.45;
+}

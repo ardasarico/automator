@@ -28,6 +28,8 @@ export interface ApiConfig {
   privySignerId: string | undefined;
   world: WorldConfig | undefined;
   e2eTestToken: string | undefined;
+  /* A deterministic model for end-to-end tests, so they run without a provider key. */
+  aiScriptedModel: boolean;
   rateLimits: RateLimits;
 }
 
@@ -74,6 +76,8 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     console.warn("Privy verification key not set; JWKS fetch failures will surface as 401.");
   if (env.E2E_TEST_TOKEN && env.NODE_ENV === "production")
     throw new Error("E2E_TEST_TOKEN must not be set in production");
+  if (env.AI_SCRIPTED_MODEL && env.NODE_ENV === "production")
+    throw new Error("AI_SCRIPTED_MODEL must not be set in production");
   let secretsKey = parseSecretsKey(env.SECRETS_KEY);
   if (!secretsKey) {
     const message = env.SECRETS_KEY
@@ -117,6 +121,7 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     privySignerId: env.PRIVY_SIGNER_ID || undefined,
     world: readWorldConfig(env),
     e2eTestToken: env.E2E_TEST_TOKEN || undefined,
+    aiScriptedModel: env.AI_SCRIPTED_MODEL === "1",
     secretsKey,
     rateLimits: {
       runs: perMinute(env.RATE_LIMIT_RUNS, defaultRateLimits.runs),

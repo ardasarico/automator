@@ -48,6 +48,8 @@ export default defineConfig({
         PORT: apiPort,
         E2E_TEST_TOKEN: e2eToken,
         DATABASE_URL: databaseUrl,
+        // The AI suite needs the same draft every run, and no test should call a real model.
+        AI_SCRIPTED_MODEL: "1",
         // Seeding a page boundary of records writes far faster than a person does.
         RATE_LIMIT_DATA: "600",
       },

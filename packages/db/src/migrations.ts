@@ -328,6 +328,19 @@ export const migrations: Migration[] = [
     ALTER TABLE automator_runs ADD CONSTRAINT automator_runs_source_check
       CHECK (source IN ('manual', 'webhook', 'schedule', 'miniapp', 'event', 'watch', 'api'))`,
   },
+  {
+    name: "0020_flow_ai_messages",
+    sql: `CREATE TABLE IF NOT EXISTS automator_flow_ai_messages (
+      id TEXT PRIMARY KEY,
+      flow_id TEXT NOT NULL REFERENCES automator_flows(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+      parts JSONB NOT NULL DEFAULT '[]'::jsonb,
+      context JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS automator_flow_ai_messages_flow_created
+      ON automator_flow_ai_messages (flow_id, created_at, id)`,
+  },
 ];
 
 const LEDGER = `CREATE TABLE IF NOT EXISTS automator_migrations (

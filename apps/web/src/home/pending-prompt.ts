@@ -47,6 +47,15 @@ export function takePendingPrompt(): string | null {
   return take(key);
 }
 
+/** Drops a prompt that never reached a canvas, so the next flow does not inherit it. */
+export function clearPendingPrompt(): void {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* Nothing was stored either way. */
+  }
+}
+
 /**
  * Reads `?prompt=` off the current URL once and takes it out of the address, so a reload or a
  * shared link does not draft it again. Called by whichever page first sees the visitor: Home

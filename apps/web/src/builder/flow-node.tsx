@@ -3,8 +3,17 @@
 import type { FlowRunNodeResult } from "@automator/contracts";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { Handle, Position, type NodeProps, type NodeTypes } from "@xyflow/react";
-import { memo, useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import {
+  createContext,
+  memo,
+  useContext,
+  useEffect,
+  useRef,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { useDataTables } from "../data/tables-context";
+import type { DraftKind } from "./ai/diff";
 import { getCatalogEntry, type CatalogEntry, type CatalogPort } from "./catalog";
 import { CatalogIconMark } from "./catalog-icon";
 import type { FlowBuilderNode } from "./document";
@@ -20,6 +29,9 @@ import type { FlowProblem } from "./validation";
 
 /* Approximate half-card dimensions keep click-added nodes centered without measuring a mounted node. */
 export const nodeHalfSize = { x: 124, y: 36 };
+
+/** What an AI draft does to each node it draws; empty whenever the canvas shows the document. */
+export const DraftKindsContext = createContext<ReadonlyMap<string, DraftKind>>(new Map());
 
 function PortRow({ port, side }: { port: CatalogPort; side: "input" | "output" }) {
   return (
@@ -192,6 +204,7 @@ function FlowNodeComponent({ id, data, selected }: NodeProps<FlowBuilderNode>) {
     : problems.length > 0
       ? "warning"
       : undefined;
+  const draft = useContext(DraftKindsContext).get(id);
   const family = nodeFamily(data.type);
   const summary = nodeSummary({ id, type: data.type, config: data.config }, tables);
   const status = <NodeStatus result={result} problems={problems} />;
@@ -311,6 +324,7 @@ function FlowNodeComponent({ id, data, selected }: NodeProps<FlowBuilderNode>) {
       className={`${styles.node} ${familyClass} ${selected ? styles.nodeSelected : ""}`.trim()}
       data-category={entry.category}
       data-family={family}
+      data-draft={draft}
       data-run-status={result?.status}
       data-problem={worst}
     >

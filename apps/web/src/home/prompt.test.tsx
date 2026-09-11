@@ -13,17 +13,10 @@ import {
 } from "bun:test";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { privyModule } from "../auth/test-privy";
 
-/* A real origin: the handoff test rewrites the address, which about:blank refuses. */
-GlobalRegistrator.register({ url: "http://localhost/" });
+GlobalRegistrator.register();
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-/* Mocked at the SDK, not at `useAccessToken`: the session provider reads the same module, and a
- * module mock outlives this file, so its tests would get this token instead of Privy's. */
-mock.module("@privy-io/react-auth", () =>
-  privyModule({ usePrivy: () => ({ getAccessToken: async () => "privy-token" }) }),
-);
 /* The backdrop pulls in a WebGL vendor bundle that has nothing to do with drafting. */
 mock.module("./hero-backdrop", () => ({ HeroBackdrop: () => null }));
 /* The action reaches the API through server-only modules; only its call is under test here. */
@@ -32,39 +25,32 @@ mock.module("server-only", () => ({}));
 const actions = await import("../flows/actions");
 const { HomePrompt } = await import("./prompt");
 
+/** Changes the current URL without navigating, so the page can be re-mounted arriving at it. */
+function setUrl(url: string) {
+  (window as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM.setURL(url);
+}
+
 /* Installed per test and taken down again: the export is shared with every other test file. */
 let createFlow: ReturnType<typeof spyOn<typeof actions, "createFlowAction">>;
 
-const answer = {
-  kind: "flow",
-  summary: "Posts the balance to Discord.",
-  document: {
-    version: 1,
-    name: "Balance",
-    description: "",
-    nodes: [
-      { id: "t", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Run", config: {} },
-    ],
-    edges: [],
-  },
-};
-
-let response: unknown = answer;
-let status = 200;
+/* No AI fetch runs from Home any more: a call here means the model round trip was not removed. */
+let fetchCalls = 0;
 const originalFetch = globalThis.fetch;
 let container: HTMLDivElement;
 let root: Root;
 
 beforeAll(() => {
-  globalThis.fetch = (async () => Response.json(response, { status })) as unknown as typeof fetch;
+  globalThis.fetch = (async () => {
+    fetchCalls += 1;
+    return Response.json({});
+  }) as unknown as typeof fetch;
 });
 beforeEach(() => {
   /* Creating redirects on success, so the action answers with nothing to render. */
   createFlow = spyOn(actions, "createFlowAction").mockResolvedValue(null);
-  response = answer;
-  status = 200;
+  fetchCalls = 0;
   window.sessionStorage.clear();
-  window.history.replaceState(null, "", "/");
+  setUrl("http://localhost/");
 });
 afterEach(async () => {
   await act(async () => root?.unmount());
@@ -81,7 +67,7 @@ async function mount() {
   window.document.body.append(container);
   root = createRoot(container);
   await act(async () => root.render(<HomePrompt />));
-  /* A prompt handed over submits from an effect; give that submission's request its turn. */
+  /* A prompt handed over submits from an effect; give that submission's action its turn. */
   await act(async () => {});
 }
 
@@ -101,31 +87,32 @@ async function draft(text: string) {
 }
 
 describe("HomePrompt", () => {
-  test("hands the answer to the canvas and only then creates the flow", async () => {
+  test("stores the prompt and creates the flow", async () => {
     await draft("Post my balance to Discord");
 
     expect(createFlow.mock.calls).toEqual([[{ ai: true }]]);
     expect(window.sessionStorage.getItem("automator.pending-prompt")).toBe(
       "Post my balance to Discord",
     );
-    expect(JSON.parse(window.sessionStorage.getItem("automator.ai-draft-answer")!)).toEqual(answer);
+    expect(fetchCalls).toBe(0);
   });
 
-  test("a failed draft creates no flow and says why", async () => {
-    status = 422;
-    response = { error: "invalid_flow", detail: "Balance check: unknown output result on n3." };
+  test("a create that failed drops the prompt instead of leaving it for the next flow", async () => {
+    createFlow.mockResolvedValue({ error: "Automator is unavailable right now." });
     await draft("Post my balance to Discord");
 
-    expect(createFlow).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem("automator.ai-draft-answer")).toBeNull();
-    const alert = container.querySelector('[role="alert"]')!;
-    expect(alert.textContent).toContain("unknown output result on n3");
-    // The prompt stays in the box, so rephrasing does not mean retyping.
-    expect(container.querySelector("textarea")!.value).toBe("Post my balance to Discord");
+    expect(window.sessionStorage.getItem("automator.pending-prompt")).toBeNull();
   });
 
-  test("drafts the prompt the landing page put in the URL, and takes it off the URL", async () => {
-    window.history.replaceState(null, "", "/?prompt=Post%20my%20balance%20to%20Discord");
+  test("focuses the textarea when arriving with ?draft", async () => {
+    setUrl("http://localhost/?draft=1");
+    await mount();
+
+    expect(window.document.activeElement).toBe(container.querySelector("textarea"));
+  });
+
+  test("sends the prompt the landing page put in the URL, and takes it off the URL", async () => {
+    setUrl("http://localhost/?prompt=Post%20my%20balance%20to%20Discord");
     await mount();
 
     expect(createFlow.mock.calls).toEqual([[{ ai: true }]]);
@@ -133,11 +120,11 @@ describe("HomePrompt", () => {
       "Post my balance to Discord",
     );
     expect(container.querySelector("textarea")!.value).toBe("Post my balance to Discord");
-    // A reload must not draft it again.
+    // A reload must not send it again.
     expect(window.location.search).toBe("");
   });
 
-  test("drafts the prompt the login page kept while the visitor signed in", async () => {
+  test("sends the prompt the login page kept while the visitor signed in", async () => {
     window.sessionStorage.setItem("automator.handoff-prompt", "Post my balance to Discord");
     await mount();
 
@@ -148,14 +135,13 @@ describe("HomePrompt", () => {
     );
   });
 
-  test("a handed-over prompt that fails to draft stays in the box with the reason", async () => {
-    status = 422;
-    response = { error: "invalid_flow", detail: "Balance check: unknown output result on n3." };
+  test("a handed-over prompt whose create failed stays in the box to send again", async () => {
+    createFlow.mockResolvedValue({ error: "Automator is unavailable right now." });
     window.sessionStorage.setItem("automator.handoff-prompt", "Post my balance to Discord");
     await mount();
 
-    expect(createFlow).not.toHaveBeenCalled();
-    expect(container.querySelector('[role="alert"]')!.textContent).toContain("result on n3");
+    expect(createFlow.mock.calls).toEqual([[{ ai: true }]]);
+    expect(window.sessionStorage.getItem("automator.pending-prompt")).toBeNull();
     expect(container.querySelector("textarea")!.value).toBe("Post my balance to Discord");
   });
 
@@ -166,14 +152,14 @@ describe("HomePrompt", () => {
     await mount();
 
     expect(createFlow.mock.calls).toEqual([[{ ai: true }]]);
-    // The box and the request carry the same 4,000 characters.
+    // The box and the canvas carry the same 4,000 characters.
     expect(container.querySelector("textarea")!.value).toBe(long.slice(0, 4000));
     expect(window.sessionStorage.getItem("automator.pending-prompt")).toBe(
       long.slice(0, 4000).trim(),
     );
   });
 
-  test("drafts nothing on its own when nothing was handed over", async () => {
+  test("sends nothing on its own when nothing was handed over", async () => {
     await mount();
     expect(createFlow).not.toHaveBeenCalled();
     expect(container.querySelector("textarea")!.value).toBe("");

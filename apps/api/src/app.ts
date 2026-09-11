@@ -8,6 +8,7 @@ import {
 } from "@automator/contracts";
 import type {
   AccountStore,
+  AiMessageStore,
   ApiKeyStore,
   createDatabase,
   DataRecordStore,
@@ -69,6 +70,7 @@ export interface AppDependencies {
   /** The Graph gateway key for subgraph queries; without it those nodes fail as unconfigured. */
   graph?: GraphGateway;
   chainFactory?: ChainFactory;
+  aiMessages?: AiMessageStore;
   dataTables?: DataTableStore;
   dataRecords?: DataRecordStore;
   nodePresets?: NodePresetStore;
@@ -118,6 +120,7 @@ export function createApp({
   model,
   graph,
   chainFactory,
+  aiMessages,
   dataTables,
   dataRecords,
   nodePresets,
@@ -271,7 +274,19 @@ export function createApp({
           })
         : new Elysia(),
     )
-    .use(createAiRoutes({ identity, model, dataTables, log, callsPerMinute: limits.ai }))
+    .use(
+      flows && aiMessages
+        ? createAiRoutes({
+            identity,
+            model,
+            flows,
+            messages: aiMessages,
+            dataTables,
+            log,
+            callsPerMinute: limits.ai,
+          })
+        : new Elysia({ name: "ai" }),
+    )
     .use(account ? createAccountRoutes({ account, identity }) : new Elysia())
     .use(
       apiKeys

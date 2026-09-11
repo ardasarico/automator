@@ -38,7 +38,7 @@ import {
 } from "react";
 import { CanvasMenu, type CanvasMenuState } from "./canvas-menu";
 import { isFlowNodeType, type CatalogEntry } from "./catalog";
-import { nodeHalfSize, nodeTypes } from "./flow-node";
+import { DraftKindsContext, nodeHalfSize, nodeTypes } from "./flow-node";
 import { snapGrid, snapPosition } from "./grid";
 import styles from "./flow-builder.module.css";
 import { GettingStartedPanel } from "./getting-started-panel";
@@ -50,7 +50,14 @@ import { edgeRunStatus } from "./run-selectors";
 import { useRunStore } from "./run-store-provider";
 import { useBuilderStore } from "./store-provider";
 import { selectFlowNodes, type NodeTemplate, type SourcePort } from "./store";
+import type { DraftKind } from "./ai/diff";
 import { groupProblemsByNode, NodeProblemsContext, useFlowProblems } from "./use-flow-problems";
+
+/** Stable identities for a canvas that may not touch the document while a draft is on show. */
+const noDraftKinds: ReadonlyMap<string, DraftKind> = new Map();
+const ignoreChanges = () => {};
+/** How long the draft has to settle before the canvas frames it again. */
+const previewFitDelayMs = 150;
 
 export const nodeTypeMime = "application/x-automator-node-type";
 export const nodePresetMime = "application/x-automator-node-preset";
@@ -163,14 +170,18 @@ function useNodePlacement(): (insert: (position: XYPosition) => void) => void {
   );
 }
 
+/* The palette and the command menu add nodes from outside the canvas; a draft is read-only, so
+ * they do nothing until it is applied or discarded. */
 export function useAddNodeAtCenter(): (type: FlowNodeType) => void {
   const place = useNodePlacement();
   const addNode = useBuilderStore((state) => state.addNode);
+  const previewing = useBuilderStore((state) => state.preview !== null);
   return useCallback(
     (type) => {
+      if (previewing) return;
       place((position) => addNode(type, position));
     },
-    [addNode, place],
+    [addNode, place, previewing],
   );
 }
 
@@ -178,11 +189,13 @@ export function useAddNodeAtCenter(): (type: FlowNodeType) => void {
 export function useInsertNodeAtCenter(): (input: NodeTemplate) => void {
   const place = useNodePlacement();
   const insertNode = useBuilderStore((state) => state.insertNode);
+  const previewing = useBuilderStore((state) => state.preview !== null);
   return useCallback(
     (input) => {
+      if (previewing) return;
       place((position) => insertNode(input, position));
     },
-    [insertNode, place],
+    [insertNode, place, previewing],
   );
 }
 
@@ -229,6 +242,7 @@ function ZoomPanel() {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const tidyUp = useTidyUp();
   const empty = useBuilderStore((state) => state.nodes.length === 0);
+  const previewing = useBuilderStore((state) => state.preview !== null);
   return (
     <Panel position="bottom-left" className={styles.zoomPanel}>
       <Tooltip>
@@ -238,7 +252,7 @@ function ZoomPanel() {
               variant="ghost"
               size="icon-sm"
               aria-label="Tidy up"
-              disabled={empty}
+              disabled={empty || previewing}
               onClick={tidyUp}
             />
           }
@@ -293,7 +307,9 @@ const miniMapSize = { width: 160, height: 100 };
 export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolean }) {
   const nodes = useBuilderStore((state) => state.nodes);
   const edges = useBuilderStore((state) => state.edges);
+  const preview = useBuilderStore((state) => state.preview);
   const onNodesChange = useBuilderStore((state) => state.onNodesChange);
+  const onPreviewNodesChange = useBuilderStore((state) => state.onPreviewNodesChange);
   const onEdgesChange = useBuilderStore((state) => state.onEdgesChange);
   const onConnect = useBuilderStore((state) => state.onConnect);
   const canConnect = useBuilderStore((state) => state.canConnect);
@@ -315,6 +331,7 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
   /** Opens the picker at a screen point, kept inside the canvas so no row falls off an edge. */
   const openPicker = useCallback(
     (point: { clientX: number; clientY: number }, from?: SourcePort) => {
+      if (preview) return;
       const bounds = viewport.current?.getBoundingClientRect();
       if (!bounds) return;
       setPending({
@@ -326,19 +343,40 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
         flowPosition: screenToFlowPosition({ x: point.clientX, y: point.clientY }),
       });
     },
-    [screenToFlowPosition],
+    [preview, screenToFlowPosition],
   );
 
-  const shownEdges = useMemo(
-    () =>
-      run
-        ? edges.map((edge) => {
-            const status = edgeRunStatus(run, edge);
-            return status ? { ...edge, className: styles[`edge-${status}`] } : edge;
-          })
-        : edges,
-    [edges, run],
-  );
+  const shownNodes = preview?.nodes ?? nodes;
+  // A draft's own colours replace the last run's: the run belongs to the document, not the draft.
+  const shownEdges = useMemo(() => {
+    if (preview)
+      return preview.edges.map((edge) => {
+        const kind = preview.kinds.edges.get(edge.id);
+        if (kind === "added") return { ...edge, className: styles.edgeDraftAdded };
+        if (kind === "removed") return { ...edge, className: styles.edgeDraftRemoved };
+        return edge;
+      });
+    if (!run) return edges;
+    return edges.map((edge) => {
+      const status = edgeRunStatus(run, edge);
+      return status ? { ...edge, className: styles[`edge-${status}`] } : edge;
+    });
+  }, [edges, preview, run]);
+
+  // The draft arrives node by node, so the fit waits for it to settle rather than chasing it.
+  // Applying or discarding one fits again, or the view would stay framed on a draft that is gone.
+  const draftSize = preview?.nodes.length;
+  const drafted = useRef(false);
+  useEffect(() => {
+    const drafting = draftSize !== undefined;
+    if (!drafting && !drafted.current) return;
+    drafted.current = drafting;
+    const timer = window.setTimeout(() => {
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+      void fitView({ padding: 0.2, duration: reduced ? 0 : 300 });
+    }, previewFitDelayMs);
+    return () => window.clearTimeout(timer);
+  }, [draftSize, fitView]);
 
   const onDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     const types = event.dataTransfer.types;
@@ -349,6 +387,7 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
 
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
+      if (preview) return;
       const presetId = event.dataTransfer.getData(nodePresetMime);
       const type = event.dataTransfer.getData(nodeTypeMime);
       const preset = presetId ? presets.find((entry) => entry.id === presetId) : undefined;
@@ -360,13 +399,14 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
         insertNode({ type: preset.type, label: preset.label, config: preset.config }, position);
       else if (isFlowNodeType(type)) addNode(type, position);
     },
-    [addNode, insertNode, presets, screenToFlowPosition],
+    [addNode, insertNode, presets, preview, screenToFlowPosition],
   );
 
   // Dropping a connection on empty canvas offers the nodes that can accept it, then wires
   // the picked one to the port the drag started from.
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent, connectionState: FinalConnectionState) => {
+      if (preview) return;
       if (connectionState.isValid || connectionState.fromHandle?.type !== "source") return;
       const source = connectionState.fromNode?.id;
       if (!source) return;
@@ -374,7 +414,7 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
       if (!point) return;
       openPicker(point, { source, sourceHandle: connectionState.fromHandle.id });
     },
-    [openPicker],
+    [openPicker, preview],
   );
 
   // Double-clicking empty canvas offers a node at that spot. Nodes handle their own double
@@ -395,10 +435,11 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
       event: { clientX: number; clientY: number; preventDefault(): void },
       target: CanvasMenuState["target"],
     ) => {
+      if (preview) return;
       event.preventDefault();
       setMenu({ target, at: { x: event.clientX, y: event.clientY } });
     },
-    [],
+    [preview],
   );
   const onNodeContextMenu = useCallback(
     (event: ReactMouseEvent, node: Node) => {
@@ -455,101 +496,105 @@ export function FlowCanvas({ gettingStarted = false }: { gettingStarted?: boolea
 
   return (
     <div className={styles.canvas}>
-      <NodeProblemsContext.Provider value={problemsByNode}>
-        <div
-          className={styles.canvasViewport}
-          ref={viewport}
-          onDoubleClick={onPaneDoubleClick}
-          onContextMenu={onWrapperContextMenu}
-        >
-          <ReactFlow
-            nodes={nodes}
-            edges={shownEdges}
-            nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            isValidConnection={canConnect}
-            defaultEdgeOptions={{ type: "smoothstep" }}
-            connectionLineType={ConnectionLineType.SmoothStep}
-            onDragOver={onDragOver}
-            onDrop={onDrop}
-            onConnectEnd={onConnectEnd}
-            edgesReconnectable
-            onReconnectStart={onReconnectStart}
-            onReconnect={onReconnect}
-            onReconnectEnd={onReconnectEnd}
-            onNodeContextMenu={onNodeContextMenu}
-            onSelectionContextMenu={onSelectionContextMenu}
-            onEdgeContextMenu={onEdgeContextMenu}
-            fitView={nodes.length > 0}
-            fitViewOptions={{ padding: 0.2 }}
-            deleteKeyCode={["Backspace", "Delete"]}
-            minZoom={0.25}
-            maxZoom={1.25}
-            snapToGrid
-            snapGrid={snapGrid}
-            // Design-tool pointer model: dragging empty canvas selects; Space or the middle
-            // button drags the view and a two-finger scroll pans it; pinch and Cmd+scroll zoom.
-            // The right button is left alone: React Flow swallows the pane's context menu when
-            // it pans, and the menu matters more.
-            selectionOnDrag
-            selectionMode={SelectionMode.Partial}
-            panOnDrag={[1]}
-            panOnScroll
-            zoomOnDoubleClick={false}
-            proOptions={{ hideAttribution: true }}
+      <DraftKindsContext.Provider value={preview?.kinds.nodes ?? noDraftKinds}>
+        <NodeProblemsContext.Provider value={problemsByNode}>
+          <div
+            className={styles.canvasViewport}
+            ref={viewport}
+            onDoubleClick={onPaneDoubleClick}
+            onContextMenu={onWrapperContextMenu}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} />
-            <SelectionToolbar />
-            <ZoomPanel />
-            {gettingStarted && <GettingStartedPanel />}
-            {nodes.length > 0 && (
-              /* The size goes in `style`, which is where MiniMap reads it from
-               * (`elementWidth = style?.width ?? defaultWidth`) to draw the svg and compute its
-               * viewBox. Sized in CSS alone it drew at its own default 200x100 and the smaller
-               * frame clipped the result: the rightmost node lost to the border, the flow
-               * pushed against the bottom edge, and the viewport rectangle disagreeing with
-               * what the canvas showed. */
-              <MiniMap
-                position="bottom-right"
-                pannable
-                zoomable
-                style={miniMapSize}
-                ariaLabel="Flow overview"
-                className={styles.miniMap}
+            <ReactFlow
+              nodes={shownNodes}
+              edges={shownEdges}
+              nodeTypes={nodeTypes}
+              onNodesChange={preview ? onPreviewNodesChange : onNodesChange}
+              onEdgesChange={preview ? ignoreChanges : onEdgesChange}
+              onConnect={preview ? ignoreChanges : onConnect}
+              isValidConnection={canConnect}
+              nodesDraggable={!preview}
+              nodesConnectable={!preview}
+              defaultEdgeOptions={{ type: "smoothstep" }}
+              connectionLineType={ConnectionLineType.SmoothStep}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
+              onConnectEnd={onConnectEnd}
+              edgesReconnectable={!preview}
+              onReconnectStart={onReconnectStart}
+              onReconnect={onReconnect}
+              onReconnectEnd={onReconnectEnd}
+              onNodeContextMenu={onNodeContextMenu}
+              onSelectionContextMenu={onSelectionContextMenu}
+              onEdgeContextMenu={onEdgeContextMenu}
+              fitView={shownNodes.length > 0}
+              fitViewOptions={{ padding: 0.2 }}
+              deleteKeyCode={preview ? null : ["Backspace", "Delete"]}
+              minZoom={0.25}
+              maxZoom={1.25}
+              snapToGrid
+              snapGrid={snapGrid}
+              // Design-tool pointer model: dragging empty canvas selects; Space or the middle
+              // button drags the view and a two-finger scroll pans it; pinch and Cmd+scroll zoom.
+              // The right button is left alone: React Flow swallows the pane's context menu when
+              // it pans, and the menu matters more.
+              selectionOnDrag
+              selectionMode={SelectionMode.Partial}
+              panOnDrag={[1]}
+              panOnScroll
+              zoomOnDoubleClick={false}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} />
+              {!preview && <SelectionToolbar />}
+              <ZoomPanel />
+              {gettingStarted && <GettingStartedPanel />}
+              {shownNodes.length > 0 && (
+                /* The size goes in `style`, which is where MiniMap reads it from
+                 * (`elementWidth = style?.width ?? defaultWidth`) to draw the svg and compute its
+                 * viewBox. Sized in CSS alone it drew at its own default 200x100 and the smaller
+                 * frame clipped the result: the rightmost node lost to the border, the flow
+                 * pushed against the bottom edge, and the viewport rectangle disagreeing with
+                 * what the canvas showed. */
+                <MiniMap
+                  position="bottom-right"
+                  pannable
+                  zoomable
+                  style={miniMapSize}
+                  ariaLabel="Flow overview"
+                  className={styles.miniMap}
+                />
+              )}
+              {shownNodes.length === 0 && <EmptyCanvas />}
+            </ReactFlow>
+            <CanvasMenu
+              menu={menu}
+              onClose={() => setMenu(null)}
+              onAddNodeAt={(at) => openPicker({ clientX: at.x, clientY: at.y })}
+              onTidyUp={tidyUp}
+              onFitView={() => void fitView({ padding: 0.2, duration: 200 })}
+            />
+            {pending && (
+              <NodePicker
+                label={pending.from ? "Add a connected node" : "Add a node"}
+                position={pending.at}
+                accepts={pending.from ? acceptsConnection : undefined}
+                onClose={() => setPending(null)}
+                onPick={(type) => {
+                  addNode(
+                    type,
+                    snapPosition({
+                      x: pending.flowPosition.x - nodeHalfSize.x,
+                      y: pending.flowPosition.y - nodeHalfSize.y,
+                    }),
+                    pending.from,
+                  );
+                  setPending(null);
+                }}
               />
             )}
-            {nodes.length === 0 && <EmptyCanvas />}
-          </ReactFlow>
-          <CanvasMenu
-            menu={menu}
-            onClose={() => setMenu(null)}
-            onAddNodeAt={(at) => openPicker({ clientX: at.x, clientY: at.y })}
-            onTidyUp={tidyUp}
-            onFitView={() => void fitView({ padding: 0.2, duration: 200 })}
-          />
-          {pending && (
-            <NodePicker
-              label={pending.from ? "Add a connected node" : "Add a node"}
-              position={pending.at}
-              accepts={pending.from ? acceptsConnection : undefined}
-              onClose={() => setPending(null)}
-              onPick={(type) => {
-                addNode(
-                  type,
-                  snapPosition({
-                    x: pending.flowPosition.x - nodeHalfSize.x,
-                    y: pending.flowPosition.y - nodeHalfSize.y,
-                  }),
-                  pending.from,
-                );
-                setPending(null);
-              }}
-            />
-          )}
-        </div>
-      </NodeProblemsContext.Provider>
+          </div>
+        </NodeProblemsContext.Provider>
+      </DraftKindsContext.Provider>
       <RunPanel />
     </div>
   );

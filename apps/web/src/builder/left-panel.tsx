@@ -29,6 +29,7 @@ import { isFlowNode } from "./document";
 import { GroupSettings } from "./group-settings";
 import { NodeSettings } from "./node-settings";
 import { useBuilderStore, useBuilderStoreApi } from "./store-provider";
+import { AskAiButton } from "./ai/ask-ai-button";
 
 type SectionId = "nodes" | "variables" | "outline" | "history";
 
@@ -185,6 +186,7 @@ export function LeftPanel() {
     [compact, store, setPanel],
   );
   const clearSelection = useBuilderStore((state) => state.clearSelection);
+  const preview = useBuilderStore((state) => state.preview);
   const guardLink = useLeaveGuard();
   const open = sections.find((entry) => entry.id === section) ?? sections[0]!;
 
@@ -254,7 +256,13 @@ export function LeftPanel() {
         {section === "nodes" &&
           (selectedNode ? (
             isFlowNode(selectedNode) ? (
-              <NodeSettings key={selectedNode.id} node={selectedNode} onBack={clearSelection} />
+              <NodeSettings
+                key={selectedNode.id}
+                node={selectedNode}
+                onBack={clearSelection}
+                actions={<AskAiButton nodeId={selectedNode.id} />}
+                readOnly={preview !== null}
+              />
             ) : (
               <GroupSettings key={selectedNode.id} node={selectedNode} onBack={clearSelection} />
             )

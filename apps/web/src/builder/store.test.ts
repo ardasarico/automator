@@ -1,4 +1,4 @@
-import { flowDocumentSchema, Value } from "@automator/contracts";
+import { flowDocumentSchema, Value, type FlowDocument } from "@automator/contracts";
 import { describe, expect, test } from "bun:test";
 import { createEmptyFlow, isFlowNode, serializeFlow, type BuilderNode } from "./document";
 
@@ -7,7 +7,13 @@ function dataOf(node: BuilderNode | undefined) {
   if (!node || !isFlowNode(node)) throw new Error("expected a flow node");
   return node.data;
 }
-import { createBuilderStore, historyLimit } from "./store";
+import {
+  createBuilderStore,
+  historyLimit,
+  selectCanRedo,
+  selectCanUndo,
+  selectSelectedNodes,
+} from "./store";
 
 function setup() {
   return createBuilderStore(createEmptyFlow("flow-1"));
@@ -967,6 +973,180 @@ describe("groups", () => {
   });
 });
 
+describe("preview", () => {
+  const ping: FlowDocument = {
+    version: 1,
+    id: "flow-1",
+    name: "Ping",
+    description: "",
+    nodes: [
+      {
+        id: "t",
+        type: "trigger.manual",
+        label: "Run",
+        config: {},
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: "d",
+        type: "notify.discord",
+        label: "Post",
+        config: {},
+        position: { x: 300, y: 0 },
+      },
+    ],
+    edges: [{ id: "e", source: "t", target: "d" }],
+  };
+  const draft = (nodes: FlowDocument["nodes"], edges: FlowDocument["edges"] = []) => {
+    const { id: _id, ...input } = ping;
+    return { ...input, nodes, edges };
+  };
+
+  test("hydrates the draft, marks kinds, and keeps the real document", () => {
+    const store = createBuilderStore(ping);
+    store.getState().setPreview(draft([ping.nodes[0]!]));
+    const preview = store.getState().preview!;
+    expect(preview.nodes.map((node) => node.id)).toEqual(["t", "d"]);
+    expect(preview.kinds.nodes.get("t")).toBe("kept");
+    expect(preview.kinds.nodes.get("d")).toBe("removed");
+    expect(preview.edges.map((edge) => edge.id)).toEqual(["e"]);
+    expect(preview.kinds.edges.get("e")).toBe("removed");
+    expect(store.getState().nodes).toHaveLength(2);
+    store.getState().onPreviewNodesChange([{ type: "select", id: "t", selected: true }]);
+    expect(selectSelectedNodes(store.getState()).map((node) => node.id)).toEqual(["t"]);
+    store.getState().setPreview(null);
+    expect(store.getState().preview).toBeNull();
+  });
+
+  test("clearing the preview leaves the real nodes and edges untouched", () => {
+    const store = createBuilderStore(ping);
+    const before = store.getState();
+    store
+      .getState()
+      .setPreview(
+        draft([
+          ...ping.nodes,
+          { id: "w", type: "logic.wait", label: "Wait", config: {}, position: { x: 600, y: 0 } },
+        ]),
+      );
+    store.getState().onPreviewNodesChange([{ type: "select", id: "w", selected: true }]);
+    store.getState().setPreview(null);
+    expect(store.getState().nodes).toBe(before.nodes);
+    expect(store.getState().edges).toBe(before.edges);
+    expect(store.getState().dirty).toBe(false);
+    expect(store.getState().past).toEqual([]);
+  });
+
+  test("only selection and measurement reach the preview", () => {
+    const store = createBuilderStore(ping);
+    store.getState().setPreview(draft(ping.nodes));
+    const before = store.getState().preview!.nodes;
+    store.getState().onPreviewNodesChange([{ type: "remove", id: "d" }]);
+    expect(store.getState().preview!.nodes).toBe(before);
+    store
+      .getState()
+      .onPreviewNodesChange([
+        { type: "dimensions", id: "t", dimensions: { width: 200, height: 80 } },
+      ]);
+    expect(store.getState().preview!.nodes.map((node) => node.id)).toEqual(["t", "d"]);
+  });
+
+  test("a draft freezes the document: nothing edits it while one is on show", () => {
+    const store = createBuilderStore(ping);
+    store.getState().onConnect({
+      source: "d",
+      sourceHandle: null,
+      target: "t",
+      targetHandle: null,
+    });
+    store.getState().renameNode("t", "Start");
+    const before = store.getState();
+    store.getState().setPreview(draft([ping.nodes[0]!]));
+    const preview = store.getState().preview;
+
+    expect(store.getState().addNode("logic.wait", { x: 0, y: 200 })).toBe("");
+    expect(
+      store
+        .getState()
+        .insertNode({ type: "logic.wait", label: "Wait", config: {} }, { x: 0, y: 0 }),
+    ).toBe("");
+    expect(store.getState().duplicateNodes(["t"])).toEqual([]);
+    expect(store.getState().groupNodes(["t", "d"])).toBeNull();
+    store.getState().ungroup("t");
+    store.getState().selectAll();
+    store.getState().renameNode("t", "Renamed");
+    store.getState().setNodeConfig("d", { message: "hi" });
+    store.getState().removeNode("d");
+    store.getState().removeNodes(["d"]);
+    store.getState().setMeta({ name: "Pong" });
+    store.getState().setNodePositions(new Map([["t", { x: 999, y: 999 }]]));
+    store.getState().alignNodes(["t", "d"], "left");
+    store.getState().removeEdge("e");
+    store.getState().onNodesChange([{ type: "remove", id: "t" }]);
+    store.getState().onEdgesChange([{ type: "remove", id: "e" }]);
+    store.getState().undo();
+    store.getState().redo();
+
+    expect(store.getState().nodes).toBe(before.nodes);
+    expect(store.getState().edges).toBe(before.edges);
+    expect(store.getState().meta).toBe(before.meta);
+    expect(store.getState().past).toBe(before.past);
+    expect(store.getState().future).toBe(before.future);
+    expect(store.getState().preview).toBe(preview);
+    expect(selectCanUndo(store.getState())).toBe(false);
+    expect(selectCanRedo(store.getState())).toBe(false);
+
+    store.getState().setPreview(null);
+    expect(selectCanUndo(store.getState())).toBe(true);
+    store.getState().undo();
+    expect(store.getState().nodes).not.toBe(before.nodes);
+  });
+
+  test("applying a draft still works while it is on show", () => {
+    const store = createBuilderStore(ping);
+    const applied = draft([ping.nodes[0]!]);
+    store.getState().setPreview(applied);
+    store.getState().applyDocument(applied);
+    expect(store.getState().nodes.map((node) => node.id)).toEqual(["t"]);
+    expect(store.getState().dirty).toBe(true);
+  });
+
+  test("a draft takes the selection over from the canvas", () => {
+    const store = createBuilderStore(ping);
+    store.getState().onNodesChange([{ type: "select", id: "d", selected: true }]);
+    expect(selectSelectedNodes(store.getState()).map((node) => node.id)).toEqual(["d"]);
+    store.getState().setPreview(draft(ping.nodes));
+    expect(store.getState().nodes.some((node) => node.selected)).toBe(false);
+    expect(selectSelectedNodes(store.getState())).toEqual([]);
+    store.getState().setPreview(null);
+    expect(selectSelectedNodes(store.getState())).toEqual([]);
+  });
+
+  test("a draft's labels cannot be edited on the card", () => {
+    const store = createBuilderStore(ping);
+    store.getState().setPreview(draft(ping.nodes));
+    store.getState().setRenaming("t");
+    expect(store.getState().renaming).toBeNull();
+    store.getState().setPreview(null);
+    store.getState().setRenaming("t");
+    expect(store.getState().renaming).toBe("t");
+  });
+
+  test("a removed node in a frame is drawn where it sits on the canvas", () => {
+    const store = createBuilderStore(ping);
+    const group = store.getState().groupNodes(["t", "d"])!;
+    const inside = store.getState().nodes.find((node) => node.id === "d")!;
+    const frame = store.getState().nodes.find((node) => node.id === group)!;
+    store.getState().setPreview(draft([ping.nodes[0]!]));
+    const removed = store.getState().preview!.nodes.find((node) => node.id === "d")!;
+    expect(removed.parentId).toBeUndefined();
+    expect(removed.position).toEqual({
+      x: inside.position.x + frame.position.x,
+      y: inside.position.y + frame.position.y,
+    });
+  });
+});
+
 describe("applyDocument with frames", () => {
   function framed() {
     const store = setup();
@@ -1007,6 +1187,31 @@ describe("applyDocument with frames", () => {
     expect(
       serializeFlow(store.getState().meta, nodes, store.getState().edges).nodes[0],
     ).toMatchObject({ id: a, position: { x: 700, y: 500 }, parentId: group });
+  });
+
+  test("keepGroups draws the frame on the preview too, refitted, leaving the canvas alone", () => {
+    const { store, a, b, group, proposal } = framed();
+    const flow = () =>
+      serializeFlow(store.getState().meta, store.getState().nodes, store.getState().edges);
+    const before = flow();
+    store.getState().setPreview(proposal, { keepGroups: true });
+    const preview = store.getState().preview!;
+    expect(preview.nodes.map((node) => node.id)).toEqual([group, a, b]);
+    expect(preview.nodes[0]).toMatchObject({
+      type: "group",
+      position: { x: 680, y: 440 },
+      width: 300,
+      height: 160,
+    });
+    expect(preview.nodes[1]).toMatchObject({ parentId: group, position: { x: 20, y: 60 } });
+    // The dropped node is drawn faded, freed from the frame, where it sits on the canvas.
+    expect(preview.nodes[2]).toMatchObject({ id: b, position: { x: 400, y: 160 } });
+    expect(preview.nodes[2]!.parentId).toBeUndefined();
+    expect(preview.kinds.nodes.get(b)).toBe("removed");
+    // Only the preview holds the edit: the canvas keeps its nodes, frame and memberships.
+    expect(flow()).toEqual(before);
+    store.getState().setPreview(null);
+    expect(flow()).toEqual(before);
   });
 
   test("a frame with no surviving node goes, and without keepGroups every frame goes", () => {

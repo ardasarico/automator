@@ -1,317 +1,325 @@
 import { describe, expect, test } from "bun:test";
 import {
-  explainRunContract,
-  generateFlowContract,
-  parseResponse,
-  type AiError,
-  type DataTable,
-  type EndpointContract,
+  aiStoppedDetail,
+  aiStreamEventSchema,
+  Value,
+  type AiMessage,
+  type AiStreamEvent,
+  type FlowRecord,
 } from "@automator/contracts";
-import { scriptedModel, type LanguageModel } from "@automator/flow-engine";
+import type { AiMessageStore } from "@automator/db";
+import { scriptedModel, type ChatResponse, type LanguageModel } from "@automator/flow-engine";
 import { Elysia } from "elysia";
 import type { IdentityProvider } from "../auth/privy";
 import { createAiRoutes } from "./routes";
-
-/** Reads a rejection through the contract, so the detail has to be part of it to arrive. */
-function aiFailure<C extends EndpointContract>(contract: C, body: unknown): AiError {
-  const result = parseResponse(contract, 422, body);
-  if (result.status !== 422) throw new Error(`expected a 422 body, got ${result.status}`);
-  return result.data as AiError;
-}
 
 const identity: IdentityProvider = {
   verify: async (token) => (token === "alice" ? { id: "did:privy:alice", expiresAt: 2e9 } : null),
   walletAddress: async () => null,
 };
 
-const answer = {
-  name: "Ping",
-  description: "",
-  summary: "Manual run posts to Discord.",
-  nodes: [
-    { id: "n1", type: "trigger.manual", label: "Run", config: {} },
-    { id: "n2", type: "notify.discord", label: "Post", config: { content: "hi" } },
-  ],
-  edges: [{ source: "n1", sourceHandle: "run", target: "n2", targetHandle: "message" }],
+const savedNode = {
+  id: "saved",
+  type: "trigger.manual" as const,
+  position: { x: 0, y: 0 },
+  label: "Run",
+  config: {},
 };
 
-const tables: DataTable[] = [
-  {
-    id: "tbl-signups",
-    name: "Signups",
-    columns: [{ id: "email", name: "Email", type: "text", required: true }],
-    recordCount: 0,
-    createdAt: "2026-09-08T00:00:00.000Z",
-    updatedAt: "2026-09-08T00:00:00.000Z",
-  },
-];
+const flowRecord: FlowRecord = {
+  flow: { version: 1, id: "f1", name: "Ping", description: "", nodes: [], edges: [] },
+  createdAt: "2026-09-11T00:00:00.000Z",
+  updatedAt: "2026-09-11T00:00:00.000Z",
+  enabled: false,
+};
 
-const dataTables = { list: async () => tables };
+/* The same flow with a node already on it, for the two ways a turn can treat what is saved. */
+const builtRecord: FlowRecord = {
+  ...flowRecord,
+  flow: { ...flowRecord.flow, nodes: [savedNode] },
+};
 
-function dataAnswer(tableId: string) {
+function memoryMessages(): AiMessageStore & { rows: Map<string, AiMessage[]> } {
+  const rows = new Map<string, AiMessage[]>();
+  const of = (flowId: string) => rows.get(flowId) ?? [];
   return {
-    name: "Collect",
-    description: "",
-    summary: "Stores the signup.",
-    nodes: [
-      { id: "n1", type: "trigger.manual", label: "Run", config: {} },
-      {
-        id: "n2",
-        type: "data.create-record",
-        label: "Save",
-        config: { tableId, values: [{ column: "email", value: "a@b.co" }] },
-      },
-    ],
-    edges: [{ source: "n1", sourceHandle: "run", target: "n2", targetHandle: "values" }],
+    rows,
+    async list(flowId) {
+      return of(flowId);
+    },
+    async append(flowId, message) {
+      const stored = { ...message, createdAt: new Date().toISOString() };
+      rows.set(flowId, [...of(flowId), stored]);
+      return stored;
+    },
+    async setProposalState(flowId, messageId, state) {
+      const message = of(flowId).find((m) => m.id === messageId);
+      if (!message) return null;
+      message.parts = message.parts.map((p) => (p.type === "proposal" ? { ...p, state } : p));
+      return message;
+    },
+    async markPendingStale(flowId) {
+      for (const message of of(flowId))
+        message.parts = message.parts.map((p) =>
+          p.type === "proposal" && p.state === "pending" ? { ...p, state: "stale" } : p,
+        );
+    },
+    async clear(flowId) {
+      const had = of(flowId).length > 0;
+      rows.delete(flowId);
+      return had;
+    },
   };
 }
+
+const flowsHolding = (record: FlowRecord) => ({
+  find: async (ownerId: string, id: string) =>
+    ownerId === "did:privy:alice" && id === "f1" ? record : null,
+});
+
+const flows = flowsHolding(flowRecord);
 
 function fixture(
   model: LanguageModel | undefined,
-  callsPerMinute?: number,
-  stores?: { dataTables: typeof dataTables },
+  options: { callsPerMinute?: number; saved?: FlowRecord } = {},
 ) {
-  const app = new Elysia().use(createAiRoutes({ identity, model, callsPerMinute, ...stores }));
-  const post = (body: unknown, token?: string, path: string = generateFlowContract.path) =>
+  const messages = memoryMessages();
+  let n = 0;
+  const { saved, ...rest } = options;
+  const app = new Elysia().use(
+    createAiRoutes({
+      identity,
+      model,
+      flows: saved ? flowsHolding(saved) : flows,
+      messages,
+      newId: () => `id${(n += 1)}`,
+      ...rest,
+    }),
+  );
+  const call = (
+    method: string,
+    path: string,
+    body?: unknown,
+    token: string | undefined = "alice",
+  ) =>
     app.handle(
       new Request(`http://localhost${path}`, {
-        method: "POST",
+        method,
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          "Content-Type": "application/json",
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         },
-        body: JSON.stringify(body),
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       }),
     );
-  return { post };
+  return { app, messages, call };
 }
 
-describe("POST /ai/flows", () => {
-  test("requires a token, then a prompt", async () => {
-    const { post } = fixture(scriptedModel([]).model);
-    expect((await post({ prompt: "x" })).status).toBe(401);
-    expect((await post({}, "alice")).status).toBe(400);
-  });
+async function readEvents(response: Response): Promise<AiStreamEvent[]> {
+  const text = await response.text();
+  return text
+    .split("\n\n")
+    .filter((frame) => frame.startsWith("data: "))
+    .map((frame) => JSON.parse(frame.slice(6)) as AiStreamEvent);
+}
 
-  test("answers 503 without a configured model", async () => {
-    const { post } = fixture(undefined);
-    const response = await post({ prompt: "x" }, "alice");
-    expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({ error: "unavailable" });
-  });
-
-  test("requests beyond the per-user limit answer 429 before the handler runs", async () => {
-    const { post } = fixture(undefined, 1);
-    expect((await post({ prompt: "x" }, "alice")).status).toBe(503);
-    const limited = await post({ prompt: "x" }, "alice");
-    expect(limited.status).toBe(429);
-    expect(limited.headers.get("Retry-After")).toMatch(/^\d+$/);
-    expect(await limited.json()).toEqual({ error: "rate_limited" });
-    expect((await post({ prompt: "x" })).status).toBe(401);
-  });
-
-  test("returns a contract-valid generated document", async () => {
-    const { post } = fixture(
-      scriptedModel([{ content: JSON.stringify(answer), toolCalls: [] }]).model,
-    );
-    const response = await post({ prompt: "post to discord when I run it" }, "alice");
-    expect(response.status).toBe(200);
-    const result = parseResponse(generateFlowContract, 200, await response.json());
-    if (result.status !== 200 || result.data.kind !== "flow")
-      throw new Error("expected a document");
-    expect(result.data.summary).toBe("Manual run posts to Discord.");
-    expect(result.data.document.nodes.map((node) => node.type)).toEqual([
-      "trigger.manual",
-      "notify.discord",
-    ]);
-  });
-
-  test("relays a message answer and the history to the model", async () => {
-    const scripted = scriptedModel([
-      { content: JSON.stringify({ message: "Which channel?" }), toolCalls: [] },
-    ]);
-    const { post } = fixture(scripted.model);
-    const response = await post(
-      { prompt: "post it", history: [{ role: "user", text: "make a flow" }] },
-      "alice",
-    );
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ kind: "message", text: "Which channel?" });
-    expect(scripted.requests[0]!.messages[1]).toEqual({ role: "user", content: "make a flow" });
-  });
-
-  test("blanks the document's secret fields before the model sees them", async () => {
-    const scripted = scriptedModel([{ content: JSON.stringify(answer), toolCalls: [] }]);
-    const { post } = fixture(scripted.model);
-    const response = await post(
+const turns: ChatResponse[] = [
+  {
+    content: "Adding a trigger.",
+    toolCalls: [
       {
-        prompt: "say hello instead",
-        document: {
-          version: 1,
-          name: "Ping",
-          description: "",
-          nodes: [
-            {
-              id: "n1",
-              type: "trigger.manual",
-              position: { x: 0, y: 0 },
-              label: "Run",
-              config: {},
-            },
-            {
-              id: "n2",
-              type: "notify.discord",
-              position: { x: 300, y: 0 },
-              label: "Post",
-              config: { webhookUrl: "https://discord.com/api/webhooks/1/abc", content: "hi" },
-            },
-          ],
-          edges: [
-            { id: "e", source: "n1", sourceHandle: "run", target: "n2", targetHandle: "message" },
-          ],
-        },
+        id: "c1",
+        name: "add_node",
+        arguments: { id: "t", type: "trigger.manual", label: "Run", config: {} },
       },
-      "alice",
-    );
-    expect(response.status).toBe(200);
-    expect(JSON.stringify(scripted.requests)).not.toContain("discord.com/api/webhooks");
-  });
+    ],
+  },
+  { content: "Done.", toolCalls: [] },
+];
 
-  test("the prompt lists the owner's tables and a node may reference one", async () => {
-    const scripted = scriptedModel([
-      { content: JSON.stringify(dataAnswer("tbl-signups")), toolCalls: [] },
+describe("ai routes", () => {
+  test("streams a turn and stores both messages", async () => {
+    const { model } = scriptedModel(turns);
+    const { call, messages } = fixture(model);
+    const response = await call("POST", "/flows/f1/ai/messages", {
+      text: "Make a trigger",
+      context: { selection: [] },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toMatch(/^text\/event-stream/);
+    const events = await readEvents(response);
+    for (const event of events)
+      expect(Value.Check(aiStreamEventSchema, event), JSON.stringify(event)).toBe(true);
+    expect(events[0]).toEqual({ type: "message", id: "id2" });
+    expect(events.at(-1)).toEqual({ type: "done" });
+    expect(events.some((event) => event.type === "proposal")).toBe(true);
+
+    const stored = messages.rows.get("f1")!;
+    expect(stored.map((message) => [message.id, message.role])).toEqual([
+      ["id1", "user"],
+      ["id2", "assistant"],
     ]);
-    const { post } = fixture(scripted.model, undefined, { dataTables });
-    const response = await post({ prompt: "store the signup" }, "alice");
-    expect(response.status).toBe(200);
-    const prompt = scripted.requests[0]!.messages[0]!.content;
-    expect(prompt).toContain('id "tbl-signups" named "Signups"');
-    expect(prompt).toContain("email (text)");
-    expect(prompt).toContain("Never invent a table id");
+    expect(stored[0]!.parts).toEqual([{ type: "text", text: "Make a trigger" }]);
+    expect(stored[1]!.parts.at(-1)).toMatchObject({ type: "proposal", state: "pending" });
   });
 
-  test("without any table the prompt forbids data nodes", async () => {
-    const scripted = scriptedModel([{ content: JSON.stringify(answer), toolCalls: [] }]);
-    const { post } = fixture(scripted.model, undefined, {
-      dataTables: { list: async () => [] },
+  test("lists, patches a proposal and clears", async () => {
+    const { model } = scriptedModel(turns);
+    const { call } = fixture(model);
+    // The turn keeps running after the Response is returned, so the assistant message is only
+    // guaranteed stored once the stream itself has been read to its `done` event.
+    await readEvents(await call("POST", "/flows/f1/ai/messages", { text: "Make a trigger" }));
+    const listed = await call("GET", "/flows/f1/ai/messages");
+    expect(listed.status).toBe(200);
+    const body = (await listed.json()) as { messages: AiMessage[] };
+    expect(body.messages).toHaveLength(2);
+
+    const patched = await call("PATCH", "/flows/f1/ai/messages/id2", { state: "applied" });
+    expect(patched.status).toBe(200);
+    expect(((await patched.json()) as { message: AiMessage }).message.parts.at(-1)).toMatchObject({
+      state: "applied",
     });
-    expect((await post({ prompt: "x" }, "alice")).status).toBe(200);
-    expect(scripted.requests[0]!.messages[0]!.content).toContain(
-      "no data tables, so you must not use any data.* node",
+    expect((await call("PATCH", "/flows/f1/ai/messages/nope", { state: "applied" })).status).toBe(
+      404,
     );
+
+    const cleared = await call("DELETE", "/flows/f1/ai/messages");
+    expect(await cleared.json()).toEqual({ cleared: true });
+    expect(
+      ((await (await call("GET", "/flows/f1/ai/messages")).json()) as { messages: AiMessage[] })
+        .messages,
+    ).toEqual([]);
   });
 
-  test("a data node naming a table the owner does not have is rejected", async () => {
-    const invented = { content: JSON.stringify(dataAnswer("tbl-invented")), toolCalls: [] };
-    const { post } = fixture(scriptedModel([invented, invented]).model, undefined, { dataTables });
-    const response = await post({ prompt: "store the signup" }, "alice");
-    expect(response.status).toBe(422);
-    const body = aiFailure(generateFlowContract, await response.json());
-    expect(body.error).toBe("invalid_flow");
-    expect(body.detail).toContain("tbl-invented");
+  test("a new message supersedes pending proposals", async () => {
+    const { model } = scriptedModel([...turns, ...turns]);
+    const { call, messages } = fixture(model);
+    await readEvents(await call("POST", "/flows/f1/ai/messages", { text: "one" }));
+    await readEvents(await call("POST", "/flows/f1/ai/messages", { text: "two" }));
+    const stored = messages.rows.get("f1")!;
+    expect(stored[1]!.parts.at(-1)).toMatchObject({ state: "stale" });
+    expect(stored[3]!.parts.at(-1)).toMatchObject({ state: "pending" });
   });
 
-  test("answers 422 with the reason when the model cannot produce a valid flow", async () => {
-    const bad = { content: JSON.stringify({ ...answer, edges: [] }), toolCalls: [] };
-    const { post } = fixture(scriptedModel([bad, bad]).model);
-    const response = await post({ prompt: "x" }, "alice");
-    expect(response.status).toBe(422);
-    const body = aiFailure(generateFlowContract, await response.json());
-    expect(body).toEqual({ error: "invalid_flow", detail: 'Node "n2" has no incoming edge' });
+  test("enforces ownership and auth on every route, and the rate limit only on POST", async () => {
+    const { model } = scriptedModel([]);
+    const { call } = fixture(model, { callsPerMinute: 1 });
+    expect((await call("GET", "/flows/f2/ai/messages")).status).toBe(404);
+    // An explicit `undefined` here would still hit the fixture's own "alice" default; an empty
+    // string is falsy and actually omits the Authorization header, unlike `undefined`.
+    expect((await call("GET", "/flows/f1/ai/messages", undefined, "")).status).toBe(401);
+    // Reads are never rate-limited: as many of these as the budget's 1-per-minute POST would
+    // never allow all still answer 200.
+    expect((await call("GET", "/flows/f1/ai/messages")).status).toBe(200);
+    expect((await call("GET", "/flows/f1/ai/messages")).status).toBe(200);
+    expect((await call("GET", "/flows/f1/ai/messages")).status).toBe(200);
+
+    // POST is the only route the limiter's 1-per-minute budget applies to.
+    const first = await call("POST", "/flows/f1/ai/messages", { text: "hi" });
+    expect(first.status).toBe(200);
+    await readEvents(first);
+    expect((await call("POST", "/flows/f1/ai/messages", { text: "hi again" })).status).toBe(429);
+
+    const noModel = fixture(undefined);
+    expect((await noModel.call("POST", "/flows/f1/ai/messages", { text: "hi" })).status).toBe(503);
+    expect((await noModel.call("POST", "/flows/f1/ai/messages", { text: "" })).status).toBe(400);
   });
 
-  test("a delivered draft's failed check is redacted, one line and bounded", async () => {
-    /*
-     * The expectation fails on the value the node produced, so the raw message quotes it — and
-     * that message now travels to the user on the flow itself rather than as a rejection.
-     */
-    const leak = {
-      content: JSON.stringify({
-        name: "Leak",
-        description: "",
-        summary: "Sets a variable.",
-        nodes: [
-          { id: "n1", type: "trigger.manual", label: "Run", config: {} },
-          {
-            id: "n2",
-            type: "logic.set-variable",
-            label: "Remember",
-            config: { name: "hook", value: "https://discord.com/api/webhooks/1/s3cr3t" },
-          },
-        ],
-        edges: [{ source: "n1", sourceHandle: "run", target: "n2", targetHandle: "value" }],
-        tests: [
-          {
-            name: "Keeps the hook",
-            triggerNodeId: "n1",
-            expect: [{ nodeId: "n2", output: "value", equals: "something else" }],
-          },
-        ],
-      }),
-      toolCalls: [],
+  test("a model failure mid-stream becomes an error event and a stored error part", async () => {
+    const model: LanguageModel = async () => {
+      throw new (await import("@automator/flow-engine")).LanguageModelError(
+        "timeout",
+        "The model did not answer in time",
+      );
     };
-    const { post } = fixture(scriptedModel([leak, leak]).model);
-    const response = await post({ prompt: "x" }, "alice");
-    expect(response.status).toBe(200);
-    const parsed = parseResponse(generateFlowContract, 200, await response.json());
-    if (parsed.status !== 200) throw new Error(`expected a 200 body, got ${parsed.status}`);
-    const delivered = parsed.data;
-    expect(delivered.kind).toBe("flow");
-    if (delivered.kind !== "flow") throw new Error("expected a flow");
-    const check = delivered.verification!.checks[0]!;
-    expect(check.status).toBe("failed");
-    expect(check.detail).toContain("Keeps the hook");
-    expect(check.detail).not.toContain("s3cr3t");
-    expect(check.detail).toContain("[redacted]");
-    expect(check.detail).not.toContain("\n");
-    expect(check.detail.length).toBeLessThanOrEqual(300);
-  });
-});
-
-describe("POST /ai/runs/explain", () => {
-  const body = {
-    document: {
-      version: 1,
-      name: "Ping",
-      description: "",
-      nodes: [
-        { id: "n1", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Run", config: {} },
-      ],
-      edges: [],
-    },
-    run: {
-      status: "failed",
-      trigger: { nodeId: "n1" },
-      nodes: [{ nodeId: "n1", status: "failed", error: "boom" }],
-    },
-  };
-
-  test("requires a token and a complete body, and a model", async () => {
-    const { post } = fixture(scriptedModel([]).model);
-    expect((await post(body, undefined, explainRunContract.path)).status).toBe(401);
-    expect((await post({ run: body.run }, "alice", explainRunContract.path)).status).toBe(400);
-    const { post: postWithoutModel } = fixture(undefined);
-    expect((await postWithoutModel(body, "alice", explainRunContract.path)).status).toBe(503);
+    const { call, messages } = fixture(model);
+    const events = await readEvents(await call("POST", "/flows/f1/ai/messages", { text: "hi" }));
+    /* The code says what to do; the detail says what happened, and both reach the reader. */
+    const failure: AiStreamEvent = {
+      type: "error",
+      error: "unavailable",
+      detail: "The model did not answer in time",
+    };
+    expect(events.at(-2)).toEqual(failure);
+    expect(events.at(-1)).toEqual({ type: "done" });
+    expect(messages.rows.get("f1")![1]!.parts).toEqual([failure]);
   });
 
-  test("answers with a contract-valid explanation", async () => {
-    const { post } = fixture(
-      scriptedModel([{ content: JSON.stringify({ message: "It broke." }), toolCalls: [] }]).model,
+  test("an explicit new flow ignores what is saved and answers with a replacement", async () => {
+    const { model, requests } = scriptedModel(turns);
+    const { call, messages } = fixture(model, { saved: builtRecord });
+    const events = await readEvents(
+      await call("POST", "/flows/f1/ai/messages", { text: "Start again", replace: true }),
     );
-    const response = await post(body, "alice", explainRunContract.path);
-    expect(response.status).toBe(200);
-    const result = parseResponse(explainRunContract, 200, await response.json());
-    expect(result.data).toEqual({ kind: "message", text: "It broke." });
+
+    /* The saved node reaches neither the prompt nor the proposal. */
+    expect(JSON.stringify(requests)).not.toContain("saved");
+    const proposal = events.find((event) => event.type === "proposal")!;
+    expect(proposal).toMatchObject({ replaces: true });
+    expect(messages.rows.get("f1")![1]!.parts.at(-1)).toMatchObject({
+      type: "proposal",
+      replaces: true,
+    });
   });
 
-  test("answers 422 when the model proposes an invalid fix twice", async () => {
-    const bad = { content: JSON.stringify({ ...answer, edges: [] }), toolCalls: [] };
-    const { post } = fixture(scriptedModel([bad, bad]).model);
-    const response = await post(body, "alice", explainRunContract.path);
-    expect(response.status).toBe(422);
-    expect(aiFailure(explainRunContract, await response.json())).toEqual({
-      error: "invalid_flow",
-      detail: 'Node "n2" has no incoming edge',
-    });
+  test("without `replace` and without a document the saved flow is what gets edited", async () => {
+    const { model, requests } = scriptedModel([
+      {
+        content: "Renaming it.",
+        toolCalls: [{ id: "c1", name: "set_flow", arguments: { name: "Pong" } }],
+      },
+      { content: "Done.", toolCalls: [] },
+    ]);
+    const { call, messages } = fixture(model, { saved: builtRecord });
+    const events = await readEvents(
+      await call("POST", "/flows/f1/ai/messages", { text: "Rename it" }),
+    );
+
+    expect(JSON.stringify(requests)).toContain("saved");
+    const proposal = events.find((event) => event.type === "proposal")!;
+    expect(proposal).toMatchObject({ replaces: false });
+    expect(proposal.type === "proposal" && proposal.document.nodes.map((node) => node.id)).toEqual([
+      "saved",
+    ]);
+    expect(messages.rows.get("f1")![1]!.parts.at(-1)).toMatchObject({ replaces: false });
+  });
+
+  test("a client disconnect mid-stream ends the stream without an unhandled rejection", async () => {
+    // The model call is left pending until the same signal the request carries fires, standing
+    // in for a real client hanging up on an in-flight turn: nothing else in this codebase makes
+    // an in-flight model call itself abort-aware, so the test has to.
+    const controller = new AbortController();
+    const model: LanguageModel = () =>
+      new Promise((_resolve, reject) => {
+        controller.signal.addEventListener("abort", () => reject(new Error("client disconnected")));
+      });
+    const { app, messages } = fixture(model);
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => rejections.push(reason);
+    process.on("unhandledRejection", onRejection);
+    try {
+      const response = await app.handle(
+        new Request("http://localhost/flows/f1/ai/messages", {
+          method: "POST",
+          headers: { Authorization: "Bearer alice", "Content-Type": "application/json" },
+          body: JSON.stringify({ text: "hi" }),
+          signal: controller.signal,
+        }),
+      );
+      expect(response.status).toBe(200);
+      controller.abort();
+      const events = await readEvents(response);
+      expect(events.at(-1)).toEqual({ type: "done" });
+      const stored = messages.rows.get("f1")!;
+      expect(stored).toHaveLength(2);
+      expect(stored[1]!.parts.at(-1)).toEqual({
+        type: "error",
+        error: "unavailable",
+        detail: aiStoppedDetail,
+      });
+    } finally {
+      process.off("unhandledRejection", onRejection);
+    }
+    expect(rejections).toEqual([]);
   });
 });
