@@ -1,0 +1,20 @@
+# Build flows with a tool-calling agent and keep the conversation
+
+Status: Accepted, supersedes 0008
+
+## Context
+
+Under 0008 the model answered one JSON document that the API laid out, validated and sent back once for repair. The commonest failure, an edge drawn into a config key instead of a handle, was only caught after the whole answer existed and got one chance to be fixed; a small edit re-emitted the whole flow; nothing streamed, so a turn of thirty to a hundred seconds showed a counter; and the conversation lived in the panel's memory and died on reload. The rebuilt chat had to keep 0008's guarantees: nothing lands on the canvas until the user applies it, the model never sees a credential, and every offered flow has been validated.
+
+## Decision
+
+- **The model builds on a working copy through tools.** `apps/api/src/ai/canvas-agent.ts` gives the model `add_node`, `update_node`, `remove_node`, `connect`, `disconnect`, `set_flow`, `add_test`, `ask_user` and `suggest_next`. Every mutating call is validated as it lands (type allowlist, handle ids, config schema, one edge per input, no self-edge, no cycle) and a refused call returns its problem to the model without changing anything. The turn is capped at 40 calls and shares one wall-clock deadline. When the copy changed, the API runs the document checks and `verifyFlow`, sends one repair message inside the same turn if the document fails, and offers the draft as a proposal, failed check and all; `ask_user` ends the turn with a question and no proposal.
+- **A turn is a stream of typed events, and the conversation is stored per flow.** `POST /flows/:id/ai/messages` answers `text/event-stream` (`text.delta`, `tool.call`, `tool.result`, `status`, `question`, `proposal`, `suggestions`, `error`, `done`); the same shapes are the message `parts` in `automator_flow_ai_messages`, kept in arrival order so a reload renders what the stream rendered. Model text streams per delta through `ChatRequest.onText`; a stop aborts the provider request through `ChatRequest.signal`, and a stopped turn is stored with the same wording the panel showed. Only the turn route spends the AI rate limit; reads, proposal-state updates and clears are unlimited.
+- **The browser reaches the API through same-origin Next route handlers,** as every other web call does: the streaming handler pipes the body through and forwards the browser's abort. The API keeps no CORS.
+- **The canvas previews the draft while it streams.** The builder store's `preview` shows the working copy read-only, freezes every document-mutating action, clears the selection so node settings open read-only, and carries group frames over with `keepGroups` (0016); Apply is one undo entry, Discard drops the preview. A new flow is asked for explicitly (`replace: true`), never inferred from a missing document.
+- **Home creates the flow first** and hands the prompt to the builder, which sends it as the first message; a failed first turn leaves a flow with a conversation rather than nothing. The run panel's explanation and the node settings' "Ask AI" go through the same conversation.
+- **OpenAI requests that carry tools send `reasoning_effort: "none"`**; without it the configured model refused function tools and every turn fell through to the fallback. A primary that has already streamed a delta is never replaced by the fallback mid-turn.
+
+## Consequences
+
+Small edits cost a couple of tool calls, the user watches the draft appear, and a refused call is corrected at the point it was made instead of after a full answer: measured on the same request, a turn dropped from 80 s through the fallback to 11 s on the primary. Conversations survive reloads and travel with the flow. The cost is a second table, four routes and their proxies, a preview mode the whole store has to respect, and a prompt that now describes tools rather than a JSON shape. `AI_SCRIPTED_MODEL=1` (refused in production) gives end-to-end tests a fixed two-node answer. Explaining a historical run sends the live canvas, not the run's snapshot; accepted for the hackathon and noted for later.

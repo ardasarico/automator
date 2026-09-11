@@ -1,6 +1,6 @@
 # Generate and edit flows with a constrained model
 
-Status: Accepted
+Status: Superseded by 0018
 
 ## Context
 
