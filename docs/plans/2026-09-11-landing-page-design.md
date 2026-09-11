@@ -76,6 +76,16 @@ Dropped: the technology marquee under the hero, the examples section, the trigge
 - The landing may carry the WebThreads shader (`ogl`) after all; it mounts one frame after
   first paint and never under reduced motion. Agentation is loaded in development only.
 
+## Metadata
+
+`apps/landing/src/app/layout.tsx` carries the title, description, canonical, the icon set copied
+from `apps/web/public/meta`, and Open Graph / Twitter cards pointing at `public/meta/og.png`
+(1200×630). The card is a static PNG: it was screenshotted with Playwright from a throwaway
+`/og` route drawn with the page's own tokens (statement ground, dot grid, the wordmark, the hero
+line, the three canvas feature marks), so it needs no build-time font fetching; redraw the route
+and re-screenshot when the hero line changes. `robots.ts` allows everything but `/health`;
+`sitemap.ts` lists the one page.
+
 ## Files
 
 `apps/landing/src/hero/{backdrop,prompt}.tsx`, `nav.tsx`, `app-url.ts`, `container.ts`,
