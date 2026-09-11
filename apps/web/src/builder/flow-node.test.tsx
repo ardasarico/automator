@@ -53,7 +53,7 @@ const preamble = `
   };
   const { useSyncExternalStore } = await import("react");
   mock.module("./store-provider", () => ({
-    useBuilderStore: (select) =>
+    useBuilderStoreIfAny: (select) =>
       useSyncExternalStore(
         (listener) => (listeners.add(listener), () => listeners.delete(listener)),
         () => select(state),
@@ -156,6 +156,27 @@ test("double-clicking the label edits it in place; Enter commits and Escape back
     assert.equal(renamed.length, 1, "Escape does not rename");
     assert.ok(!container.querySelector("input"), "input closed after Escape");
     await act(async () => root.unmount());
+  `);
+  expect(stderr).toBe("");
+  expect(exitCode).toBe(0);
+});
+
+test("a card outside the builder still draws: the marketplace preview has no store", async () => {
+  // The real store-provider, not the mock: without a BuilderStoreProvider the label must read
+  // an inert store rather than throw, which is what took the marketplace detail page down.
+  const script = preamble
+    .replace(/mock\.module\("\.\/store-provider"[\s\S]*?\}\)\);\n/, "")
+    // The real store needs React Flow's change helpers, so the mock keeps the rest of the module.
+    .replace(
+      'mock.module("@xyflow/react", () => ({',
+      'const realFlow = await import("@xyflow/react");\n  mock.module("@xyflow/react", () => ({ ...realFlow,',
+    );
+  const { exitCode, stderr } = await run(`${script}
+    const html = draw("logic.condition", "Amount over 10?", {
+      left: "{{input.amount}}", operator: "greater_or_equal", right: "10",
+    });
+    assert.match(html, /Amount over 10\\?/);
+    assert.match(html, /data-family="branch"/);
   `);
   expect(stderr).toBe("");
   expect(exitCode).toBe(0);
