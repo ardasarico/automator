@@ -1146,3 +1146,57 @@ describe("preview", () => {
     });
   });
 });
+
+describe("applyDocument with frames", () => {
+  function framed() {
+    const store = setup();
+    const a = store.getState().addNode("trigger.webhook", { x: 100, y: 100 });
+    const b = store.getState().addNode("logic.wait", { x: 400, y: 160 });
+    const group = store.getState().groupNodes([a, b])!;
+    const current = serializeFlow(
+      store.getState().meta,
+      store.getState().nodes,
+      store.getState().edges,
+    );
+    // What an AI edit answers with: no frames, no parents, one node moved and one gone.
+    const { groups: _groups, ...edited } = current;
+    const proposal = {
+      ...edited,
+      nodes: current.nodes
+        .filter((node) => node.id === a)
+        .map(({ parentId: _parent, ...node }) => ({ ...node, position: { x: 700, y: 500 } })),
+    };
+    return { store, a, b, group, proposal };
+  }
+
+  test("keepGroups carries a frame over to its surviving node and refits it", () => {
+    const { store, a, group, proposal } = framed();
+    store.getState().applyDocument(proposal, { keepGroups: true });
+    const nodes = store.getState().nodes;
+    expect(nodes.map((node) => node.id)).toEqual([group, a]);
+    // Left 700 - 24 = 676 → 680; top 500 - 56 = 444 → 440; right 700 + 248 + 24 = 972 → 300
+    // wide from 680; bottom 500 + 72 + 24 = 596 → 160 tall from 440.
+    expect(nodes[0]).toMatchObject({
+      type: "group",
+      position: { x: 680, y: 440 },
+      width: 300,
+      height: 160,
+      selected: false,
+    });
+    expect(nodes[1]).toMatchObject({ parentId: group, position: { x: 20, y: 60 } });
+    expect(
+      serializeFlow(store.getState().meta, nodes, store.getState().edges).nodes[0],
+    ).toMatchObject({ id: a, position: { x: 700, y: 500 }, parentId: group });
+  });
+
+  test("a frame with no surviving node goes, and without keepGroups every frame goes", () => {
+    const { store, a, group, proposal } = framed();
+    store.getState().applyDocument({ ...proposal, nodes: [] }, { keepGroups: true });
+    expect(store.getState().nodes).toEqual([]);
+    const again = framed();
+    again.store.getState().applyDocument(again.proposal);
+    expect(again.store.getState().nodes.map((node) => node.id)).toEqual([again.a]);
+    expect(store.getState().nodes.find((node) => node.id === group)).toBeUndefined();
+    expect(a).toEqual(expect.any(String));
+  });
+});
