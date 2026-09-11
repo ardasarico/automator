@@ -15,6 +15,8 @@ import {
   RiSparklingLine,
 } from "@remixicon/react";
 import { useState } from "react";
+import { useChatStore } from "./ai/chat-store-provider";
+import { useAskAi } from "./ai/use-ask-ai";
 import { getCatalogEntry } from "./catalog";
 import { EnableSigningButton } from "./enable-signing-button";
 import styles from "./flow-builder.module.css";
@@ -28,7 +30,6 @@ import {
   transactionHashes,
 } from "./run-selectors";
 import { useRunStore } from "./run-store-provider";
-import { useExplainRun } from "./use-explain-run";
 import { useSelectNode } from "./use-select-node";
 import { selectFlowNodes } from "./store";
 import { useBuilderStore } from "./store-provider";
@@ -68,9 +69,27 @@ function ExplorerLinks({ output, chainId }: { output: unknown; chainId: number }
 }
 
 function ExplainButton({ nodeId }: { nodeId?: string }) {
-  const { explain, pending } = useExplainRun();
+  const { askToExplainRun } = useAskAi();
+  const run = useRunStore((state) => state.run);
+  const pending = useChatStore((state) => state.pending);
   return (
-    <Button variant="ghost" size="sm" loading={pending} onClick={() => void explain(nodeId)}>
+    <Button
+      variant="ghost"
+      size="sm"
+      loading={pending}
+      onClick={() => {
+        if (!run) return;
+        askToExplainRun(
+          {
+            status: run.status,
+            trigger: run.trigger,
+            nodes: run.nodes,
+            ...(run.error === undefined ? {} : { error: run.error }),
+          },
+          nodeId,
+        );
+      }}
+    >
       <RiSparklingLine aria-hidden="true" />
       Explain with AI
     </Button>
