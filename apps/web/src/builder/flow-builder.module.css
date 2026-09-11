@@ -345,8 +345,15 @@
 /* Branch: the question in the middle, the answers as tabs the wires leave from. */
 .nodeBranch {
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: stretch;
   overflow: visible;
+}
+
+/* A run error is a row of its own under the question and the tabs, never a third column. */
+.nodeBranch .nodeRunError {
+  flex-basis: 100%;
+  padding: 0 10px 8px;
 }
 
 .nodeBranchMain {
