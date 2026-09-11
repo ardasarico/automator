@@ -13,14 +13,17 @@ import {
 } from "bun:test";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { privyModule } from "../auth/test-privy";
 
-GlobalRegistrator.register();
+/* A real origin: the handoff test rewrites the address, which about:blank refuses. */
+GlobalRegistrator.register({ url: "http://localhost/" });
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-mock.module("../auth/access-token", () => ({
-  e2eSession: false,
-  useAccessToken: () => async () => "privy-token",
-}));
+/* Mocked at the SDK, not at `useAccessToken`: the session provider reads the same module, and a
+ * module mock outlives this file, so its tests would get this token instead of Privy's. */
+mock.module("@privy-io/react-auth", () =>
+  privyModule({ usePrivy: () => ({ getAccessToken: async () => "privy-token" }) }),
+);
 /* The backdrop pulls in a WebGL vendor bundle that has nothing to do with drafting. */
 mock.module("./hero-backdrop", () => ({ HeroBackdrop: () => null }));
 /* The action reaches the API through server-only modules; only its call is under test here. */
@@ -61,6 +64,7 @@ beforeEach(() => {
   response = answer;
   status = 200;
   window.sessionStorage.clear();
+  window.history.replaceState(null, "", "/");
 });
 afterEach(async () => {
   await act(async () => root?.unmount());
@@ -72,11 +76,17 @@ afterAll(async () => {
   await GlobalRegistrator.unregister();
 });
 
-async function draft(text: string) {
+async function mount() {
   container = window.document.createElement("div");
   window.document.body.append(container);
   root = createRoot(container);
   await act(async () => root.render(<HomePrompt />));
+  /* A prompt handed over submits from an effect; give that submission's request its turn. */
+  await act(async () => {});
+}
+
+async function draft(text: string) {
+  await mount();
   const textarea = container.querySelector("textarea")!;
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
     textarea,
@@ -112,5 +122,60 @@ describe("HomePrompt", () => {
     expect(alert.textContent).toContain("unknown output result on n3");
     // The prompt stays in the box, so rephrasing does not mean retyping.
     expect(container.querySelector("textarea")!.value).toBe("Post my balance to Discord");
+  });
+
+  test("drafts the prompt the landing page put in the URL, and takes it off the URL", async () => {
+    window.history.replaceState(null, "", "/?prompt=Post%20my%20balance%20to%20Discord");
+    await mount();
+
+    expect(createFlow.mock.calls).toEqual([[{ ai: true }]]);
+    expect(window.sessionStorage.getItem("automator.pending-prompt")).toBe(
+      "Post my balance to Discord",
+    );
+    expect(container.querySelector("textarea")!.value).toBe("Post my balance to Discord");
+    // A reload must not draft it again.
+    expect(window.location.search).toBe("");
+  });
+
+  test("drafts the prompt the login page kept while the visitor signed in", async () => {
+    window.sessionStorage.setItem("automator.handoff-prompt", "Post my balance to Discord");
+    await mount();
+
+    expect(createFlow.mock.calls).toEqual([[{ ai: true }]]);
+    expect(window.sessionStorage.getItem("automator.handoff-prompt")).toBeNull();
+    expect(window.sessionStorage.getItem("automator.pending-prompt")).toBe(
+      "Post my balance to Discord",
+    );
+  });
+
+  test("a handed-over prompt that fails to draft stays in the box with the reason", async () => {
+    status = 422;
+    response = { error: "invalid_flow", detail: "Balance check: unknown output result on n3." };
+    window.sessionStorage.setItem("automator.handoff-prompt", "Post my balance to Discord");
+    await mount();
+
+    expect(createFlow).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')!.textContent).toContain("result on n3");
+    expect(container.querySelector("textarea")!.value).toBe("Post my balance to Discord");
+  });
+
+  test("cuts a handed-over prompt to what the box accepts", async () => {
+    const long = "Post my balance to Discord. ".repeat(200);
+    expect(long.length).toBeGreaterThan(4000);
+    window.sessionStorage.setItem("automator.handoff-prompt", long);
+    await mount();
+
+    expect(createFlow.mock.calls).toEqual([[{ ai: true }]]);
+    // The box and the request carry the same 4,000 characters.
+    expect(container.querySelector("textarea")!.value).toBe(long.slice(0, 4000));
+    expect(window.sessionStorage.getItem("automator.pending-prompt")).toBe(
+      long.slice(0, 4000).trim(),
+    );
+  });
+
+  test("drafts nothing on its own when nothing was handed over", async () => {
+    await mount();
+    expect(createFlow).not.toHaveBeenCalled();
+    expect(container.querySelector("textarea")!.value).toBe("");
   });
 });

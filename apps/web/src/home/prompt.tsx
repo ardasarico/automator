@@ -13,8 +13,11 @@ import {
 import { useAccessToken } from "../auth/access-token";
 import { createFlowAction } from "../flows/actions";
 import { HeroBackdrop } from "./hero-backdrop";
-import { storePendingPrompt } from "./pending-prompt";
+import { captureHandoffPrompt, storePendingPrompt, takeHandoffPrompt } from "./pending-prompt";
 import styles from "./home.module.css";
+
+/** What the box accepts, and so what a prompt handed over from the landing page is cut to. */
+const promptMaxLength = 4000;
 
 /** Mounted only while a draft is in flight, so each wait starts its own count at zero. */
 function Elapsed() {
@@ -67,21 +70,38 @@ function Drafting({ onStop }: { onStop(): void }) {
  * only once there is something to put in it, so a draft that fails or is stopped leaves no empty
  * "Untitled flow" behind. The builder's AI panel replays the question and the answer on mount,
  * so the nodes are still reviewed where they will be edited.
+ *
+ * A prompt from the landing page is drafted the same way: it is put in the box and the form
+ * submitted, so the visitor sees the sentence they typed, the wait and any failure exactly as if
+ * they had sent it from here.
  */
 export function HomePrompt() {
   const getAccessToken = useAccessToken();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const form = useRef<HTMLFormElement>(null);
   const request = useRef<AbortController | null>(null);
+  /* The landing page's sentence, between being taken from storage and being sent as the form. */
+  const handed = useRef<string | null>(null);
 
   useEffect(() => {
+    /* Arriving from the landing page, straight in or by way of the login page. */
+    captureHandoffPrompt();
+    handed.current = takeHandoffPrompt()?.slice(0, promptMaxLength) ?? null;
+    if (handed.current !== null) form.current?.requestSubmit();
     /* Arriving from "Describe it to AI" on Flows: the box is what that card promised. */
     if (new URLSearchParams(window.location.search).has("draft")) input.current?.focus();
   }, []);
 
-  async function draft(form: FormData) {
-    const prompt = String(form.get("prompt") ?? "").trim();
+  async function draft(fields: FormData) {
+    let prompt = String(fields.get("prompt") ?? "").trim();
+    if (handed.current !== null) {
+      /* Shown in the box like a typed sentence: the wait, and any failure, then read the same. */
+      prompt = handed.current.trim();
+      setText(handed.current);
+      handed.current = null;
+    }
     if (prompt === "") return;
     setError(null);
     const controller = new AbortController();
@@ -107,7 +127,7 @@ export function HomePrompt() {
     <div className={styles.hero}>
       <HeroBackdrop />
       <h1 className={styles.title}>What should we automate?</h1>
-      <form action={draft} className={styles.box}>
+      <form ref={form} action={draft} className={styles.box}>
         <textarea
           ref={input}
           name="prompt"
@@ -120,7 +140,7 @@ export function HomePrompt() {
             event.currentTarget.form?.requestSubmit();
           }}
           placeholder="Swap 100 USDC for ETH every Monday…"
-          maxLength={4000}
+          maxLength={promptMaxLength}
           rows={2}
           aria-label="Describe the flow you want"
         />

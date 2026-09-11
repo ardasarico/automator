@@ -15,7 +15,9 @@ import { RiArrowLeftLine, RiGoogleFill } from "@remixicon/react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { captureHandoffPrompt } from "../home/pending-prompt";
 import { useAuthSession } from "./provider";
+import { captureNextPath, signedInPath } from "./signed-in-path";
 import { WalletLogin } from "./wallet-login";
 import styles from "./auth.module.css";
 
@@ -41,7 +43,13 @@ export function LoginForm() {
   const disabled = !ready || inputsDisabled;
 
   useEffect(() => {
-    if (authenticated && user) router.replace(isOnboarded(user) ? "/flows" : "/onboarding");
+    /* A signed-out visitor is sent here with their prompt from the landing page, or the deep
+     * link they asked for, in the URL. */
+    captureHandoffPrompt();
+    captureNextPath();
+  }, []);
+  useEffect(() => {
+    if (authenticated && user) router.replace(isOnboarded(user) ? signedInPath() : "/onboarding");
   }, [authenticated, user, router]);
   useEffect(() => {
     if (sent) codeRef.current?.focus();
