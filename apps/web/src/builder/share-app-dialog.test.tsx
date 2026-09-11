@@ -137,7 +137,7 @@ test("publishes the app and then shows its link", async () => {
   );
 });
 
-test("unpublishes an already shared app", async () => {
+test("unpublishing asks first, and cancelling keeps the link", async () => {
   await mount(true);
   expect(window.document.querySelector<HTMLInputElement>("#app-link")?.value).toContain(
     "/a/flow-id",
@@ -145,8 +145,49 @@ test("unpublishes an already shared app", async () => {
 
   await act(async () => button("Unpublish").click());
 
+  expect(bodies).toEqual([]);
+  expect(window.document.body.textContent).toContain("The link stops working for visitors");
+  expect(window.document.querySelector("#app-link")).toBeNull();
+  // The button that was pressed is gone, so the question's safe answer takes its focus.
+  expect(window.document.activeElement).toBe(button("Cancel"));
+
+  await act(async () => button("Cancel").click());
+
+  expect(bodies).toEqual([]);
+  expect(window.document.querySelector<HTMLInputElement>("#app-link")?.value).toContain(
+    "/a/flow-id",
+  );
+});
+
+test("unpublishes an already shared app once confirmed", async () => {
+  await mount(true);
+
+  await act(async () => button("Unpublish").click());
+  await act(async () => button("Unpublish").click());
+
   expect(bodies).toEqual([{ appPublished: false }]);
   expect(window.document.querySelector("#app-link")).toBeNull();
+  expect(window.document.body.textContent).not.toContain("The link stops working for visitors");
+});
+
+test("a failed unpublish keeps the question open with its error", async () => {
+  await mount(true);
+  await act(async () => button("Unpublish").click());
+  globalThis.fetch = (async () =>
+    Response.json({ error: "unavailable" }, { status: 503 })) as unknown as typeof fetch;
+
+  await act(async () => button("Unpublish").click());
+
+  expect(window.document.body.textContent).toContain("The link stops working for visitors");
+  expect(window.document.querySelector('[role="alert"]')?.textContent).toContain(
+    "could not be saved",
+  );
+  expect(window.document.querySelector("#app-link")).toBeNull();
+
+  await act(async () => button("Cancel").click());
+  expect(window.document.querySelector<HTMLInputElement>("#app-link")?.value).toContain(
+    "/a/flow-id",
+  );
 });
 
 test("holds publishing while a paying node's server signing is off, then lets it through", async () => {
