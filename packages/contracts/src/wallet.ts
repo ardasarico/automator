@@ -1,5 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { apiErrorResponses } from "./contract";
+import { txHashPattern } from "./hex";
 
 export const walletSchema = Type.Object({
   address: Type.String({ minLength: 1 }),
@@ -20,7 +21,7 @@ export const getWalletContract = {
 } as const;
 
 export const walletTransactionSchema = Type.Object({
-  hash: Type.String({ pattern: "^0x[0-9a-fA-F]{64}$" }),
+  hash: Type.String({ pattern: txHashPattern }),
   chainId: Type.Integer(),
   flowId: Type.String({ minLength: 1 }),
   flowName: Type.String(),

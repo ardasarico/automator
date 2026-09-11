@@ -85,16 +85,21 @@ export const runFlowContract = {
   response: { 200: flowRunSchema, ...apiErrorResponses },
 } as const;
 
-export const flowRunSourceSchema = Type.Union([
-  Type.Literal("manual"),
-  Type.Literal("webhook"),
-  Type.Literal("schedule"),
-  Type.Literal("miniapp"),
-  Type.Literal("event"),
-  Type.Literal("watch"),
-  Type.Literal("api"),
-]);
-export type FlowRunSource = Static<typeof flowRunSourceSchema>;
+/** Every way a run can start, in the order the usage summary lists them. */
+export const flowRunSources = [
+  "manual",
+  "webhook",
+  "schedule",
+  "miniapp",
+  "event",
+  "watch",
+  "api",
+] as const;
+export type FlowRunSource = (typeof flowRunSources)[number];
+/* Unsafe preserves the literal union that mapping to Type.Union would widen. */
+export const flowRunSourceSchema = Type.Unsafe<FlowRunSource>(
+  Type.Union(flowRunSources.map((source) => Type.Literal(source))),
+);
 
 export const flowRunSummarySchema = Type.Object({
   id: Type.String({ minLength: 1 }),

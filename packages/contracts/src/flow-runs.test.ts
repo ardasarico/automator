@@ -6,6 +6,7 @@ import {
   flowRunRequestSchema,
   flowRunSchema,
   flowRunSourceSchema,
+  flowRunSources,
   listAllRunsContract,
   listRunsContract,
   parseRunListLimit,
@@ -76,6 +77,20 @@ describe("run sources", () => {
     for (const source of ["manual", "webhook", "schedule", "miniapp", "event"])
       expect(Value.Check(flowRunSourceSchema, source)).toBe(true);
     expect(Value.Check(flowRunSourceSchema, "cron")).toBe(false);
+  });
+
+  test("the schema accepts exactly the listed sources", () => {
+    expect(flowRunSources).toEqual([
+      "manual",
+      "webhook",
+      "schedule",
+      "miniapp",
+      "event",
+      "watch",
+      "api",
+    ]);
+    for (const source of flowRunSources)
+      expect(Value.Check(flowRunSourceSchema, source)).toBe(true);
   });
 });
 

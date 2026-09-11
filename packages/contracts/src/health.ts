@@ -1,4 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
+import { apiErrorResponses } from "./contract";
 
 const unavailableDatabaseSchema = Type.Union([
   Type.Literal("down"),
@@ -18,10 +19,11 @@ const unhealthySchema = Type.Object({
   checkedAt: Type.String(),
 });
 
+/* The shared error statuses come first so the health-specific 503 shape wins for that status. */
 export const healthContract = {
   method: "GET",
   path: "/health",
-  response: { 200: healthySchema, 503: unhealthySchema },
+  response: { ...apiErrorResponses, 200: healthySchema, 503: unhealthySchema },
 } as const;
 export type HealthResponse = Static<(typeof healthContract.response)[200 | 503]>;
 

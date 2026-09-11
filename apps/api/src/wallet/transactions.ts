@@ -1,4 +1,9 @@
-import { flowChainId, type FlowRunRecord, type WalletTransaction } from "@automator/contracts";
+import {
+  flowChainId,
+  isTxHash,
+  type FlowRunRecord,
+  type WalletTransaction,
+} from "@automator/contracts";
 
 export const transactionScanLimit = 200;
 const transactionListLimit = 20;
@@ -13,9 +18,7 @@ const transactionNodeTypes = new Set([
 function sentHash(receipt: unknown): string | undefined {
   if (receipt === null || typeof receipt !== "object" || Array.isArray(receipt)) return;
   if (!("simulated" in receipt) || receipt.simulated !== false || !("hash" in receipt)) return;
-  return typeof receipt.hash === "string" && /^0x[0-9a-fA-F]{64}$/.test(receipt.hash)
-    ? receipt.hash
-    : undefined;
+  return isTxHash(receipt.hash) ? receipt.hash : undefined;
 }
 
 export function collectWalletTransactions(

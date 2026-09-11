@@ -35,6 +35,12 @@ describe("backend health", () => {
     });
   });
 
+  test("a shared error status is a backend that is down, not a crash", async () => {
+    expect(
+      await getHealth("http://localhost:3001", respond({ error: "unavailable" }, 500)),
+    ).toEqual({ backend: "down", database: "unknown" });
+  });
+
   test("connection failure leaves database status unknown", async () => {
     const fetcher = async () => {
       throw new TypeError("Connection refused");

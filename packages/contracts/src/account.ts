@@ -1,20 +1,21 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { apiErrorResponses } from "./contract";
+import { flowRunSources, type FlowRunSource } from "./flow-runs";
 
 const count = Type.Integer({ minimum: 0 });
+
+/* One counter per run source; a source added to the list gains its counter here by itself. */
+const runsBySourceSchema = Type.Object(
+  Object.fromEntries(flowRunSources.map((source) => [source, count])) as Record<
+    FlowRunSource,
+    typeof count
+  >,
+);
 
 export const accountUsageSchema = Type.Object({
   flows: count,
   activeFlows: count,
-  runsLast30Days: Type.Object({
-    manual: count,
-    webhook: count,
-    schedule: count,
-    miniapp: count,
-    event: count,
-    watch: count,
-    api: count,
-  }),
+  runsLast30Days: runsBySourceSchema,
   secrets: count,
   listings: count,
   since: Type.String(),
@@ -29,7 +30,5 @@ export const accountUsageContract = {
 
 export function totalRuns(usage: Pick<AccountUsage, "runsLast30Days">): number {
   const runs = usage.runsLast30Days;
-  return (
-    runs.manual + runs.webhook + runs.schedule + runs.miniapp + runs.event + runs.watch + runs.api
-  );
+  return flowRunSources.reduce((total, source) => total + runs[source], 0);
 }

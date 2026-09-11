@@ -38,6 +38,19 @@ describe("health response contract", () => {
     expect(() => parseResponse(healthContract, status, body)).toThrow();
   });
 
+  test("reads the shared error statuses instead of throwing on them", () => {
+    expect(parseResponse(healthContract, 500, { error: "unavailable" })).toEqual({
+      status: 500,
+      data: { error: "unavailable" },
+    });
+    expect(parseResponse(healthContract, 429, { error: "rate_limited" })).toEqual({
+      status: 429,
+      data: { error: "rate_limited" },
+    });
+    // The health-specific 503 shape still wins for that status.
+    expect(() => parseResponse(healthContract, 503, { error: "unavailable" })).toThrow();
+  });
+
   test("derives correlated TypeScript types from the schemas", () => {
     expectTypeOf<
       Extract<HealthResponse, { status: "ok" }>["checks"]["database"]
