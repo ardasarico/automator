@@ -203,7 +203,8 @@ with `additionalProperties: false`), `tools/call` returning `_meta`, text and `s
 runs to the first screen and renders it in the phone card; each visitor answer is a real session-answer
 round trip that stores a run; edits to the flow reach the live app on save with no republish.
 
-**Not verified:** onboarding (`/onboarding`) — reaching it needs a fresh account. Notification delivery,
+**Not verified:** onboarding (`/onboarding`) — reaching it needs a fresh account; walked locally on
+2026-09-11, see the last section. Notification delivery,
 as above. The World ID and Selfie Check QR flows on a phone.
 
 ## Method and limits
@@ -230,3 +231,44 @@ are not valid JavaScript. The very next lines in the same component already do i
 As written the file cannot parse, which fails lint, typecheck and build — and therefore blocks the landing
 deploy that would resolve finding 1. This is live work in progress (`apps/landing/src/build/` is untracked),
 so it may simply be mid-edit; flagging rather than fixing, since it is not this QA run's code to change.
+
+## Onboarding, verified locally 2026-09-11
+
+Reaching `/onboarding` needs an account with no profile, so it was walked on a local stack instead of
+production: the API on a throwaway Postgres (`automator_onboarding_qa`) with the e2e token, the web app
+pointed at it, Chromium driven by Playwright as the fixed e2e user with its name and username cleared.
+Screenshots at 1280 and 400 wide, light and dark.
+
+**Passed.** A signed-in user without a profile is sent from `/` and `/flows` to `/onboarding`; an
+onboarded one visiting `/onboarding` is sent on to Flows; a visitor with no session is sent to `/login`.
+The page renders with no console errors or page errors of its own (the only console noise is Privy's
+iframe being refused by the dev CSP, which is not this page's). No horizontal scroll at 400 wide; both
+themes readable; copy in sentence case with no placeholder text. Tab order is theme toggle, name,
+username, Start building, Log out. Empty submit stops on the name field with the browser's own message;
+a name of spaces only is refused with "Enter a name" and no request; typed usernames are lowercased as
+they go; a taken and a reserved username both answer "That username isn't available", mark the field
+invalid and keep the page; a valid submit stores the trimmed name, lands on Flows with the new name in
+the account menu, and the row in the database matches.
+
+**Fixed.**
+
+- The page could not be exercised at all with the e2e session: the form asked the Privy SDK whether the
+  visitor was signed in and, seeing no SDK session, sent the Playwright browser to `/login`. The auth
+  layout now hands the cookie's user to the session provider (so a person arriving straight from sign-in
+  meets the form instead of a spinner), the provider takes its token from the same e2e-aware hook the
+  rest of the app uses, and the form treats the cookie's user as the session when the e2e token is set.
+  In production this adds no authorization (the cookie is a bearer the API verifies on every request,
+  submit waits for the SDK, and the e2e branch is compiled out), but the form and its redirects can now
+  render before the SDK is ready: `/login` and `/onboarding` make one `/me` call per request when a
+  cookie is present, an onboarded user is sent on from the cookie's user alone, and a cookie whose SDK
+  session is gone shows the form briefly, then the "Preparing your account" spinner, then `/login`.
+- A username that fails the pattern showed only the browser's "Please match the requested format."; it
+  now says "Start with a letter and use only letters, numbers or underscores."
+- New `apps/web/src/auth/onboarding-form.test.tsx` covers the redirects, both validation paths, the
+  taken-username and generic-failure states, and the e2e session, in a child process like the other
+  Privy-mocked suites.
+
+**Remains.** The sign-in itself (Privy email code, Google, wallet) still needs a real account and was not
+run. Landing after onboarding is Flows unless a landing-page prompt is waiting, per the prompt-handoff
+work in progress; whether Home should be the default landing is a product call. "Log out" on this page
+was not clicked, since with the e2e session it has no SDK session to end.

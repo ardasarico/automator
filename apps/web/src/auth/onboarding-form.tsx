@@ -8,8 +8,10 @@ import { Spinner } from "@automator/ui/spinner";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { e2eSession } from "./access-token";
 import { AuthRequestError } from "./client";
 import { useAuthSession } from "./provider";
+import { signedInPath } from "./signed-in-path";
 import styles from "./auth.module.css";
 
 export function OnboardingForm() {
@@ -23,8 +25,10 @@ export function OnboardingForm() {
   const [usernameError, setUsernameError] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (ready && !authenticated) router.replace("/login");
-    if (user && isOnboarded(user)) router.replace("/flows");
+    // The Playwright suite's browser has no SDK session: there the cookie's user is the session.
+    const signedOut = e2eSession ? !user : ready && !authenticated;
+    if (signedOut) router.replace("/login");
+    if (user && isOnboarded(user)) router.replace(signedInPath());
   }, [ready, authenticated, user, router]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -42,7 +46,7 @@ export function OnboardingForm() {
     setUsernameError(false);
     try {
       await saveProfile({ name: trimmedName, username: username.toLowerCase() });
-      router.replace("/flows");
+      router.replace(signedInPath());
       router.refresh();
     } catch (cause) {
       if (cause instanceof AuthRequestError && cause.code === "unauthorized") {
@@ -138,8 +142,17 @@ export function OnboardingForm() {
               placeholder="your_username"
               value={username}
               onChange={(event) => {
+                event.target.setCustomValidity("");
                 setUsername(event.target.value.toLowerCase());
                 setUsernameError(false);
+              }}
+              // The browser's own text for a pattern mismatch only says "match the requested
+              // format"; this names the format instead. Length keeps the browser's message.
+              onInvalid={(event) => {
+                if (event.currentTarget.validity.patternMismatch)
+                  event.currentTarget.setCustomValidity(
+                    "Start with a letter and use only letters, numbers or underscores.",
+                  );
               }}
               disabled={saving}
               aria-invalid={usernameError}
@@ -160,7 +173,8 @@ export function OnboardingForm() {
             className="w-full"
             loading={saving}
             loadingText="Saving your profile"
-            disabled={pending}
+            // The cookie shows the form before the SDK is ready; the save needs its token.
+            disabled={pending || (!ready && !e2eSession)}
           >
             Start building
           </Button>

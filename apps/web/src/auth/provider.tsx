@@ -23,7 +23,7 @@ import {
 } from "react";
 import { useTheme } from "@automator/ui/theme-provider";
 import { authRequest, AuthRequestError } from "./client";
-import { e2eSession } from "./access-token";
+import { e2eSession, useAccessToken } from "./access-token";
 import { secretsStore } from "../builder/secrets-store";
 
 function setupError(stage: "session" | "wallet" | "account", cause: unknown) {
@@ -90,7 +90,9 @@ export function SessionProvider({
   children: ReactNode;
   initialUser?: AuthUser;
 }) {
-  const { ready, authenticated, user: privyUser, getAccessToken, logout: privyLogout } = usePrivy();
+  const { ready, authenticated, user: privyUser, logout: privyLogout } = usePrivy();
+  // The SDK's token, or the fixed e2e token when the Playwright suite runs the browser.
+  const getAccessToken = useAccessToken();
   const { refreshUser } = useUser();
   const { createWallet } = useCreateWallet();
   const router = useRouter();
@@ -106,9 +108,16 @@ export function SessionProvider({
   useLayoutEffect(() => {
     secretsStore.getState().setAccount(secretsAccountId);
   }, [secretsAccountId]);
+  /*
+   * Who the requests below must belong to. The Playwright suite has no SDK session: there the
+   * server-rendered user is the identity, so the profile can be saved with the e2e token.
+   */
+  const initialUserId = initialUser?.id;
   const identity = useMemo(
-    () => ({ userId: ready && authenticated ? userId : undefined }),
-    [ready, authenticated, userId],
+    () => ({
+      userId: e2eSession ? initialUserId : ready && authenticated ? userId : undefined,
+    }),
+    [ready, authenticated, userId, initialUserId],
   );
   const currentIdentity = useRef(identity);
   const inFlight = useRef<{
