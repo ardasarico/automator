@@ -23,7 +23,7 @@ import { nodeFamily, nodeSummary, screenItems } from "./node-summary";
 import { elapsedMs, formatElapsed, nodeStatusLabel } from "./run-selectors";
 import { selectNodeResult } from "./run-store";
 import { useRunStore } from "./run-store-provider";
-import { useBuilderStore } from "./store-provider";
+import { useBuilderStoreIfAny } from "./store-provider";
 import { useNodeProblems } from "./use-flow-problems";
 import type { FlowProblem } from "./validation";
 
@@ -97,9 +97,10 @@ function PortGrid({ entry }: { entry: CatalogEntry }) {
  * commits, Escape backs out. The store says which card is editing so a menu can start it too.
  */
 function NodeLabel({ id, label }: { id: string; label: string }) {
-  const renameNode = useBuilderStore((state) => state.renameNode);
-  const setRenaming = useBuilderStore((state) => state.setRenaming);
-  const editing = useBuilderStore((state) => state.renaming === id);
+  // The card is also drawn outside the builder (marketplace preview), where there is no store.
+  const renameNode = useBuilderStoreIfAny((state) => state.renameNode);
+  const setRenaming = useBuilderStoreIfAny((state) => state.setRenaming);
+  const editing = useBuilderStoreIfAny((state) => state.renaming === id);
   const input = useRef<HTMLInputElement>(null);
   // The field only exists because the user asked to rename, so it takes focus with its text selected.
   useEffect(() => {

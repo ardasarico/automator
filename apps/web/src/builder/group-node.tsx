@@ -4,16 +4,16 @@ import { NodeResizer, type NodeProps } from "@xyflow/react";
 import { memo, useEffect, useRef, type KeyboardEvent } from "react";
 import type { GroupBuilderNode } from "./document";
 import styles from "./flow-builder.module.css";
-import { useBuilderStore } from "./store-provider";
+import { useBuilderStoreIfAny } from "./store-provider";
 
 /** The smallest a frame can be dragged to; anything less hides its own label. */
 const minGroupSize = { width: 160, height: 96 };
 
 /** The frame's label; double-click or Rename in the menu edits it in place, like a node's. */
 function GroupLabel({ id, label }: { id: string; label: string }) {
-  const renameNode = useBuilderStore((state) => state.renameNode);
-  const setRenaming = useBuilderStore((state) => state.setRenaming);
-  const editing = useBuilderStore((state) => state.renaming === id);
+  const renameNode = useBuilderStoreIfAny((state) => state.renameNode);
+  const setRenaming = useBuilderStoreIfAny((state) => state.setRenaming);
+  const editing = useBuilderStoreIfAny((state) => state.renaming === id);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (editing) input.current?.select();
