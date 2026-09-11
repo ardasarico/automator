@@ -208,7 +208,7 @@ export const onchainExecutors: ExecutorRegistry = {
       const chain = requireChain(context);
       const config = context.config(writeContractConfigSchema);
       const call = buildCall(config);
-      const value = amount(config.value || "0", 18, "Value");
+      const value = amount(config.value.trim() || "0", 18, "Value");
       return { receipt: await guarded(() => performWrite(chain, call, value, context)) };
     },
   },
@@ -264,7 +264,7 @@ export const onchainExecutors: ExecutorRegistry = {
       const chain = requireChain(context);
       const config = context.config(signTransactionConfigSchema);
       const to = address(config.to, "Recipient");
-      const value = amount(config.value || "0", 18, "Value");
+      const value = amount(config.value.trim() || "0", 18, "Value");
       const data = config.data.trim();
       if (data && !isHex(data)) throw new NodeExecutionError("Calldata must be hex");
       const signer = requireSigner(chain);
@@ -302,8 +302,10 @@ export const onchainExecutors: ExecutorRegistry = {
         ? address(config.address, "Address")
         : requireAccount(chain);
       const token = requireUsdc(chain);
-      const [raw, decimals] = await guarded(() =>
-        Promise.all([
+      // The conversions sit inside the guard too: a provider answering with an odd shape must
+      // read as a chain problem, not as a bare BigInt error.
+      const { units, decimals } = await guarded(async () => {
+        const [raw, scale] = await Promise.all([
           chain.reader.readContract({
             address: token,
             abi: erc20Abi,
@@ -311,14 +313,14 @@ export const onchainExecutors: ExecutorRegistry = {
             args: [owner],
           }),
           chain.reader.readContract({ address: token, abi: erc20Abi, functionName: "decimals" }),
-        ]),
-      );
-      const units = BigInt(raw as bigint);
+        ]);
+        return { units: BigInt(raw as bigint), decimals: Number(scale) };
+      });
       return {
         balance: {
           address: owner,
           raw: units.toString(),
-          formatted: formatUnits(units, Number(decimals)),
+          formatted: formatUnits(units, decimals),
         },
       };
     },

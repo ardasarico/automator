@@ -91,7 +91,8 @@ function withAbort<T>(promise: Promise<T>, signal: AbortSignal | undefined): Pro
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-const defaultInputHandle = "input";
+/** The port an edge lands on when it names none; shared with the screen scope so the two agree. */
+export const defaultInputHandle = "input";
 
 const returnType = "logic.return";
 

@@ -83,6 +83,25 @@ describe("notify.telegram", () => {
       }),
     ).toBe("Telegram answered 400: chat not found");
   });
+
+  test("trims the token, carries a timeout, and names Telegram when the call never lands", async () => {
+    const { fetcher, calls } = fetchStub(200, { ok: true, result: {} });
+    const run = await runFlow(
+      flow("notify.telegram", { botToken: ` ${token} `, chatId: " 42 ", text: "x" }),
+      { executors, fetch: fetcher },
+    );
+    expect(run.status).toBe("succeeded");
+    expect(calls[0]?.url).toBe(`https://api.telegram.org/bot${token}/sendMessage`);
+    expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
+    const failing = (async () => {
+      throw new TypeError("fetch failed", { cause: new Error("ECONNRESET") });
+    }) as unknown as typeof fetch;
+    const failed = await runFlow(
+      flow("notify.telegram", { botToken: token, chatId: "1", text: "x" }),
+      { executors, fetch: failing },
+    );
+    expect(failed.nodes[1]?.error).toBe("Could not reach Telegram: ECONNRESET");
+  });
 });
 
 describe("notify.email", () => {
@@ -132,5 +151,33 @@ describe("notify.email", () => {
     expect(await run({ from: " " })).toBe("Email needs a sender address");
     expect(await run({ to: " , " })).toBe("Email needs at least one recipient");
     expect(await run({ subject: "" })).toBe("Email needs a subject");
+  });
+
+  test("trims the key and sender, carries a timeout, and names Resend when the call never lands", async () => {
+    const { fetcher, calls } = fetchStub(200, { id: "email-2" });
+    const run = await runFlow(
+      flow("notify.email", {
+        apiKey: " re_test_key ",
+        from: " a@x.io ",
+        to: "b@x.io",
+        subject: "s",
+        text: "Body",
+      }),
+      { executors, fetch: fetcher },
+    );
+    expect(run.status).toBe("succeeded");
+    expect((calls[0]!.init!.headers as Record<string, string>).Authorization).toBe(
+      "Bearer re_test_key",
+    );
+    expect(JSON.parse(String(calls[0]?.init?.body)).from).toBe("a@x.io");
+    expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
+    const failing = (async () => {
+      throw new DOMException("The operation timed out", "TimeoutError");
+    }) as unknown as typeof fetch;
+    const failed = await runFlow(
+      flow("notify.email", { apiKey: "re_k", from: "a@x.io", to: "b@x.io", subject: "s" }),
+      { executors, fetch: failing },
+    );
+    expect(failed.nodes[1]?.error).toBe("Could not reach Resend: the request timed out");
   });
 });

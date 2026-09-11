@@ -1,4 +1,5 @@
 import { NodeExecutionError } from "./executor";
+import { providerSignal, reach } from "./transport";
 
 /** How a run reaches The Graph Network: the Subgraph Studio API key and, optionally, another gateway. */
 export interface GraphGateway {
@@ -60,16 +61,18 @@ export async function querySubgraph(
   if (!query.trim()) throw new NodeExecutionError("Subgraph query needs a query");
   if (!gateway?.apiKey)
     throw new NodeExecutionError("Subgraph queries need a Graph API key on the server");
-  const response = await fetcher(subgraphUrl(subgraph, gateway.url), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${gateway.apiKey}`,
-    },
-    body: JSON.stringify({ query, ...(variables ? { variables } : {}) }),
-    ...(signal ? { signal } : {}),
-  });
+  const response = await reach("The Graph gateway", () =>
+    fetcher(subgraphUrl(subgraph, gateway.url), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${gateway.apiKey}`,
+      },
+      body: JSON.stringify({ query, ...(variables ? { variables } : {}) }),
+      signal: providerSignal(signal),
+    }),
+  );
   if (response.status === 401 || response.status === 403)
     throw new NodeExecutionError("The Graph gateway rejected the API key");
   if (!response.ok) throw new NodeExecutionError(`The Graph gateway answered ${response.status}`);
