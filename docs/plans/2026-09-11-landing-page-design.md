@@ -52,7 +52,9 @@ door, endpoints and MCP tools. The hero says the README's own line.
    chips, a row of names, partners annotated on a flow, a ledger table, bento cards with live
    proofs, the receipt of one run, catalog tiles. Arda wants something more creative; the next
    session starts by asking what the section is for and what it should feel like before drawing
-   again. Partners and where they live: Privy (`privy.*`), World (`world.*`), The Graph
+   again. On 2026-09-11 three more were drawn on a throwaway `/preview` route and rejected too:
+   the run panel walking one run ("Proof"), five strata bands with node cards ("Map"), and six
+   verb-pill sentences ("Feeling"); do not redraw those. Partners and where they live: Privy (`privy.*`), World (`world.*`), The Graph
    (`graph.query-subgraph`, agent tool), Circle USDC (`usdc.*`), Base (`onchain.*`), OpenRouter
    (`ai.*`).
 7. **Footer** — done, deliberately small: one hairline, the logo, "Built at ETHOnline 2026.",
@@ -103,7 +105,7 @@ as of the end of the 2026-09-11 session. No unit tests: the page is presentation
 
 Playwright headless, full page at 1280 and 400 wide, light and dark as the system scheme, the
 footer toggle in both directions, `prefers-reduced-motion`, frames a few seconds apart, the
-prompt hand-off on a phone, `/preview`'s own theme island, and the console. No horizontal scroll
+prompt hand-off on a phone, and the console. No horizontal scroll
 at 400 (`scrollWidth` is 400); the console carries only WebGL performance notices from the shader.
 Four defects, all fixed:
 
