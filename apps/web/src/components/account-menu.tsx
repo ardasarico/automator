@@ -11,6 +11,7 @@ import {
 } from "@automator/ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@automator/ui/tooltip";
 import { RiExpandUpDownLine, RiSettings3Line, RiLogoutBoxRLine } from "@remixicon/react";
+import Link from "next/link";
 import { useSidebar } from "./sidebar-context";
 import styles from "./account-menu.module.css";
 import { useAuthSession } from "../auth/provider";
@@ -66,7 +67,7 @@ export function AccountMenu() {
           className="w-max"
           style={{ minWidth: "max(14rem, var(--anchor-width))" }}
         >
-          <MenuLinkItem href="/settings">
+          <MenuLinkItem render={<Link href="/settings" />}>
             <RiSettings3Line aria-hidden="true" />
             Settings
           </MenuLinkItem>

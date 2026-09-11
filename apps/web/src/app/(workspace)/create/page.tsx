@@ -1,9 +1,12 @@
 import { RiAddLine } from "@remixicon/react";
+import type { Metadata } from "next";
 import { findFlowExample } from "../../../builder/examples";
 import { PageFrame } from "../../../components/page-frame";
 import { UnavailablePanel } from "../../../components/unavailable-panel";
 import { FlowActionButton } from "../../../flows/action-button";
 import { createFlowAction } from "../../../flows/actions";
+
+export const metadata: Metadata = { title: "Create a flow · Automator" };
 
 /**
  * Keeps old creation links usable without writing during GET rendering or prefetching.
