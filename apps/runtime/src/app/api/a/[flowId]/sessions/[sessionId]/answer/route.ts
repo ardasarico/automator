@@ -1,6 +1,7 @@
 import { request } from "@automator/api-client/server";
 import { answerMiniAppSessionContract, miniAppAnswerSchema, Value } from "@automator/contracts";
 import { NextResponse } from "next/server";
+import { logProxyFailure } from "../../../proxy-failure";
 import { visitorHeaders } from "../../../visitor-headers";
 
 export async function POST(
@@ -28,7 +29,8 @@ export async function POST(
       status: result.status,
       headers: { "Cache-Control": "no-store" },
     });
-  } catch {
+  } catch (error) {
+    logProxyFailure("answer", flowId, error);
     return NextResponse.json({ error: "unavailable" }, { status: 503 });
   }
 }

@@ -159,3 +159,64 @@ test("aborting a visitor's answer request aborts its API request", async () => {
   controller.abort();
   expect(upstreamSignals[0]?.aborted).toBe(true);
 });
+
+function captureErrors() {
+  const logged: unknown[][] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => {
+    logged.push(args);
+  };
+  return { logged, restore: () => (console.error = original) };
+}
+
+test("an unreachable API answers 503 and logs the cause with the flow id", async () => {
+  const errors = captureErrors();
+  try {
+    reply = async () => {
+      throw new TypeError("Connection refused");
+    };
+    const response = await start(
+      new Request("https://runtime.test/api/a/flow-1/sessions", { method: "POST" }),
+      flowParams,
+    );
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "unavailable" });
+  } finally {
+    errors.restore();
+  }
+  expect(errors.logged).toHaveLength(1);
+  const line = String(errors.logged[0]?.[0]);
+  expect(line).toContain("flow-1");
+  expect(line).toContain("start");
+  expect(line).toContain("Connection refused");
+});
+
+test("a visitor who leaves mid-answer is logged as an abort, not an outage", async () => {
+  const errors = captureErrors();
+  try {
+    const controller = new AbortController();
+    reply = () =>
+      new Promise((_, reject) => {
+        const upstream = upstreamSignals[0];
+        upstream?.addEventListener("abort", () => reject(upstream.reason));
+      });
+    const pending = answer(
+      new Request("https://runtime.test/api/a/flow-1/sessions/s1/answer", {
+        method: "POST",
+        signal: controller.signal,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: "tok", nodeId: "p", port: "next" }),
+      }),
+      answerParams,
+    );
+    while (upstreamSignals.length === 0) await Promise.resolve();
+    controller.abort();
+    expect((await pending).status).toBe(503);
+  } finally {
+    errors.restore();
+  }
+  const line = String(errors.logged[0]?.[0]);
+  expect(line).toContain("flow-1");
+  expect(line).toContain("answer");
+  expect(line).toContain("aborted");
+});

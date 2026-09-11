@@ -19,7 +19,16 @@ export function PreviewMiniApp({ flowId, builderUrl }: { flowId: string; builder
   );
 
   if (loaded === null || loaded.flowId !== flowId)
-    return <main className="min-h-dvh" aria-busy="true" />;
+    return (
+      <MiniAppShell>
+        <div
+          className="flex flex-1 items-center justify-center p-8 text-caption text-muted-foreground"
+          aria-busy="true"
+        >
+          Waiting for the builder…
+        </div>
+      </MiniAppShell>
+    );
   if (loaded.document === null)
     return (
       <main className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-4 p-8">
