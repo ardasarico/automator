@@ -29,38 +29,32 @@ mock.module("server-only", () => ({}));
 const actions = await import("../flows/actions");
 const { HomePrompt } = await import("./prompt");
 
+/** Changes the current URL without navigating, so the page can be re-mounted arriving at it. */
+function setUrl(url: string) {
+  (window as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM.setURL(url);
+}
+
 /* Installed per test and taken down again: the export is shared with every other test file. */
 let createFlow: ReturnType<typeof spyOn<typeof actions, "createFlowAction">>;
 
-const answer = {
-  kind: "flow",
-  summary: "Posts the balance to Discord.",
-  document: {
-    version: 1,
-    name: "Balance",
-    description: "",
-    nodes: [
-      { id: "t", type: "trigger.manual", position: { x: 0, y: 0 }, label: "Run", config: {} },
-    ],
-    edges: [],
-  },
-};
-
-let response: unknown = answer;
-let status = 200;
+/* No AI fetch runs from Home any more: a call here means the model round trip was not removed. */
+let fetchCalls = 0;
 const originalFetch = globalThis.fetch;
 let container: HTMLDivElement;
 let root: Root;
 
 beforeAll(() => {
-  globalThis.fetch = (async () => Response.json(response, { status })) as unknown as typeof fetch;
+  globalThis.fetch = (async () => {
+    fetchCalls += 1;
+    return Response.json({});
+  }) as unknown as typeof fetch;
 });
 beforeEach(() => {
   /* Creating redirects on success, so the action answers with nothing to render. */
   createFlow = spyOn(actions, "createFlowAction").mockResolvedValue(null);
-  response = answer;
-  status = 200;
+  fetchCalls = 0;
   window.sessionStorage.clear();
+  setUrl("http://localhost/");
 });
 afterEach(async () => {
   await act(async () => root?.unmount());
@@ -72,11 +66,15 @@ afterAll(async () => {
   await GlobalRegistrator.unregister();
 });
 
-async function draft(text: string) {
+async function mount() {
   container = window.document.createElement("div");
   window.document.body.append(container);
   root = createRoot(container);
   await act(async () => root.render(<HomePrompt />));
+}
+
+async function draft(text: string) {
+  await mount();
   const textarea = container.querySelector("textarea")!;
   Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(
     textarea,
@@ -91,26 +89,20 @@ async function draft(text: string) {
 }
 
 describe("HomePrompt", () => {
-  test("hands the answer to the canvas and only then creates the flow", async () => {
+  test("stores the prompt and creates the flow", async () => {
     await draft("Post my balance to Discord");
 
     expect(createFlow.mock.calls).toEqual([[{ ai: true }]]);
     expect(window.sessionStorage.getItem("automator.pending-prompt")).toBe(
       "Post my balance to Discord",
     );
-    expect(JSON.parse(window.sessionStorage.getItem("automator.ai-draft-answer")!)).toEqual(answer);
+    expect(fetchCalls).toBe(0);
   });
 
-  test("a failed draft creates no flow and says why", async () => {
-    status = 422;
-    response = { error: "invalid_flow", detail: "Balance check: unknown output result on n3." };
-    await draft("Post my balance to Discord");
+  test("focuses the textarea when arriving with ?draft", async () => {
+    setUrl("http://localhost/?draft=1");
+    await mount();
 
-    expect(createFlow).not.toHaveBeenCalled();
-    expect(window.sessionStorage.getItem("automator.ai-draft-answer")).toBeNull();
-    const alert = container.querySelector('[role="alert"]')!;
-    expect(alert.textContent).toContain("unknown output result on n3");
-    // The prompt stays in the box, so rephrasing does not mean retyping.
-    expect(container.querySelector("textarea")!.value).toBe("Post my balance to Discord");
+    expect(window.document.activeElement).toBe(container.querySelector("textarea"));
   });
 });

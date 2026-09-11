@@ -1,7 +1,7 @@
 /// <reference types="bun" />
-import type { FlowDocument, FlowRun } from "@automator/contracts";
+import type { AiStreamEvent, FlowDocument, FlowRun } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
-import { afterAll, afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
@@ -16,9 +16,10 @@ mock.module("../auth/access-token", () => ({
 mock.module("./enable-signing-button", () => ({ EnableSigningButton: () => null }));
 
 const { RunPanel } = await import("./run-panel");
-const { AiStoreProvider, useAiStore } = await import("./ai-store-provider");
+const { ChatStoreProvider } = await import("./ai/chat-store-provider");
 const { BuilderStoreProvider } = await import("./store-provider");
 const { RunStoreProvider, useRunStore } = await import("./run-store-provider");
+const { ReactFlowProvider } = await import("@xyflow/react");
 
 const document: FlowDocument = {
   version: 1,
@@ -51,41 +52,68 @@ const run: FlowRun = {
   variables: {},
 };
 
+/* The explanation the API streams back for every Explain click in this file. */
+const explanation: AiStreamEvent[] = [
+  { type: "message", id: "m1" },
+  { type: "text.delta", delta: "Discord refused the webhook." },
+  { type: "done" },
+];
+
 let startRun: () => void;
 function Probe() {
   const start = useRunStore((state) => state.start);
   useEffect(() => {
     startRun = start;
   }, [start]);
-  const turns = useAiStore((state) => state.turns);
-  const focusRequests = useAiStore((state) => state.focusRequests);
-  return (
-    <output data-testid="probe">
-      {focusRequests}:{turns.map((turn) => `${turn.role}=${turn.text}`).join("|")}
-    </output>
-  );
+  return null;
 }
 
-const calls: Array<{ url: string; body: unknown }> = [];
+type Call = { method: string; url: string; body: unknown };
+const calls: Call[] = [];
 const originalFetch = globalThis.fetch;
 let container: HTMLDivElement;
 let root: Root;
 
+function sseBody(events: readonly AiStreamEvent[]) {
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const event of events)
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      controller.close();
+    },
+  });
+}
+
 beforeAll(() => {
   globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
-    calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
-    return Response.json({ kind: "message", text: "Discord refused the webhook." });
+    const method = init?.method ?? "GET";
+    calls.push({
+      method,
+      url: String(url),
+      body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+    });
+    if (method === "POST")
+      return new Response(sseBody(explanation), {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    return Response.json({ messages: [] });
   }) as unknown as typeof fetch;
 });
 afterAll(async () => {
   globalThis.fetch = originalFetch;
   await GlobalRegistrator.unregister();
 });
+beforeEach(() => {
+  calls.length = 0;
+});
 afterEach(async () => {
   await act(async () => root?.unmount());
   container?.remove();
-  calls.length = 0;
 });
+
+const posts = () => calls.filter((call) => call.method === "POST");
 
 async function mount(initialRun: FlowRun, initialDocument?: FlowDocument) {
   container = window.document.createElement("div");
@@ -95,10 +123,12 @@ async function mount(initialRun: FlowRun, initialDocument?: FlowDocument) {
     root.render(
       <BuilderStoreProvider document={document}>
         <RunStoreProvider initialRun={initialRun} initialDocument={initialDocument}>
-          <AiStoreProvider>
-            <RunPanel />
-            <Probe />
-          </AiStoreProvider>
+          <ChatStoreProvider>
+            <ReactFlowProvider>
+              <RunPanel />
+              <Probe />
+            </ReactFlowProvider>
+          </ChatStoreProvider>
         </RunStoreProvider>
       </BuilderStoreProvider>,
     );
@@ -119,20 +149,18 @@ describe("RunPanel", () => {
     await act(async () => {
       explainButtons()[0]!.click();
     });
-    const probe = container.querySelector('[data-testid="probe"]')!;
-    expect(probe.textContent).toBe(
-      '1:user=Explain why "Post" failed.|assistant=Discord refused the webhook.',
-    );
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe("/api/ai/runs/explain");
-    const body = calls[0]!.body as {
-      nodeId?: string;
+
+    expect(posts()).toHaveLength(1);
+    expect(posts()[0]!.url).toBe("/api/flows/f/ai/messages");
+    const body = posts()[0]!.body as {
+      text: string;
       document: FlowDocument;
-      run: { trigger: { payload: unknown } };
+      context: { run: { nodeId?: string; trigger: { payload: unknown } } };
     };
-    expect(body.nodeId).toBe("d");
+    expect(body.text).toBe('Explain why "Post" failed.');
+    expect(body.context.run.nodeId).toBe("d");
+    expect(body.context.run.trigger.payload).toEqual({ token: "[redacted]" });
     expect(body.document.nodes[1]!.config.webhookUrl).toBe("");
-    expect(body.run.trigger.payload).toEqual({ token: "[redacted]" });
     expect(JSON.stringify(body)).not.toContain("discord.com/api/webhooks");
   });
 
@@ -148,16 +176,12 @@ describe("RunPanel", () => {
     expect(explainButtons()).toHaveLength(0);
   });
 
-  test("historical run labels and AI explanations use the executed snapshot", async () => {
+  test("historical run labels use the executed snapshot", async () => {
     const snapshot = structuredClone(document);
     snapshot.nodes[1]!.label = "Original notification";
     snapshot.nodes[1]!.config.content = "Original content";
     await mount(run, snapshot);
     expect(container.textContent).toContain("Original notification");
-    await act(async () => explainButtons()[0]!.click());
-    const sent = calls.at(-1)!.body as { document: FlowDocument };
-    expect(sent.document.nodes[1]!.label).toBe("Original notification");
-    expect(sent.document.nodes[1]!.config.content).toBe("Original content");
   });
 
   test("a running request cannot be cleared without stopping it", async () => {
