@@ -96,7 +96,7 @@ export function TableRail({
             </MenuTrigger>
             <MenuPopup align="start">
               {tables.map((table) => (
-                <MenuLinkItem key={table.id} href={tableHref(table)}>
+                <MenuLinkItem key={table.id} render={<Link href={tableHref(table)} />}>
                   {table.name}
                 </MenuLinkItem>
               ))}

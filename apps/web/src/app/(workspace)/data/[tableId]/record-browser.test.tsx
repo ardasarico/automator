@@ -191,3 +191,13 @@ test("a narrowed list that matches nothing offers to clear the filters, not to a
   expect(container.textContent).toContain("No records match");
   expect(container.textContent).toContain("Clear filters");
 });
+
+test("deleting the table reads as destructive in its menu, like deleting a flow", async () => {
+  await mount([record]);
+  await act(async () => button("Table actions").click());
+  const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (node) => node.textContent?.trim() === "Delete table",
+  );
+  if (!item) throw new Error("Missing menu item: Delete table");
+  expect(item.getAttribute("data-variant")).toBe("destructive");
+});

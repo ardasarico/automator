@@ -72,19 +72,26 @@
 }
 
 .json {
+  position: relative;
   max-width: 100%;
   margin-top: 8px;
-  overflow-x: auto;
   border-radius: var(--radius-md);
   background: var(--muted);
 }
+/* The text scrolls under the copy control, which stays at the block's corner. */
 .json pre {
   margin: 0;
-  padding: 10px 12px;
+  padding: 10px 40px 10px 12px;
+  overflow-x: auto;
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 18px;
   white-space: pre;
+}
+.jsonCopy {
+  position: absolute;
+  top: 4px;
+  right: 4px;
 }
 .steps {
   margin: 0;

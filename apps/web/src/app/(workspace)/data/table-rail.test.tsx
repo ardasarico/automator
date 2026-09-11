@@ -2,12 +2,15 @@
 import type { DataTable } from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, beforeEach, expect, mock, test } from "bun:test";
+import { act } from "react";
 import { renderToString } from "react-dom/server";
 import { navigation, navigationModule } from "../../../auth/test-navigation";
 
 GlobalRegistrator.register();
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 mock.module("next/navigation", () => navigationModule);
 
+const { createRoot } = await import("react-dom/client");
 const { TableRail } = await import("./table-rail");
 
 afterAll(() => GlobalRegistrator.unregister());
@@ -69,4 +72,21 @@ test("collapsed, the tables stay reachable through a menu rather than disappeari
   expect(html).toContain('aria-label="Choose a table"');
   // The list itself is gone; the menu is what carries the navigation.
   expect(html).not.toContain('href="/data/tbl-payouts"');
+});
+
+test("the collapsed menu lists every table as a link to its records", async () => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(async () => root.render(<TableRail tables={tables} defaultState="collapsed" />));
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Choose a table"]')!.click(),
+  );
+  const items = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[role="menuitem"]'));
+  expect(items.map((item) => item.getAttribute("href"))).toEqual([
+    "/data/tbl-signups",
+    "/data/tbl-payouts",
+  ]);
+  await act(async () => root.unmount());
+  container.remove();
 });

@@ -91,6 +91,15 @@ async function submit() {
   );
 }
 
+test("the dialog opens with its name field focused", async () => {
+  await mount();
+  // Base UI moves focus once the popup has mounted, a tick after the render.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(document.activeElement?.id).toBe("data-table-name");
+});
+
 test("a new column's id is minted once, from the name the user finished typing", async () => {
   await mount();
   await act(async () => type(field("data-table-name"), "Signups"));

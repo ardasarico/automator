@@ -30,6 +30,12 @@ export function OnboardingForm() {
     if (signedOut) router.replace("/login");
     if (user && isOnboarded(user)) router.replace(signedInPath());
   }, [ready, authenticated, user, router]);
+  /* The form waits for the account; once it is there the cursor starts in the name field. A
+   * session refresh keeps `user` but not its identity, so the effect keys on whether it exists. */
+  const hasForm = Boolean(user) && !sessionError;
+  useEffect(() => {
+    if (hasForm) nameRef.current?.focus();
+  }, [hasForm]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
