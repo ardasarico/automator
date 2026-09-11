@@ -28,7 +28,7 @@ export function shortAddress(address: string): string {
 }
 
 /** What the screen actually shows about the payment, whether the API resolved it or not. */
-type PaymentDetails = { amount: string; to: string; chainName: string };
+type PaymentDetails = { amount: string; to: string; toAddress?: string; chainName: string };
 
 /**
  * A served screen shows exactly what the API resolved. The builder's preview has no API, so it
@@ -40,20 +40,28 @@ function paymentDetails(
   payment: MiniAppPayment | undefined,
 ): PaymentDetails {
   if (payment)
-    return { amount: payment.amount, to: shortAddress(payment.to), chainName: payment.chainName };
+    return {
+      amount: payment.amount,
+      to: shortAddress(payment.to),
+      toAddress: payment.to,
+      chainName: payment.chainName,
+    };
   const to = config.to.trim();
   return {
     amount: config.amount,
     to: to ? shortAddress(to) : "Your wallet",
+    toAddress: to || undefined,
     chainName: chainName(defaultChainId),
   };
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function Row({ label, value, title }: { label: string; value: React.ReactNode; title?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
       <span className="text-caption text-muted-foreground">{label}</span>
-      <span className="text-body min-w-0 truncate text-right font-medium">{value}</span>
+      <span className="text-body min-w-0 truncate text-right font-medium" title={title}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -85,11 +93,13 @@ export function UsdcPaymentScreen({
   const unconfigured = !preview && !payment;
   const details = paymentDetails(config, payment);
   const amount = details.amount;
-  const decline = () => onContinue(ports.secondary ?? ports.primary, undefined);
+  const declined = ports.secondary ?? ports.primary;
+  const decline = () => onContinue(declined, undefined);
+  // The preview's "Not now" always declines, whatever the screen is set to simulate on Pay.
+  const declineSample = () => onContinue(declined, { ...sampleUsdcPaymentDeclined });
   const playSample = () => {
-    if (config.simulate === "declined")
-      onContinue(ports.secondary ?? ports.primary, { ...sampleUsdcPaymentDeclined });
-    else onContinue(ports.primary, { ...sampleUsdcPayment(config, 84532) });
+    if (config.simulate === "declined") declineSample();
+    else onContinue(ports.primary, { ...sampleUsdcPayment(config, defaultChainId) });
   };
   return (
     <Frame
@@ -108,7 +118,7 @@ export function UsdcPaymentScreen({
             size="xl"
             variant="outline"
             disabled={busy}
-            onClick={preview ? playSample : decline}
+            onClick={preview ? declineSample : decline}
           >
             Not now
           </Button>
@@ -123,13 +133,15 @@ export function UsdcPaymentScreen({
       )}
       <div className="flex flex-col gap-2 rounded-lg border p-4">
         <Row label="Amount" value={`${amount} USDC`} />
-        <Row label="To" value={details.to} />
+        <Row label="To" value={details.to} title={details.toAddress} />
         <Row label="Network" value={details.chainName} />
       </div>
       <PayingWallet payment={payment} />
       {preview && (
         <p className="text-caption text-muted-foreground" data-preview="usdc.payment">
-          Preview: continues as {config.simulate === "declined" ? "declined" : "paid"}.
+          {config.simulate === "declined"
+            ? "Preview: Pay and Not now both continue as declined."
+            : "Preview: Pay continues as paid, Not now as declined."}
         </p>
       )}
       {unconfigured && (
@@ -160,11 +172,31 @@ function PayingWallet({ payment }: { payment: MiniAppPayment | undefined }) {
       active = false;
     };
   }, [actions, payment]);
-  if (!wallet) return null;
+  if (!wallet || !payment) return null;
   const short = shortAddress(wallet.address);
+  const { balance } = wallet;
+  if (balance === null)
+    return (
+      <ProviderNote icon={<RiWallet3Line className="size-4" />}>
+        Paying from {short}; its USDC balance is unavailable.
+      </ProviderNote>
+    );
+  // The note rounds; the exact figure stays on hover. A short wallet is warned, not blocked:
+  // it may be topped up before the visitor presses Pay.
+  const tooLittle = Number(balance) < Number(payment.amount);
   return (
-    <ProviderNote icon={<RiWallet3Line className="size-4" />}>
-      Paying from {short}, which holds {wallet.balance} USDC.
-    </ProviderNote>
+    <>
+      <ProviderNote icon={<RiWallet3Line className="size-4" />}>
+        Paying from {short}, which holds{" "}
+        <span title={balance}>{balanceFormat.format(Number(balance))}</span> USDC.
+      </ProviderNote>
+      {tooLittle && (
+        <p className="text-caption text-destructive-text" role="status">
+          Not enough USDC on {payment.chainName} for this payment.
+        </p>
+      )}
+    </>
   );
 }
+
+const balanceFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 2 });

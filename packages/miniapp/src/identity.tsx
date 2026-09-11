@@ -29,8 +29,8 @@ export type IdentityAnswer = {
 /** The paying visitor's wallet on the flow's chain, as the payment screen shows it. */
 export interface PaymentWallet {
   address: string;
-  /** The USDC balance in whole tokens, as a decimal string. */
-  balance: string;
+  /** The USDC balance in whole tokens, as a decimal string; null when it could not be read. */
+  balance: string | null;
 }
 
 /** What a host has to be able to do for a visitor to pay a `usdc.payment` screen from their wallet. */

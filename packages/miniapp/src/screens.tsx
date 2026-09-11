@@ -155,12 +155,13 @@ function FormField({ field, formId }: { field: ScreenFormField; formId: string }
   return (
     <Field className="gap-1.5">
       <FieldLabel htmlFor={id}>{field.label || field.id}</FieldLabel>
-      <UncontrolledField field={field} id={id} />
+      <LocalField field={field} id={id} />
     </Field>
   );
 }
 
-function UncontrolledField({ field, id }: { field: ScreenFormField; id: string }) {
+/** A field whose value lives in the screen alone; the form reads it back on submit. */
+function LocalField({ field, id }: { field: ScreenFormField; id: string }) {
   const [value, setValue] = useState("");
   return <FormFieldControl field={field} id={id} value={value} onChange={setValue} />;
 }
@@ -245,7 +246,21 @@ export function ScreenView(props: ScreenViewProps): React.ReactElement {
       return <WorldSelfieCheckScreen {...props} frame={ScreenFrame} title={Title} />;
     case "usdc.payment":
       return <UsdcPaymentScreen {...props} frame={ScreenFrame} title={Title} />;
+    default:
+      return <UnknownScreen titleRef={props.titleRef} />;
   }
+}
+
+/* A screen type published by a newer builder than this host: say so rather than render nothing. */
+function UnknownScreen({ titleRef }: Pick<ScreenViewProps, "titleRef">) {
+  return (
+    <ScreenFrame>
+      <Title titleRef={titleRef}>This screen cannot be shown</Title>
+      <p className="text-body text-pretty text-muted-foreground">
+        This app needs a newer version of Automator.
+      </p>
+    </ScreenFrame>
+  );
 }
 
 export type WorkingStep = {
@@ -302,11 +317,13 @@ export function FailedView({
   message,
   error,
   onRestart,
+  titleRef,
 }: {
   label: string | undefined;
   message: string;
   error: string;
   onRestart: () => void;
+  titleRef?: React.Ref<HTMLHeadingElement>;
 }) {
   return (
     <ScreenFrame
@@ -316,7 +333,7 @@ export function FailedView({
         </Button>
       }
     >
-      <h1 className="text-panel text-balance">Something went wrong</h1>
+      <Title titleRef={titleRef}>Something went wrong</Title>
       <p className="text-body text-pretty text-muted-foreground">{message}</p>
       <p className="text-caption text-pretty text-muted-foreground" data-owner-detail>
         {label ? `${label} failed: ${error}` : error}
@@ -330,11 +347,13 @@ export function VisitorFailedView({
   help,
   code,
   onRetry,
+  titleRef,
 }: {
   message: string;
   help?: string;
   code?: string;
   onRetry: () => void;
+  titleRef?: React.Ref<HTMLHeadingElement>;
 }) {
   return (
     <ScreenFrame
@@ -345,7 +364,7 @@ export function VisitorFailedView({
       }
     >
       <div className="flex flex-col gap-4" data-failure={code ?? "unavailable"}>
-        <h1 className="text-panel text-balance">Something went wrong</h1>
+        <Title titleRef={titleRef}>Something went wrong</Title>
         <p className="text-body text-pretty text-muted-foreground">{message}</p>
         {help && <p className="text-body text-pretty">{help}</p>}
       </div>

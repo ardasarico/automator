@@ -1,4 +1,9 @@
-import type { FlowDocument, MiniAppSession } from "@automator/contracts";
+import {
+  defaultChainId,
+  type FlowDocument,
+  type MiniAppPayment,
+  type MiniAppSession,
+} from "@automator/contracts";
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { act, StrictMode, type ReactNode } from "react";
@@ -144,6 +149,191 @@ describe("remote session interactions", () => {
     ]);
     await act(async () => result.resolve({ sessionId: "First", status: "end", steps: [] }));
     expect(container.textContent).toContain("All done");
+  });
+});
+
+describe("payment screen", () => {
+  const paymentNode = (config: Record<string, unknown>, payment?: MiniAppPayment) => ({
+    id: "pay",
+    type: "usdc.payment" as const,
+    label: "Pay",
+    config,
+    position: { x: 0, y: 0 },
+    payment,
+  });
+  const payment: MiniAppPayment = {
+    chainId: defaultChainId,
+    chainName: "Base Sepolia",
+    token: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    decimals: 6,
+    to: "0x0000000000000000000000000000000000000002",
+    amount: "12.50",
+    amountUnits: "12500000",
+  };
+  const buttons = () => Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
+  const notNow = () => buttons().find((button) => button.textContent === "Not now")!;
+
+  test("declining in the preview takes the declined path even when the screen simulates a payment", async () => {
+    const answers: unknown[] = [];
+    await mount(
+      <ScreenView
+        node={paymentNode({ amount: "12.50" })}
+        onContinue={(port, data) => answers.push({ port, data })}
+      />,
+    );
+    await act(async () => notNow().click());
+    expect(answers).toEqual([{ port: "declined", data: { paid: false } }]);
+  });
+
+  test("the preview's sample payment lands on the flow's default chain", async () => {
+    const answers: { port: string; data?: Record<string, unknown> }[] = [];
+    await mount(
+      <ScreenView
+        node={paymentNode({ amount: "12.50" })}
+        onContinue={(port, data) => answers.push({ port, data })}
+      />,
+    );
+    await act(async () => buttons()[0]!.click());
+    expect(answers[0]?.port).toBe("paid");
+    expect(answers[0]?.data?.chainId).toBe(defaultChainId);
+  });
+
+  test("shows the paying wallet's balance rounded, with the exact figure on hover", async () => {
+    const actions = {
+      usdcPayment: {
+        wallet: async () => ({
+          address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          balance: "412.500000",
+        }),
+        pay: async () => ({ txHash: "0x1", privyToken: "t" }),
+      },
+    };
+    await mount(
+      <IdentityActionsProvider actions={actions}>
+        <ScreenView node={paymentNode({ amount: "12.50" }, payment)} onContinue={() => {}} />
+      </IdentityActionsProvider>,
+    );
+    expect(container.textContent).toContain("holds 412.5 USDC");
+    expect(container.querySelector('[title="412.500000"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("Not enough USDC");
+  });
+
+  test("warns before signing when the wallet cannot cover the amount, without disabling Pay", async () => {
+    const actions = {
+      usdcPayment: {
+        wallet: async () => ({
+          address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          balance: "1",
+        }),
+        pay: async () => ({ txHash: "0x1", privyToken: "t" }),
+      },
+    };
+    await mount(
+      <IdentityActionsProvider actions={actions}>
+        <ScreenView node={paymentNode({ amount: "12.50" }, payment)} onContinue={() => {}} />
+      </IdentityActionsProvider>,
+    );
+    expect(container.textContent).toContain("Not enough USDC on Base Sepolia for this payment.");
+    expect(buttons()[0]!.disabled).toBe(false);
+  });
+
+  test("a balance that could not be read is said to be unavailable, with no warning", async () => {
+    const actions = {
+      usdcPayment: {
+        wallet: async () => ({
+          address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          balance: null,
+        }),
+        pay: async () => ({ txHash: "0x1", privyToken: "t" }),
+      },
+    };
+    await mount(
+      <IdentityActionsProvider actions={actions}>
+        <ScreenView node={paymentNode({ amount: "12.50" }, payment)} onContinue={() => {}} />
+      </IdentityActionsProvider>,
+    );
+    expect(container.textContent).toContain(
+      "Paying from 0x036C…CF7e; its USDC balance is unavailable.",
+    );
+    expect(container.textContent).not.toContain("Not enough USDC");
+  });
+});
+
+describe("form screen", () => {
+  // The builder renders this inline while the author edits field ids: a field that grabbed
+  // focus on every render would pull the author out of the settings panel.
+  test("does not move focus on arrival", async () => {
+    await mount(
+      <ScreenView
+        node={{
+          id: "details",
+          type: "screen.form",
+          label: "Your details",
+          position: { x: 0, y: 0 },
+          config: {
+            fields: [
+              { id: "name", label: "Name", type: "text" },
+              { id: "note", label: "Note", type: "textarea" },
+            ],
+          },
+        }}
+        onContinue={() => {}}
+      />,
+    );
+    expect(document.activeElement?.tagName).toBe("BODY");
+  });
+});
+
+describe("failure focus", () => {
+  test("a hosted session that cannot be reached moves focus to the failure heading", async () => {
+    const client = {
+      start: async () => session("First"),
+      answer: async () => {
+        throw new Error("network");
+      },
+    };
+    await mount(<RemoteMiniApp client={client} />);
+    await act(async () => container.querySelector<HTMLButtonElement>("button")!.click());
+    expect(container.textContent).toContain("Something went wrong");
+    expect(document.activeElement?.tagName).toBe("H1");
+    expect(document.activeElement?.textContent).toBe("Something went wrong");
+  });
+
+  test("a preview whose step fails moves focus to the failure heading", async () => {
+    const failing: FlowDocument = {
+      version: 1,
+      id: "failing",
+      name: "Failing",
+      description: "",
+      nodes: [
+        {
+          id: "t",
+          type: "trigger.miniapp-open",
+          label: "Open",
+          position: { x: 0, y: 0 },
+          config: {},
+        },
+        { id: "p", type: "screen.page", label: "Continue", position: { x: 0, y: 0 }, config: {} },
+        {
+          id: "d",
+          type: "notify.discord",
+          label: "Send",
+          position: { x: 0, y: 0 },
+          config: { webhookUrl: "https://discord.com/api/webhooks/1/test", content: "Hi" },
+        },
+      ],
+      edges: [
+        { id: "1", source: "t", sourceHandle: "visitor", target: "p", targetHandle: "data" },
+        { id: "2", source: "p", sourceHandle: "next", target: "d", targetHandle: "message" },
+      ],
+    };
+    const offline = (async () => {
+      throw new Error("offline");
+    }) as unknown as typeof fetch;
+    await mount(<MiniApp document={failing} engine={{ fetch: offline }} />);
+    await act(async () => container.querySelector<HTMLButtonElement>("button")!.click());
+    expect(container.textContent).toContain("Something went wrong");
+    expect(document.activeElement?.textContent).toBe("Something went wrong");
   });
 });
 
