@@ -11,7 +11,7 @@ import {
 import { Input } from "@automator/ui/input";
 import { RiSearchLine } from "@remixicon/react";
 import { useReactFlow } from "@xyflow/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useBuilderDialogs } from "./builder-dialogs";
 import { catalog, searchCatalog, type CatalogEntry } from "./catalog";
 import { useAddNodeAtCenter, useInsertNodeAtCenter } from "./flow-canvas";
@@ -36,6 +36,8 @@ function matches(text: string, needle: string): boolean {
  */
 export function CommandMenu() {
   const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const list = useRef<HTMLDivElement>(null);
   const dialogs = useBuilderDialogs();
   const open = dialogs.current === "commands";
   const { fitView } = useReactFlow();
@@ -53,6 +55,7 @@ export function CommandMenu() {
     (event) => {
       event.preventDefault();
       setQuery("");
+      setActive(0);
       dialogs.open("commands");
     },
     { scope: "canvas", allowInEditable: true },
@@ -144,6 +147,14 @@ export function CommandMenu() {
     undo,
   ]);
 
+  /* The keyboard walks one flat list across the sections, the way the node picker does. */
+  const commands = useMemo(() => sections.flatMap((section) => section.commands), [sections]);
+  const current = commands[Math.min(active, commands.length - 1)];
+
+  useEffect(() => {
+    list.current?.querySelector("[data-active]")?.scrollIntoView({ block: "nearest" });
+  }, [current]);
+
   if (!open) return null;
 
   return (
@@ -163,11 +174,28 @@ export function CommandMenu() {
               aria-label="Search commands"
               placeholder="Search commands and nodes"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setActive(0);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  setActive((index) => (commands.length === 0 ? 0 : (index + 1) % commands.length));
+                } else if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setActive((index) =>
+                    commands.length === 0 ? 0 : (index - 1 + commands.length) % commands.length,
+                  );
+                } else if (event.key === "Enter" && current) {
+                  event.preventDefault();
+                  current.run();
+                }
+              }}
             />
           </div>
         </div>
-        <div className="max-h-80 overflow-y-auto">
+        <div ref={list} className="max-h-80 overflow-y-auto">
           {sections.length === 0 ? (
             <p className={styles.nodePickerEmpty} role="status">
               Nothing matches “{query.trim()}”.
@@ -181,6 +209,8 @@ export function CommandMenu() {
                     key={command.id}
                     type="button"
                     className={styles.paletteItem}
+                    data-active={command.id === current?.id || undefined}
+                    onMouseEnter={() => setActive(commands.indexOf(command))}
                     onClick={command.run}
                   >
                     <span className={styles.paletteItemText}>
