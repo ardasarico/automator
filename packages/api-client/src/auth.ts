@@ -11,8 +11,9 @@ export class AuthApiError extends Error {
   constructor(
     public readonly status: number,
     public readonly code: ApiErrorCode,
+    options?: { cause?: unknown },
   ) {
-    super(code);
+    super(code, options);
     this.name = "AuthApiError";
   }
 }
@@ -36,8 +37,9 @@ export async function requestAuth<C extends AuthContract>(
       timeoutMs: 15_000,
       fetcher,
     })) as typeof result;
-  } catch {
-    throw new AuthApiError(503, "unavailable");
+  } catch (error) {
+    // The page only ever says "unavailable"; the cause stays on the error for the server log.
+    throw new AuthApiError(503, "unavailable", { cause: error });
   }
   if (result.status !== 200) throw new AuthApiError(result.status, (result.data as ApiError).error);
   return result.data as AuthResponse<C>;

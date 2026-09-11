@@ -156,6 +156,47 @@ describe("contract-driven request", () => {
     );
   });
 
+  test("a network failure says the API could not be reached and keeps the cause", async () => {
+    const refused = new TypeError("Connection refused");
+    const error = await request("http://api", meContract, {
+      token: "t",
+      fetcher: async () => {
+        throw refused;
+      },
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ApiRequestError);
+    expect((error as Error).message).toBe("Could not reach GET /auth/me: Connection refused");
+    expect((error as Error).cause).toBe(refused);
+  });
+
+  test("a timeout is named as one", async () => {
+    const error = await request("http://api", meContract, {
+      token: "t",
+      timeoutMs: 5,
+      fetcher: async (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    }).catch((caught: unknown) => caught);
+    expect((error as Error).message).toBe("Could not reach GET /auth/me: the request timed out");
+  });
+
+  test.each([
+    ["an HTML gateway page", new Response("<html>gateway</html>", { status: 502 }), 502],
+    ["an empty body", new Response(null, { status: 204 }), 204],
+  ])(
+    "%s reports the status it came with, not an unreachable API",
+    async (_label, response, status) => {
+      const error = await request("http://api", meContract, {
+        token: "t",
+        fetcher: async () => response,
+      }).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(ApiRequestError);
+      expect((error as Error).message).toBe(`GET /auth/me answered ${status} without a JSON body`);
+      expect((error as Error).cause).toBeInstanceOf(Error);
+    },
+  );
+
   test("a caller signal aborts the request without replacing the timeout", async () => {
     const caller = new AbortController();
     let sent: AbortSignal | undefined;
