@@ -25,6 +25,7 @@ import {
   RiArrowDownSLine,
   RiArrowGoBackLine,
   RiArrowGoForwardLine,
+  RiFlowChart,
   RiPlayLine,
   RiRestartLine,
   RiStopLine,
@@ -39,6 +40,7 @@ import styles from "./flow-builder.module.css";
 import { useFlowActivation } from "./flow-activation";
 import { FlowProblemsButton } from "./flow-problems-button";
 import { PublishButton } from "./publish-button";
+import { useResponsivePanels } from "./responsive-panels";
 import { RunModeControl } from "./run-mode-control";
 import { useRunStore } from "./run-store-provider";
 import { SaveButton, useSaveFlowController } from "./save-button";
@@ -230,7 +232,22 @@ function LiveRunConfirmation({ onConfirm, onClose }: { onConfirm(): void; onClos
   );
 }
 
+/**
+ * The flow's name, shown only in focus mode: the left panel that normally carries it is hidden
+ * there, and a conversation about a flow must say which flow. Renaming stays with the panel.
+ */
+function FocusFlowName() {
+  const name = useBuilderStore((state) => state.meta.name);
+  return (
+    <span className={styles.focusFlowName}>
+      <RiFlowChart aria-hidden="true" className="size-4 shrink-0" />
+      <span className="truncate">{name || "Untitled flow"}</span>
+    </span>
+  );
+}
+
 export function CanvasHeader() {
+  const { aiFocus } = useResponsivePanels();
   const { running, error, run, stop: stopSimulation } = useFlowRun();
   // The header hands the run the trigger it is showing, so the two can never name different ones.
   const { activeId } = useSimulationTriggers();
@@ -257,6 +274,7 @@ export function CanvasHeader() {
 
   return (
     <header className={styles.canvasHeader}>
+      {aiFocus && <FocusFlowName />}
       <RunModeControl />
       <Tooltip>
         <TooltipTrigger

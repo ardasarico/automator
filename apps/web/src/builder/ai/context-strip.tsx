@@ -20,11 +20,11 @@ const runStatusLabels: Record<string, string> = {
 };
 
 /**
- * What the next message is about. The canvas's own selection counts, so picking a node is enough
- * context for "rename this" to mean something.
+ * What the next message is about, shown above the field it will be written in. The canvas's own
+ * selection counts, so picking a node is enough context for "rename this" to mean something.
+ * The flow is not named here: the canvas header already does that.
  */
 export function ContextStrip({ onSend }: { onSend(text: string): void }) {
-  const name = useBuilderStore((state) => state.meta.name);
   const hasNodes = useBuilderStore((state) => state.nodes.some(isFlowNode));
   const canvasSelection = useBuilderStore(
     useShallow((state) =>
@@ -40,53 +40,55 @@ export function ContextStrip({ onSend }: { onSend(text: string): void }) {
 
   const selection = context.selection.length > 0 ? context.selection : canvasSelection;
   const run = context.run;
+  const chips = selection.length > 0 || problems.length > 0 || run !== undefined;
+  /* Nothing to carry and nothing to offer: the row is not drawn at all. */
+  if (!chips && !hasNodes) return null;
 
   return (
     <div className={styles.strip}>
-      <div className={styles.chips}>
-        <Badge variant="outline" className={styles.chip}>
-          <span className={styles.chipLabel}>{name || "Untitled flow"}</span>
-        </Badge>
-        {selection.length > 0 && (
-          <Badge variant="outline" className={styles.chip}>
-            <span className={styles.chipLabel}>
-              {selection.length} {selection.length === 1 ? "node" : "nodes"} selected
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Remove the selection from the context"
-              onClick={() => setContext({ selection: [] })}
-            >
-              <RiCloseLine aria-hidden="true" />
-            </Button>
-          </Badge>
-        )}
-        {problems.length > 0 && (
-          <Badge variant="error" className={styles.chip}>
-            <span className={styles.chipLabel}>
-              {problems.length} {problems.length === 1 ? "problem" : "problems"}
-            </span>
-          </Badge>
-        )}
-        {run && (
-          <Badge variant="outline" className={styles.chip}>
-            <span className={styles.chipLabel}>
-              Run: {runStatusLabels[run.status] ?? run.status}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Remove the run from the context"
-              onClick={() => setContext({ run: undefined })}
-            >
-              <RiCloseLine aria-hidden="true" />
-            </Button>
-          </Badge>
-        )}
-      </div>
+      {chips && (
+        <div className={styles.chips}>
+          {selection.length > 0 && (
+            <Badge variant="outline" className={styles.chip}>
+              <span className={styles.chipLabel}>
+                {selection.length} {selection.length === 1 ? "node" : "nodes"} selected
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Remove the selection from the context"
+                onClick={() => setContext({ selection: [] })}
+              >
+                <RiCloseLine aria-hidden="true" />
+              </Button>
+            </Badge>
+          )}
+          {problems.length > 0 && (
+            <Badge variant="error" className={styles.chip}>
+              <span className={styles.chipLabel}>
+                {problems.length} {problems.length === 1 ? "problem" : "problems"}
+              </span>
+            </Badge>
+          )}
+          {run && (
+            <Badge variant="outline" className={styles.chip}>
+              <span className={styles.chipLabel}>
+                Run: {runStatusLabels[run.status] ?? run.status}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Remove the run from the context"
+                onClick={() => setContext({ run: undefined })}
+              >
+                <RiCloseLine aria-hidden="true" />
+              </Button>
+            </Badge>
+          )}
+        </div>
+      )}
       {(problems.length > 0 || hasNodes) && (
         <div className={styles.quickActions}>
           {problems.length > 0 && (

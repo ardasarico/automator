@@ -205,11 +205,8 @@ describe("chat store", () => {
     expect(focused.getState().focusRequests).toBe(1);
   });
 
-  test("setMode and setDraftPrompt update their fields directly", () => {
+  test("setDraftPrompt updates its field directly", () => {
     const store = createChatStore();
-    expect(store.getState().mode).toBe("edit");
-    store.getState().setMode("new");
-    expect(store.getState().mode).toBe("new");
     store.getState().setDraftPrompt("build a webhook flow");
     expect(store.getState().draftPrompt).toBe("build a webhook flow");
     store.getState().setDraftPrompt(null);

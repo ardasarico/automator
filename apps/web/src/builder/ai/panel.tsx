@@ -11,7 +11,6 @@ import { takePendingPrompt } from "../../home/pending-prompt";
 import { isFlowNode } from "../document";
 import { useBuilderStore } from "../store-provider";
 import { useChatStore, useChatStoreApi } from "./chat-store-provider";
-import { ContextStrip } from "./context-strip";
 import { Composer } from "./composer";
 import { Message } from "./message";
 import styles from "./panel.module.css";
@@ -53,10 +52,13 @@ function EmptyState({ onPick }: { onPick(text: string): void }) {
   const hasNodes = useBuilderStore((state) => state.nodes.some(isFlowNode));
   return (
     <div className={styles.empty}>
+      <p className={styles.emptyTitle}>
+        {hasNodes ? "Ask for a change to this flow" : "Describe the flow you want"}
+      </p>
       <p>
         {hasNodes
-          ? "Ask for a change to this flow, or a question about it. Nothing lands on the canvas until you apply it."
-          : "Describe what the flow should do. The canvas is empty, so the first answer becomes a new flow."}
+          ? "Or ask a question about it. Nothing lands on the canvas until you apply the draft."
+          : "The canvas is empty, so the first answer becomes a new flow. Nothing lands on it until you apply the draft."}
       </p>
       {/* The panel is a blank column until someone knows what to type into it. */}
       <ul className={styles.suggestions} aria-label="Suggestions">
@@ -149,7 +151,6 @@ export function AiPanel() {
 
   return (
     <div className={styles.panel}>
-      <ContextStrip onSend={(text) => void send(text)} />
       {previewing && (
         <p className={styles.note}>
           Previewing the draft on the canvas. Apply or discard it to edit.
@@ -162,46 +163,51 @@ export function AiPanel() {
         aria-live="off"
         aria-label="AI conversation"
       >
-        {loadError !== null && messages.length === 0 ? (
-          <div className={styles.empty}>
-            <p>{loadError}</p>
-            <div className="mt-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setAttempt(attempt + 1)}
-              >
-                Try again
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {messages.length === 0 && !pending && <EmptyState onPick={(text) => void send(text)} />}
-            {messages.map((message, index) => (
-              <Message
-                key={message.id}
-                message={message}
-                streaming={message.id === streamingId}
-                last={index === messages.length - 1}
-                onSend={(text) => void send(text)}
-                onApply={(messageId) => void apply(messageId)}
-                onDiscard={(messageId) => void discard(messageId)}
-              />
-            ))}
-            {pending && (
-              <div className={styles.waiting}>
-                <span>{phaseLabels[phase ?? "thinking"]}</span>
-                <Elapsed />
-                <Button type="button" variant="ghost" size="sm" onClick={stop}>
-                  <RiCloseLine aria-hidden="true" />
-                  Stop
+        {/* A wide panel must not widen the text with it: the turns keep a readable measure. */}
+        <div className={styles.threadInner}>
+          {loadError !== null && messages.length === 0 ? (
+            <div className={styles.empty}>
+              <p>{loadError}</p>
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAttempt(attempt + 1)}
+                >
+                  Try again
                 </Button>
               </div>
-            )}
-          </>
-        )}
+            </div>
+          ) : (
+            <>
+              {messages.length === 0 && !pending && (
+                <EmptyState onPick={(text) => void send(text)} />
+              )}
+              {messages.map((message, index) => (
+                <Message
+                  key={message.id}
+                  message={message}
+                  streaming={message.id === streamingId}
+                  last={index === messages.length - 1}
+                  onSend={(text) => void send(text)}
+                  onApply={(messageId) => void apply(messageId)}
+                  onDiscard={(messageId) => void discard(messageId)}
+                />
+              ))}
+              {pending && (
+                <div className={styles.waiting}>
+                  <span>{phaseLabels[phase ?? "thinking"]}</span>
+                  <Elapsed />
+                  <Button type="button" variant="ghost" size="sm" onClick={stop}>
+                    <RiCloseLine aria-hidden="true" />
+                    Stop
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
       <p role="status" className="sr-only">
         {announcement}

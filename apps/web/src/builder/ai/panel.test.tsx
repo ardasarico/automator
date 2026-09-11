@@ -87,6 +87,23 @@ const drafting: AiStreamEvent[] = [
   { type: "done" },
 ];
 
+/* The same draft, offered after a check that failed: the card the panel must not let anyone
+   skim past. */
+const failing: AiStreamEvent[] = [
+  { type: "message", id: "m3" },
+  { type: "text.delta", delta: "Added the trigger." },
+  {
+    type: "proposal",
+    document: draft,
+    verification: {
+      checks: [{ name: "Manual run", status: "failed", detail: "Post to Discord had no message." }],
+      warnings: [],
+    },
+    replaces: true,
+  },
+  { type: "done" },
+];
+
 const asking: AiStreamEvent[] = [
   { type: "message", id: "m2" },
   { type: "text.delta", delta: "One thing first." },
@@ -414,6 +431,37 @@ describe("AiPanel", () => {
     expect(container.textContent).toContain("Applied");
   });
 
+  test("the draft's changes are behind Details, and the context sits with the composer", async () => {
+    await mount();
+    await ask("Start a flow");
+
+    const card = container.querySelector('[aria-label="Proposed flow"]')!;
+    expect(card.textContent).toContain("Draft ready · 1 change");
+    /* The detail is one click away, not printed under every answer. */
+    const details = card.querySelector<HTMLElement>("[id$='-details']")!;
+    expect(details.hasAttribute("hidden")).toBe(true);
+    await act(async () => buttonNamed("Details")!.click());
+    expect(details.hasAttribute("hidden")).toBe(false);
+    expect(details.textContent).toContain("Manual run");
+
+    /* The context belongs to the message being written, so it lives inside the composer. */
+    const composer = container.querySelector("form")!.closest("div")!;
+    expect(composer.querySelector('[aria-label="Suggestions"]')).toBeNull();
+    expect(chat.getState().context.selection).toEqual([]);
+  });
+
+  test("a draft that failed its checks says so and opens its detail", async () => {
+    script = failing;
+    await mount();
+    await ask("Start a flow");
+
+    const card = container.querySelector('[aria-label="Proposed flow"]')!;
+    expect(card.textContent).toContain("did not pass its checks");
+    const details = card.querySelector<HTMLElement>("[id$='-details']")!;
+    expect(details.hasAttribute("hidden")).toBe(false);
+    expect(details.textContent).toContain("Failed: Manual run");
+  });
+
   test("a question renders as chips and clicking one sends it", async () => {
     script = asking;
     await mount();
@@ -550,23 +598,27 @@ describe("AiPanel", () => {
     expect(alert.textContent).toContain("The session token was rejected.");
   });
 
-  test("an edit sends the canvas with secrets blanked and a new flow sends none", async () => {
+  test("an edit sends the canvas with secrets blanked", async () => {
     await mount({ document: builtFlow });
     await ask("Change the message");
 
     const edit = posts()[0]!.body as {
       document?: { nodes: { config: Record<string, unknown> }[] };
+      replace?: boolean;
     };
     expect(edit.document?.nodes[1]?.config.webhookUrl).toBe("");
     expect(JSON.stringify(edit)).not.toContain("discord.com/api/webhooks");
+    expect(edit.replace).toBeUndefined();
+  });
 
-    await act(async () => chat.getState().setMode("new"));
-    await ask("Start again from scratch");
-    const started = posts()[1]!.body as { replace?: boolean };
+  test("an empty canvas sends no document and says so", async () => {
+    await mount();
+    await ask("Start a flow");
+
+    const started = posts()[0]!.body as { replace?: boolean };
     expect(started).not.toHaveProperty("document");
     /* Without this the API would fall back to the saved flow and edit that instead. */
     expect(started.replace).toBe(true);
-    expect((posts()[0]!.body as { replace?: boolean }).replace).toBeUndefined();
   });
 
   test("applying an edit keeps the canvas's group frames", async () => {

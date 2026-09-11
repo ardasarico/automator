@@ -20,7 +20,6 @@ export type ChatState = {
   streamingId: string | null;
   phase: AiStatusPhase | null;
   context: ChatContext;
-  mode: "edit" | "new";
   focusRequests: number;
   /** Text put into the composer by a chip or by "Something else". */
   draftPrompt: string | null;
@@ -31,7 +30,6 @@ export type ChatState = {
   fail(error: ApiErrorCode, detail?: string): void;
   setProposalState(messageId: string, state: AiProposalState): void;
   setContext(patch: Partial<ChatContext>): void;
-  setMode(mode: "edit" | "new"): void;
   setDraftPrompt(text: string | null): void;
   requestFocus(): void;
   clear(): void;
@@ -62,7 +60,6 @@ export function createChatStore({
     streamingId: null,
     phase: null,
     context: { selection: [], problems: [] },
-    mode: "edit",
     focusRequests: focusOnMount ? 1 : 0,
     draftPrompt: null,
     load(messages) {
@@ -157,9 +154,6 @@ export function createChatStore({
     },
     setContext(patch) {
       set((state) => ({ context: { ...state.context, ...patch } }));
-    },
-    setMode(mode) {
-      set({ mode });
     },
     setDraftPrompt(text) {
       set({ draftPrompt: text });

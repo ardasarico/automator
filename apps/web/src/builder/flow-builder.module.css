@@ -531,6 +531,30 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* The flow's name in the canvas header, while the panel that usually carries it is hidden. */
+.focusFlowName {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 240px;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 4px 8px;
+  color: var(--muted-foreground);
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+
+/* The panel's own name, shown where the tab strip is in the narrow stage. */
+.panelTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
+}
+
 .canvasHeader {
   display: flex;
   flex: none;
@@ -1344,6 +1368,20 @@ button.outlineProblem:focus-visible {
   min-width: 0;
   flex: 1;
   flex-direction: column;
+}
+
+/* Focus mode: the conversation beside the canvas and nothing else. The panel keeps its place in
+   the DOM — only its order and width change — so React Flow is not remounted by the switch. */
+.builder[data-ai-focus] > .leftPanel,
+.builder[data-ai-focus] > .rail {
+  display: none;
+}
+
+.builder[data-ai-focus] .sidePanel {
+  order: -1;
+  width: clamp(420px, 42%, 720px);
+  border-right: 1px solid var(--border);
+  border-left: 0;
 }
 
 .compactControl {

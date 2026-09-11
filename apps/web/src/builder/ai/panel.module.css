@@ -5,14 +5,11 @@
   flex-direction: column;
 }
 
-/* What the turn is about, above everything the turn says. */
+/* What the next message carries, directly above the field it is written in. */
 .strip {
   display: flex;
-  flex: none;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
 }
 
 .chips {
@@ -52,22 +49,43 @@
 }
 
 .thread {
-  display: flex;
   min-height: 0;
   flex: 1;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px;
   overflow-y: auto;
 }
 
+/* The reading measure. A 360 px panel never reaches it; focus mode would run to 700 px without
+   it, and a conversation is not easier to read for being wider. */
+.threadInner {
+  display: flex;
+  box-sizing: border-box;
+  min-height: 100%;
+  width: 100%;
+  max-width: 620px;
+  flex-direction: column;
+  gap: 12px;
+  margin-inline: auto;
+  padding: 12px;
+}
+
 .empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin: auto 0;
   padding: 0 8px;
   color: var(--muted-foreground);
   font-size: 13px;
   line-height: 18px;
   text-align: center;
+  text-wrap: pretty;
+}
+
+.emptyTitle {
+  color: var(--foreground);
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: var(--text-label--font-weight);
 }
 
 .suggestions {
@@ -133,7 +151,45 @@
   overflow-wrap: anywhere;
 }
 
-/* The tool calls of one turn: what the agent did, in the order it did it. */
+/* The tool calls of one turn: what the agent did, in the order it did it. Live while the turn
+   runs, one line once it has finished. */
+.stepsBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stepsSummary {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+  transition: color 150ms;
+}
+.stepsSummary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+@media (hover: hover) {
+  .stepsSummary:hover {
+    color: var(--foreground);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stepsSummary {
+    transition: none;
+  }
+}
+
+.steps[data-folded] {
+  padding-inline-start: 18px;
+}
+
 .steps {
   display: flex;
   flex-direction: column;
@@ -176,11 +232,36 @@
 .preview {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--card);
+}
+
+.previewTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.previewSummary {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+  text-wrap: pretty;
+}
+
+.previewDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 
 .proposalState {
@@ -240,8 +321,9 @@
 
 .actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+  margin-top: 2px;
 }
 
 /* A failed check is the one thing in this card that must not be read past. */
@@ -269,9 +351,25 @@
   display: flex;
   flex: none;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px 12px 12px;
   border-top: 1px solid var(--border);
+}
+
+/* The rule spans the panel; what sits on it keeps the thread's measure. */
+.composerInner {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 620px;
+  flex-direction: column;
+  gap: 8px;
+  margin-inline: auto;
+  padding: 8px 12px 12px;
+}
+
+.composerForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .prompt {
@@ -285,12 +383,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.mode {
-  color: var(--muted-foreground);
-  font-size: 12px;
-  line-height: 16px;
 }
 
 /* Streamdown's output, mapped onto the workspace tokens so it reads like the rest of the panel. */

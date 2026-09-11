@@ -1,10 +1,10 @@
 "use client";
 
 import type { AiToolPart } from "@automator/contracts";
-import { Button } from "@automator/ui/button";
 import { Spinner } from "@automator/ui/spinner";
 import {
   RiAddLine,
+  RiArrowDownSLine,
   RiCheckLine,
   RiDeleteBinLine,
   RiEditLine,
@@ -110,20 +110,23 @@ export function Steps({
     rejected > 0 ? ` · ${rejected} rejected` : ""
   }`;
   return (
-    <div>
+    <div className={styles.stepsBlock}>
       {!streaming && (
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
+          className={styles.stepsSummary}
           aria-expanded={open}
           aria-controls={id}
           onClick={() => setOpen(!open)}
         >
+          <RiArrowDownSLine
+            aria-hidden="true"
+            className={`size-3.5 shrink-0 ${open ? "" : "-rotate-90"}`}
+          />
           {summary}
-        </Button>
+        </button>
       )}
-      <ul id={id} className={styles.steps} hidden={!open}>
+      <ul id={id} className={styles.steps} data-folded={!streaming || undefined} hidden={!open}>
         {/* Keyed by position, not by `step.id`: that id is the model's, and a provider that
             repeats one would collapse two rows into one. */}
         {steps.map((step, index) => (

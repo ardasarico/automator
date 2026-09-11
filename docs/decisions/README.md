@@ -28,3 +28,4 @@ Use one numbered Markdown file per decision, such as `0001-use-postgresql.md`. I
 | [0016](0016-keep-group-frames-a-drawing-the-engine-never-sees.md) | Keep group frames a drawing the engine never sees | Accepted |
 | [0017](0017-shape-node-cards-by-behaviour-and-colour-them-by-category.md) | Shape node cards by behaviour and colour them by category | Accepted |
 | [0018](0018-build-flows-with-a-tool-calling-agent-and-keep-the-conversation.md) | Build flows with a tool-calling agent and keep the conversation | Accepted |
+| [0019](0019-give-the-ai-panel-a-focus-stage-and-let-the-canvas-choose-the-target.md) | Give the AI panel a focus stage and let the canvas choose the target | Accepted |

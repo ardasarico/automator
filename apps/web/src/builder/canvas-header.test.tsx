@@ -44,6 +44,10 @@ const preamble = `
   mock.module("./use-canvas-hotkeys", () => ({ useCanvasHotkeys() {} }));
   mock.module("./flow-problems-button", () => ({ FlowProblemsButton: () => null }));
   mock.module("./builder-dialogs", () => ({ useBuilderDialogs: () => ({ open() {} }) }));
+  // The header reads the panel layout to know whether focus mode is on; the provider is the app's.
+  mock.module("./responsive-panels", () => ({
+    useResponsivePanels: () => ({ compact: false, panel: null, setPanel() {}, aiFocus: false, setAiFocus() {} }),
+  }));
   mock.module("./store-provider", () => ({
     useBuilderStore: (select) =>
       select({ meta: {}, past: [], future: [], undo() {}, redo() {} }),

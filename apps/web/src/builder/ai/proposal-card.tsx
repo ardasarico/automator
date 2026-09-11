@@ -10,6 +10,8 @@ import {
   type FlowDocument,
 } from "@automator/contracts";
 import { Button } from "@automator/ui/button";
+import { RiErrorWarningLine } from "@remixicon/react";
+import { useState } from "react";
 import { serializeFlow } from "../document";
 import { useBuilderStore } from "../store-provider";
 import { diffConnections, diffNodes, type DraftKind } from "./diff";
@@ -29,18 +31,14 @@ const proposalStates: Record<Exclude<AiProposalState, "pending">, string> = {
 };
 
 /**
- * A report where every scenario was skipped proves nothing, and a flow presented as checked on
- * the strength of it reads as verified when it is not.
+ * The one sentence the card leads with. A report where every scenario was skipped proves nothing,
+ * and a flow presented as checked on the strength of it reads as verified when it is not.
  */
-function verificationHeading(verification: AiVerification): string {
-  /* Loudest first: a draft that failed its checks is still on offer, and must not read as one
-     that passed them. */
-  if (verification.checks.some((check) => check.status === "failed"))
-    return "This flow did not pass its checks";
-  if (verification.checks.length === 0) return "Automatic checks did not run";
+function verificationSentence(verification: AiVerification): string {
+  if (verification.checks.length === 0) return "Automatic checks did not run.";
   if (verification.checks.every((check) => check.status === "skipped"))
-    return "Automatic checks could not exercise this flow";
-  return "Automatic checks · no external actions";
+    return "Automatic checks could not exercise this flow.";
+  return "Checks passed, no external actions were taken.";
 }
 
 const checkLabels: Record<AiVerification["checks"][number]["status"], string> = {
@@ -68,10 +66,14 @@ export function ProposalCard({
   const nodes = useBuilderStore((state) => state.nodes);
   const edges = useBuilderStore((state) => state.edges);
   const meta = useBuilderStore((state) => state.meta);
+  const failedCheck =
+    proposal.state === "pending" &&
+    proposal.verification.checks.some((check) => check.status === "failed");
+  /* A draft that failed its checks is not a draft to skim: its detail opens with the card. */
+  const [open, setOpen] = useState(failedCheck);
   const hasNodes = nodes.length > 0;
   if (proposal.state !== "pending")
     return <p className={styles.proposalState}>{proposalStates[proposal.state]}</p>;
-  const failedCheck = proposal.verification.checks.some((check) => check.status === "failed");
   const current = serializeFlow(meta, nodes, edges);
   // Only edits refer to the canvas's nodes. A new flow can reuse their ids by coincidence.
   const next = proposal.replaces
@@ -85,68 +87,85 @@ export function ProposalCard({
     { name: "Chain", before: chainName(flowChainId(current)), after: chainName(flowChainId(next)) },
   ].filter((setting) => setting.before !== setting.after);
   const changed = changes.filter((change) => change.kind !== "kept").length + connections.length;
+  const details = `${messageId}-details`;
   return (
     <div className={styles.preview} role="region" aria-label="Proposed flow">
-      <p className="text-caption">
-        {changed} {changed === 1 ? "change" : "changes"}
+      <p className={styles.previewTitle} data-failed={failedCheck ? "" : undefined}>
+        {failedCheck && <RiErrorWarningLine aria-hidden="true" className="size-4 shrink-0" />}
+        {failedCheck
+          ? "This draft did not pass its checks"
+          : `Draft ready · ${changed} ${changed === 1 ? "change" : "changes"}`}
       </p>
-      <div className="space-y-2 text-caption wrap-anywhere" aria-label="Automatic checks">
-        {/* Nothing was exercised, or something failed: saying "checked" here would be the lie
-            the panel used to tell. */}
-        <p data-failed={failedCheck ? "" : undefined}>
-          {verificationHeading(proposal.verification)}
-        </p>
-        <ul>
+      <p className={styles.previewSummary}>
+        {failedCheck
+          ? "You can still apply it and fix the rest on the canvas."
+          : verificationSentence(proposal.verification)}
+      </p>
+      <div id={details} hidden={!open} className={styles.previewDetails}>
+        <ul className="space-y-1 text-caption wrap-anywhere" aria-label="Automatic checks">
           {proposal.verification.checks.map((check, index) => (
-            <li key={index}>
+            <li key={index} data-failed={check.status === "failed" ? "" : undefined}>
               {checkLabels[check.status]}: {check.name} — {check.detail}
             </li>
           ))}
         </ul>
+        {/* Warnings are about the report, not about one check, so they stand apart from the list. */}
         {proposal.verification.warnings.map((warning, index) => (
-          <p key={index}>{warning}</p>
+          <p key={index} className={styles.previewSummary}>
+            {warning}
+          </p>
         ))}
-      </div>
-      {settings.length > 0 && (
-        <ul className="space-y-1 text-caption wrap-anywhere" aria-label="Flow settings changes">
-          {settings.map((setting) => (
-            <li key={setting.name}>
-              {setting.name}: {setting.before || "(empty)"} → {setting.after || "(empty)"}
+        {settings.length > 0 && (
+          <ul className="space-y-1 text-caption wrap-anywhere" aria-label="Flow settings changes">
+            {settings.map((setting) => (
+              <li key={setting.name}>
+                {setting.name}: {setting.before || "(empty)"} → {setting.after || "(empty)"}
+              </li>
+            ))}
+          </ul>
+        )}
+        <ul className={styles.changes}>
+          {changes.map((change) => (
+            <li
+              key={`${messageId}:${change.kind}:${change.id}`}
+              className={styles.change}
+              data-kind={change.kind}
+            >
+              <span className={styles.changeKind}>{changeLabels[change.kind]}</span>
+              <span className={styles.changeLabel}>{change.label}</span>
+              <span className={styles.changeType}>{change.type}</span>
             </li>
           ))}
         </ul>
-      )}
-      <ul className={styles.changes}>
-        {changes.map((change) => (
-          <li
-            key={`${messageId}:${change.kind}:${change.id}`}
-            className={styles.change}
-            data-kind={change.kind}
-          >
-            <span className={styles.changeKind}>{changeLabels[change.kind]}</span>
-            <span className={styles.changeLabel}>{change.label}</span>
-            <span className={styles.changeType}>{change.type}</span>
-          </li>
-        ))}
-      </ul>
-      {connections.length > 0 && (
-        <ul className={styles.changes} aria-label="Connection changes">
-          {connections.map(({ kind, edge }) => {
-            const document = kind === "removed" ? current : next;
-            return (
-              <li key={`${kind}:${edge.id}`} className={styles.change} data-kind={kind}>
-                <span className={styles.changeKind}>{changeLabels[kind]}</span>
-                <span className="min-w-0 wrap-anywhere">
-                  {endpoint(document, edge.source, edge.sourceHandle)} →{" "}
-                  {endpoint(document, edge.target, edge.targetHandle)}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+        {connections.length > 0 && (
+          <ul className={styles.changes} aria-label="Connection changes">
+            {connections.map(({ kind, edge }) => {
+              const document = kind === "removed" ? current : next;
+              return (
+                <li key={`${kind}:${edge.id}`} className={styles.change} data-kind={kind}>
+                  <span className={styles.changeKind}>{changeLabels[kind]}</span>
+                  <span className="min-w-0 wrap-anywhere">
+                    {endpoint(document, edge.source, edge.sourceHandle)} →{" "}
+                    {endpoint(document, edge.target, edge.targetHandle)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
       <div className={styles.actions}>
-        <Button type="button" variant="ghost" size="sm" onClick={onDiscard}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-expanded={open}
+          aria-controls={details}
+          onClick={() => setOpen(!open)}
+        >
+          {open ? "Hide details" : "Details"}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={onDiscard}>
           Discard
         </Button>
         <Button

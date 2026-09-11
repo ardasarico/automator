@@ -14,11 +14,30 @@ import { LeaveGuardProvider } from "./leave-guard";
 import { LeftPanel } from "./left-panel";
 import { NodePresetsProvider } from "./presets-context";
 import styles from "./flow-builder.module.css";
-import { ResponsivePanelsProvider } from "./responsive-panels";
+import { ResponsivePanelsProvider, useResponsivePanels } from "./responsive-panels";
 import { RightPanels } from "./right-panels";
 import { RunStoreProvider } from "./run-store-provider";
 import { SaveFlowProvider } from "./save-button";
 import { BuilderStoreProvider } from "./store-provider";
+
+/**
+ * The three columns. Focus mode is a flag on this element rather than a different tree: the AI
+ * panel keeps its place in the DOM and only changes order and width, so the canvas beside it is
+ * never remounted and its viewport, selection and history survive the switch.
+ */
+function BuilderLayout({ gettingStarted }: { gettingStarted: boolean }) {
+  const { aiFocus } = useResponsivePanels();
+  return (
+    <div className={styles.builder} data-ai-focus={aiFocus || undefined}>
+      <LeftPanel />
+      <div className={styles.canvasColumn}>
+        <CanvasHeader />
+        <FlowCanvas gettingStarted={gettingStarted} />
+      </div>
+      <RightPanels />
+    </div>
+  );
+}
 
 export function FlowBuilder({
   document,
@@ -56,14 +75,7 @@ export function FlowBuilder({
                     <DataTablesProvider>
                       <NodePresetsProvider>
                         <BuilderDialogsProvider>
-                          <div className={styles.builder}>
-                            <LeftPanel />
-                            <div className={styles.canvasColumn}>
-                              <CanvasHeader />
-                              <FlowCanvas gettingStarted={gettingStarted} />
-                            </div>
-                            <RightPanels />
-                          </div>
+                          <BuilderLayout gettingStarted={gettingStarted} />
                         </BuilderDialogsProvider>
                       </NodePresetsProvider>
                     </DataTablesProvider>

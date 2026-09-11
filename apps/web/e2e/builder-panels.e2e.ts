@@ -125,3 +125,37 @@ test("the minimap frames the whole flow inside its own box", async ({ page }) =>
     expect(node.y + node.h).toBeLessThanOrEqual(map.view.y + map.view.h);
   }
 });
+
+/*
+ * Focus mode is a layout change, not a different tree: the canvas must keep the React Flow
+ * instance it had, so the viewport it was left at survives the switch.
+ */
+test("focus mode widens the conversation without remounting the canvas", async ({ page }) => {
+  const flow = await seedFlow(`E2E focus ${Date.now()}`, apiFlow());
+  await page.goto(`/flows/${flow.id}`);
+
+  const panel = page.getByRole("complementary", { name: "Panels" });
+  await expect(panel).toBeVisible();
+  const narrow = (await panel.boundingBox())!;
+  const viewport = page.locator(".react-flow__viewport");
+  await expect(viewport).toBeVisible();
+  await page.evaluate(() => {
+    const el = document.querySelector(".react-flow__viewport") as HTMLElement;
+    el.dataset.witness = "kept";
+  });
+
+  await page.getByRole("button", { name: "Focus mode" }).click();
+  const focused = (await panel.boundingBox())!;
+  expect(focused.width).toBeGreaterThan(narrow.width);
+  // The conversation is now left of the canvas, and the screen preview is not offered beside it.
+  expect(focused.x).toBeLessThan(narrow.x);
+  await expect(page.getByRole("tab", { name: "Screen preview" })).toHaveCount(0);
+  // The flow's name moves to the canvas header, where the hidden left panel used to carry it.
+  await expect(page.getByRole("banner").getByText(flow.name)).toBeVisible();
+  // Same element, so the canvas was re-proportioned rather than rebuilt.
+  await expect(viewport).toHaveAttribute("data-witness", "kept");
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("tab", { name: "Screen preview" })).toBeVisible();
+  expect((await panel.boundingBox())!.width).toBe(narrow.width);
+});

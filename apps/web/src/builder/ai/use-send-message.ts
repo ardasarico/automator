@@ -121,8 +121,9 @@ export function useSendMessage(): SendMessage {
         createdAt: new Date().toISOString(),
       });
       /* What the API will answer with: a replacement, or an edit of what the canvas holds. The
-       * stream's `tool.result` carries no `replaces` of its own, so its preview reads this. */
-      const replacing = chat.mode === "new" || current.nodes.length === 0;
+       * canvas decides — an empty one has nothing to edit — and the stream's `tool.result`
+       * carries no `replaces` of its own, so its preview reads this. */
+      const replacing = current.nodes.length === 0;
       const controller = new AbortController();
       inFlight.controller = controller;
       const onEvent = (event: AiStreamEvent) => {
