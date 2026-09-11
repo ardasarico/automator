@@ -20,9 +20,9 @@ export function createTriggerIssueRoutes({
   return new Elysia({ name: "trigger-issues" }).use(createAuthGuard(identity)).get(
     listTriggerIssuesContract.path,
     async ({ claims, params, status }) => {
-      if (!flows) return status(503, { error: "unavailable" });
+      // Availability is settled before the store is read: an unconfigured reader costs no query.
+      if (!flows || !triggerIssues) return status(503, { error: "unavailable" });
       if (!(await flows.find(claims.id, params.id))) return status(404, { error: "not_found" });
-      if (!triggerIssues) return status(503, { error: "unavailable" });
       return { issues: await triggerIssues.listIssues(claims.id, params.id) };
     },
     { params: listTriggerIssuesContract.params, response: listTriggerIssuesContract.response },
