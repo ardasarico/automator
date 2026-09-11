@@ -60,9 +60,9 @@ export function createRunRoutes({
   const app = new Elysia({ name: "runs" }).use(createAuthGuard(identity)).post(
     runFlowContract.path,
     async ({ claims, body, status, request }) => {
-      // Checked in the handler, after the guard, so an anonymous caller always sees 401.
-      if (!Value.Check(runFlowContract.body, body))
-        return status(400, { error: "invalid_request" });
+      // Checked in the handler, after the guard, so an anonymous caller always sees 401, and a
+      // document the client can fix answers 422 `invalid_flow` like a saved flow does.
+      if (!Value.Check(runFlowContract.body, body)) return status(422, { error: "invalid_flow" });
       const mode = body.mode ?? "dry-run";
       const chain = chainFactory
         ? await chainFactory.forUser(claims.id, mode, flowChainId(body.document))

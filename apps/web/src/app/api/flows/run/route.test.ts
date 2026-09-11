@@ -85,9 +85,10 @@ test("a run request is forwarded to the API with the bearer token", async () => 
   ]);
 });
 
-test("a body without a document never reaches the API", async () => {
+test("a body without a document never reaches the API and reads like the API's refusal", async () => {
   const response = await post(JSON.stringify({ trigger: {} }));
-  expect(response.status).toBe(400);
+  expect(response.status).toBe(422);
+  expect(await response.json()).toEqual({ error: "invalid_flow" });
   expect(calls).toHaveLength(0);
 });
 

@@ -54,9 +54,12 @@ describe("api key routes", () => {
 
   test("refuses a nameless key and an unknown field", async () => {
     const { call } = fixture();
-    expect((await call("POST", "/api-keys", { name: "  " })).status).toBe(400);
-    expect((await call("POST", "/api-keys", {})).status).toBe(400);
-    expect((await call("POST", "/api-keys", { name: "CI", ownerId: "bob" })).status).toBe(400);
+    /* A name the owner can fix is unprocessable with its own code, not a bare 400. */
+    const blank = await call("POST", "/api-keys", { name: "  " });
+    expect(blank.status).toBe(422);
+    expect(await blank.json()).toEqual({ error: "invalid_name" });
+    expect((await call("POST", "/api-keys", {})).status).toBe(422);
+    expect((await call("POST", "/api-keys", { name: "CI", ownerId: "bob" })).status).toBe(422);
   });
 
   test("keeps one owner's keys away from another", async () => {

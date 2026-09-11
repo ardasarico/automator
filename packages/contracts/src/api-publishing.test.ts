@@ -2,11 +2,13 @@ import { describe, expect, test } from "bun:test";
 import {
   describeFlowApiProblems,
   flowApiSchema,
+  invokeApiFlowContract,
   isApiFlow,
   readFlowApiInputs,
   validateFlowApiInput,
   type FlowApiInput,
 } from "./api-publishing";
+import { parseResponse } from "./contract";
 import type { FlowNode } from "./flows";
 
 function node(id: string, type: FlowNode["type"], config: Record<string, unknown> = {}): FlowNode {
@@ -187,5 +189,21 @@ describe("describeFlowApiProblems", () => {
 
   test("says the input was refused when it carries no problems", () => {
     expect(describeFlowApiProblems([])).toBe("The input did not match what this flow declares.");
+  });
+});
+
+describe("invoke contract", () => {
+  test("a run stopped on a screen answers 409 with the run it created", () => {
+    expect(
+      parseResponse(invokeApiFlowContract, 409, { error: "waiting_on_screen", runId: "run-1" }),
+    ).toEqual({ status: 409, data: { error: "waiting_on_screen", runId: "run-1" } });
+    // A plain conflict still validates: the run id is optional.
+    expect(parseResponse(invokeApiFlowContract, 409, { error: "conflict" })).toEqual({
+      status: 409,
+      data: { error: "conflict" },
+    });
+    expect(() =>
+      parseResponse(invokeApiFlowContract, 409, { error: "waiting_on_screen", runId: "" }),
+    ).toThrow();
   });
 });

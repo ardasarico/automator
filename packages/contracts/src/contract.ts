@@ -6,11 +6,17 @@ export const apiErrorCodeSchema = Type.Union([
   Type.Literal("forbidden"),
   Type.Literal("invalid_flow"),
   Type.Literal("invalid_listing"),
+  /* An API key name the owner can fix: blank, too long, or sent with fields that are not a name. */
+  Type.Literal("invalid_name"),
   Type.Literal("invalid_profile"),
   Type.Literal("invalid_record"),
   Type.Literal("invalid_request"),
+  /* A secret name or value the owner can fix, as opposed to a request the client built wrong. */
+  Type.Literal("invalid_secret"),
   Type.Literal("invalid_table"),
   Type.Literal("not_found"),
+  /* The transfer verified, but the session it was meant to answer moved on before it was recorded. */
+  Type.Literal("payment_claim_lost"),
   Type.Literal("payment_pending"),
   Type.Literal("payment_rejected"),
   Type.Literal("payment_used"),

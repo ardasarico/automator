@@ -31,8 +31,9 @@ export async function POST(req: Request) {
   } catch {
     return authErrorResponse(req, new AuthApiError(400, "invalid_request"));
   }
+  // The same answer the API gives, so the page reads one code whichever side refused the name.
   if (!isCreateApiKeyInput(body))
-    return authErrorResponse(req, new AuthApiError(400, "invalid_request"));
+    return authErrorResponse(req, new AuthApiError(422, "invalid_name"));
   try {
     const result = await request(process.env.API_URL, createApiKeyContract, { token, body });
     if (result.status !== 201)

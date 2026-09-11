@@ -116,9 +116,13 @@ describe("secret routes", () => {
     };
     expect(bobList.secrets).toEqual([]);
     expect((await call("DELETE", "/secrets/api_key", undefined, "bob")).status).toBe(404);
-    expect((await call("PUT", "/secrets/Bad-Name", { value: "k" })).status).toBe(400);
-    expect((await call("PUT", "/secrets/ok", { value: "" })).status).toBe(400);
-    expect((await call("PUT", "/secrets/ok", { nope: true })).status).toBe(400);
+    /* A name or value the owner can fix is unprocessable with its own code, not a bare 400. */
+    const badName = await call("PUT", "/secrets/Bad-Name", { value: "k" });
+    expect(badName.status).toBe(422);
+    expect(await badName.json()).toEqual({ error: "invalid_secret" });
+    expect((await call("PUT", "/secrets/ok", { value: "" })).status).toBe(422);
+    expect((await call("PUT", "/secrets/ok", { nope: true })).status).toBe(422);
+    expect((await call("DELETE", "/secrets/Bad-Name")).status).toBe(422);
     expect((await call("GET", "/secrets", undefined, "stranger")).status).toBe(401);
     expect((await call("DELETE", "/secrets/api_key")).status).toBe(200);
     expect((await call("DELETE", "/secrets/api_key")).status).toBe(404);

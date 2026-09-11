@@ -175,9 +175,12 @@ describe("POST /v1/flows/:id/invoke", () => {
       }),
     );
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({ error: "waiting_on_screen" });
-    /* The run is still recorded, so the owner can see where it stopped. */
+    /* The run is still recorded, so the owner can see where it stopped, and the caller learns its id. */
     expect(stores.runRecords).toHaveLength(1);
+    expect(await response.json()).toEqual({
+      error: "waiting_on_screen",
+      runId: stores.runRecords[0]!.run.id,
+    });
   });
 
   test("counts invocations against the caller's own rate limit", async () => {

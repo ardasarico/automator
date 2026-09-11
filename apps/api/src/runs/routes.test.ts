@@ -177,11 +177,11 @@ describe("POST /flows/run", () => {
     expect(posted).toEqual([{ content: "hello" }]);
   });
 
-  test("answers 400 for a body that is not a flow document, and 401 first when anonymous", async () => {
+  test("answers 422 invalid_flow for a body that is not a flow document, and 401 first when anonymous", async () => {
     const { post } = fixture();
     const response = await post({ document: { nodes: "no" } }, "alice");
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "invalid_flow" });
     expect((await post({ document: { nodes: "no" } })).status).toBe(401);
   });
 });

@@ -58,7 +58,7 @@ export function createMachineRoutes({
           case "invalid_input":
             return status(422, { error: "invalid_request", problems: outcome.problems });
           case "waiting_on_screen":
-            return status(409, { error: "waiting_on_screen" });
+            return status(409, { error: "waiting_on_screen", runId: outcome.runId });
           case "ok":
             return status(200, outcome.result satisfies FlowApiResult);
         }
