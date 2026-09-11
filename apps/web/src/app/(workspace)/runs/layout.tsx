@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import styles from "./runs-split.module.css";
+import styles from "../../../components/panel-split.module.css";
 
 /**
  * The list and the open run, side by side. `panel` is a parallel route: `/runs/<id>` renders

@@ -1,0 +1,148 @@
+/*
+ * The grammar every workspace table shares — Flows, Runs and Data. Each section composes these
+ * rules and keeps only its own column proportions in its own module, so the three tables cannot
+ * drift apart again the way they had by 2026-09-11.
+ *
+ * No overflow container here: the page frame's content region is what scrolls, and a sticky
+ * header inside an overflow container pins to the top of that container instead of the top of
+ * the scrolling pane. A table wider than the pane lets the pane scroll sideways.
+ */
+.tableWrap {
+  max-width: 100%;
+}
+.table {
+  /* How much room a row takes. A data grid sets this tighter than a list of flows or runs. */
+  --row-padding-block: 12px;
+  width: 100%;
+  text-align: start;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-caption);
+  line-height: var(--text-caption--line-height);
+}
+.table th,
+.table td {
+  text-align: start;
+  padding: var(--row-padding-block) 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+/* No rule reaches the page gutter: the first and last cells line up with the toolbar above. */
+.table th:first-child,
+.table td:first-child {
+  padding-inline-start: 0;
+}
+.table th:last-child,
+.table td:last-child {
+  padding-inline-end: 0;
+}
+.table thead th {
+  position: sticky;
+  /* Cancels the content region's own top padding, so the header pins flush to the toolbar. */
+  top: -20px;
+  z-index: 2;
+  padding-block: 10px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  /* The region that scrolls carries the workspace surface, so the header has to repaint it. */
+  background: var(--muted);
+  box-shadow: 0 1px var(--border);
+}
+.table tbody th {
+  font-weight: 400;
+}
+
+/*
+ * Rows that respond as a whole. A table whose rows hold several separate targets leaves this
+ * off, so a hover highlight never promises a click the row does not have.
+ */
+.hoverRows tr:hover td,
+.hoverRows tr:hover th,
+.hoverRows tr:focus-within td,
+.hoverRows tr:focus-within th {
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+.hoverRows tr[aria-current] td,
+.hoverRows tr[aria-current] th {
+  background: var(--accent);
+}
+
+/*
+ * A column heading that carries its own order and, where it can be filtered, its own filter:
+ * the controls live on what they act on rather than on a toolbar. The heading says when it is
+ * the one in effect, so a sorted or filtered column is visible in the table and not only in a
+ * chip above it.
+ */
+.columnTrigger {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  padding: 2px 6px;
+  margin-inline-start: -6px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+.columnTrigger:hover,
+.columnTrigger[data-popup-open] {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+.columnTrigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.columnTrigger[data-active],
+.columnTrigger[data-filtered] {
+  color: var(--foreground);
+}
+/* A filter is a stronger claim than an order, so it keeps its caret in view. */
+.columnTrigger[data-filtered] .columnCaret {
+  opacity: 0.6;
+}
+.columnMark {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+/* Only on hover: an idle heading should not look like five open menus. */
+.columnCaret {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0;
+}
+.columnTrigger:hover .columnCaret,
+.columnTrigger:focus-visible .columnCaret,
+.columnTrigger[data-popup-open] .columnCaret {
+  opacity: 0.6;
+}
+
+/* A menu choice that says whether it is the one in effect. */
+.choiceItem .choiceMark {
+  opacity: 0;
+}
+.choiceItem[data-checked] .choiceMark {
+  opacity: 1;
+}
+
+/*
+ * Narrow viewports need the sideways scroll more than they need the sticky header, so below the
+ * breakpoint the two swap and the rows tighten.
+ */
+@media (max-width: 720px) {
+  .tableWrap {
+    overflow-x: auto;
+  }
+  .table thead th {
+    position: static;
+  }
+  .table th,
+  .table td {
+    padding: 10px 12px;
+  }
+}

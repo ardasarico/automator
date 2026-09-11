@@ -1,0 +1,19 @@
+/*
+ * A list beside the thing it has open. Sections that use a `@panel` parallel route compose this:
+ * one URL carries both, the panel can be linked, and Back closes it.
+ */
+.split {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+.main {
+  min-width: 0;
+  flex: 1;
+}
+/* Too narrow for both: the open panel takes the pane and the list waits behind Back. */
+@media (max-width: 1000px) {
+  .split:has(> aside) .main {
+    display: none;
+  }
+}

@@ -269,7 +269,7 @@ export function RunHistory({
               />
             </tr>
           </thead>
-          <tbody>
+          <tbody className={styles.rows}>
             {runs.map((run) => {
               const badge = runStatusLabels[run.status];
               const duration = runDuration(run.status, run.startedAt, run.finishedAt);

@@ -194,36 +194,14 @@
   }
 }
 
+/* The table grammar is shared with Runs and Data; only the proportions are the Flows list's own.
+ * The rows are not one target — the name, the state and the row menu are each their own — so the
+ * shared row highlight is deliberately left off. */
 .tableWrap {
-  max-width: 100%;
-  overflow-x: auto;
+  composes: tableWrap from "../../../components/workspace-table.module.css";
 }
 .table {
-  width: 100%;
-  text-align: start;
-  border-collapse: collapse;
-  font-size: var(--text-caption);
-  line-height: var(--text-caption--line-height);
-}
-.table th,
-.table td {
-  text-align: start;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-}
-.table th:first-child,
-.table td:first-child {
-  padding-inline-start: 0;
-}
-.table th:last-child,
-.table td:last-child {
-  padding-inline-end: 0;
-}
-.table thead th {
-  padding-block: 8px;
-  font-weight: 400;
-  color: var(--muted-foreground);
-  white-space: nowrap;
+  composes: table from "../../../components/workspace-table.module.css";
 }
 .table tbody th {
   min-width: 260px;
