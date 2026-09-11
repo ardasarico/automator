@@ -926,6 +926,20 @@
   .tick-4 {
     stroke-dashoffset: 0;
   }
+  /* The phone rests on its last screen, the one the full steps and the drawn tick describe;
+     the tap ripples rest invisible, or they would sit over the button labels. */
+  .page-4 {
+    transform: translateX(-75%);
+  }
+  .tap0,
+  .tap1,
+  .tap2 {
+    opacity: 0;
+  }
+  /* The slider rests on the first segment, so that label reads as the current one. */
+  .seg-slide + .seg-label {
+    color: var(--foreground);
+  }
 }
 
 /* ---- The canvas section clock ------------------------------------------------------- */

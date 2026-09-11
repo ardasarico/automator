@@ -97,6 +97,27 @@ and re-screenshot when the hero line changes. `robots.ts` allows everything but 
 ## Verification
 
 `bun run --filter=@automator/landing lint | typecheck | build` and `bun run format:check` pass
-as of the end of the 2026-09-11 session. No unit tests: the page is presentation. The statement,
-the features grid and the footer were checked in both themes and at 400px; the rest of the page is not yet checked in the light theme,
-at 400px, or under reduced motion.
+as of the end of the 2026-09-11 session. No unit tests: the page is presentation.
+
+### Browser pass 2026-09-11
+
+Playwright headless, full page at 1280 and 400 wide, light and dark as the system scheme, the
+footer toggle in both directions, `prefers-reduced-motion`, frames a few seconds apart, the
+prompt hand-off on a phone, `/preview`'s own theme island, and the console. No horizontal scroll
+at 400 (`scrollWidth` is 400); the console carries only WebGL performance notices from the shader.
+Four defects, all fixed:
+
+- **Light theme:** the mini-app button label was `text-background`, near-white on the bright
+  green; it is now the dark page's ink mixed with the accent, in both themes
+  (`build/illustrations.tsx`).
+- **Footer toggle:** switching themes on the page left the shader on the previous theme's
+  ground, so the headline sat on a black field in light. The backdrop read the tokens from
+  `useTheme`, a render before next-themes writes the class; it now reads the scheme off the root
+  class through a MutationObserver (`hero/backdrop.tsx`).
+- **Reduced motion:** the phone's tap ripples rested opaque over the button labels; they now
+  rest at opacity 0. The phone rested on the first screen with all three step bars full; it now
+  rests on the last screen with the tick drawn. The segmented control's slider rested on HTTPS
+  with the label still muted; the first label now reads as current (`app/globals.css`).
+
+Left as designed: the canvas mock scales to 352px on a phone, so its card text is about 4px; the
+hero is a plain field under reduced motion because the shader never mounts.

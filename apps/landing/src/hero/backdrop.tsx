@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "@automator/ui/theme-provider";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import WebThreads from "../vendor/web-threads/web-threads";
 
@@ -41,7 +40,18 @@ function coloursFor(theme: string): string[] {
   readings.set(theme, read);
   return read;
 }
-const subscribe = () => () => {};
+
+/*
+ * The scheme is read off the root's class, not from `useTheme`: next-themes updates its state a
+ * render before it writes the class, and a reading taken in between would cache the old palette
+ * under the new theme's name. The observer re-reads once the class has actually changed.
+ */
+function subscribe(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  return () => observer.disconnect();
+}
+const scheme = () => (document.documentElement.classList.contains("light") ? "light" : "dark");
 
 /**
  * Decoration behind the prompt and nothing else, so it is hidden from assistive technology. The
@@ -52,11 +62,11 @@ const subscribe = () => () => {};
  * frame later, and a visitor who asked for less motion never loads it at all.
  */
 export function HeroBackdrop() {
-  const { resolvedTheme } = useTheme();
-  const light = resolvedTheme === "light";
+  const theme = useSyncExternalStore(subscribe, scheme, () => "dark");
+  const light = theme === "light";
   const [brand, bright, ink, ground] = useSyncExternalStore(
     subscribe,
-    () => coloursFor(resolvedTheme ?? "dark"),
+    () => coloursFor(theme),
     () => fallback,
   );
   const [running, setRunning] = useState(false);

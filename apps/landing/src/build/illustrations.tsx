@@ -254,8 +254,10 @@ export function MiniAppFinal() {
                   </div>
                   {/* Concentric with the screen: its corner is the screen's corner minus the inset. */}
                   <span className="relative block" style={{ borderRadius: buttonRadius }}>
+                    {/* The accent is the same bright green in both themes, so the label is the dark
+                        page's ink in both; `text-background` went near-white in the light theme. */}
                     <span
-                      className="block bg-[color:var(--step-accent)] py-[3px] text-center text-[9px] text-background leading-[14px]"
+                      className="block bg-[color:var(--step-accent)] py-[3px] text-center text-[9px] text-[color:color-mix(in_srgb,var(--step-accent)_18%,#0b0e0f)] leading-[14px]"
                       style={{ borderRadius: buttonRadius }}
                     >
                       {action}
