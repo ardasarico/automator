@@ -34,6 +34,10 @@ apps/*/CLAUDE.md
 # Brainstorming mockups (superpowers visual companion)
 .superpowers/
 
+# Working documents for a round of work. What holds afterwards belongs in
+# docs/architecture.md, docs/web-ui.md or a decision record, not here.
+docs/plans/
+
 # Playwright
 apps/web/test-results/
 apps/web/playwright-report/
