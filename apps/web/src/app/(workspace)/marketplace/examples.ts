@@ -205,7 +205,7 @@ export const flowExamples = [
         description: "Query subgraph asks the Uniswap v3 subgraph for the USDC/ETH pool's price.",
       },
       {
-        name: "Above $4,000?",
+        name: "Above $2,000?",
         description: "A condition posts to Discord only when the pool prices ETH above the line.",
       },
     ],

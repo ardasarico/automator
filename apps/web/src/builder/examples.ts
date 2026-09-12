@@ -428,10 +428,10 @@ const fixtures: Record<FlowExample["id"], () => Fixture> = {
         ].join("\n"),
         variables: '{"id": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"}',
       }),
-      node("check", "logic.condition", 2, 0, "Above $4,000?", {
+      node("check", "logic.condition", 2, 0, "Above $2,000?", {
         left: "{{input.value.pool.token0Price}}",
         operator: "greater_than",
-        right: "4000",
+        right: "2000",
       }),
       node("notify", "notify.discord", 3, 0, "Post the price", {
         webhookUrl: "",
