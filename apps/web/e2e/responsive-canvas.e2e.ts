@@ -96,3 +96,74 @@ for (const width of [1280, 390]) {
     }
   });
 }
+/*
+ * The canvas header used to be held to one line, so in the band where both side panels are open
+ * but the window is not wide enough for them (roughly 1024-1365px) it overflowed its column to
+ * the right. The right panel is a later sibling carrying an opaque background, so it painted
+ * over the overflow: at 1024px it swallowed clicks on four controls, Share and Save among them,
+ * with nothing on screen to say why. Nothing in the header may end up underneath it.
+ */
+test("header controls stay out from under the right panel at every width", async ({
+  page,
+  context,
+}) => {
+  expect((await fetch(`${apiUrl}/auth/session`, { method: "POST", headers })).status).toBe(200);
+  await fetch(`${apiUrl}/auth/profile`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "E2E Tester", username: "e2e_tester" }),
+  });
+  await context.addCookies([
+    { name: "automator-session", value: e2eToken, domain: "localhost", path: "/" },
+  ]);
+  const response = await fetch(`${apiUrl}/flows`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      version: 1,
+      name: "Header reach",
+      description: "Local responsive fixture",
+      nodes: [
+        {
+          id: "trigger",
+          type: "trigger.miniapp-open",
+          position: { x: 0, y: 0 },
+          label: "Mini-app opened",
+          config: {},
+        },
+      ],
+      edges: [],
+    }),
+  });
+  expect(response.status).toBe(201);
+  const { flow } = await response.json();
+  try {
+    await page.goto(`/flows/${flow.id}`);
+    await page.getByRole("button", { name: "Share", exact: true }).waitFor();
+    const dismissChecklist = page.getByRole("button", { name: "Dismiss checklist" });
+    if (await dismissChecklist.isVisible()) await dismissChecklist.click();
+
+    for (const width of [1024, 1100, 1280, 1366, 1536]) {
+      await page.setViewportSize({ width, height: 800 });
+      const covered = await page.evaluate(() => {
+        const header = document.querySelector("header");
+        if (!header) return ["no header"];
+        const bounds = header.getBoundingClientRect();
+        return [...header.querySelectorAll("button")]
+          .filter((button) => {
+            const box = button.getBoundingClientRect();
+            const over = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+            return (
+              box.right > bounds.right + 0.5 ||
+              box.bottom > bounds.bottom + 0.5 ||
+              !!over?.closest("#builder-right-panel")
+            );
+          })
+          .map((button) => button.getAttribute("aria-label") ?? button.textContent ?? "?");
+      });
+      expect(covered, `header controls unreachable at ${width}px`).toEqual([]);
+    }
+  } finally {
+    await fetch(`${apiUrl}/flows/${flow.id}`, { method: "DELETE", headers });
+  }
+});

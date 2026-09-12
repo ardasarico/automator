@@ -555,13 +555,21 @@
   font-weight: var(--text-label--font-weight);
 }
 
+/* The row wraps at every width, not only under the compact breakpoint. What squeezes it is the
+ * canvas column, which narrows as the side panels open, so a wide window can still leave it far
+ * short of the 599 px the controls need. Held to one line it overflowed to the right instead,
+ * where the right panel — a later sibling carrying an opaque background — painted over the
+ * overflow and swallowed clicks on whatever sat at the end of the row, normally Share. */
 .canvasHeader {
   display: flex;
   flex: none;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-  height: 45px;
-  padding: 0 8px;
+  /* Block padding rather than a fixed height, so a second row is spaced like the first. One row
+   * still measures 45 px: its tallest control plus this padding stays under the minimum. */
+  min-height: 45px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--border);
   background: var(--card);
 }
@@ -1449,9 +1457,6 @@ button.outlineProblem:focus-visible {
   }
 
   .canvasHeader {
-    height: auto;
-    min-height: 45px;
-    flex-wrap: wrap;
     padding-block: 8px;
   }
 
