@@ -1,10 +1,8 @@
 # Decision Records
 
-This directory is a session-end record, not a task log.
+Why Automator is built the way it is. One numbered Markdown file per durable technical or architectural decision, each stating its status, context, decision, and consequences.
 
-At session wrap-up, add or update a record only for a durable technical or architectural decision explicitly settled with the user during that session. Keep tentative ideas, unresolved options, and task-local implementation choices out of this directory.
-
-Use one numbered Markdown file per decision, such as `0001-use-postgresql.md`. Include its status, context, decision, and consequences.
+A record is written only once a decision has actually been settled, so this is a record of what holds rather than a log of what was considered. A decision that no longer holds keeps its file and says which record replaced it; the table below carries that status.
 
 ## Records
 
