@@ -38,6 +38,13 @@ const input = {
   edges: [{ id: "e1", source: "n1", target: "n2", sourceHandle: "out", targetHandle: "in" }],
 };
 
+/* The two publishers in the browse test below. `automator_test` is shared with the e2e suite,
+ * which leaves listings of its own behind, so an assertion about "the marketplace" has to mean
+ * the rows this test published or it passes and fails on what ran before it. */
+const publishers = new Set(["test_arda", "test_nova"]);
+const publishedHere = (listing: { author: { username: string } }) =>
+  publishers.has(listing.author.username);
+
 describe.skipIf(!url)("listings store", () => {
   test("concurrent first publishes refresh one listing without losing its identity or fork count", async () => {
     const sql = new SQL(url!, { max: 2, connectionTimeout: 5 });
@@ -92,14 +99,20 @@ describe.skipIf(!url)("listings store", () => {
   });
 
   test.skipIf(!url)("publishes, re-publishes, forks and unpublishes flows", async () => {
-    // Never point this at a database with real data: test rows are deleted by id prefix.
+    // Never point this at a database with real data: these two users' rows are deleted.
     const sql = new SQL(url!, { max: 2, connectionTimeout: 5 });
+    /* Slugs share one namespace across the whole marketplace, so a literal "Airdrop gate" would
+     * assert that nothing else in this database has ever claimed it. A run-unique name, as the
+     * race test above uses, keeps the derivation and collision assertions without that bet. */
+    const suffix = crypto.randomUUID().replaceAll("-", "").slice(0, 8);
+    const gateName = `Airdrop gate ${suffix}`;
+    const gateSlug = `airdrop-gate-${suffix}`;
     try {
       await migrate(sql);
       const users = createUserStore(sql);
       const flows = createFlowStore(sql);
       const listings = createListingStore(sql);
-      await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
+      await sql`DELETE FROM automator_users WHERE id IN ('did:privy:test-a', 'did:privy:test-b')`;
       await users.sync("did:privy:test-a", "0xaaa");
       await users.saveProfile("did:privy:test-a", { name: "Arda", username: "test_arda" });
       await users.sync("did:privy:test-b", null);
@@ -107,12 +120,12 @@ describe.skipIf(!url)("listings store", () => {
 
       const flow = await flows.create("did:privy:test-a", input);
       const published = await listings.publish("did:privy:test-a", flow.flow, {
-        name: "  Airdrop gate ",
+        name: `  ${gateName} `,
         description: "Claim with World ID.",
       });
       expect(published).toMatchObject({
-        slug: "airdrop-gate",
-        name: "Airdrop gate",
+        slug: gateSlug,
+        name: gateName,
         description: "Claim with World ID.",
         author: { name: "Arda", username: "test_arda" },
         nodeTypes: ["world.id-verify", "usdc.payout"],
@@ -133,10 +146,10 @@ describe.skipIf(!url)("listings store", () => {
 
       const other = await flows.create("did:privy:test-b", input);
       const second = await listings.publish("did:privy:test-b", other.flow, {
-        name: "Airdrop gate",
+        name: gateName,
         description: "",
       });
-      expect(second.slug).toBe("airdrop-gate-2");
+      expect(second.slug).toBe(`${gateSlug}-2`);
 
       const edited = await flows.update("did:privy:test-a", flow.flow.id, {
         ...input,
@@ -144,32 +157,37 @@ describe.skipIf(!url)("listings store", () => {
         edges: input.edges,
       });
       const republished = await listings.publish("did:privy:test-a", edited!.flow, {
-        name: "Airdrop gate v2",
+        name: `${gateName} v2`,
         description: "Now cheaper.",
       });
-      expect(republished.slug).toBe("airdrop-gate");
-      expect(republished.name).toBe("Airdrop gate v2");
+      expect(republished.slug).toBe(gateSlug);
+      expect(republished.name).toBe(`${gateName} v2`);
       expect(republished.nodeTypes).toEqual(["world.id-verify"]);
       expect(republished.publishedAt).toBe(published.publishedAt);
       expect(await listings.findByFlow("did:privy:test-a", flow.flow.id)).toEqual(republished);
       expect(await listings.findByFlow("did:privy:test-b", flow.flow.id)).toBeNull();
 
-      const detail = await listings.find("airdrop-gate");
+      const detail = await listings.find(gateSlug);
       expect(detail?.document).toEqual({
         ...input,
         id: detail!.document.id,
-        name: "Airdrop gate v2",
+        name: `${gateName} v2`,
         description: "Now cheaper.",
         nodes: input.nodes.slice(0, 2),
       });
       expect(await listings.find("nope")).toBeNull();
 
+      /* `list` is the whole marketplace, and this database is shared with the e2e suite, so
+       * assert on the rows these two users published rather than on everything that exists. */
       const all = await listings.list();
-      expect(all.map((item) => item.slug)).toEqual(["airdrop-gate-2", "airdrop-gate"]);
+      expect(all.filter(publishedHere).map((item) => item.slug)).toEqual([
+        `${gateSlug}-2`,
+        gateSlug,
+      ]);
 
-      const forked = await listings.fork("did:privy:test-b", "airdrop-gate");
+      const forked = await listings.fork("did:privy:test-b", gateSlug);
       expect(forked?.flow).toMatchObject({
-        name: "Airdrop gate v2",
+        name: `${gateName} v2`,
         description: "Now cheaper.",
         nodes: input.nodes.slice(0, 2),
       });
@@ -178,16 +196,16 @@ describe.skipIf(!url)("listings store", () => {
       expect(forked?.appPublished).toBe(false);
       expect(forked?.enabled).toBe(false);
       expect(await flows.find("did:privy:test-b", forked!.flow.id)).toEqual(forked);
-      expect((await listings.find("airdrop-gate"))?.forkCount).toBe(1);
+      expect((await listings.find(gateSlug))?.forkCount).toBe(1);
       expect(await listings.fork("did:privy:test-b", "nope")).toBeNull();
 
-      expect(await listings.unpublish("did:privy:test-b", "airdrop-gate")).toBe(false);
-      expect(await listings.unpublish("did:privy:test-a", "airdrop-gate")).toBe(true);
-      expect(await listings.find("airdrop-gate")).toBeNull();
+      expect(await listings.unpublish("did:privy:test-b", gateSlug)).toBe(false);
+      expect(await listings.unpublish("did:privy:test-a", gateSlug)).toBe(true);
+      expect(await listings.find(gateSlug)).toBeNull();
       expect(await listings.findByFlow("did:privy:test-a", flow.flow.id)).toBeNull();
 
-      await sql`DELETE FROM automator_users WHERE id LIKE 'did:privy:test-%'`;
-      expect(await listings.list()).toEqual([]);
+      await sql`DELETE FROM automator_users WHERE id IN ('did:privy:test-a', 'did:privy:test-b')`;
+      expect((await listings.list()).filter(publishedHere)).toEqual([]);
     } finally {
       await sql.close({ timeout: 5 });
     }
