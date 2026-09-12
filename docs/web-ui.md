@@ -34,41 +34,46 @@ With no flows at all the page shows the shared icon illustration and three start
 
 ## Data
 
-`/data` is one working surface rather than an index and a detail page. `data/layout.tsx` reads the
-owner's tables once and renders three things side by side: the table rail, the section's content,
-and a `@panel` parallel-route slot. `/data` shows the gallery, `/data/<table>` the records of that
-table, and `/data/<table>/<record>` the same records with that record open in the panel — so one URL
-carries the whole view, the panel can be linked, and Back closes it. While a record is being read,
-`@panel/[tableId]/[recordId]/loading.tsx` holds the panel's frame with the shared side-panel
-skeleton, as the Runs panel does. Below 1000 px the open panel takes the pane, as on Runs.
+`data/layout.tsx` renders the section's content beside a `@panel` parallel-route slot, on the shared
+`panel-split.module.css` the Runs split also uses. `/data` shows the gallery, `/data/<table>` the
+records of that table, and `/data/<table>/<record>` the same records with that record open in the
+panel — so one URL carries the whole view, the panel can be linked, and Back closes it. While a
+record is being read, `@panel/[tableId]/[recordId]/loading.tsx` holds the panel's frame with the
+shared side-panel skeleton, as the Runs panel does. Below 1000 px the open panel takes the pane, as
+on Runs.
 
-The rail (`table-rail.tsx`) is 200 px on `--card`: a `Tables` band label on the title bar's line,
-one 30 px row per table with its record count, the open table marked `aria-current="page"` (a record
-open in the panel still marks its table), and `New table` at the foot. Collapsing it, which rides
-the `data_rail` cookie the way the sidebar rides `workspace_sidebar`, does not take the navigation
-away — the list becomes a `Choose a table` menu in a 44 px strip whose table items are client-side
-links.
+The section has no navigation rail of its own: `/data` is the index, and on a table's page the open
+table's name is the title (`table-switcher.tsx`), a menu listing every other table with the current
+one marked `aria-current="page"` and `New table` at its foot, with `Data` as a parent link beside
+it. That is how Flows and Runs already navigate, and it costs no width.
 
 The gallery (`data-browser.tsx`) gives each table a card that leads with its first four columns,
 each with its type icon and type name, then the table's name, description and
 `N records · M columns · edited`, the date a `LocalDate` in the reader's zone; a table with more
 columns than fit says how many are left, and one with none still keeps its shape. Search and sort sit on the title bar and toolbar as on Flows.
 
-The grid (`record-grid.tsx`) draws a row-number gutter, one header per column carrying the column's
-type and a menu that sorts ascending or descending or opens a filter for that column
-(`record-filter-dialog.tsx`, offering only the operators `dataColumnOperators` allows for that
-type), values styled by type (`record-value.tsx`), inline cell editing (`record-cell.tsx`,
-unchanged), an expand control per row that opens the panel, and a `New record` row. Filters and the
-sort show as removable chips on the toolbar. Beside Edit columns, the table's `…` menu holds one
-destructive-styled item, Delete table, which opens a confirmation (`delete-table-dialog.tsx`); when
-the API answers that flows still use the table, the dialog lists them and asks again with "Delete
-anyway".
+The grid (`record-grid.tsx`) composes the shared `workspace-table.module.css` grammar and is its own
+scroll pane, so the header row, the gutter and the footer hold still while the records move. The
+gutter carries a row number and a selection checkbox, with a select-all in its heading; selecting
+anything replaces the toolbar with a count and a Delete that asks first (`grid-dialogs.tsx`). Each
+column heading shows the column's type and opens a menu that sorts in that type's own words ("A →
+Z", "Oldest first", "Unchecked first"), opens a filter for that column (`record-filter-dialog.tsx`,
+offering only the operators `dataColumnOperators` allows for that type), and renames, hides or
+deletes the column; a trailing `+` adds one, and heading edges drag to resize. Values are styled by
+type (`record-value.tsx`) and edited in place (`record-cell.tsx`), each row has an expand control
+that opens the panel, and a `New record` row closes the list. Hidden columns and column widths are
+one viewer's view of a shared table, so `column-preferences.ts` keeps them in `localStorage` and
+never sends them to the API. Filters and the sort show as removable chips on the toolbar. Beside
+Edit columns, the table's `…` menu holds one destructive-styled item, Delete table, which opens a
+confirmation (`delete-table-dialog.tsx`); when the API answers that flows still use the table, the
+dialog lists them and asks again with "Delete anyway".
 
 Filter, sort and search live in the URL (`record-query.ts`), so the server renders what the reader
 sees and a narrowed view can be linked; anything unreadable in the URL is dropped rather than
-refused. The two paging arms are distinct and the toolbar says which one is running: an unfiltered
-table pages 25 at a time by cursor, while a filtered, sorted or searched one asks the API's `find`
-path for at most 100 matches and reports `Showing the first 100 matches` when the response's
+refused. The two paging arms are distinct and the grid's footer says which one is running: an
+unfiltered table pages 25 at a time by cursor, with `First page` and `Older records` beside the
+count, while a filtered, sorted or searched one asks the API's `find` path for at most 100 matches
+and says `The first 100 matches` — and why a cursor cannot follow it — when the response's
 `truncated` flag is set.
 
 The panel (`record-panel.tsx`) reuses the shared `SidePanel`: the record's label over when it was
