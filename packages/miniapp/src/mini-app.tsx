@@ -3,6 +3,7 @@
 import { resolveTemplates } from "@automator/flow-engine";
 import type { FlowDocument, FlowRun, FlowRunNodeResult } from "@automator/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppBar, MiniAppView } from "./chrome";
 import { isScreenNode, type ScreenNode } from "./engine";
 import {
   EndView,
@@ -157,35 +158,41 @@ export function MiniApp({
       className={`flex h-full min-h-0 flex-col bg-background text-foreground ${className ?? ""}`.trim()}
       data-session={session.kind}
     >
-      {name !== undefined && (
-        <div className="flex h-11 flex-none items-center border-b px-5 text-caption font-medium">
-          <span className="truncate">{name}</span>
-        </div>
-      )}
-      {session.kind === "screen" && screen ? (
-        <ScreenView
-          key={screen.id}
-          node={screen}
-          titleRef={titleRef}
-          onContinue={(port, data) => act(screen, port, data)}
-        />
-      ) : session.kind === "running" ? (
-        <WorkingView steps={workingSteps(document, session.results)} />
-      ) : session.kind === "failed" ? (
-        <FailedView
-          label={document.nodes.find((node) => node.id === session.nodeId)?.label}
-          message={session.message}
-          error={session.error}
-          onRestart={restart}
-          titleRef={titleRef}
-        />
-      ) : session.kind === "no-entry" ? (
-        <NoEntryView />
-      ) : (
-        <EndView onRestart={restart} />
-      )}
+      {name !== undefined && <AppBar name={name} busy={session.kind === "running"} />}
+      <MiniAppView key={viewKey(session)} view={session.kind}>
+        {session.kind === "screen" && screen ? (
+          <ScreenView
+            key={screen.id}
+            node={screen}
+            titleRef={titleRef}
+            onContinue={(port, data) => act(screen, port, data)}
+          />
+        ) : session.kind === "running" ? (
+          <WorkingView steps={workingSteps(document, session.results)} />
+        ) : session.kind === "failed" ? (
+          <FailedView
+            label={document.nodes.find((node) => node.id === session.nodeId)?.label}
+            message={session.message}
+            error={session.error}
+            onRestart={restart}
+            titleRef={titleRef}
+          />
+        ) : session.kind === "no-entry" ? (
+          <NoEntryView />
+        ) : (
+          <EndView onRestart={restart} />
+        )}
+      </MiniAppView>
     </div>
   );
+}
+
+/*
+ * What the visitor is looking at. A run that adds a step stays the same view, so the working
+ * state does not replay its entrance on every result that lands.
+ */
+function viewKey(session: SessionState): string {
+  return session.kind === "screen" ? `screen:${session.nodeId}` : session.kind;
 }
 
 function currentScreen(document: FlowDocument, session: SessionState): ScreenNode | null {

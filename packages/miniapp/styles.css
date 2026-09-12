@@ -1,0 +1,73 @@
+/*
+ * The mini-app's own motion. Both hosts that render it — the runtime's visitor page and the
+ * builder's screen preview — import this next to the shared stylesheets.
+ */
+
+@keyframes mini-app-view-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes mini-app-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mini-app-progress {
+  from {
+    translate: -100% 0;
+  }
+  to {
+    translate: 260% 0;
+  }
+}
+
+/* Each view enters once: the wrapper is keyed per screen, so React remounts it and replays this. */
+[data-slot="mini-app-view"] {
+  animation: mini-app-view-in 240ms var(--ease-press) both;
+}
+
+/* The working view comes and goes between every screen; a drift on each pass would read as jitter. */
+[data-slot="mini-app-view"][data-view="running"],
+[data-slot="mini-app-view"][data-view="loading"] {
+  animation-name: mini-app-fade-in;
+}
+
+[data-slot="mini-app-step"] {
+  animation: mini-app-fade-in 200ms var(--ease-press) both;
+}
+
+[data-slot="mini-app-progress-bar"] {
+  animation: mini-app-progress 1.15s ease-in-out infinite;
+}
+
+[data-slot="mini-app-footer"] [data-slot="button"] {
+  transition: scale 150ms var(--ease-press);
+}
+
+[data-slot="mini-app-footer"] [data-slot="button"]:active:not([data-loading], :disabled) {
+  scale: 0.98;
+}
+
+/*
+ * The shared reduced-motion rule collapses every [data-slot] animation to 0.01ms, which would
+ * leave the indeterminate bar flickering in place. It becomes a still bar instead.
+ */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="mini-app-progress-bar"] {
+    width: 100%;
+    animation: none !important;
+    translate: 0 0;
+    opacity: 0.5;
+  }
+}

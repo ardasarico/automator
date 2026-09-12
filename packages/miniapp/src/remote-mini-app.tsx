@@ -7,6 +7,7 @@ import {
   type MiniAppSession,
 } from "@automator/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppBar, MiniAppView } from "./chrome";
 import type { ScreenNode } from "./engine";
 import type { IdentityAnswer } from "./identity";
 import { EndView, ScreenView, VisitorFailedView, WorkingView, type WorkingStep } from "./screens";
@@ -213,11 +214,15 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
   };
 
   let body: React.ReactNode;
-  if (state.kind === "loading")
+  let view: string;
+  if (state.kind === "loading") {
+    view = "loading";
     body = <WorkingView steps={loaded.client === client ? steps : []} />;
-  else if (state.kind === "unavailable")
+  } else if (state.kind === "unavailable") {
+    view = "unavailable";
     body = <VisitorFailedView message={state.message} onRetry={restart} titleRef={titleRef} />;
-  else if (state.session.status === "screen" && state.session.screen)
+  } else if (state.session.status === "screen" && state.session.screen) {
+    view = `screen:${state.session.screen.nodeId}`;
     body = (
       <>
         {state.notice && (
@@ -233,7 +238,8 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
         />
       </>
     );
-  else if (state.session.status === "failed")
+  } else if (state.session.status === "failed") {
+    view = "failed";
     body = (
       <VisitorFailedView
         message={state.session.error ?? miniAppFailureMessage}
@@ -243,19 +249,20 @@ export function RemoteMiniApp({ client, name, className }: RemoteMiniAppProps) {
         titleRef={titleRef}
       />
     );
-  else body = <EndView onRestart={restart} />;
+  } else {
+    view = "end";
+    body = <EndView onRestart={restart} />;
+  }
 
   return (
     <div
       className={`flex h-full min-h-0 flex-col bg-background text-foreground ${className ?? ""}`.trim()}
       data-session={state.kind === "session" ? state.session.status : state.kind}
     >
-      {name !== undefined && (
-        <div className="flex h-11 flex-none items-center border-b px-5 text-caption font-medium">
-          <span className="truncate">{name}</span>
-        </div>
-      )}
-      {body}
+      {name !== undefined && <AppBar name={name} busy={state.kind === "loading"} />}
+      <MiniAppView key={view} view={view}>
+        {body}
+      </MiniAppView>
     </div>
   );
 }

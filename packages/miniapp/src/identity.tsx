@@ -75,7 +75,11 @@ export type IdentityScreenProps = {
   node: ScreenNode;
   onContinue(port: string, data?: Record<string, unknown>, identity?: IdentityAnswer): void;
   titleRef?: React.Ref<HTMLHeadingElement>;
-  frame: React.ComponentType<{ children: React.ReactNode; footer?: React.ReactNode }>;
+  frame: React.ComponentType<{
+    children: React.ReactNode;
+    footer?: React.ReactNode;
+    icon?: React.ReactNode;
+  }>;
   title: React.ComponentType<{
     children: React.ReactNode;
     titleRef?: React.Ref<HTMLHeadingElement>;
@@ -177,6 +181,7 @@ export function PrivyLoginScreen({
   const methods = config.methods.map((method) => methodLabels[method] ?? method);
   return (
     <Frame
+      icon={<RiUserLine />}
       footer={
         <Button
           size="xl"
@@ -234,6 +239,7 @@ export function WorldIdVerifyScreen({
   const level = config.verificationLevel === "orb" ? "Orb-verified World ID" : "World ID";
   return (
     <Frame
+      icon={<RiShieldCheckLine />}
       footer={
         <Button
           size="xl"
@@ -300,6 +306,7 @@ export function WorldSelfieCheckScreen({
   };
   return (
     <Frame
+      icon={<RiCameraLensLine />}
       footer={
         <Button
           size="xl"

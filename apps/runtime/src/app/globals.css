@@ -1,5 +1,6 @@
 @import "@automator/tailwind-config/styles.css";
 @import "@automator/ui/styles.css";
+@import "@automator/miniapp/styles.css";
 
 @source "..";
 

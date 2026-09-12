@@ -103,6 +103,7 @@ export function UsdcPaymentScreen({
   };
   return (
     <Frame
+      icon={<RiWallet3Line />}
       footer={
         <>
           <Button
@@ -131,10 +132,16 @@ export function UsdcPaymentScreen({
           {config.description}
         </p>
       )}
-      <div className="flex flex-col gap-2 rounded-lg border p-4">
-        <Row label="Amount" value={`${amount} USDC`} />
-        <Row label="To" value={details.to} title={details.toAddress} />
-        <Row label="Network" value={details.chainName} />
+      {/* What the visitor is about to sign, led by the figure they are deciding on. */}
+      <div className="flex flex-col rounded-2xl border bg-muted/50">
+        <div className="flex flex-col items-center gap-1 px-4 py-5">
+          <span className="text-caption text-muted-foreground">You pay</span>
+          <span className="text-page tabular-nums">{`${amount} USDC`}</span>
+        </div>
+        <div className="flex flex-col gap-2.5 border-t px-4 py-3.5">
+          <Row label="To" value={details.to} title={details.toAddress} />
+          <Row label="Network" value={details.chainName} />
+        </div>
       </div>
       <PayingWallet payment={payment} />
       {preview && (

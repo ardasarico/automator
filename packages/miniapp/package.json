@@ -3,9 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "sideEffects": [
+    "./styles.css"
+  ],
   "exports": {
     ".": "./src/index.ts",
-    "./engine": "./src/engine.ts"
+    "./engine": "./src/engine.ts",
+    "./styles.css": "./styles.css"
   },
   "scripts": {
     "lint": "oxlint --deny-warnings .",
