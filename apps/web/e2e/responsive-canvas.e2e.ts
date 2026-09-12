@@ -68,11 +68,21 @@ for (const width of [1280, 390]) {
       } else {
         await expect(left).toBeVisible();
         await expect(right).toBeVisible();
-        expect((await left.boundingBox())!.width).toBe(260);
+        /* Node settings were widened to 340 so labels stop wrapping and help stays on one line. */
+        expect((await left.boundingBox())!.width).toBe(340);
         expect((await right.boundingBox())!.width).toBe(360);
       }
       await page.locator('.react-flow__node[data-id="trigger"]').click();
-      await expect(left.getByLabel("Label", { exact: true })).toBeVisible();
+      /*
+       * Node settings no longer open with a "Label" field. Renaming moved into the panel's own
+       * header, where the node's name is a button that becomes a "Node name" input, so the name
+       * on that button is what says the panel is showing the node that was clicked.
+       */
+      const rename = left.getByRole("button", { name: "Mini-app opened", exact: true });
+      await expect(rename).toBeVisible();
+      await rename.click();
+      await expect(left.getByLabel("Node name", { exact: true })).toBeVisible();
+      await page.keyboard.press("Escape");
       if (width === 390) {
         await page.screenshot({ path: "/private/tmp/automator-responsive-390-settings.png" });
         await page.getByRole("button", { name: "Close left panel" }).click();
@@ -96,6 +106,7 @@ for (const width of [1280, 390]) {
     }
   });
 }
+
 /*
  * The canvas header used to be held to one line, so in the band where both side panels are open
  * but the window is not wide enough for them (roughly 1024-1365px) it overflowed its column to
