@@ -32,7 +32,7 @@ export function HeroPrompt() {
           event.preventDefault();
           if (!empty) event.currentTarget.form?.requestSubmit();
         }}
-        placeholder="Swap 100 USDC for ETH every Monday…"
+        placeholder="Post to Discord when our treasury drops below 500 USDC…"
         maxLength={1000}
         rows={2}
         aria-label="Describe the flow you want"

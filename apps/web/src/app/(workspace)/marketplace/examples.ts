@@ -242,7 +242,7 @@ export const flowExamples = [
   {
     id: "selfie-gated-claim",
     name: "Selfie-gated claim",
-    description: "Pay one USDC claim per live person, checked with a World App selfie.",
+    description: "A World App selfie check gates the USDC claim.",
     steps: [
       { name: "Sign in", description: "Privy signs the visitor in and keeps their wallet." },
       {
@@ -254,7 +254,7 @@ export const flowExamples = [
         name: "Verified?",
         description: "A condition lets only a verified check through to the payout.",
       },
-      { name: "Send USDC", description: "The payout node pays the visitor's wallet once." },
+      { name: "Send USDC", description: "The payout node pays the visitor's wallet." },
     ],
     nodes: [
       { name: "Selfie Check", icon: RiCameraLensLine },

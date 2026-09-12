@@ -37,7 +37,7 @@ export function RunModeControl() {
           Simulate
         </TooltipTrigger>
         <TooltipPopup side="bottom">
-          Runs on a copy: no transaction is signed and no message is sent.
+          No transaction is signed. Messages and AI calls still go out.
         </TooltipPopup>
       </Tooltip>
       <Tooltip>

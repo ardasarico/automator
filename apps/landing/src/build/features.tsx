@@ -25,7 +25,7 @@ const features = [
   {
     icon: RiCoinsLine,
     title: "Onchain actions",
-    line: "USDC payments and contract calls on Base, signed by a wallet the server keeps for you.",
+    line: "USDC payments and contract calls on Base and World Chain testnets, signed by a wallet the server keeps for you.",
     color: "var(--chart-3)",
   },
   {
@@ -43,7 +43,7 @@ const features = [
   {
     icon: RiShieldCheckLine,
     title: "Secrets and guardrails",
-    line: "Keys live on the server and never appear in a run. Nothing signs until you turn signing on.",
+    line: "Keys live on the server and are stripped from anything you publish. Nothing signs until you turn signing on.",
     color: "var(--chart-3)",
   },
 ];

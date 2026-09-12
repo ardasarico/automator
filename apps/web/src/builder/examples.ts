@@ -523,7 +523,7 @@ const fixtures: Record<FlowExample["id"], () => Fixture> = {
         methods: ["email", "wallet"],
       }),
       node("selfie", "world.selfie-check", 2, 0, "Selfie Check", {
-        title: "One claim per person",
+        title: "Confirm you are a live person",
         message: "World App takes a quick selfie to confirm a live person is claiming.",
         action: "claim",
         signal: "{{vars.visitor.wallet}}",

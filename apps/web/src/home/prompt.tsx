@@ -82,7 +82,7 @@ export function HomePrompt() {
             event.preventDefault();
             event.currentTarget.form?.requestSubmit();
           }}
-          placeholder="Swap 100 USDC for ETH every Monday…"
+          placeholder="Post to Discord when our treasury drops below 500 USDC…"
           maxLength={promptMaxLength}
           rows={2}
           aria-label="Describe the flow you want"

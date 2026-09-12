@@ -6,7 +6,7 @@ import "./globals.css";
 
 const title = "Automator — build, simulate, and run onchain workflows";
 const description =
-  "A visual canvas for onchain workflows. Draw a flow or describe it, rehearse it on a fork without spending anything, then read every run node by node.";
+  "A visual canvas for onchain workflows. Draw a flow or describe it, simulate it without signing anything, then read every run node by node.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://automator.ardasari.co"),

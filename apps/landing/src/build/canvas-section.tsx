@@ -280,7 +280,7 @@ const features = [
   {
     icon: RiTestTubeLine,
     title: "Simulate first",
-    line: "Run the whole flow on a fork. Nothing is broadcast.",
+    line: "Run the whole flow with onchain writes checked, not sent.",
     color: "var(--chart-1)",
   },
   {
